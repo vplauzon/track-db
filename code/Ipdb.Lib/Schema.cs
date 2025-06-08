@@ -61,8 +61,12 @@ namespace Ipdb.Lib
         #endregion
 
         public Schema<T> AddSecondaryIndex<PT>(Func<T, PT> propertyExtractor)
+            where PT : notnull
         {
-            throw new NotImplementedException();
+            return new Schema<T>(
+                _primaryIndex,
+                _secondaryIndexes.Add(
+                    Index.CreateIndex(propertyExtractor)));
         }
     }
 }
