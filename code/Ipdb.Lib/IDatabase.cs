@@ -8,6 +8,10 @@ namespace Ipdb.Lib
 {
     public interface IDatabase
     {
-        ITable<T> CreateTable<T>(string tableName, Schema<T> schema);
+        ITable<T> AddTable<T>(string tableName, Schema<T> schema);
+
+        Task LoadDataAsync();
+
+        void ExecuteCommand(DatabaseCommand databaseCommand);
     }
 }
