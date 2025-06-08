@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    public interface IDatabase
+    internal static class EngineFactory
     {
-        ITable<T> CreateTable<T>(string tableName, Schema<T> schema);
+        public IEngine CreateEngine()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
