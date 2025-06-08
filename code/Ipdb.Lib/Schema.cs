@@ -26,6 +26,7 @@ namespace Ipdb.Lib
             IImmutableList<IndexType> IndexTypes)
         {
             public static Index CreateIndex<PT>(Func<T, PT> propertyExtractor)
+                where PT : notnull
             {
                 return new Index(
                     o => propertyExtractor(o),

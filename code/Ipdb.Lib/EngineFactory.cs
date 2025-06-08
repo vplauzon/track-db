@@ -8,7 +8,7 @@ namespace Ipdb.Lib
 {
     internal static class EngineFactory
     {
-        public IEngine CreateEngine()
+        public static IEngine CreateEngine()
         {
             throw new NotImplementedException();
         }
