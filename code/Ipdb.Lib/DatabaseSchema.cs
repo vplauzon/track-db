@@ -5,8 +5,6 @@ namespace Ipdb.Lib
 {
     public class DatabaseSchema
     {
-        private readonly IImmutableDictionary<string, object> _tables;
-
         #region Constructor
         public DatabaseSchema()
             : this(ImmutableDictionary<string, object>.Empty)
@@ -15,13 +13,15 @@ namespace Ipdb.Lib
 
         private DatabaseSchema(IImmutableDictionary<string, object> tables)
         {
-            _tables = tables;
+            TableMap = tables;
         }
         #endregion
 
         public DatabaseSchema AddTable<T>(string tableName, TableSchema<T> schema)
         {
-            return new DatabaseSchema(_tables.Add(tableName, schema));
+            return new DatabaseSchema(TableMap.Add(tableName, schema));
         }
+
+        internal IImmutableDictionary<string, object> TableMap { get; }
     }
 }

@@ -11,10 +11,19 @@ namespace Ipdb.Lib
     {
         private readonly string _databaseRootDirectory;
 
+        #region Constructor
         public Database(string dbFolder, DatabaseSchema schema)
         {
             _databaseRootDirectory = dbFolder;
+            EnsureDirectory(dbFolder);
+            foreach (var tableName in schema.TableMap.Keys)
+            {
+                var schemaObject = schema.TableMap[tableName];
+            }
+        }
 
+        private static void EnsureDirectory(string dbFolder)
+        {
             if (Directory.Exists(dbFolder))
             {
                 throw new ArgumentException(
@@ -26,6 +35,7 @@ namespace Ipdb.Lib
                 Directory.CreateDirectory(dbFolder);
             }
         }
+        #endregion
 
         public Table<T> GetTable<T>(string tableName)
         {
