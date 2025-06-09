@@ -34,7 +34,7 @@ namespace Ipdb.Lib
                     null
                 );
 
-                tableMap.Add(tableName, schemaObject);
+                tableMap.Add(tableName, table);
             }
             _tableMap = tableMap.ToImmutableDictionary();
         }
@@ -55,7 +55,8 @@ namespace Ipdb.Lib
                     var docType = table.GetType().GetGenericArguments().First();
 
                     throw new InvalidOperationException(
-                        $"Table '{tableName}' doesn't have document type '{docType.Name}'");
+                        $"Table '{tableName}' doesn't have document type '{typeof(T).Name}':  " +
+                        $"it has document type '{docType.Name}'");
                 }
             }
             else
