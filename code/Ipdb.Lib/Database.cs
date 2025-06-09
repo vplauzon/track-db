@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    internal static class EngineFactory
+    public class Database
     {
-        public static IEngine CreateEngine()
+        public Table<T> GetTable<T>(string tableName)
         {
             throw new NotImplementedException();
         }
