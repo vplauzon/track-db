@@ -57,7 +57,28 @@ namespace Ipdb.Lib
 
         private static IImmutableList<IndexType> GetIndexTypes<PT>()
         {
-            throw new NotImplementedException();
+            var type = typeof(PT);
+
+            if (type.IsEnum)
+            {
+                return ImmutableArray.Create(IndexType.Enum);
+            }
+            if (type == typeof(string))
+            {
+                return ImmutableArray.Create(IndexType.String);
+            }
+            if (type == typeof(int))
+            {
+                return ImmutableArray.Create(IndexType.Int);
+            }
+            if (type == typeof(long))
+            {
+                return ImmutableArray.Create(IndexType.Long);
+            }
+
+            throw new ArgumentException(
+                $"Type {type.Name} is not supported as an index type. " +
+                "Supported types are: enum, string, int, and long.");
         }
         #endregion
 
