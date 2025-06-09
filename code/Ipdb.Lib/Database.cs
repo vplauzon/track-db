@@ -11,7 +11,7 @@ namespace Ipdb.Lib
     {
         private readonly string _databaseRootDirectory;
 
-        public Database(string dbFolder)
+        public Database(string dbFolder, DatabaseSchema schema)
         {
             _databaseRootDirectory = dbFolder;
 

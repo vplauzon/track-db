@@ -18,11 +18,12 @@ namespace Ipdb.Lib
 
         public async Task<Database> LoadDatabaseAsync(string databaseName, DatabaseSchema schema)
         {
-            var dbFolder = Path.Combine(_localRootDirectory, databaseName);
-            var database = new Database(dbFolder);
-
             await Task.CompletedTask;
-            throw new NotImplementedException();
+
+            var dbFolder = Path.Combine(_localRootDirectory, databaseName);
+            var database = new Database(dbFolder, schema);
+
+            return database;
         }
     }
 }
