@@ -8,4 +8,8 @@
     <Version>0.0.1.0</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+
 </Project>

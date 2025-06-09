@@ -9,6 +9,6 @@ namespace Ipdb.Tests
 {
     public class BaseTest
     {
-        protected Engine Engine { get; } = new();
+        protected Engine Engine { get; } = new($"Properties/{DateTime.Now:yyyy-MM-dd_HH-mm-ss}");
     }
 }
