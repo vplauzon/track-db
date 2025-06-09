@@ -7,6 +7,17 @@ namespace Ipdb.Lib
 {
     public class Table<T>
     {
+        private readonly TableSchema<T> _schema;
+        private readonly StorageManager _storageManager;
+
+        #region Constructors
+        internal Table(TableSchema<T> schema, StorageManager storageManager)
+        {
+            _schema = schema;
+            _storageManager = storageManager;
+        }
+        #endregion
+
         public IEnumerable<T> Query(Expression<Func<T, bool>> predicate)
         {
             throw new NotImplementedException();
