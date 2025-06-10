@@ -45,9 +45,10 @@ namespace Ipdb.Lib
             {   //  Initialize the block with spaces and carriage return
                 using (var accessor = CreateViewAccessor(blockId, false))
                 {
+                    var blankLine = Enumerable.Range(0, EMPTY_LINE_CHAR_COUNT)
+                        .Select(j => (byte)' ');
                     var blank = Enumerable.Range(0, EMPTY_LINE_COUNT)
-                        .Select(i => Enumerable.Range(0, EMPTY_LINE_CHAR_COUNT).Select(j => ' '))
-                        .Select(l => l.Append('\n'))
+                        .Select(i => blankLine.Append((byte)'\n'))
                         .SelectMany(c => c)
                         .ToArray();
 
@@ -76,8 +77,8 @@ namespace Ipdb.Lib
         public MemoryMappedViewAccessor CreateViewAccessor(int blockId, bool isReadOnly)
         {
             return _mappedFile.CreateViewAccessor(
-                blockId * BLOCK_SIZE * sizeof(byte),
-                BLOCK_SIZE * sizeof(byte),
+                blockId * BLOCK_SIZE,
+                BLOCK_SIZE,
                 isReadOnly ? MemoryMappedFileAccess.Read : MemoryMappedFileAccess.ReadWrite);
         }
     }
