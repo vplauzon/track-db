@@ -4,15 +4,27 @@ using System.Collections.Immutable;
 namespace Ipdb.Lib
 {
     internal record IndexDefinition<T>(
-        Func<T, object> ObjectExtractor,
+        Func<T, IndexValues> ObjectExtractor,
         IImmutableList<IndexType> IndexTypes)
     {
         public static IndexDefinition<T> CreateIndex<PT>(Func<T, PT> propertyExtractor)
             where PT : notnull
         {
+            var indexType = GetIndexTypes<PT>();
+
             return new IndexDefinition<T>(
-                o => propertyExtractor(o),
-                GetIndexTypes<PT>());
+                o =>
+                {
+                    var value = propertyExtractor(o);
+
+                    return new IndexValues(value, GetHash(value));
+                },
+                indexType);
+        }
+
+        private static short GetHash(object value)
+        {
+            throw new NotImplementedException();
         }
 
         private static IImmutableList<IndexType> GetIndexTypes<PT>()

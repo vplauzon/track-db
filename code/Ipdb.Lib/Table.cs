@@ -4,7 +4,6 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Json;
@@ -13,6 +12,13 @@ namespace Ipdb.Lib
 {
     public class Table<T>
     {
+        #region Inner Types
+        private record DocumentIndexInfo(
+            long Offset,
+            short PrimaryIndexHash,
+            IImmutableList<short> SecondaryIndexHashes);
+        #endregion
+
         private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
         private readonly StorageManager _storageManager;
@@ -36,6 +42,8 @@ namespace Ipdb.Lib
 
         public void AppendDocuments(params IEnumerable<T> documents)
         {
+            var documentIndexInfos = new List<DocumentIndexInfo> ();
+
             foreach (var document in documents)
             {
                 if (document == null)
@@ -50,10 +58,11 @@ namespace Ipdb.Lib
                 var metaData = new DocumentMetaData(_tableIndex, primaryIndex, secondaryIndexes);
                 var serializedMetaData = Serialize(metaData);
                 var serializedDocument = Serialize(document);
-
-                _storageManager.DocumentManager.AppendDocument(
+                var offset = _storageManager.DocumentManager.AppendDocument(
                     serializedMetaData,
                     serializedDocument);
+                
+                documentIndexInfos.Add(new DocumentIndexInfo(offset,));
             }
         }
 
