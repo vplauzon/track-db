@@ -1,13 +1,10 @@
 ﻿namespace Ipdb.Lib
 {
-public partial class TableSchema<T>
+    internal enum IndexType
     {
-        private enum IndexType
-        {
-            Enum,
-            String,
-            Int,
-            Long
-        }
+        Enum,
+        String,
+        Int,
+        Long
     }
 }
