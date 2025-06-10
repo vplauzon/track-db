@@ -12,9 +12,6 @@ namespace Ipdb.Lib
     /// <typeparam name="T"></typeparam>
     public partial class TableSchema<T>
     {
-        private readonly IndexDefinition<T> _primaryIndex;
-        private readonly IImmutableList<IndexDefinition<T>> _secondaryIndexes;
-
         #region Constructors
         public static TableSchema<T> CreateSchema<PT>(Func<T, PT> primaryIndexExtractor)
             where PT : notnull
@@ -28,17 +25,21 @@ namespace Ipdb.Lib
             IndexDefinition<T> primaryIndex,
             IImmutableList<IndexDefinition<T>> secondaryIndexes)
         {
-            _primaryIndex = primaryIndex;
-            _secondaryIndexes = secondaryIndexes;
+            PrimaryIndex = primaryIndex;
+            SecondaryIndexes = secondaryIndexes;
         }
         #endregion
+
+        internal IndexDefinition<T> PrimaryIndex { get; }
+
+        internal IImmutableList<IndexDefinition<T>> SecondaryIndexes { get; }
 
         public TableSchema<T> AddSecondaryIndex<PT>(Func<T, PT> propertyExtractor)
             where PT : notnull
         {
             return new TableSchema<T>(
-                _primaryIndex,
-                _secondaryIndexes.Add(
+                PrimaryIndex,
+                SecondaryIndexes.Add(
                     IndexDefinition<T>.CreateIndex(propertyExtractor)));
         }
     }
