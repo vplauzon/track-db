@@ -15,7 +15,7 @@ namespace Ipdb.Lib.Document
         public DocumentManager(string databaseRootDirectory)
         {
             var filePath = Path.Combine(databaseRootDirectory, DOCUMENTS_FILE_NAME);
-            
+
             Directory.CreateDirectory(databaseRootDirectory);
             _mappedFile = CreateOrOpenMemoryMappedFile(filePath);
         }
@@ -43,15 +43,15 @@ namespace Ipdb.Lib.Document
                 throw new ArgumentException("Document cannot be empty", nameof(document));
             }
 
-            using (var accessor = _mappedFile.CreateViewAccessor(_nextOffset, document.Length+1))
+            using (var accessor = _mappedFile.CreateViewAccessor(_nextOffset, document.Length + 1))
             {
                 accessor.WriteArray(0, document, 0, document.Length);
-                accessor.Write(document.Length, '\n');
+                accessor.Write(document.Length, (byte)'\n');
             }
 
             var documentOffset = _nextOffset;
-            _nextOffset += document.Length;
-            
+            _nextOffset += document.Length + 1;
+
             return documentOffset;
         }
 

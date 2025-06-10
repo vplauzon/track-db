@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -30,7 +31,8 @@ namespace Ipdb.Lib
             foreach (var document in documents)
             {
                 var serializedDocument = Serialize(document);
-                //_storageManager.DocumentManager.AppendDocuments();
+
+                _storageManager.DocumentManager.AppendDocument(serializedDocument);
             }
         }
 
@@ -42,13 +44,14 @@ namespace Ipdb.Lib
         #region Serialization
         private byte[] Serialize(T document)
         {
-            //Utf8JsonWriter?
-            using (var stream = new MemoryStream())
-            {
-                JsonSerializer.Serialize(stream, document);
+            var bufferWriter = new ArrayBufferWriter<byte>();
 
-                return stream.ToArray();
+            using (var writer = new Utf8JsonWriter(bufferWriter))
+            {
+                JsonSerializer.Serialize(writer, document);
             }
+
+            return bufferWriter.WrittenMemory.ToArray();
         }
         #endregion
     }
