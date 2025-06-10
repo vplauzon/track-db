@@ -1,12 +1,12 @@
-﻿namespace Ipdb.Lib.Document
+﻿using System.IO;
+
+namespace Ipdb.Lib.Document
 {
     public class DocumentManager
     {
-        private readonly string _databaseRootDirectory;
-
         public DocumentManager(string databaseRootDirectory)
         {
-            _databaseRootDirectory = databaseRootDirectory;
+            var filePath = Path.Combine(databaseRootDirectory, "documents.json");
         }
     }
 }
