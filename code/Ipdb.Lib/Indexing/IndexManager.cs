@@ -2,7 +2,7 @@
 
 namespace Ipdb.Lib.Indexing
 {
-    public class IndexManager : IDisposable
+    internal class IndexManager : IDisposable
     {
         private readonly string _databaseRootDirectory;
 

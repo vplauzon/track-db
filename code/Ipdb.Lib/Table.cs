@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq.Expressions;
+using System.Text.Json;
 
 namespace Ipdb.Lib
 {
@@ -27,7 +29,7 @@ namespace Ipdb.Lib
         {
             foreach (var document in documents)
             {
-                //var serializedDocument = 
+                var serializedDocument = Serialize(document);
                 //_storageManager.DocumentManager.AppendDocuments();
             }
         }
@@ -38,7 +40,16 @@ namespace Ipdb.Lib
         }
 
         #region Serialization
-        //private string
+        private byte[] Serialize(T document)
+        {
+            //Utf8JsonWriter?
+            using (var stream = new MemoryStream())
+            {
+                JsonSerializer.Serialize(stream, document);
+
+                return stream.ToArray();
+            }
+        }
         #endregion
     }
 }

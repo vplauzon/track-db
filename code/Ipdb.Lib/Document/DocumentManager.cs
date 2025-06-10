@@ -4,7 +4,7 @@ using System.IO.MemoryMappedFiles;
 
 namespace Ipdb.Lib.Document
 {
-    public class DocumentManager : IDisposable
+    internal class DocumentManager : IDisposable
     {
         private const string DOCUMENTS_FILE_NAME = "documents.json";
 
@@ -32,13 +32,35 @@ namespace Ipdb.Lib.Document
         }
         #endregion
 
-        public void AppendDocument()
+        public long AppendDocument(byte[] document)
         {
+            if (document == null)
+            {
+                throw new ArgumentNullException(nameof(document));
+            }
+            if (document.Length == 0)
+            {
+                throw new ArgumentException("Document cannot be empty", nameof(document));
+            }
+
+            using (var accessor = _mappedFile.CreateViewAccessor(_nextOffset, document.Length+1))
+            {
+                accessor.WriteArray(0, document, 0, document.Length);
+                accessor.Write(document.Length, '\n');
+            }
+
+            var documentOffset = _nextOffset;
+            _nextOffset += document.Length;
+            
+            return documentOffset;
         }
 
         void IDisposable.Dispose()
         {
-            _mappedFile.Dispose();
+            if (_mappedFile != null)
+            {
+                _mappedFile.Dispose();
+            }
         }
     }
 }
