@@ -10,46 +10,23 @@ namespace Ipdb.Lib
     /// a tuple mixing those.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class TableSchema<T>
+    public partial class TableSchema<T>
     {
-        #region Inner Types
-        private enum IndexType
-        {
-            Enum,
-            String,
-            Int,
-            Long
-        }
-
-        private record Index(
-            Func<T, object> objectExtractor,
-            IImmutableList<IndexType> IndexTypes)
-        {
-            public static Index CreateIndex<PT>(Func<T, PT> propertyExtractor)
-                where PT : notnull
-            {
-                return new Index(
-                    o => propertyExtractor(o),
-                    GetIndexTypes<PT>());
-            }
-        }
-        #endregion
-
-        private readonly Index _primaryIndex;
-        private readonly IImmutableList<Index> _secondaryIndexes;
+        private readonly IndexDefinition _primaryIndex;
+        private readonly IImmutableList<IndexDefinition> _secondaryIndexes;
 
         #region Constructors
         public static TableSchema<T> CreateSchema<PT>(Func<T, PT> primaryIndexExtractor)
             where PT : notnull
         {
             return new TableSchema<T>(
-                Index.CreateIndex(primaryIndexExtractor),
-                ImmutableArray<Index>.Empty);
+                IndexDefinition.CreateIndex(primaryIndexExtractor),
+                ImmutableArray<IndexDefinition>.Empty);
         }
 
         private TableSchema(
-            Index primaryIndex,
-            IImmutableList<Index> secondaryIndexes)
+            IndexDefinition primaryIndex,
+            IImmutableList<IndexDefinition> secondaryIndexes)
         {
             _primaryIndex = primaryIndex;
             _secondaryIndexes = secondaryIndexes;
@@ -88,7 +65,7 @@ namespace Ipdb.Lib
             return new TableSchema<T>(
                 _primaryIndex,
                 _secondaryIndexes.Add(
-                    Index.CreateIndex(propertyExtractor)));
+                    IndexDefinition.CreateIndex(propertyExtractor)));
         }
     }
 }
