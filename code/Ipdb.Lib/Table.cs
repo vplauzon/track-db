@@ -51,28 +51,23 @@ namespace Ipdb.Lib
                     throw new ArgumentNullException(nameof(documents));
                 }
 
+                //  Persist the document itself
+                var documentPosition = _storageManager.DocumentManager.AppendDocument(
+                    _tableIndex,
+                    document);
                 var primaryIndex = _schema.PrimaryIndex.ObjectExtractor(document);
                 var secondaryIndexes = _schema.SecondaryIndexes
                     .Select(i => i.ObjectExtractor(document))
                     .ToImmutableArray();
-                var metaData = new DocumentMetaData(
-                    _tableIndex,
-                    primaryIndex.Value,
-                    secondaryIndexes.Select(v => v.Value).ToImmutableArray());
-                var serializedMetaData = Serialize(metaData);
-                var serializedDocument = Serialize(document);
-                var offset = _storageManager.DocumentManager.AppendDocument(
-                    serializedMetaData,
-                    serializedDocument);
+                var allIndexes = new DocumentAllIndexes(
+                    primaryIndex.FullValue,
+                    secondaryIndexes
+                    .Select(v => v.FullValue)
+                    .ToImmutableArray(),
+                    documentPosition);
 
-                documentIndexInfos.Add(new DocumentIndexInfo(
-                    offset,
-                    primaryIndex.Hash,
-                    secondaryIndexes.Select(v => v.Hash).ToImmutableArray()));
-            }
-            foreach (var docInfo in documentIndexInfos)
-            {
-                //_storageManager.IndexManager.AppendIndex();
+                //  Persist all indexes
+                _storageManager.PrimaryIndexManager.AppendIndexes(_tableIndex, allIndexes);
             }
         }
 
@@ -80,19 +75,5 @@ namespace Ipdb.Lib
         {
             throw new NotImplementedException();
         }
-
-        #region Serialization
-        private byte[] Serialize(object document)
-        {
-            var bufferWriter = new ArrayBufferWriter<byte>();
-
-            using (var writer = new Utf8JsonWriter(bufferWriter))
-            {
-                JsonSerializer.Serialize(writer, document);
-            }
-
-            return bufferWriter.WrittenMemory.ToArray();
-        }
-        #endregion
     }
 }

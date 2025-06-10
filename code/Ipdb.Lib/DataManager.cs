@@ -11,12 +11,17 @@ namespace Ipdb.Lib
 {
     internal class DataManager : IDisposable
     {
+        private const string DATA_FILE_NAME = "data.bin";
+
+        private readonly StorageManager _storageManager;
+
         #region Constructors
         public DataManager(string databaseRootDirectory)
         {
             EnsureDirectory(databaseRootDirectory);
-            DocumentManager = new(databaseRootDirectory);
-            IndexManager = new(databaseRootDirectory);
+            _storageManager = new(Path.Combine(databaseRootDirectory, DATA_FILE_NAME));
+            DocumentManager = new(_storageManager);
+            PrimaryIndexManager = new(_storageManager);
         }
 
         private static void EnsureDirectory(string dbFolder)
@@ -36,12 +41,13 @@ namespace Ipdb.Lib
 
         public DocumentManager DocumentManager { get; }
 
-        public IndexManager IndexManager { get; }
+        public PrimaryIndexManager PrimaryIndexManager { get; }
 
         void IDisposable.Dispose()
         {
+            ((IDisposable)_storageManager).Dispose();
             ((IDisposable)DocumentManager).Dispose();
-            ((IDisposable)IndexManager).Dispose();
+            ((IDisposable)PrimaryIndexManager).Dispose();
         }
     }
 }

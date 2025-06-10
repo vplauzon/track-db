@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Document
 {
-    internal record DocumentMetaData(
-        int TableIndex,
-        object PrimaryIndex,
-        IReadOnlyCollection<object> SecondaryIndexes);
+    internal record DocumentAllIndexes(
+        object Primary,
+        IReadOnlyCollection<object> Secondaries,
+        FilePosition DocumentPosition);
 }

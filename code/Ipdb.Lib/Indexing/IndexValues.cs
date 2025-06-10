@@ -1,4 +1,4 @@
 ﻿namespace Ipdb.Lib
 {
-    internal record IndexValues(object Value, short Hash);
+    internal record IndexValues(object FullValue, short Hash);
 }
