@@ -25,12 +25,20 @@ namespace Ipdb.Lib
 
         public void AppendDocuments(params IEnumerable<T> documents)
         {
-            //_storageManager.DocumentManager.AppendDocuments();
+            foreach (var document in documents)
+            {
+                //var serializedDocument = 
+                //_storageManager.DocumentManager.AppendDocuments();
+            }
         }
 
         public long DeleteDocuments(Expression<Func<T, bool>> predicate)
         {
             throw new NotImplementedException();
         }
+
+        #region Serialization
+        //private string
+        #endregion
     }
 }

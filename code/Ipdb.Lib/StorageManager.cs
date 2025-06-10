@@ -15,6 +15,8 @@ namespace Ipdb.Lib
         public StorageManager(string databaseRootDirectory)
         {
             EnsureDirectory(databaseRootDirectory);
+            DocumentManager = new(databaseRootDirectory);
+            IndexManager = new(databaseRootDirectory);
         }
 
         private static void EnsureDirectory(string dbFolder)

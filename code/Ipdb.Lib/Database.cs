@@ -34,7 +34,7 @@ namespace Ipdb.Lib
                     null
                 );
 
-                tableMap.Add(tableName, table);
+                tableMap.Add(tableName, table!);
             }
             _tableMap = tableMap.ToImmutableDictionary();
         }
