@@ -9,32 +9,32 @@ namespace Ipdb.Lib
     {
         public static IndexDefinition<T> CreateIndex<PT>(Func<T, PT> propertyExtractor)
         {
-            return new IndexDefinition<T>(
-                o =>
-                {
-                    var value = propertyExtractor(o);
-
-                    throw new NotSupportedException();
-                    //return new IndexValues(value, GetHash(value));
-                },
-                ImmutableArray.Create(IndexType.Enum));
+            if (typeof(PT) == typeof(int))
+            {
+                return new IndexDefinition<T>(
+                    o =>
+                    {
+                        throw new NotSupportedException();
+                    },
+                    ImmutableArray.Create(IndexType.Int));
+            }
+            else
+            {
+                throw new NotSupportedException($"Type '{typeof(PT).Name}' for index");
+            }
         }
 
-        #region Get Hash methods
-        private static short GetHash<TEnum>(TEnum value) where TEnum : Enum
+        #region Object Extractor
+        private static Func<T, IndexValues> GetIntObjectExtractor(Func<T, int> propertyExtractor)
         {
-            throw new NotImplementedException();
-        }
+            return o =>
+            {
+                var value = propertyExtractor(o);
+                // XOR the upper and lower 16 bits of the int
+                var hash = (short)((value & 0xFFFF) ^ ((value >> 16) & 0xFFFF));
 
-        private static short GetHash(string value)
-        {
-            throw new NotImplementedException();
-        }
-
-        private static short GetHash(int value)
-        {
-            // XOR the upper and lower 16 bits of the int
-            return (short)((value & 0xFFFF) ^ ((value >> 16) & 0xFFFF));
+                return new IndexValues(value, hash);
+            };
         }
 
         private static short GetHash(long value)
