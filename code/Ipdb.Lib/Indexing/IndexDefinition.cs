@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 namespace Ipdb.Lib
 {
@@ -11,11 +13,21 @@ namespace Ipdb.Lib
         {
             if (typeof(PT) == typeof(int))
             {
+                // Get the method info for GetIntObjectExtractor
+                const string METHOD_NAME = "GetIntObjectExtractor";
+                
+                var method = typeof(IndexDefinition<T>).GetMethod(
+                    METHOD_NAME,
+                    BindingFlags.NonPublic | BindingFlags.Static) 
+                    ?? throw new InvalidOperationException($"Method {METHOD_NAME} not found");
+                // Invoke the method to get our object extractor
+                var objectExtractor = (Func<T, IndexValues>?)method.Invoke(
+                    null,
+                    [propertyExtractor])
+                    ?? throw new InvalidOperationException("Failed to create object extractor");
+
                 return new IndexDefinition<T>(
-                    o =>
-                    {
-                        throw new NotSupportedException();
-                    },
+                    objectExtractor,
                     ImmutableArray.Create(IndexType.Int));
             }
             else
@@ -25,6 +37,7 @@ namespace Ipdb.Lib
         }
 
         #region Object Extractor
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicMethods)]
         private static Func<T, IndexValues> GetIntObjectExtractor(Func<T, int> propertyExtractor)
         {
             return o =>

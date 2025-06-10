@@ -46,8 +46,6 @@ namespace Ipdb.Lib
         void IDisposable.Dispose()
         {
             ((IDisposable)_storageManager).Dispose();
-            ((IDisposable)DocumentManager).Dispose();
-            ((IDisposable)PrimaryIndexManager).Dispose();
         }
     }
 }
