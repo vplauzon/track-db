@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    internal class StorageManager
+    internal class StorageManager : IDisposable
     {
         #region Constructors
         public StorageManager(string databaseRootDirectory)
@@ -35,7 +35,13 @@ namespace Ipdb.Lib
         #endregion
 
         public DocumentManager DocumentManager { get; }
-        
+
         public IndexManager IndexManager { get; }
+
+        void IDisposable.Dispose()
+        {
+            ((IDisposable)DocumentManager).Dispose();
+            ((IDisposable)IndexManager).Dispose();
+        }
     }
 }

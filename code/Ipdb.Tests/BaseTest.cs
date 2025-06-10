@@ -8,10 +8,15 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Tests
 {
-    public class BaseTest
+    public class BaseTest : IDisposable
     {
         protected Engine Engine { get; } = new(Path.Combine(
             Environment.GetEnvironmentVariable("EngineRoot")!,
             $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}"));
+
+        public void Dispose()
+        {
+            ((IDisposable)Engine).Dispose();
+        }
     }
 }

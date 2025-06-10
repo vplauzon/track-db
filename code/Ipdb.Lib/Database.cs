@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    public class Database
+    public class Database : IDisposable
     {
         private readonly StorageManager _storageManager;
         private readonly IImmutableDictionary<string, object> _tableMap
@@ -63,6 +63,11 @@ namespace Ipdb.Lib
             {
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
             }
+        }
+
+        void IDisposable.Dispose()
+        {
+            ((IDisposable)_storageManager).Dispose();
         }
     }
 }
