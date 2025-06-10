@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Document;
+using System;
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
@@ -30,9 +31,19 @@ namespace Ipdb.Lib
         {
             foreach (var document in documents)
             {
+                if (document == null)
+                {
+                    throw new ArgumentNullException(nameof(documents));
+                }
+
+                var primaryIndex = _schema.PrimaryIndex.ObjectExtractor(document);
+                var documentIndexes = new DocumentIndexes(primaryIndex);
+                var serializedDocumentIndexes = Serialize(documentIndexes);
                 var serializedDocument = Serialize(document);
 
-                _storageManager.DocumentManager.AppendDocument(serializedDocument);
+                _storageManager.DocumentManager.AppendDocument(
+                    serializedDocumentIndexes,
+                    serializedDocument);
             }
         }
 
@@ -42,7 +53,7 @@ namespace Ipdb.Lib
         }
 
         #region Serialization
-        private byte[] Serialize(T document)
+        private byte[] Serialize(object document)
         {
             var bufferWriter = new ArrayBufferWriter<byte>();
 

@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 namespace Ipdb.Lib
 {
     internal record IndexDefinition<T>(
-        Func<T, object> objectExtractor,
+        Func<T, object> ObjectExtractor,
         IImmutableList<IndexType> IndexTypes)
     {
         public static IndexDefinition<T> CreateIndex<PT>(Func<T, PT> propertyExtractor)

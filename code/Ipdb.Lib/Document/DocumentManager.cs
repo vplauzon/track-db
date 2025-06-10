@@ -32,27 +32,41 @@ namespace Ipdb.Lib.Document
         }
         #endregion
 
-        public long AppendDocument(byte[] document)
+        public long AppendDocument(byte[] indexContent, byte[] document)
         {
-            if (document == null)
+            if (indexContent == null || indexContent.Length == 0)
             {
-                throw new ArgumentNullException(nameof(document));
+                throw new ArgumentException("Cannot be empty", nameof(indexContent));
             }
-            if (document.Length == 0)
+            if (document == null || document.Length == 0)
             {
-                throw new ArgumentException("Document cannot be empty", nameof(document));
-            }
-
-            using (var accessor = _mappedFile.CreateViewAccessor(_nextOffset, document.Length + 1))
-            {
-                accessor.WriteArray(0, document, 0, document.Length);
-                accessor.Write(document.Length, (byte)'\n');
+                throw new ArgumentException("Cannot be empty", nameof(document));
             }
 
-            var documentOffset = _nextOffset;
-            _nextOffset += document.Length + 1;
+            var startOffset = _nextOffset;
 
-            return documentOffset;
+            using (var accessor = _mappedFile.CreateViewAccessor(
+                _nextOffset,
+                (sizeof(int) * 2) + indexContent.Length + document.Length + 2))
+            {
+                var offset = 0;
+
+                accessor.Write(offset, indexContent.Length);
+                offset += sizeof(int);
+                accessor.Write(offset, document.Length);
+                offset += sizeof(int);
+                accessor.WriteArray(offset, indexContent, 0, indexContent.Length);
+                offset += indexContent.Length;
+                accessor.Write(offset, (byte)'\n');
+                offset += 1;
+                accessor.WriteArray(offset, document, 0, document.Length);
+                offset += document.Length;
+                accessor.Write(offset, (byte)'\n');
+                offset += 1;
+                _nextOffset += offset;
+            }
+
+            return startOffset;
         }
 
         void IDisposable.Dispose()
