@@ -76,8 +76,8 @@ namespace Ipdb.Lib
         public MemoryMappedViewAccessor CreateViewAccessor(int blockId, bool isReadOnly)
         {
             return _mappedFile.CreateViewAccessor(
-                blockId * BLOCK_SIZE,
-                BLOCK_SIZE,
+                blockId * BLOCK_SIZE * sizeof(byte),
+                BLOCK_SIZE * sizeof(byte),
                 isReadOnly ? MemoryMappedFileAccess.Read : MemoryMappedFileAccess.ReadWrite);
         }
     }
