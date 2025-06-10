@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Ipdb.Lib.Document;
+using Ipdb.Lib.Indexing;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;

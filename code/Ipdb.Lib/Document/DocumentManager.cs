@@ -1,4 +1,4 @@
-﻿namespace Ipdb.Lib
+﻿namespace Ipdb.Lib.Document
 {
     public class DocumentManager
     {

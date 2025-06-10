@@ -39,11 +39,11 @@ namespace Ipdb.Lib
         private readonly IImmutableList<Index> _secondaryIndexes;
 
         #region Constructors
-        public static TableSchema<T> CreateSchema<PT>(Func<T, PT> propertyExtractor)
+        public static TableSchema<T> CreateSchema<PT>(Func<T, PT> primaryIndexExtractor)
             where PT : notnull
         {
             return new TableSchema<T>(
-                Index.CreateIndex(propertyExtractor),
+                Index.CreateIndex(primaryIndexExtractor),
                 ImmutableArray<Index>.Empty);
         }
 
