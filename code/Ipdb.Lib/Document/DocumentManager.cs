@@ -10,6 +10,7 @@ namespace Ipdb.Lib.Document
 
         private readonly MemoryMappedFile _mappedFile;
 
+        #region Constructor
         public DocumentManager(string databaseRootDirectory)
         {
             var filePath = Path.Combine(databaseRootDirectory, DOCUMENTS_FILE_NAME);
@@ -27,6 +28,11 @@ namespace Ipdb.Lib.Document
                 FileMode.OpenOrCreate,
                 null,
                 initialSize);
+        }
+        #endregion
+
+        public void AppendDocument()
+        {
         }
 
         void IDisposable.Dispose()
