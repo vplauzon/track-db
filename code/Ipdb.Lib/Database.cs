@@ -11,7 +11,7 @@ namespace Ipdb.Lib
 {
     public class Database : IDisposable
     {
-        private readonly StorageManager _storageManager;
+        private readonly DataManager _storageManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
 

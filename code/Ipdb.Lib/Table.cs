@@ -21,13 +21,13 @@ namespace Ipdb.Lib
 
         private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
-        private readonly StorageManager _storageManager;
+        private readonly DataManager _storageManager;
 
         #region Constructors
         internal Table(
             int tableIndex,
             TableSchema<T> schema,
-            StorageManager storageManager)
+            DataManager storageManager)
         {
             _tableIndex = tableIndex;
             _schema = schema;
@@ -42,7 +42,7 @@ namespace Ipdb.Lib
 
         public void AppendDocuments(params IEnumerable<T> documents)
         {
-            var documentIndexInfos = new List<DocumentIndexInfo> ();
+            var documentIndexInfos = new List<DocumentIndexInfo>();
 
             foreach (var document in documents)
             {
@@ -55,14 +55,24 @@ namespace Ipdb.Lib
                 var secondaryIndexes = _schema.SecondaryIndexes
                     .Select(i => i.ObjectExtractor(document))
                     .ToImmutableArray();
-                var metaData = new DocumentMetaData(_tableIndex, primaryIndex, secondaryIndexes);
+                var metaData = new DocumentMetaData(
+                    _tableIndex,
+                    primaryIndex.Value,
+                    secondaryIndexes.Select(v => v.Value).ToImmutableArray());
                 var serializedMetaData = Serialize(metaData);
                 var serializedDocument = Serialize(document);
                 var offset = _storageManager.DocumentManager.AppendDocument(
                     serializedMetaData,
                     serializedDocument);
-                
-                documentIndexInfos.Add(new DocumentIndexInfo(offset,));
+
+                documentIndexInfos.Add(new DocumentIndexInfo(
+                    offset,
+                    primaryIndex.Hash,
+                    secondaryIndexes.Select(v => v.Hash).ToImmutableArray()));
+            }
+            foreach (var docInfo in documentIndexInfos)
+            {
+                //_storageManager.IndexManager.AppendIndex();
             }
         }
 

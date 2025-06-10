@@ -25,7 +25,7 @@ namespace Ipdb.Lib
             await Task.CompletedTask;
 
             var dbFolder = Path.Combine(_localRootDirectory, databaseName);
-            var database = new Database(dbFolder, schema);
+            var database = new Database(Path.Combine(dbFolder, databaseName), schema);
 
             _databaseMap.Add(databaseName, database);
 

@@ -9,10 +9,10 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    internal class StorageManager : IDisposable
+    internal class DataManager : IDisposable
     {
         #region Constructors
-        public StorageManager(string databaseRootDirectory)
+        public DataManager(string databaseRootDirectory)
         {
             EnsureDirectory(databaseRootDirectory);
             DocumentManager = new(databaseRootDirectory);

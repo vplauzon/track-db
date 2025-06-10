@@ -8,49 +8,44 @@ namespace Ipdb.Lib
         IImmutableList<IndexType> IndexTypes)
     {
         public static IndexDefinition<T> CreateIndex<PT>(Func<T, PT> propertyExtractor)
-            where PT : notnull
         {
-            var indexType = GetIndexTypes<PT>();
-
             return new IndexDefinition<T>(
                 o =>
                 {
                     var value = propertyExtractor(o);
 
-                    return new IndexValues(value, GetHash(value));
+                    throw new NotSupportedException();
+                    //return new IndexValues(value, GetHash(value));
                 },
-                indexType);
+                ImmutableArray.Create(IndexType.Enum));
         }
 
-        private static short GetHash(object value)
+        #region Get Hash methods
+        private static short GetHash<TEnum>(TEnum value) where TEnum : Enum
         {
             throw new NotImplementedException();
         }
 
-        private static IImmutableList<IndexType> GetIndexTypes<PT>()
+        private static short GetHash(string value)
         {
-            var type = typeof(PT);
-
-            if (type.IsEnum)
-            {
-                return ImmutableArray.Create(IndexType.Enum);
-            }
-            if (type == typeof(string))
-            {
-                return ImmutableArray.Create(IndexType.String);
-            }
-            if (type == typeof(int))
-            {
-                return ImmutableArray.Create(IndexType.Int);
-            }
-            if (type == typeof(long))
-            {
-                return ImmutableArray.Create(IndexType.Long);
-            }
-
-            throw new ArgumentException(
-                $"Type {type.Name} is not supported as an index type. " +
-                "Supported types are: enum, string, int, and long.");
+            throw new NotImplementedException();
         }
+
+        private static short GetHash(int value)
+        {
+            // XOR the upper and lower 16 bits of the int
+            return (short)((value & 0xFFFF) ^ ((value >> 16) & 0xFFFF));
+        }
+
+        private static short GetHash(long value)
+        {
+            // XOR all four 16-bit components of the long
+            return (short)(
+                (value & 0xFFFF) ^
+                ((value >> 16) & 0xFFFF) ^
+                ((value >> 32) & 0xFFFF) ^
+                ((value >> 48) & 0xFFFF));
+        }
+        #endregion
     }
 }
