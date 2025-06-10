@@ -9,6 +9,7 @@ namespace Ipdb.Lib.Document
         private const string DOCUMENTS_FILE_NAME = "documents.json";
 
         private readonly MemoryMappedFile _mappedFile;
+        private long _nextOffset = 0;
 
         #region Constructor
         public DocumentManager(string databaseRootDirectory)
