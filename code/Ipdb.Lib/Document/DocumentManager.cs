@@ -32,11 +32,11 @@ namespace Ipdb.Lib.Document
         }
         #endregion
 
-        public long AppendDocument(byte[] indexContent, byte[] document)
+        public long AppendDocument(byte[] metadata, byte[] document)
         {
-            if (indexContent == null || indexContent.Length == 0)
+            if (metadata == null || metadata.Length == 0)
             {
-                throw new ArgumentException("Cannot be empty", nameof(indexContent));
+                throw new ArgumentException("Cannot be empty", nameof(metadata));
             }
             if (document == null || document.Length == 0)
             {
@@ -47,16 +47,16 @@ namespace Ipdb.Lib.Document
 
             using (var accessor = _mappedFile.CreateViewAccessor(
                 _nextOffset,
-                (sizeof(int) * 2) + indexContent.Length + document.Length + 2))
+                (sizeof(int) * 2) + metadata.Length + document.Length + 2))
             {
                 var offset = 0;
 
-                accessor.Write(offset, indexContent.Length);
+                accessor.Write(offset, metadata.Length);
                 offset += sizeof(int);
                 accessor.Write(offset, document.Length);
                 offset += sizeof(int);
-                accessor.WriteArray(offset, indexContent, 0, indexContent.Length);
-                offset += indexContent.Length;
+                accessor.WriteArray(offset, metadata, 0, metadata.Length);
+                offset += metadata.Length;
                 accessor.Write(offset, (byte)'\n');
                 offset += 1;
                 accessor.WriteArray(offset, document, 0, document.Length);

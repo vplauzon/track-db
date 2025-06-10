@@ -19,6 +19,7 @@ namespace Ipdb.Lib
         internal Database(string databaseRootDirectory, DatabaseSchema schema)
         {
             var tableMap = ImmutableDictionary<string, object>.Empty.ToBuilder();
+            var tableIndex = 0;
 
             _storageManager = new(databaseRootDirectory);
             foreach (var tableName in schema.TableMap.Keys)
@@ -30,7 +31,7 @@ namespace Ipdb.Lib
                     tableType,
                     BindingFlags.Instance | BindingFlags.NonPublic,
                     null,
-                    [schemaObject, _storageManager],
+                    [tableIndex++, schemaObject, _storageManager],
                     null
                 );
 

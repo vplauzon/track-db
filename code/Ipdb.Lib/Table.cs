@@ -3,7 +3,9 @@ using System;
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Json;
 
@@ -11,12 +13,17 @@ namespace Ipdb.Lib
 {
     public class Table<T>
     {
+        private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
         private readonly StorageManager _storageManager;
 
         #region Constructors
-        internal Table(TableSchema<T> schema, StorageManager storageManager)
+        internal Table(
+            int tableIndex,
+            TableSchema<T> schema,
+            StorageManager storageManager)
         {
+            _tableIndex = tableIndex;
             _schema = schema;
             _storageManager = storageManager;
         }
@@ -37,12 +44,15 @@ namespace Ipdb.Lib
                 }
 
                 var primaryIndex = _schema.PrimaryIndex.ObjectExtractor(document);
-                var documentIndexes = new DocumentIndexes(primaryIndex);
-                var serializedDocumentIndexes = Serialize(documentIndexes);
+                var secondaryIndexes = _schema.SecondaryIndexes
+                    .Select(i => i.ObjectExtractor(document))
+                    .ToImmutableArray();
+                var metaData = new DocumentMetaData(_tableIndex, primaryIndex, secondaryIndexes);
+                var serializedMetaData = Serialize(metaData);
                 var serializedDocument = Serialize(document);
 
                 _storageManager.DocumentManager.AppendDocument(
-                    serializedDocumentIndexes,
+                    serializedMetaData,
                     serializedDocument);
             }
         }
