@@ -25,7 +25,7 @@ namespace Ipdb.Lib
 
         public void AppendDocuments(params IEnumerable<T> documents)
         {
-            throw new NotImplementedException();
+            //_storageManager.DocumentManager.AppendDocuments();
         }
 
         public long DeleteDocuments(Expression<Func<T, bool>> predicate)

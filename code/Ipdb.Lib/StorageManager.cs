@@ -29,5 +29,9 @@ namespace Ipdb.Lib
             }
         }
         #endregion
+
+        public DocumentManager DocumentManager { get; }
+        
+        public IndexManager IndexManager { get; }
     }
 }
