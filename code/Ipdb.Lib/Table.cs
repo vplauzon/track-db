@@ -22,6 +22,8 @@ namespace Ipdb.Lib
             _storageManager = storageManager;
         }
 
+        public QueryOp<T> QueryOp { get; } = new QueryOp<T>();
+
         public IEnumerable<T> Query(QueryPredicate<T> predicate)
         {
             throw new NotSupportedException(

@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Querying
 {
-    public static class QueryOp
+    public class QueryOp<T>
     {
-        public static EqualOp<T, PT> Equal<T, PT>(
+        public EqualOp<T, PT> Equal<PT>(
             Expression<Func<T, PT>> propertyExtractor,
             PT propertyValue)
         {

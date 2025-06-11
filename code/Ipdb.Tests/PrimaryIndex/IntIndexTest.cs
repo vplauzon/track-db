@@ -1,4 +1,5 @@
 using Ipdb.Lib;
+using Ipdb.Lib.Querying;
 using System;
 using System.Collections.Immutable;
 using System.Net;
@@ -27,41 +28,16 @@ namespace Ipdb.Tests.PrimaryIndex
         public async Task InsertAndRetrieve()
         {
             var table = await CreateTableAsync();
-            var doc = new MyDocument(1, "House");
+            var doc = new MyDocument(42, "House");
 
             table.AppendDocuments(doc);
 
-            for (var i = 0; i != 5; ++i)
-            {
-                var retrievedDocs = table
-                    .Query(d => d.Id == i)
-                    .ToImmutableArray();
+            var retrievedDocs = table
+                .Query(table.QueryOp.Equal(d => d.Id, doc.Id))
+                .ToImmutableArray();
 
-                Assert.Single(retrievedDocs);
-                Assert.Equal(doc.Id, retrievedDocs[0].Id);
-                Assert.Equal(doc.Text, retrievedDocs[0].Text);
-            }
-        }
-
-        [Fact]
-        public async Task InsertAndRetrieveWithField()
-        {
-            var table = await CreateTableAsync();
-            var doc = new MyDocument(1, "House");
-
-            table.AppendDocuments(doc);
-
-            //  Here we just force to have some variable in the equality
-            for (var i = 1; i != 2; ++i)
-            {
-                var retrievedDocs = table
-                    .Query(d => d.Id == i)
-                    .ToImmutableArray();
-
-                Assert.Single(retrievedDocs);
-                Assert.Equal(doc.Id, retrievedDocs[0].Id);
-                Assert.Equal(doc.Text, retrievedDocs[0].Text);
-            }
+            Assert.Single(retrievedDocs);
+            Assert.Equal(doc, retrievedDocs[0]);
         }
 
         [Fact]
@@ -75,7 +51,7 @@ namespace Ipdb.Tests.PrimaryIndex
             table.AppendDocuments(doc2);
 
             var retrievedDocs = table
-                .Query(d => d.Id == 1)
+                .Query(table.QueryOp.Equal(d => d.Id, 1))
                 .ToImmutableArray();
 
             Assert.Single(retrievedDocs);
