@@ -12,7 +12,7 @@ A key (primary of secondary) can be of type:
 * `string`
 * A tuple of arbitrary length with a combinaison of the previous types
 
-As an implementation detail, each document revision is identified by a revision-id of type `Guid`.  It is unique accross all tables in the database.  Being a random Guid, it has the property of minimizing contention (as opposed to an incrementing long) when multiple documents are inserted.
+As an implementation detail, each document revision is identified by a revision-id of type `long`, unique accross all tables in the database.  It is simply incremented from `1`.  This choice has the property of streamlining the insertion/update of multiple documents.
 
 All data for a database is stored in one file (`ipdb.data`).  The file is divided into 4 KBs block.  A block map is managed by a `Manager` which reserves them and release them (when all data in it is empty) to a `StorageManager`.
 
@@ -37,15 +37,19 @@ When a query is executed that requires more than one key, e.g. `where id==5 and 
 
 ### Document
 
-Each document has the following layout:
+Each record has the following fields:
 
-* Length of document:  `short`
-* JSON document:  `string`
+Name|Type|Description
+-|-|-
+Length|`short`|Length of the document
+Document|`char[]`|Document in JSON
 
 ### Index
 
-Each index has the following layout:
+Each record has the following fields:
 
-* Key hash:  short
-* Length of key:  `short`
-* Key (in JSON):  `string`
+Name|Type|Description
+-|-|-
+Key hash|`short`|Hash of the index key
+Key length|`short`|Length of the key
+Key|`char[]`|Key, in JSON
