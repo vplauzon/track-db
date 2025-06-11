@@ -30,14 +30,38 @@ namespace Ipdb.Tests.PrimaryIndex
             var doc = new MyDocument(1, "House");
 
             table.AppendDocuments(doc);
-            
-            var retrievedDocs = table
-                .Query(d => d.Id == 1)
-                .ToImmutableArray();
 
-            Assert.Single(retrievedDocs);
-            Assert.Equal(doc.Id, retrievedDocs[0].Id);
-            Assert.Equal(doc.Text, retrievedDocs[0].Text);
+            for (var i = 0; i != 5; ++i)
+            {
+                var retrievedDocs = table
+                    .Query(d => d.Id == i)
+                    .ToImmutableArray();
+
+                Assert.Single(retrievedDocs);
+                Assert.Equal(doc.Id, retrievedDocs[0].Id);
+                Assert.Equal(doc.Text, retrievedDocs[0].Text);
+            }
+        }
+
+        [Fact]
+        public async Task InsertAndRetrieveWithField()
+        {
+            var table = await CreateTableAsync();
+            var doc = new MyDocument(1, "House");
+
+            table.AppendDocuments(doc);
+
+            //  Here we just force to have some variable in the equality
+            for (var i = 1; i != 2; ++i)
+            {
+                var retrievedDocs = table
+                    .Query(d => d.Id == i)
+                    .ToImmutableArray();
+
+                Assert.Single(retrievedDocs);
+                Assert.Equal(doc.Id, retrievedDocs[0].Id);
+                Assert.Equal(doc.Text, retrievedDocs[0].Text);
+            }
         }
 
         [Fact]

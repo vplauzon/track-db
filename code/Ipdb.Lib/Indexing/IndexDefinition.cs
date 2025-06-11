@@ -1,15 +1,19 @@
 ﻿using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Ipdb.Lib
 {
     internal record IndexDefinition<T>(
         Func<T, IndexValues> ObjectExtractor,
+        LambdaExpression PropertyExtractor,
         IImmutableList<IndexType> IndexTypes)
     {
-        public static IndexDefinition<T> CreateIndex<PT>(Func<T, PT> propertyExtractor)
+        #region Constructors
+        public static IndexDefinition<T> CreateIndex<PT>(
+            Expression<Func<T, PT>> propertyExtractor)
         {
             if (typeof(PT) == typeof(int))
             {
@@ -23,11 +27,12 @@ namespace Ipdb.Lib
                 // Invoke the method to get our object extractor
                 var objectExtractor = (Func<T, IndexValues>?)method.Invoke(
                     null,
-                    [propertyExtractor])
+                    [propertyExtractor.Compile()])
                     ?? throw new InvalidOperationException("Failed to create object extractor");
 
                 return new IndexDefinition<T>(
                     objectExtractor,
+                    propertyExtractor,
                     ImmutableArray.Create(IndexType.Int));
             }
             else
@@ -60,5 +65,11 @@ namespace Ipdb.Lib
                 ((value >> 48) & 0xFFFF));
         }
         #endregion
+        #endregion
+
+        public bool IsIndexUsed<PT>(Expression<Func<T, PT>> propertyExtractor)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

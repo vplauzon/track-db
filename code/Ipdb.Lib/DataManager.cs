@@ -11,7 +11,7 @@ namespace Ipdb.Lib
 {
     internal class DataManager : IDisposable
     {
-        private const string DATA_FILE_NAME = "data.bin";
+        private const string DATA_FILE_NAME = "ipdb.data";
 
         private readonly StorageManager _storageManager;
 

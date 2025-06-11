@@ -37,7 +37,8 @@ namespace Ipdb.Lib
 
         public IEnumerable<T> Query(Expression<Func<T, bool>> predicate)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException(
+                "Only predicates to primary or secondary indexes are supported");
         }
 
         public void AppendDocuments(params IEnumerable<T> documents)

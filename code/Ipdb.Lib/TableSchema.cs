@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Linq.Expressions;
 
 namespace Ipdb.Lib
 {
@@ -13,12 +14,22 @@ namespace Ipdb.Lib
     public partial class TableSchema<T>
     {
         #region Constructors
-        public static TableSchema<T> CreateSchema<PT>(Func<T, PT> primaryIndexExtractor)
+        public static TableSchema<T> CreateSchema<PT>(
+            Expression<Func<T, PT>> primaryIndexExtractor)
             where PT : notnull
         {
             return new TableSchema<T>(
                 IndexDefinition<T>.CreateIndex(primaryIndexExtractor),
                 ImmutableArray<IndexDefinition<T>>.Empty);
+        }
+
+        public TableSchema<T> AddSecondaryIndex<PT>(Expression<Func<T, PT>> propertyExtractor)
+            where PT : notnull
+        {
+            return new TableSchema<T>(
+                PrimaryIndex,
+                SecondaryIndexes.Add(
+                    IndexDefinition<T>.CreateIndex(propertyExtractor)));
         }
 
         private TableSchema(
@@ -33,14 +44,5 @@ namespace Ipdb.Lib
         internal IndexDefinition<T> PrimaryIndex { get; }
 
         internal IImmutableList<IndexDefinition<T>> SecondaryIndexes { get; }
-
-        public TableSchema<T> AddSecondaryIndex<PT>(Func<T, PT> propertyExtractor)
-            where PT : notnull
-        {
-            return new TableSchema<T>(
-                PrimaryIndex,
-                SecondaryIndexes.Add(
-                    IndexDefinition<T>.CreateIndex(propertyExtractor)));
-        }
     }
 }
