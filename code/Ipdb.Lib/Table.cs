@@ -1,39 +1,26 @@
 ﻿using Ipdb.Lib.Document;
 using System;
-using System.Buffers;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text.Json;
 
 namespace Ipdb.Lib
 {
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class Table<T>
     {
-        #region Inner Types
-        private record DocumentIndexInfo(
-            long Offset,
-            short PrimaryIndexHash,
-            IImmutableList<short> SecondaryIndexHashes);
-        #endregion
-
         private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
         private readonly DataManager _storageManager;
 
-        #region Constructors
-        internal Table(
-            int tableIndex,
-            TableSchema<T> schema,
-            DataManager storageManager)
+        internal Table(int tableIndex, TableSchema<T> schema, DataManager storageManager)
         {
             _tableIndex = tableIndex;
             _schema = schema;
             _storageManager = storageManager;
         }
-        #endregion
 
         public IEnumerable<T> Query(Expression<Func<T, bool>> predicate)
         {
@@ -43,8 +30,6 @@ namespace Ipdb.Lib
 
         public void AppendDocuments(params IEnumerable<T> documents)
         {
-            var documentIndexInfos = new List<DocumentIndexInfo>();
-
             foreach (var document in documents)
             {
                 if (document == null)
@@ -53,22 +38,26 @@ namespace Ipdb.Lib
                 }
 
                 //  Persist the document itself
-                var documentPosition = _storageManager.DocumentManager.AppendDocument(
-                    _tableIndex,
+                var revisionId = _storageManager.DocumentManager.AppendDocument(
                     document);
-                var primaryIndex = _schema.PrimaryIndex.ObjectExtractor(document);
-                var secondaryIndexes = _schema.SecondaryIndexes
+                var indexHashes = _schema.Indexes
                     .Select(i => i.ObjectExtractor(document))
+                    .Select(v => v.Hash)
                     .ToImmutableArray();
-                var allIndexes = new DocumentAllIndexes(
-                    primaryIndex.FullValue,
-                    secondaryIndexes
-                    .Select(v => v.FullValue)
-                    .ToImmutableArray(),
-                    documentPosition);
 
-                //  Persist all indexes
-                _storageManager.PrimaryIndexManager.AppendIndexes(_tableIndex, allIndexes);
+                for (int i = 0; i != indexHashes.Length; ++i)
+                {
+                    var v1 = _tableIndex;
+                    var v2 = i;
+                    var v3 = indexHashes[i];
+                    var v4 = revisionId;
+
+                    _storageManager.IndexManager.AppendIndex(
+                            _tableIndex,
+                            i,
+                            indexHashes[i],
+                            revisionId);
+                }
             }
         }
 

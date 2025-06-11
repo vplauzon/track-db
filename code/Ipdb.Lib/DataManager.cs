@@ -21,7 +21,7 @@ namespace Ipdb.Lib
             EnsureDirectory(databaseRootDirectory);
             _storageManager = new(Path.Combine(databaseRootDirectory, DATA_FILE_NAME));
             DocumentManager = new(_storageManager);
-            PrimaryIndexManager = new(_storageManager);
+            IndexManager = new(_storageManager);
         }
 
         private static void EnsureDirectory(string dbFolder)
@@ -41,7 +41,7 @@ namespace Ipdb.Lib
 
         public DocumentManager DocumentManager { get; }
 
-        public PrimaryIndexManager PrimaryIndexManager { get; }
+        public IndexManager IndexManager { get; }
 
         void IDisposable.Dispose()
         {

@@ -19,30 +19,23 @@ namespace Ipdb.Lib
             where PT : notnull
         {
             return new TableSchema<T>(
-                IndexDefinition<T>.CreateIndex(primaryIndexExtractor),
-                ImmutableArray<IndexDefinition<T>>.Empty);
+                ImmutableArray.Create(IndexDefinition<T>.CreateIndex(primaryIndexExtractor)));
         }
 
         public TableSchema<T> AddSecondaryIndex<PT>(Expression<Func<T, PT>> propertyExtractor)
             where PT : notnull
         {
             return new TableSchema<T>(
-                PrimaryIndex,
-                SecondaryIndexes.Add(
+                Indexes.Add(
                     IndexDefinition<T>.CreateIndex(propertyExtractor)));
         }
 
-        private TableSchema(
-            IndexDefinition<T> primaryIndex,
-            IImmutableList<IndexDefinition<T>> secondaryIndexes)
+        private TableSchema(IImmutableList<IndexDefinition<T>> indexes)
         {
-            PrimaryIndex = primaryIndex;
-            SecondaryIndexes = secondaryIndexes;
+            Indexes = indexes;
         }
         #endregion
 
-        internal IndexDefinition<T> PrimaryIndex { get; }
-
-        internal IImmutableList<IndexDefinition<T>> SecondaryIndexes { get; }
+        internal IImmutableList<IndexDefinition<T>> Indexes { get; }
     }
 }

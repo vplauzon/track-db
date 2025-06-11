@@ -41,8 +41,9 @@ Each record has the following fields:
 
 Name|Type|Description
 -|-|-
-Length|`short`|Length of the document
-Document|`char[]`|Document in JSON
+Revision ID|`long`|Document's revision ID
+Length|`short`|Serialized document Length
+Document|`char[]`|Serialized (in JSON) document
 
 ### Index
 
@@ -51,5 +52,4 @@ Each record has the following fields:
 Name|Type|Description
 -|-|-
 Key hash|`short`|Hash of the index key
-Key length|`short`|Length of the key
-Key|`char[]`|Key, in JSON
+Revision ID|`long`|Document's revision ID
