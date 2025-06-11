@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Querying;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -21,7 +22,7 @@ namespace Ipdb.Lib
             _storageManager = storageManager;
         }
 
-        public IEnumerable<T> Query(Expression<Func<T, bool>> predicate)
+        public IEnumerable<T> Query(QueryPredicate<T> predicate)
         {
             throw new NotSupportedException(
                 "Only predicates to primary or secondary indexes are supported");
