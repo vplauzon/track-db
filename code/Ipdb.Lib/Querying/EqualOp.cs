@@ -20,8 +20,9 @@ namespace Ipdb.Lib.Querying
             Expression<Func<T, PT>> propertyExpression,
             PT propertyValue)
         {
+            var q = indexMap.First().Key;
             _propertyExpression = propertyExpression;
-            if(indexMap.TryGetValue(_propertyExpression, out var extractor))
+            if(indexMap.TryGetValue(_propertyExpression.Body, out var extractor))
             {
                 if(extractor is Func<T, PT> pe)
                 {
