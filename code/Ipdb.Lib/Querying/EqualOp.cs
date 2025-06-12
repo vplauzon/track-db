@@ -11,7 +11,8 @@ namespace Ipdb.Lib.Querying
 {
     public class EqualOp<T, PT> : QueryPredicate<T>
     {
-        private readonly Expression<Func<T, PT>> _propertyExtractor;
+        private readonly Expression<Func<T, PT>> _propertyExpression;
+        private readonly Func<T, PT> _propertyExtractor;
         private readonly PT _propertyValue;
 
         internal EqualOp(
@@ -19,19 +20,36 @@ namespace Ipdb.Lib.Querying
             Expression<Func<T, PT>> propertyExpression,
             PT propertyValue)
         {
-            _propertyExtractor = propertyExpression;
+            _propertyExpression = propertyExpression;
+            if(indexMap.TryGetValue(_propertyExpression, out var extractor))
+            {
+                if(extractor is Func<T, PT> pe)
+                {
+                    _propertyExtractor = pe;
+                }
+                else
+                {
+                    throw new ArgumentException(
+                        "Wrong property type",
+                        nameof(propertyExpression));
+                }
+            }
+            else
+            {
+                throw new ArgumentException("Can't find property", nameof(propertyExpression));
+            }
             _propertyValue = propertyValue;
         }
 
         internal override IImmutableList<Expression> GetProperties()
         {
-            return ImmutableList.Create(_propertyExtractor.Body);
+            return ImmutableList.Create(_propertyExpression.Body);
         }
 
         internal override IImmutableList<short> CombineHash(
             IImmutableDictionary<Expression, IImmutableList<short>> hashMap)
         {
-            if (hashMap.TryGetValue(_propertyExtractor, out var hashList))
+            if (hashMap.TryGetValue(_propertyExpression, out var hashList))
             {
                 return hashList;
             }
