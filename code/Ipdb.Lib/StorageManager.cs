@@ -22,7 +22,7 @@ namespace Ipdb.Lib
                 filePath,
                 FileMode.CreateNew,
                 null,
-                INCREMENT_BLOCK_COUNT * BLOCK_SIZE);
+                (long)INCREMENT_BLOCK_COUNT * BLOCK_SIZE);
             //  Push to the stack in reverse we start at the beginning of the file
             foreach (var blockId in Enumerable.Range(0, INCREMENT_BLOCK_COUNT).Reverse())
             {
