@@ -20,9 +20,11 @@ namespace Ipdb.Lib
             _tableIndex = tableIndex;
             _schema = schema;
             _storageManager = storageManager;
+            QueryOp = new QueryOp<T>(_schema.Indexes
+                .ToImmutableDictionary(i => i.PropertyExpression, i => i.ObjectExtractor));
         }
 
-        public QueryOp<T> QueryOp { get; } = new QueryOp<T>();
+        public QueryOp<T> QueryOp { get; }
 
         public IEnumerable<T> Query(QueryPredicate<T> predicate)
         {

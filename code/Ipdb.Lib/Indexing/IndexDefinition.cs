@@ -8,7 +8,7 @@ namespace Ipdb.Lib
 {
     internal record IndexDefinition<T>(
         Func<T, IndexValues> ObjectExtractor,
-        LambdaExpression PropertyExtractor,
+        Expression PropertyExpression,
         IImmutableList<IndexType> IndexTypes)
     {
         #region Constructors

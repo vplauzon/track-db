@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Querying
 {
-    public abstract record QueryPredicate<T>
+    public abstract class QueryPredicate<T>
     {
         internal abstract IImmutableList<Expression> GetProperties();
 
         internal abstract IImmutableList<short> CombineHash(
             IImmutableDictionary<Expression, IImmutableList<short>> hashMap);
-        
+
         internal abstract IImmutableList<T> FilterDocuments(IImmutableList<T> documents);
     }
 }

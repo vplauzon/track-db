@@ -9,19 +9,29 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Querying
 {
-    public record EqualOp<T, PT>(
-        Expression<Func<T, PT>> propertyExtractor,
-        PT propertyValue) : QueryPredicate<T>
+    public class EqualOp<T, PT> : QueryPredicate<T>
     {
+        private readonly Expression<Func<T, PT>> _propertyExtractor;
+        private readonly PT _propertyValue;
+
+        internal EqualOp(
+            IImmutableDictionary<Expression, Func<T, IndexValues>> indexMap,
+            Expression<Func<T, PT>> propertyExpression,
+            PT propertyValue)
+        {
+            _propertyExtractor = propertyExpression;
+            _propertyValue = propertyValue;
+        }
+
         internal override IImmutableList<Expression> GetProperties()
         {
-            return ImmutableList.Create(propertyExtractor.Body);
+            return ImmutableList.Create(_propertyExtractor.Body);
         }
 
         internal override IImmutableList<short> CombineHash(
             IImmutableDictionary<Expression, IImmutableList<short>> hashMap)
         {
-            if (hashMap.TryGetValue(propertyExtractor, out var hashList))
+            if (hashMap.TryGetValue(_propertyExtractor, out var hashList))
             {
                 return hashList;
             }
