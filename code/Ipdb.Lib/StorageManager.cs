@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Ipdb.Lib
 {
     internal class StorageManager : IDisposable
     {
-        private const int EMPTY_LINE_CHAR_COUNT = 63;
-        private const int EMPTY_LINE_COUNT = 64;
-        private const long BLOCK_SIZE = (EMPTY_LINE_CHAR_COUNT + 1) * EMPTY_LINE_COUNT;
+        private const int BLOCK_SIZE = 4096;
         private const int INCREMENT_BLOCK_COUNT = 256;
 
         private readonly MemoryMappedFile _mappedFile;
@@ -42,23 +41,10 @@ namespace Ipdb.Lib
         public int ReserveBlock()
         {
             if (_availableIds.TryPop(out var blockId))
-            {   //  Initialize the block with spaces and carriage return
+            {   //  Initialize the block with zeros
                 using (var accessor = CreateViewAccessor(blockId, false))
                 {
-                    var blankLine = Enumerable.Range(0, EMPTY_LINE_CHAR_COUNT)
-                        .Select(j => (byte)' ');
-                    var blank = Enumerable.Range(0, EMPTY_LINE_COUNT)
-                        .Select(i => blankLine.Append((byte)'\n'))
-                        .SelectMany(c => c)
-                        .ToArray();
-
-                    if (blank.Length != BLOCK_SIZE)
-                    {
-                        throw new InvalidOperationException(
-                            $"Blank block doesn't match with block size:  " +
-                            $"{blank.Length} != {BLOCK_SIZE}");
-                    }
-                    accessor.WriteArray(0, blank, 0, blank.Length);
+                    accessor.WriteArray(0, new byte[BLOCK_SIZE], 0, BLOCK_SIZE);
                 }
 
                 return blockId;
