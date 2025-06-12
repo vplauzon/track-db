@@ -26,6 +26,7 @@ namespace Ipdb.Lib
 
         public IEnumerable<T> Query(QueryPredicate<T> predicate)
         {
+            //if(predicate is EqualOp<T> e)
             throw new NotSupportedException(
                 "Only predicates to primary or secondary indexes are supported");
         }
