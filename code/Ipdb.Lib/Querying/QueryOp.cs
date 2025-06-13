@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Indexing;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -10,18 +11,18 @@ namespace Ipdb.Lib.Querying
 {
     public class QueryOp<T>
     {
-        private readonly IImmutableDictionary<Expression, Func<T, IndexValues>> _indexMap;
+        private readonly IImmutableDictionary<string, IndexDefinition<T>> _indexMap;
 
-        internal QueryOp(IImmutableDictionary<Expression, Func<T, IndexValues>> indexMap)
+        internal QueryOp(IImmutableDictionary<string, IndexDefinition<T>> indexMap)
         {
             _indexMap = indexMap;
         }
 
-        public EqualOp<T, PT> Equal<PT>(
+        public EqualOpPredicate<T, PT> Equal<PT>(
             Expression<Func<T, PT>> propertyExtractor,
             PT propertyValue)
         {
-            return new EqualOp<T, PT>(_indexMap, propertyExtractor, propertyValue);
+            return new EqualOpPredicate<T, PT>(_indexMap, propertyExtractor, propertyValue);
         }
     }
 }

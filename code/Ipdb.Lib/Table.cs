@@ -13,24 +13,61 @@ namespace Ipdb.Lib
     {
         private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
+        private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
         private readonly DataManager _storageManager;
 
         internal Table(int tableIndex, TableSchema<T> schema, DataManager storageManager)
         {
             _tableIndex = tableIndex;
             _schema = schema;
+            _indexByPath = _schema.Indexes.ToImmutableDictionary(i => i.PropertyPath);
             _storageManager = storageManager;
             QueryOp = new QueryOp<T>(_schema.Indexes
-                .ToImmutableDictionary(i => i.PropertyExpression, i => i.ObjectExtractor));
+                .ToImmutableDictionary(i => i.PropertyPath, i => i));
         }
 
         public QueryOp<T> QueryOp { get; }
 
-        public IEnumerable<T> Query(QueryPredicate<T> predicate)
+        public IImmutableList<T> Query(PredicateBase<T> predicate)
         {
-            //if(predicate is EqualOp<T> e)
-            throw new NotSupportedException(
-                "Only predicates to primary or secondary indexes are supported");
+            while (true)
+            {
+                var primitivePredicate = predicate.FirstPrimitivePredicate;
+
+                if (primitivePredicate == null)
+                {
+                    return QueryResult(predicate);
+                }
+                else if (primitivePredicate is IIndexEqual<T> ie)
+                {
+                    var revisionIds = _storageManager.IndexManager.FindEqualHash(
+                        _tableIndex,
+                        ie.IndexDefinition.PropertyPath,
+                        ie.KeyHash);
+
+                    predicate = predicate.Simplify(primitivePredicate, revisionIds)
+                        ?? throw new InvalidOperationException("Predicate should simplify");
+                }
+                else
+                {
+                    throw new NotSupportedException(
+                        $"Primitive '{primitivePredicate.GetType().Name}'");
+                }
+            }
+        }
+
+        private IImmutableList<T> QueryResult(PredicateBase<T> resultPredicate)
+        {
+            if (resultPredicate is ResultPredicate<T> rp)
+            {
+                //rp.RevisionIds;
+                throw new NotImplementedException();
+            }
+            else
+            {
+                throw new NotSupportedException(
+                    $"Result predicate:  '{resultPredicate.GetType().Name}'");
+            }
         }
 
         public void AppendDocuments(params IEnumerable<T> documents)
@@ -45,22 +82,13 @@ namespace Ipdb.Lib
                 //  Persist the document itself
                 var revisionId = _storageManager.DocumentManager.AppendDocument(
                     document);
-                var indexHashes = _schema.Indexes
-                    .Select(i => i.ObjectExtractor(document))
-                    .Select(v => v.Hash)
-                    .ToImmutableArray();
 
-                for (int i = 0; i != indexHashes.Length; ++i)
+                foreach (var index in _schema.Indexes)
                 {
-                    var v1 = _tableIndex;
-                    var v2 = i;
-                    var v3 = indexHashes[i];
-                    var v4 = revisionId;
-
                     _storageManager.IndexManager.AppendIndex(
                             _tableIndex,
-                            i,
-                            indexHashes[i],
+                            index.PropertyPath,
+                            index.HashExtractor(document),
                             revisionId);
                 }
             }

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Indexing;
+using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
@@ -7,33 +8,41 @@ using System.Reflection;
 namespace Ipdb.Lib
 {
     internal record IndexDefinition<T>(
-        Func<T, IndexValues> ObjectExtractor,
-        Expression PropertyExpression,
-        IImmutableList<IndexType> IndexTypes)
+        string PropertyPath,
+        Func<T, object?> KeyExtractor,
+        Func<T, short> HashExtractor,
+        object HashFunc)
     {
         #region Constructors
         public static IndexDefinition<T> CreateIndex<PT>(
             Expression<Func<T, PT>> propertyExtractor)
         {
+            var path = propertyExtractor.ToPath();
+            //  Compile into a delegate
+            var keyExtractor = propertyExtractor.Compile()
+                ?? throw new InvalidOperationException(
+                    $"Can't compile property extractor for '{path}'");
+            var objectKeyExtractor = (T document) => (object?)keyExtractor(document);
+
             if (typeof(PT) == typeof(int))
             {
-                // Get the method info for GetIntObjectExtractor
-                const string METHOD_NAME = "GetIntObjectExtractor";
-                
-                var method = typeof(IndexDefinition<T>).GetMethod(
+                const string METHOD_NAME = "GetIntHashPair";
+
+                var hashFromObjectMethod = typeof(IndexDefinition<T>).GetMethod(
                     METHOD_NAME,
-                    BindingFlags.NonPublic | BindingFlags.Static) 
+                    BindingFlags.NonPublic | BindingFlags.Static)
                     ?? throw new InvalidOperationException($"Method {METHOD_NAME} not found");
-                // Invoke the method to get our object extractor
-                var objectExtractor = (Func<T, IndexValues>?)method.Invoke(
+                //  Invoke the method to get our object extractor
+                var funcPair = ((Func<T, short>, Func<PT, short>)?)hashFromObjectMethod.Invoke(
                     null,
-                    [propertyExtractor.Compile()])
+                    [keyExtractor])
                     ?? throw new InvalidOperationException("Failed to create object extractor");
 
                 return new IndexDefinition<T>(
-                    objectExtractor,
-                    propertyExtractor,
-                    ImmutableArray.Create(IndexType.Int));
+                    path,
+                    objectKeyExtractor,
+                    funcPair.Item1,
+                    funcPair.Item2);
             }
             else
             {
@@ -42,20 +51,31 @@ namespace Ipdb.Lib
         }
 
         #region Object Extractor
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicMethods)]
-        private static Func<T, IndexValues> GetIntObjectExtractor(Func<T, int> propertyExtractor)
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        private static (Func<T, short>, Func<int, short>) GetIntHashPair(Func<T, int> propertyExtractor)
         {
-            return o =>
+            return (t =>
             {
-                var value = propertyExtractor(o);
-                // XOR the upper and lower 16 bits of the int
-                var hash = (short)((value & 0xFFFF) ^ ((value >> 16) & 0xFFFF));
+                var property = propertyExtractor(t);
+                var hash = GetIntHash(property);
 
-                return new IndexValues(value, hash);
-            };
+                return hash;
+            },
+            GetIntHash);
+        }
+        #endregion
+
+        #region Hash methods
+        private static short GetIntHash(int keyValue)
+        {
+            // XOR the upper and lower 16 bits of the int
+            var hash = (short)((keyValue & 0xFFFF) ^ ((keyValue >> 16) & 0xFFFF));
+
+            return hash;
         }
 
-        private static short GetHash(long value)
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicProperties)]
+        private static short GetLongHash(long value)
         {
             // XOR all four 16-bit components of the long
             return (short)(

@@ -13,7 +13,7 @@ namespace Ipdb.Lib.Indexing
 
         public void AppendIndex(
             int tableIndex,
-            int indexIndex,
+            string propertyPath,
             short indexHash,
             long revisionId)
         {
@@ -29,6 +29,14 @@ namespace Ipdb.Lib.Indexing
                 accessor.Write(offset, revisionId);
                 offset += sizeof(long);
             }
+        }
+
+        public IImmutableSet<long> FindEqualHash(
+            int tableIndex,
+            string propertyPath,
+            short keyHash)
+        {
+            throw new NotImplementedException();
         }
     }
 }
