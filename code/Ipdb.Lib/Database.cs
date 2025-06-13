@@ -32,8 +32,7 @@ namespace Ipdb.Lib
                     BindingFlags.Instance | BindingFlags.NonPublic,
                     null,
                     [tableIndex++, schemaObject, _storageManager],
-                    null
-                );
+                    null);
 
                 tableMap.Add(tableName, table!);
             }

@@ -11,14 +11,12 @@ namespace Ipdb.Lib
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class Table<T>
     {
-        private readonly int _tableIndex;
         private readonly TableSchema<T> _schema;
         private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
         private readonly DataManager _storageManager;
 
-        internal Table(int tableIndex, TableSchema<T> schema, DataManager storageManager)
+        internal Table(TableSchema<T> schema, DataManager storageManager)
         {
-            _tableIndex = tableIndex;
             _schema = schema;
             _indexByPath = _schema.Indexes.ToImmutableDictionary(i => i.PropertyPath);
             _storageManager = storageManager;
@@ -41,7 +39,7 @@ namespace Ipdb.Lib
                 else if (primitivePredicate is IIndexEqual<T> ie)
                 {
                     var revisionIds = _storageManager.IndexManager.FindEqualHash(
-                        _tableIndex,
+                        _schema.TableName,
                         ie.IndexDefinition.PropertyPath,
                         ie.KeyHash);
 

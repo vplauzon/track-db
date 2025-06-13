@@ -32,7 +32,7 @@ namespace Ipdb.Lib.Indexing
         }
 
         public IImmutableSet<long> FindEqualHash(
-            int tableIndex,
+            string tableName,
             string propertyPath,
             short keyHash)
         {
