@@ -22,9 +22,9 @@ namespace Ipdb.Lib
             var tableIndex = 0;
 
             _storageManager = new(databaseRootDirectory);
-            foreach (var tableName in schema.TableMap.Keys)
+            foreach (var tableName in schema.TableIndexMap.Keys)
             {
-                var schemaObject = schema.TableMap[tableName];
+                var schemaObject = schema.TableIndexMap[tableName];
                 var docType = schemaObject.GetType().GetGenericArguments().First();
                 var tableType = typeof(Table<>).MakeGenericType(docType);
                 var table = Activator.CreateInstance(
