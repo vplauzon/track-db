@@ -86,10 +86,10 @@ namespace Ipdb.Lib
                 foreach (var index in _schema.Indexes)
                 {
                     _storageManager.IndexManager.AppendIndex(
-                            _tableIndex,
-                            index.PropertyPath,
-                            index.HashExtractor(document),
-                            revisionId);
+                        _schema.TableName,
+                        index.PropertyPath,
+                        index.HashExtractor(document),
+                        revisionId);
                 }
             }
         }

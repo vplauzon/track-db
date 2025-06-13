@@ -12,7 +12,7 @@ namespace Ipdb.Lib.Indexing
         }
 
         public void AppendIndex(
-            int tableIndex,
+            string tableName,
             string propertyPath,
             short indexHash,
             long revisionId)
