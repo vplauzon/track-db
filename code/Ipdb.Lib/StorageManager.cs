@@ -41,12 +41,7 @@ namespace Ipdb.Lib
         public int ReserveBlock()
         {
             if (_availableIds.TryPop(out var blockId))
-            {   //  Initialize the block with zeros
-                using (var accessor = CreateViewAccessor(blockId, false))
-                {
-                    accessor.WriteArray(0, new byte[BLOCK_SIZE], 0, BLOCK_SIZE);
-                }
-
+            {
                 return blockId;
             }
             else
