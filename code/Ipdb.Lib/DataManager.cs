@@ -19,12 +19,12 @@ namespace Ipdb.Lib
         #region Constructors
         public DataManager(
             string databaseRootDirectory,
-            IImmutableDictionary<string, IImmutableList<string>> tableIndexMap)
+            DatabaseSchema databaseSchema)
         {
             EnsureDirectory(databaseRootDirectory);
             _storageManager = new(Path.Combine(databaseRootDirectory, DATA_FILE_NAME));
             DocumentManager = new(_storageManager);
-            IndexManager = new(_storageManager, tableIndexMap);
+            IndexManager = new(_storageManager, databaseSchema);
         }
 
         private static void EnsureDirectory(string dbFolder)

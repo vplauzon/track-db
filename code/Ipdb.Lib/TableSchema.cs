@@ -1,9 +1,25 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq.Expressions;
 
 namespace Ipdb.Lib
 {
+    public abstract class TableSchema
+    {
+        public TableSchema(string tableName)
+        {
+            TableName = tableName;
+        }
+
+        public string TableName { get; }
+
+        internal abstract Type DocumentType { get; }
+
+        internal abstract IEnumerable<object> IndexObjects { get; }
+    }
+
     /// <summary>
     /// Table schema including a primary index (mandatory)
     /// and optionally one or many secondary indexes.
@@ -11,7 +27,7 @@ namespace Ipdb.Lib
     /// a tuple mixing those.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public partial class TableSchema<T>
+    public class TableSchema<T> : TableSchema
     {
         #region Constructors
         public static TableSchema<T> CreateSchema<PT>(
@@ -34,14 +50,16 @@ namespace Ipdb.Lib
         }
 
         private TableSchema(string tableName, IImmutableList<IndexDefinition<T>> indexes)
+            : base(tableName)
         {
-            TableName = tableName;
             Indexes = indexes;
         }
         #endregion
 
-        public string TableName { get; }
+        internal override Type DocumentType => typeof(T);
 
+        internal override IEnumerable<object> IndexObjects => Indexes;
+ 
         internal IImmutableList<IndexDefinition<T>> Indexes { get; }
     }
 }

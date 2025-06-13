@@ -16,25 +16,22 @@ namespace Ipdb.Lib
             = ImmutableDictionary<string, object>.Empty;
 
         #region Constructor
-        internal Database(string databaseRootDirectory, DatabaseSchema schema)
+        internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
         {
             var tableMap = ImmutableDictionary<string, object>.Empty.ToBuilder();
-            var tableIndex = 0;
 
-            _storageManager = new(databaseRootDirectory, schema.TableIndexMap);
-            foreach (var tableName in schema.TableIndexMap.Keys)
+            _storageManager = new(databaseRootDirectory, databaseSchema);
+            foreach (var tableSchema in databaseSchema.TableSchemas)
             {
-                var schemaObject = schema.TableIndexMap[tableName];
-                var docType = schemaObject.GetType().GetGenericArguments().First();
-                var tableType = typeof(Table<>).MakeGenericType(docType);
+                var tableType = typeof(Table<>).MakeGenericType(tableSchema.DocumentType);
                 var table = Activator.CreateInstance(
                     tableType,
                     BindingFlags.Instance | BindingFlags.NonPublic,
                     null,
-                    [tableIndex++, schemaObject, _storageManager],
+                    [tableSchema, _storageManager],
                     null);
 
-                tableMap.Add(tableName, table!);
+                tableMap.Add(tableSchema.TableName, table!);
             }
             _tableMap = tableMap.ToImmutableDictionary();
         }

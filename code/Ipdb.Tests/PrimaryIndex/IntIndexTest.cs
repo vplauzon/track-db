@@ -64,10 +64,9 @@ namespace Ipdb.Tests.PrimaryIndex
             var db = await Engine.LoadDatabaseAsync(
                 "mydb",
                 new DatabaseSchema()
-                .AddTable(TABLE_NAME, TableSchema<MyDocument>.CreateSchema(
-                    "MyTable",
-                    d => d.Id)));
+                .AddTable(TableSchema<MyDocument>.CreateSchema(TABLE_NAME, d => d.Id)));
             var table = db.GetTable<MyDocument>(TABLE_NAME);
+
             return table;
         }
     }

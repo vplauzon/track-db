@@ -8,32 +8,21 @@ namespace Ipdb.Lib
     {
         #region Constructor
         public DatabaseSchema()
-            : this(
-                  ImmutableDictionary<string, object>.Empty,
-                  ImmutableDictionary<string, IImmutableList<string>>.Empty)
+            : this(ImmutableArray<TableSchema>.Empty)
         {
         }
 
-        private DatabaseSchema(
-            IImmutableDictionary<string, object> tableSchemaMap,
-            IImmutableDictionary<string, IImmutableList<string>> tableIndexMap)
+        private DatabaseSchema(IImmutableList<TableSchema> tableSchemas)
         {
-            TableSchemaMap = tableSchemaMap;
-            TableIndexMap = tableIndexMap;
+            TableSchemas = tableSchemas;
         }
         #endregion
 
-        public DatabaseSchema AddTable<T>(string tableName, TableSchema<T> schema)
+        public DatabaseSchema AddTable<T>(TableSchema<T> schema)
         {
-            return new DatabaseSchema(
-                TableSchemaMap.Add(tableName, schema),
-                TableIndexMap.Add(
-                    tableName,
-                    schema.Indexes.Select(i => i.PropertyPath).ToImmutableArray()));
+            return new DatabaseSchema(TableSchemas.Add(schema));
         }
 
-        internal IImmutableDictionary<string, object> TableSchemaMap { get; }
-
-        internal IImmutableDictionary<string, IImmutableList<string>> TableIndexMap { get; }
+        internal IImmutableList<TableSchema> TableSchemas { get; }
     }
 }
