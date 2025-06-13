@@ -1,15 +1,44 @@
 ﻿using Ipdb.Lib.Document;
 using System;
+using System.Buffers;
 using System.Collections.Immutable;
+using System.Linq;
+using System.Net.Http.Headers;
 
 namespace Ipdb.Lib.Indexing
 {
     internal class IndexManager : DataManagerBase
     {
-        public IndexManager(StorageManager storageManager)
-            :base(storageManager)
+        private readonly IImmutableDictionary<string, IImmutableDictionary<string, IndexCache>>
+            _blockMap;
+
+        #region Constructors
+        public IndexManager(
+            StorageManager storageManager,
+            IImmutableDictionary<string, IImmutableList<string>> tableIndexMap)
+            : base(storageManager)
         {
+            _blockMap = tableIndexMap
+                .Select(p => new
+                {
+                    TableName = p.Key,
+                    IndexMap = CreateIndexMap(p.Value)
+                })
+                .ToImmutableDictionary(o => o.TableName, o => o.IndexMap);
         }
+
+        private static IImmutableDictionary<string, IndexCache> CreateIndexMap(
+            IImmutableList<string> indexPropertyPaths)
+        {
+            return indexPropertyPaths
+                .Select(path => new
+                {
+                    Path = path,
+                    Cache = new IndexCache()
+                })
+                .ToImmutableDictionary(o => o.Path, o => o.Cache);
+        }
+        #endregion
 
         public void AppendIndex(
             string tableName,

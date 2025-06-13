@@ -21,7 +21,7 @@ namespace Ipdb.Lib
             var tableMap = ImmutableDictionary<string, object>.Empty.ToBuilder();
             var tableIndex = 0;
 
-            _storageManager = new(databaseRootDirectory);
+            _storageManager = new(databaseRootDirectory, schema.TableIndexMap);
             foreach (var tableName in schema.TableIndexMap.Keys)
             {
                 var schemaObject = schema.TableIndexMap[tableName];

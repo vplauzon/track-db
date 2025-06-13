@@ -2,6 +2,7 @@
 using Ipdb.Lib.Indexing;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -16,12 +17,14 @@ namespace Ipdb.Lib
         private readonly StorageManager _storageManager;
 
         #region Constructors
-        public DataManager(string databaseRootDirectory)
+        public DataManager(
+            string databaseRootDirectory,
+            IImmutableDictionary<string, IImmutableList<string>> tableIndexMap)
         {
             EnsureDirectory(databaseRootDirectory);
             _storageManager = new(Path.Combine(databaseRootDirectory, DATA_FILE_NAME));
             DocumentManager = new(_storageManager);
-            IndexManager = new(_storageManager);
+            IndexManager = new(_storageManager, tableIndexMap);
         }
 
         private static void EnsureDirectory(string dbFolder)
