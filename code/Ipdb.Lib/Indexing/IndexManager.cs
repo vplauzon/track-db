@@ -26,7 +26,9 @@ namespace Ipdb.Lib.Indexing
             short indexHash,
             long revisionId)
         {
-            var blockId = StorageManager.ReserveBlock();
+            var indexBlockCache =
+                _indexBlockCacheMap[new TableIndexKey(tableName, propertyPath)];
+            var blockId = indexBlockCache.GetBlockId(indexHash);
 
             using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
             {
