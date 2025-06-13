@@ -1,5 +1,5 @@
 # ipdb
 
-In-Proc database ; learning project to implement database concepts
+In-Proc database (ipdb) ; learning project to implement database concepts
 
-[Index structure](documentation/index-structure.md)
+[Index structure](documentation/index-structure
