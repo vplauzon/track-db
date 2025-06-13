@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Indexing;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -19,8 +20,13 @@ namespace Ipdb.Lib
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
         {
             var tableMap = ImmutableDictionary<string, object>.Empty.ToBuilder();
+            var tableIndexKeys = databaseSchema.TableSchemas
+                .Select(s => s.IndexObjects.Select(
+                    i => new TableIndexKey(s.TableName, i.PropertyPath)))
+                .SelectMany(l => l)
+                .ToImmutableArray();
 
-            _storageManager = new(databaseRootDirectory, databaseSchema);
+            _storageManager = new(databaseRootDirectory, tableIndexKeys);
             foreach (var tableSchema in databaseSchema.TableSchemas)
             {
                 var tableType = typeof(Table<>).MakeGenericType(tableSchema.DocumentType);

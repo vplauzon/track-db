@@ -6,5 +6,5 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Indexing
 {
-    internal record TableIndexKey(string TableName, string IndexName);
+    internal record TableIndexKey(string TableName, string IndexPropertyPath);
 }

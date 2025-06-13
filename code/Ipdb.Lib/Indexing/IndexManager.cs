@@ -6,21 +6,17 @@ namespace Ipdb.Lib.Indexing
 {
     internal class IndexManager : DataManagerBase
     {
-        //private readonly IImmutableDictionary<TableIndexKey, IndexCache> _indexCaches;
+        private readonly IImmutableDictionary<TableIndexKey, IndexBlockCache>
+            _indexBlockCacheMap;
 
         #region Constructors
         public IndexManager(
             StorageManager storageManager,
-            DatabaseSchema databaseSchema)
+            IImmutableList<TableIndexKey> tableIndexKeys)
             : base(storageManager)
         {
-            //_indexCaches = tableSchemas
-            //    .Select(p => new
-            //    {
-            //        TableName = p.Key,
-            //        IndexMap = CreateIndexMap(p.Value)
-            //    })
-            //    .ToImmutableDictionary(o => o.TableName, o => o.IndexMap);
+            _indexBlockCacheMap = tableIndexKeys
+                .ToImmutableDictionary(k => k, k => new IndexBlockCache());
         }
         #endregion
 

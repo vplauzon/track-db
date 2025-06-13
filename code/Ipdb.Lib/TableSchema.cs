@@ -17,7 +17,7 @@ namespace Ipdb.Lib
 
         internal abstract Type DocumentType { get; }
 
-        internal abstract IEnumerable<object> IndexObjects { get; }
+        internal abstract IEnumerable<IndexDefinition> IndexObjects { get; }
     }
 
     /// <summary>
@@ -58,7 +58,7 @@ namespace Ipdb.Lib
 
         internal override Type DocumentType => typeof(T);
 
-        internal override IEnumerable<object> IndexObjects => Indexes;
+        internal override IEnumerable<IndexDefinition> IndexObjects => Indexes;
  
         internal IImmutableList<IndexDefinition<T>> Indexes { get; }
     }

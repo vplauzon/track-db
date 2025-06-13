@@ -7,11 +7,13 @@ using System.Reflection;
 
 namespace Ipdb.Lib
 {
+    internal record IndexDefinition(string PropertyPath);
+
     internal record IndexDefinition<T>(
         string PropertyPath,
         Func<T, object?> KeyExtractor,
         Func<T, short> HashExtractor,
-        object HashFunc)
+        object HashFunc) : IndexDefinition(PropertyPath)
     {
         #region Constructors
         public static IndexDefinition<T> CreateIndex<PT>(
