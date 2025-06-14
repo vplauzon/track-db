@@ -28,18 +28,18 @@ namespace Ipdb.Lib.Indexing
         {
             var indexBlockCache =
                 _indexBlockCacheMap[new TableIndexKey(tableName, propertyPath)];
-            var blockId = indexBlockCache.GetBlockId(indexHash);
+            var blocks = indexBlockCache.GetIndexBlocks(indexHash);
 
-            using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
-            {
-                var startOffset = 0;
-                var offset = startOffset;
+            //using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
+            //{
+            //    var startOffset = 0;
+            //    var offset = startOffset;
 
-                accessor.Write(offset, indexHash);
-                offset += sizeof(short);
-                accessor.Write(offset, revisionId);
-                offset += sizeof(long);
-            }
+            //    accessor.Write(offset, indexHash);
+            //    offset += sizeof(short);
+            //    accessor.Write(offset, revisionId);
+            //    offset += sizeof(long);
+            //}
         }
 
         public IImmutableSet<long> FindEqualHash(
