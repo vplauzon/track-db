@@ -74,7 +74,7 @@ namespace Ipdb.Lib
         {
             var transactionId = Interlocked.Increment(ref _nextTransactionId);
 
-            return new TransactionContext(transactionId);
+            return new TransactionContext(transactionId, _storageManager);
         }
 
         void IDisposable.Dispose()

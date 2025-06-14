@@ -50,5 +50,22 @@ namespace Ipdb.Lib
         {
             ((IDisposable)_storageManager).Dispose();
         }
+
+        #region Transaction
+        public void OpenTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void CompleteTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void RollbackTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
     }
 }
