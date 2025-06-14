@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Ipdb.Lib
@@ -15,6 +16,7 @@ namespace Ipdb.Lib
         private readonly DataManager _storageManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
+        private long _nextTransactionId = 0;
 
         #region Constructor
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
@@ -66,6 +68,13 @@ namespace Ipdb.Lib
             {
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
             }
+        }
+
+        public TransactionContext CreateTransaction()
+        {
+            var transactionId = Interlocked.Increment(ref _nextTransactionId);
+
+            return new TransactionContext(transactionId);
         }
 
         void IDisposable.Dispose()
