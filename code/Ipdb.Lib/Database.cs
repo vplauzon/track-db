@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib.Indexing;
+﻿using Ipdb.Lib.Cache;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -11,11 +11,29 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    public class Database : IDisposable
+    public class Database : IDisposable, IDatabaseService
     {
-        private readonly DataManager _storageManager;
+        #region Inner Types
+        private record DatabaseState(
+            DatabaseCache DatabaseCache,
+            IImmutableDictionary<long, TransactionCache> TransactionMap)
+        {
+            public DatabaseState()
+                : this(
+                      new DatabaseCache(
+                          ImmutableArray<ImmutableTransactionLog>.Empty,
+                          new DocumentBlockCollection(),
+                          new IndexBlockCollection()),
+                      ImmutableDictionary<long, TransactionCache>.Empty)
+            {
+            }
+        }
+        #endregion
+
+        private readonly DataManager _dataManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
+        private volatile DatabaseState _databaseState = new();
 
         #region Constructor
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
@@ -27,7 +45,7 @@ namespace Ipdb.Lib
                 .SelectMany(l => l)
                 .ToImmutableArray();
 
-            _storageManager = new(databaseRootDirectory, tableIndexKeys);
+            _dataManager = new(databaseRootDirectory, tableIndexKeys);
             foreach (var tableSchema in databaseSchema.TableSchemas)
             {
                 var tableType = typeof(Table<>).MakeGenericType(tableSchema.DocumentType);
@@ -35,7 +53,7 @@ namespace Ipdb.Lib
                     tableType,
                     BindingFlags.Instance | BindingFlags.NonPublic,
                     null,
-                    [tableSchema, _storageManager],
+                    [tableSchema, _dataManager],
                     null);
 
                 tableMap.Add(tableSchema.TableName, table!);
@@ -71,12 +89,17 @@ namespace Ipdb.Lib
 
         public TransactionContext CreateTransaction()
         {
-            return _storageManager.CreateTransaction();
+            return _dataManager.CreateTransaction();
         }
 
         void IDisposable.Dispose()
         {
-            ((IDisposable)_storageManager).Dispose();
+            ((IDisposable)_dataManager).Dispose();
+        }
+
+        TransactionCache IDatabaseService.GetTransactionCache(long transactionId)
+        {
+            return _databaseState.TransactionMap[transactionId];
         }
     }
 }
