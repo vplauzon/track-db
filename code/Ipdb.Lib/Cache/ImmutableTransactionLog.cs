@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib.InMemoryLogs
+namespace Ipdb.Lib.Cache
 {
     internal record ImmutableTransactionLog(
         long TransactionId,
