@@ -4,9 +4,9 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 
-namespace Ipdb.Lib.Indexing
+namespace Ipdb.Lib.Cache
 {
-    internal class IndexBlockCache
+    internal class IndexBlockCollection
     {
         private readonly ImmutableList<IndexBlock> _blocks = ImmutableList<IndexBlock>.Empty;
 

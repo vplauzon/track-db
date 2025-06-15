@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.Cache;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 
@@ -6,7 +7,7 @@ namespace Ipdb.Lib.Indexing
 {
     internal class IndexManager : DataManagerBase
     {
-        private readonly IImmutableDictionary<TableIndexKey, IndexBlockCache>
+        private readonly IImmutableDictionary<TableIndexKey, IndexBlockCollection>
             _indexBlockCacheMap;
 
         #region Constructors
@@ -16,7 +17,7 @@ namespace Ipdb.Lib.Indexing
             : base(storageManager)
         {
             _indexBlockCacheMap = tableIndexKeys
-                .ToImmutableDictionary(k => k, k => new IndexBlockCache());
+                .ToImmutableDictionary(k => k, k => new IndexBlockCollection());
         }
         #endregion
 

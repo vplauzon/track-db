@@ -1,4 +1,4 @@
-﻿namespace Ipdb.Lib.Indexing
+﻿namespace Ipdb.Lib.Cache
 {
     internal record IndexBlock(
         int BlockId,
