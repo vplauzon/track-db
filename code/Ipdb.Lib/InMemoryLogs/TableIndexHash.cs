@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib.Indexing
+namespace Ipdb.Lib.InMemoryLogs
 {
-    internal record TableIndexKey(string TableName, string IndexPropertyPath);
+    internal record TableIndexHash(TableIndexKey TableIndexKey, long IndexHash);
 }
