@@ -20,6 +20,23 @@ namespace Ipdb.Lib.Indexing
         }
         #endregion
 
+        #region Transaction
+        public void OpenTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void CompleteTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void RollbackTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
+        
         public void AppendIndex(
             string tableName,
             string propertyPath,

@@ -14,6 +14,23 @@ namespace Ipdb.Lib.Document
         {
         }
 
+        #region Transaction
+        public void OpenTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void CompleteTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void RollbackTransaction(long transactionId)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
+
         public long AppendDocument(object document)
         {
             if (document == null)

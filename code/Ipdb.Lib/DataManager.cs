@@ -58,17 +58,22 @@ namespace Ipdb.Lib
         {
             var transactionId = Interlocked.Increment(ref _nextTransactionId);
 
+            DocumentManager.OpenTransaction(transactionId);
+            IndexManager.OpenTransaction(transactionId);
+
             return new TransactionContext(transactionId, this);
         }
 
         public void CompleteTransaction(long transactionId)
         {
-            throw new NotImplementedException();
+            DocumentManager.CompleteTransaction(transactionId);
+            IndexManager.CompleteTransaction(transactionId);
         }
 
         public void RollbackTransaction(long transactionId)
         {
-            throw new NotImplementedException();
+            DocumentManager.RollbackTransaction(transactionId);
+            IndexManager.RollbackTransaction(transactionId);
         }
         #endregion
     }
