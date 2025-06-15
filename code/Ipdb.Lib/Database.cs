@@ -16,7 +16,6 @@ namespace Ipdb.Lib
         private readonly DataManager _storageManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
-        private long _nextTransactionId = 0;
 
         #region Constructor
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
@@ -72,9 +71,7 @@ namespace Ipdb.Lib
 
         public TransactionContext CreateTransaction()
         {
-            var transactionId = Interlocked.Increment(ref _nextTransactionId);
-
-            return new TransactionContext(transactionId, _storageManager);
+            return _storageManager.CreateTransaction();
         }
 
         void IDisposable.Dispose()

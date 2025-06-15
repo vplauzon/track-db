@@ -6,6 +6,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Ipdb.Lib
@@ -15,6 +16,7 @@ namespace Ipdb.Lib
         private const string DATA_FILE_NAME = "ipdb.data";
 
         private readonly StorageManager _storageManager;
+        private long _nextTransactionId = 0;
 
         #region Constructors
         public DataManager(
@@ -52,9 +54,11 @@ namespace Ipdb.Lib
         }
 
         #region Transaction
-        public void OpenTransaction(long transactionId)
+        public TransactionContext CreateTransaction()
         {
-            throw new NotImplementedException();
+            var transactionId = Interlocked.Increment(ref _nextTransactionId);
+
+            return new TransactionContext(transactionId, this);
         }
 
         public void CompleteTransaction(long transactionId)

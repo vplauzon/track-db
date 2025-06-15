@@ -13,14 +13,13 @@ namespace Ipdb.Lib
         }
         #endregion
 
-        private readonly DataManager _storageManager;
+        private readonly DataManager _dataManager;
         private TransactionState _state = TransactionState.Open;
 
-        internal TransactionContext(long transactionId, DataManager storageManager)
+        internal TransactionContext(long transactionId, DataManager dataManager)
         {
             TransactionId = transactionId;
-            _storageManager = storageManager;
-            storageManager.OpenTransaction(TransactionId);
+            _dataManager = dataManager;
         }
 
         public long TransactionId { get; }
@@ -38,7 +37,7 @@ namespace Ipdb.Lib
             if (_state == TransactionState.Open)
             {
                 _state = TransactionState.Complete;
-                _storageManager.CompleteTransaction(TransactionId);
+                _dataManager.CompleteTransaction(TransactionId);
             }
             else
             {
@@ -52,7 +51,7 @@ namespace Ipdb.Lib
             if (_state == TransactionState.Open)
             {
                 _state = TransactionState.Cancelled;
-                _storageManager.RollbackTransaction(TransactionId);
+                _dataManager.RollbackTransaction(TransactionId);
             }
             else
             {

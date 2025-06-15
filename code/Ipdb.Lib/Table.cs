@@ -13,44 +13,59 @@ namespace Ipdb.Lib
     {
         private readonly TableSchema<T> _schema;
         private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
-        private readonly DataManager _storageManager;
+        private readonly DataManager _dataManager;
 
         internal Table(TableSchema<T> schema, DataManager storageManager)
         {
             _schema = schema;
             _indexByPath = _schema.Indexes.ToImmutableDictionary(i => i.PropertyPath);
-            _storageManager = storageManager;
+            _dataManager = storageManager;
             QueryOp = new QueryOp<T>(_schema.Indexes
                 .ToImmutableDictionary(i => i.PropertyPath, i => i));
         }
 
         public QueryOp<T> QueryOp { get; }
 
-        public IImmutableList<T> Query(PredicateBase<T> predicate)
+        public IImmutableList<T> Query(
+            PredicateBase<T> predicate,
+            TransactionContext? transactionContext = null)
         {
-            while (true)
+            var implicitContext = transactionContext ?? _dataManager.CreateTransaction();
+
+            try
             {
-                var primitivePredicate = predicate.FirstPrimitivePredicate;
+                while (true)
+                {
+                    var primitivePredicate = predicate.FirstPrimitivePredicate;
 
-                if (primitivePredicate == null)
-                {
-                    return QueryResult(predicate);
-                }
-                else if (primitivePredicate is IIndexEqual<T> ie)
-                {
-                    var revisionIds = _storageManager.IndexManager.FindEqualHash(
-                        _schema.TableName,
-                        ie.IndexDefinition.PropertyPath,
-                        ie.KeyHash);
+                    if (primitivePredicate == null)
+                    {
+                        var result = QueryResult(predicate);
 
-                    predicate = predicate.Simplify(primitivePredicate, revisionIds)
-                        ?? throw new InvalidOperationException("Predicate should simplify");
+                        implicitContext.Complete();
+
+                        return result;
+                    }
+                    else if (primitivePredicate is IIndexEqual<T> ie)
+                    {
+                        var revisionIds = _dataManager.IndexManager.FindEqualHash(
+                            _schema.TableName,
+                            ie.IndexDefinition.PropertyPath,
+                            ie.KeyHash);
+
+                        predicate = predicate.Simplify(primitivePredicate, revisionIds)
+                            ?? throw new InvalidOperationException("Predicate should simplify");
+                    }
+                    else
+                    {
+                        throw new NotSupportedException(
+                            $"Primitive '{primitivePredicate.GetType().Name}'");
+                    }
                 }
-                else
-                {
-                    throw new NotSupportedException(
-                        $"Primitive '{primitivePredicate.GetType().Name}'");
-                }
+            }
+            finally
+            {
+                ((IDisposable)implicitContext).Dispose();
             }
         }
 
@@ -68,27 +83,45 @@ namespace Ipdb.Lib
             }
         }
 
-        public void AppendDocuments(params IEnumerable<T> documents)
+        public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
-            foreach (var document in documents)
+            AppendDocuments([document], transactionContext);
+        }
+
+        public void AppendDocuments(
+            IEnumerable<T> documents,
+            TransactionContext? transactionContext = null)
+        {
+            var implicitContext = transactionContext ?? _dataManager.CreateTransaction();
+
+            try
             {
-                if (document == null)
+                foreach (var document in documents)
                 {
-                    throw new ArgumentNullException(nameof(documents));
+                    if (document == null)
+                    {
+                        throw new ArgumentNullException(nameof(documents));
+                    }
+
+                    //  Persist the document itself
+                    var revisionId = _dataManager.DocumentManager.AppendDocument(
+                        document);
+
+                    foreach (var index in _schema.Indexes)
+                    {
+                        _dataManager.IndexManager.AppendIndex(
+                            _schema.TableName,
+                            index.PropertyPath,
+                            index.HashExtractor(document),
+                            revisionId);
+                    }
                 }
 
-                //  Persist the document itself
-                var revisionId = _storageManager.DocumentManager.AppendDocument(
-                    document);
-
-                foreach (var index in _schema.Indexes)
-                {
-                    _storageManager.IndexManager.AppendIndex(
-                        _schema.TableName,
-                        index.PropertyPath,
-                        index.HashExtractor(document),
-                        revisionId);
-                }
+                implicitContext.Complete();
+            }
+            finally
+            {
+                ((IDisposable)implicitContext).Dispose();
             }
         }
 
