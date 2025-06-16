@@ -13,23 +13,6 @@ namespace Ipdb.Lib
 {
     public class Database : IDisposable, IDatabaseService
     {
-        #region Inner Types
-        private record DatabaseState(
-            DatabaseCache DatabaseCache,
-            IImmutableDictionary<long, TransactionCache> TransactionMap)
-        {
-            public DatabaseState()
-                : this(
-                      new DatabaseCache(
-                          ImmutableArray<ImmutableTransactionLog>.Empty,
-                          new DocumentBlockCollection(),
-                          new IndexBlockCollection()),
-                      ImmutableDictionary<long, TransactionCache>.Empty)
-            {
-            }
-        }
-        #endregion
-
         private readonly DataManager _dataManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;

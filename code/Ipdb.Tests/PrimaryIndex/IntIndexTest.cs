@@ -21,7 +21,7 @@ namespace Ipdb.Tests.PrimaryIndex
             var table = await CreateTableAsync();
             var doc = new MyDocument(1, "House");
 
-            table.AppendDocuments(doc);
+            table.AppendDocument(doc);
         }
 
         [Fact]
@@ -30,7 +30,7 @@ namespace Ipdb.Tests.PrimaryIndex
             var table = await CreateTableAsync();
             var doc = new MyDocument(42, "House");
 
-            table.AppendDocuments(doc);
+            table.AppendDocument(doc);
 
             var retrievedDocs = table
                 .Query(table.QueryOp.Equal(d => d.Id, doc.Id))
@@ -47,8 +47,8 @@ namespace Ipdb.Tests.PrimaryIndex
             var doc1 = new MyDocument(1, "House");
             var doc2 = new MyDocument(1, "Home");
 
-            table.AppendDocuments(doc1);
-            table.AppendDocuments(doc2);
+            table.AppendDocument(doc1);
+            table.AppendDocument(doc2);
 
             var retrievedDocs = table
                 .Query(table.QueryOp.Equal(d => d.Id, 1))
