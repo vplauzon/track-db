@@ -1,10 +1,14 @@
-﻿using Ipdb.Lib.Querying;
+﻿using Ipdb.Lib.Cache;
+using Ipdb.Lib.Querying;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace Ipdb.Lib
 {
@@ -13,13 +17,13 @@ namespace Ipdb.Lib
     {
         private readonly TableSchema<T> _schema;
         private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
-        private readonly DataManager _dataManager;
+        private readonly IDatabaseService _databaseService;
 
-        internal Table(TableSchema<T> schema, DataManager storageManager)
+        internal Table(TableSchema<T> schema, IDatabaseService databaseService)
         {
             _schema = schema;
             _indexByPath = _schema.Indexes.ToImmutableDictionary(i => i.PropertyPath);
-            _dataManager = storageManager;
+            _databaseService = databaseService;
             QueryOp = new QueryOp<T>(_schema.Indexes
                 .ToImmutableDictionary(i => i.PropertyPath, i => i));
         }
@@ -30,7 +34,11 @@ namespace Ipdb.Lib
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
-            var implicitContext = transactionContext ?? _dataManager.CreateTransaction();
+            var implicitContext = transactionContext ?? _databaseService.CreateTransaction();
+            var transactionId = transactionContext != null
+                ? transactionContext.TransactionId
+                : implicitContext.TransactionId;
+            var transactionCache = _databaseService.GetTransactionCache(transactionId);
 
             try
             {
@@ -48,8 +56,8 @@ namespace Ipdb.Lib
                     }
                     else if (primitivePredicate is IIndexEqual<T> ie)
                     {
-                        var revisionIds = _dataManager.IndexManager.FindEqualHash(
-                            _schema.TableName,
+                        var revisionIds = FindEqualHash(
+                            transactionCache,
                             ie.IndexDefinition.PropertyPath,
                             ie.KeyHash);
 
@@ -69,6 +77,40 @@ namespace Ipdb.Lib
             }
         }
 
+        private IImmutableSet<long> FindEqualHash(
+            TransactionCache transactionCache,
+            string propertyPath,
+            short keyHash)
+        {
+            var revisionIds = ImmutableHashSet<long>.Empty.ToBuilder();
+            var key = new TableIndexHash(
+                new TableIndexKey(_schema.TableName, propertyPath),
+                keyHash);
+
+            //  From past transaction
+            foreach (var log in transactionCache.DatabaseCache.TransactionLogs)
+            {   //  Remove documents that were removed in a transaction
+                revisionIds.ExceptWith(log.DeletedDocuments);
+                //  Match hashed index value
+                if (log.NewIndexes.TryGetValue(key, out var pastRevisionIds))
+                {
+                    revisionIds.Union(pastRevisionIds);
+                }
+            }
+            //  From current transaction
+            //  Remove documents that were removed in a transaction
+            revisionIds.ExceptWith(transactionCache.TransactionLog.DeletedDocuments);
+            //  Match hashed index value
+            if (transactionCache.TransactionLog.NewIndexes.TryGetValue(
+                key,
+                out var newRevisionIds))
+            {
+                revisionIds.Union(newRevisionIds);
+            }
+
+            return revisionIds.ToImmutable();
+        }
+
         private IImmutableList<T> QueryResult(PredicateBase<T> resultPredicate)
         {
             if (resultPredicate is ResultPredicate<T> rp)
@@ -85,38 +127,26 @@ namespace Ipdb.Lib
 
         public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
-            AppendDocuments([document], transactionContext);
-        }
-
-        public void AppendDocuments(
-            IEnumerable<T> documents,
-            TransactionContext? transactionContext = null)
-        {
-            var implicitContext = transactionContext ?? _dataManager.CreateTransaction();
+            var implicitContext = transactionContext ?? _databaseService.CreateTransaction();
+            var transactionId = transactionContext != null
+                ? transactionContext.TransactionId
+                : implicitContext.TransactionId;
+            var transactionCache = _databaseService.GetTransactionCache(transactionId);
 
             try
             {
-                foreach (var document in documents)
+                var revisionId = _databaseService.GetNewDocumentRevisionId();
+                var serializedDocument = Serialize(document);
+
+                transactionCache.TransactionLog.AppendDocument(revisionId, serializedDocument);
+                foreach (var index in _schema.Indexes)
                 {
-                    if (document == null)
-                    {
-                        throw new ArgumentNullException(nameof(documents));
-                    }
-
-                    //  Persist the document itself
-                    var revisionId = _dataManager.DocumentManager.AppendDocument(
-                        document);
-
-                    foreach (var index in _schema.Indexes)
-                    {
-                        _dataManager.IndexManager.AppendIndex(
-                            _schema.TableName,
-                            index.PropertyPath,
-                            index.HashExtractor(document),
-                            revisionId);
-                    }
+                    transactionCache.TransactionLog.AppendIndexValue(
+                        new TableIndexHash(
+                            new TableIndexKey(_schema.TableName, index.PropertyPath),
+                            index.HashExtractor(document)),
+                        revisionId);
                 }
-
                 implicitContext.Complete();
             }
             finally
@@ -129,5 +159,19 @@ namespace Ipdb.Lib
         {
             throw new NotImplementedException();
         }
+
+        #region Serialization
+        private byte[] Serialize(T document)
+        {
+            var bufferWriter = new ArrayBufferWriter<byte>();
+
+            using (var writer = new Utf8JsonWriter(bufferWriter))
+            {
+                JsonSerializer.Serialize(writer, document);
+            }
+
+            return bufferWriter.WrittenMemory.ToArray();
+        }
+        #endregion
     }
 }

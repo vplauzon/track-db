@@ -23,10 +23,9 @@ namespace Ipdb.Lib.Cache
         {
         }
 
-        public ImmutableTransactionLog ToImmutable(long transactionId)
+        public ImmutableTransactionLog ToImmutable()
         {
             return new ImmutableTransactionLog(
-                transactionId,
                 NewDocuments.ToImmutable(),
                 DeletedDocuments.ToImmutable(),
                 NewIndexes.ToImmutableDictionary(
@@ -38,7 +37,7 @@ namespace Ipdb.Lib.Cache
         }
 
         #region Data Manipulation
-        public void AddDocument(long revisionId, byte[] Payload)
+        public void AppendDocument(long revisionId, byte[] Payload)
         {
             NewDocuments.Add(revisionId, Payload);
         }
@@ -52,7 +51,7 @@ namespace Ipdb.Lib.Cache
             DeletedDocuments.Add(revisionId);
         }
 
-        public void AddIndexValue(TableIndexHash tableIndexHash, long revisionId)
+        public void AppendIndexValue(TableIndexHash tableIndexHash, long revisionId)
         {
             if (!NewIndexes.TryGetValue(tableIndexHash, out var revisionIds))
             {

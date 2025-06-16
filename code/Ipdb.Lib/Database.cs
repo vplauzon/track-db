@@ -17,6 +17,7 @@ namespace Ipdb.Lib
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
         private volatile DatabaseState _databaseState = new();
+        private long _revisionId = 0;
 
         #region Constructor
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
@@ -36,7 +37,7 @@ namespace Ipdb.Lib
                     tableType,
                     BindingFlags.Instance | BindingFlags.NonPublic,
                     null,
-                    [tableSchema, _dataManager],
+                    [tableSchema, this],
                     null);
 
                 tableMap.Add(tableSchema.TableName, table!);
@@ -80,9 +81,23 @@ namespace Ipdb.Lib
             ((IDisposable)_dataManager).Dispose();
         }
 
+        #region IDatabaseService
+        long IDatabaseService.GetNewDocumentRevisionId()
+        {
+            var revisionId = Interlocked.Increment(ref _revisionId);
+
+            return revisionId;
+        }
+
         TransactionCache IDatabaseService.GetTransactionCache(long transactionId)
         {
             return _databaseState.TransactionMap[transactionId];
         }
+
+        TransactionContext IDatabaseService.CreateTransaction()
+        {
+            return CreateTransaction();
+        }
+        #endregion
     }
 }

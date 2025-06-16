@@ -7,5 +7,7 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Cache
 {
-    internal record TransactionCache(DatabaseCache DatabaseCache, TransactionLog TransactionLog);
+    internal record TransactionCache(
+        DatabaseCache DatabaseCache,
+        TransactionLog TransactionLog);
 }
