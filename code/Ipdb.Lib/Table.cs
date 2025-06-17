@@ -131,7 +131,7 @@ namespace Ipdb.Lib
                 //  Match hashed index value
                 if (log.NewIndexes.TryGetValue(key, out var pastRevisionIds))
                 {
-                    revisionIds.Union(pastRevisionIds);
+                    revisionIds.UnionWith(pastRevisionIds);
                 }
             }
             //  From current transaction
@@ -142,7 +142,7 @@ namespace Ipdb.Lib
                 key,
                 out var newRevisionIds))
             {
-                revisionIds.Union(newRevisionIds);
+                revisionIds.UnionWith(newRevisionIds);
             }
 
             return revisionIds.ToImmutable();
@@ -159,6 +159,7 @@ namespace Ipdb.Lib
 
             try
             {
+                //var primaryKey = _schema.Indexes.First().KeyExtractor(document);
                 var revisionId = _databaseService.GetNewDocumentRevisionId();
                 var serializedDocument = Serialize(document);
 
@@ -201,7 +202,7 @@ namespace Ipdb.Lib
         {
             var reader = new Utf8JsonReader(new ReadOnlySpan<byte>(buffer));
 
-            return JsonSerializer.Deserialize<T>(ref reader) 
+            return JsonSerializer.Deserialize<T>(ref reader)
                 ?? throw new JsonException(
                     $"Failed to deserialize document of type {typeof(T).Name}");
         }

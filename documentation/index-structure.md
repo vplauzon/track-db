@@ -53,3 +53,7 @@ Name|Type|Description
 -|-|-
 Key hash|`short`|Hash of the index key
 Revision ID|`long`|Document's revision ID
+
+Transient errors during listing
+Bulk table retention
+Test coverage

@@ -7,27 +7,38 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Tests.PrimaryIndex
 {
-    public class IntIndexTest : BaseTest
+    public class IntIndexTest : BaseTest, IAsyncLifetime
     {
         #region Inner types
         private record MyDocument(int Id, string Text);
         #endregion
 
         private const string TABLE_NAME = "mydocs";
+        private Database? _db = null;
+
+        public async Task InitializeAsync()
+        {
+            _db = await Engine.LoadDatabaseAsync(
+                "mydb",
+                new DatabaseSchema()
+                .AddTable(TableSchema<MyDocument>.CreateSchema(TABLE_NAME, d => d.Id)));
+        }
+
+        public Task DisposeAsync() => Task.CompletedTask;
 
         [Fact]
-        public async Task InsertOnly()
+        public void InsertOnly()
         {
-            var table = await CreateTableAsync();
+            var table = CreateTable();
             var doc = new MyDocument(1, "House");
 
             table.AppendDocument(doc);
         }
 
         [Fact]
-        public async Task InsertAndRetrieve()
+        public void InsertAndRetrieve()
         {
-            var table = await CreateTableAsync();
+            var table = CreateTable();
             var doc = new MyDocument(42, "House");
 
             table.AppendDocument(doc);
@@ -41,9 +52,9 @@ namespace Ipdb.Tests.PrimaryIndex
         }
 
         [Fact]
-        public async Task InsertUpdateAndRetrieve()
+        public void InsertUpdateAndRetrieve()
         {
-            var table = await CreateTableAsync();
+            var table = CreateTable();
             var doc1 = new MyDocument(1, "House");
             var doc2 = new MyDocument(1, "Home");
 
@@ -59,15 +70,9 @@ namespace Ipdb.Tests.PrimaryIndex
             Assert.Equal(doc2.Text, retrievedDocs[0].Text);
         }
 
-        private async Task<Table<MyDocument>> CreateTableAsync()
+        private Table<MyDocument> CreateTable()
         {
-            var db = await Engine.LoadDatabaseAsync(
-                "mydb",
-                new DatabaseSchema()
-                .AddTable(TableSchema<MyDocument>.CreateSchema(TABLE_NAME, d => d.Id)));
-            var table = db.GetTable<MyDocument>(TABLE_NAME);
-
-            return table;
+            return _db!.GetTable<MyDocument>(TABLE_NAME);
         }
     }
 }
