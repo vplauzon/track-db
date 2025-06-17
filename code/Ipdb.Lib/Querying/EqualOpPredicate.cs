@@ -58,7 +58,7 @@ namespace Ipdb.Lib.Querying
             }
         }
 
-        internal override IImmutableList<T> FilterDocuments(IImmutableList<T> documents)
+        internal override IEnumerable<T> FilterDocuments(IEnumerable<T> documents)
         {
             return documents
                 .Where(d => object.Equals(_indexDefinition.KeyExtractor(d), _propertyValue))

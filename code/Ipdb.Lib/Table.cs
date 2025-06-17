@@ -14,6 +14,10 @@ namespace Ipdb.Lib
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class Table<T>
     {
+        #region Inner Types
+        private record DocumentRevision(long RevisionId, T Document);
+        #endregion
+
         private readonly TableSchema<T> _schema;
         private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
         private readonly IDatabaseService _databaseService;
@@ -41,21 +45,56 @@ namespace Ipdb.Lib
                 ? transactionContext.TransactionId
                 : implicitContext!.TransactionId;
             var transactionCache = _databaseService.GetTransactionCache(transactionId);
+            var potentialRevisionIds = FindPotentialRevisionIds(predicate, transactionCache);
+            var potentialDocuments = ListPotentialDocuments(
+                potentialRevisionIds,
+                transactionCache);
 
+            return predicate.FilterDocuments(potentialDocuments.Select(d => d.Document));
+        }
+
+        private IEnumerable<DocumentRevision> ListPotentialDocuments(
+            IImmutableSet<long> revisionIds,
+            TransactionCache transactionCache)
+        {
+            //  From past transactions
+            foreach (var log in transactionCache.DatabaseCache.TransactionLogs)
+            {   //  Revision ids found in this transaction
+                var foundIds = revisionIds.Intersect(log.NewDocuments.Keys);
+
+                foreach (var id in foundIds)
+                {
+                    yield return new DocumentRevision(id, Deserialize(log.NewDocuments[id]));
+                }
+                revisionIds = revisionIds.Except(foundIds);
+            }
+            //  From current transaction
+            var currentIds = revisionIds.Intersect(
+                transactionCache.TransactionLog.NewDocuments.Keys);
+
+            if (currentIds.Count != revisionIds.Count)
+            {
+                throw new InvalidOperationException("Some revision IDs aren't found");
+            }
+            foreach (var id in currentIds)
+            {
+                yield return new DocumentRevision(
+                    id,
+                    Deserialize(transactionCache.TransactionLog.NewDocuments[id]));
+            }
+        }
+
+        private IImmutableSet<long> FindPotentialRevisionIds(
+            PredicateBase<T> predicate,
+            TransactionCache transactionCache)
+        {
             while (true)
             {
                 var primitivePredicate = predicate.FirstPrimitivePredicate;
 
                 if (primitivePredicate == null)
                 {
-                    try
-                    {
-                        return ListDocuments(predicate, transactionCache);
-                    }
-                    finally
-                    {
-                        ((IDisposable?)implicitContext)?.Dispose();
-                    }
+                    return ListPotentialRevisionIds(predicate);
                 }
                 else if (primitivePredicate is IIndexEqual<T> ie)
                 {
@@ -75,37 +114,11 @@ namespace Ipdb.Lib
             }
         }
 
-        private static IEnumerable<T> ListDocuments(
-            PredicateBase<T> predicate,
-            TransactionCache transactionCache)
+        private static IImmutableSet<long> ListPotentialRevisionIds(PredicateBase<T> predicate)
         {
             if (predicate is ResultPredicate<T> rp)
             {
-                var revisionIds = rp.RevisionIds;
-
-                //  From past transactions
-                foreach (var log in transactionCache.DatabaseCache.TransactionLogs)
-                {   //  Revision ids found in this transaction
-                    var foundIds = revisionIds.Intersect(log.NewDocuments.Keys);
-
-                    foreach (var id in foundIds)
-                    {
-                        yield return Deserialize(log.NewDocuments[id]);
-                    }
-                    revisionIds = revisionIds.Except(foundIds);
-                }
-                //  From current transaction
-                var currentIds = revisionIds.Intersect(
-                    transactionCache.TransactionLog.NewDocuments.Keys);
-
-                if (currentIds.Count != revisionIds.Count)
-                {
-                    throw new InvalidOperationException("Some revision IDs aren't found");
-                }
-                foreach (var id in currentIds)
-                {
-                    yield return Deserialize(transactionCache.TransactionLog.NewDocuments[id]);
-                }
+                return rp.RevisionIds;
             }
             else
             {

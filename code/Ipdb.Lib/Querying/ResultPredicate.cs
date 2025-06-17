@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 
 namespace Ipdb.Lib.Querying
@@ -22,7 +23,7 @@ namespace Ipdb.Lib.Querying
             PredicateBase<T> primitive,
             IImmutableSet<long> revisionIds) => null;
 
-        internal override IImmutableList<T> FilterDocuments(IImmutableList<T> documents)
+        internal override IEnumerable<T> FilterDocuments(IEnumerable<T> documents)
         {
             throw new NotSupportedException("This should never be invoked");
         }
