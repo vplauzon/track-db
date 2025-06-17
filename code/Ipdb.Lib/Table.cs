@@ -38,19 +38,20 @@ namespace Ipdb.Lib
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
-            var implicitContext = transactionContext == null
-                ? _databaseService.CreateTransaction()
-                : null;
-            var transactionId = transactionContext != null
-                ? transactionContext.TransactionId
-                : implicitContext!.TransactionId;
-            var transactionCache = _databaseService.GetTransactionCache(transactionId);
-            var potentialRevisionIds = FindPotentialRevisionIds(predicate, transactionCache);
-            var potentialDocuments = ListPotentialDocuments(
-                potentialRevisionIds,
-                transactionCache);
+            return TemporaryTransaction(
+                transactionContext,
+                transactionId =>
+                {
+                    var transactionCache = _databaseService.GetTransactionCache(transactionId);
+                    var potentialRevisionIds = FindPotentialRevisionIds(
+                        predicate,
+                        transactionCache);
+                    var potentialDocuments = ListPotentialDocuments(
+                        potentialRevisionIds,
+                        transactionCache);
 
-            return predicate.FilterDocuments(potentialDocuments.Select(d => d.Document));
+                    return predicate.FilterDocuments(potentialDocuments.Select(d => d.Document));
+                });
         }
 
         private IEnumerable<DocumentRevision> ListPotentialDocuments(
@@ -164,39 +165,34 @@ namespace Ipdb.Lib
 
         public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
-            var implicitContext = transactionContext ?? _databaseService.CreateTransaction();
-            var transactionId = transactionContext != null
-                ? transactionContext.TransactionId
-                : implicitContext.TransactionId;
-            var transactionCache = _databaseService.GetTransactionCache(transactionId);
-
-            try
-            {
-                //var primaryKey = _schema.Indexes.First().KeyExtractor(document);
-                var revisionId = _databaseService.GetNewDocumentRevisionId();
-                var serializedDocument = Serialize(document);
-
-                transactionCache.TransactionLog.AppendDocument(revisionId, serializedDocument);
-                foreach (var index in _schema.Indexes)
+            TemporaryTransaction(
+                transactionContext,
+                transactionId =>
                 {
-                    transactionCache.TransactionLog.AppendIndexValue(
-                        new TableIndexHash(
-                            new TableIndexKey(_schema.TableName, index.PropertyPath),
-                            index.HashExtractor(document)),
-                        revisionId);
-                }
-                implicitContext.Complete();
-            }
-            finally
-            {
-                ((IDisposable)implicitContext).Dispose();
-            }
+                    var transactionCache = _databaseService.GetTransactionCache(transactionId);
+
+                    var primaryKey = _schema.Indexes.First().KeyExtractor(document);
+                    var revisionId = _databaseService.GetNewDocumentRevisionId();
+                    var serializedDocument = Serialize(document);
+
+                    transactionCache.TransactionLog.AppendDocument(revisionId, serializedDocument);
+                    foreach (var index in _schema.Indexes)
+                    {
+                        transactionCache.TransactionLog.AppendIndexValue(
+                            new TableIndexHash(
+                                new TableIndexKey(_schema.TableName, index.PropertyPath),
+                                index.HashExtractor(document)),
+                            revisionId);
+                    }
+                });
         }
 
+        #region Delete
         public long DeleteDocuments(Expression<Func<T, bool>> predicate)
         {
             throw new NotImplementedException();
         }
+        #endregion
 
         #region Serialization
         private byte[] Serialize(T document)
@@ -220,5 +216,44 @@ namespace Ipdb.Lib
                     $"Failed to deserialize document of type {typeof(T).Name}");
         }
         #endregion
+
+        #region Temporary Transaction
+        private void TemporaryTransaction(
+            TransactionContext? transactionContext,
+            Action<long> action)
+        {
+            TemporaryTransaction(
+                transactionContext,
+                transactionId =>
+                {
+                    action(transactionId);
+
+                    return 0;
+                });
+        }
+
+        private R TemporaryTransaction<R>(
+            TransactionContext? transactionContext,
+            Func<long, R> func)
+        {
+            var implicitContext = transactionContext ?? _databaseService.CreateTransaction();
+            var transactionId = transactionContext != null
+                ? transactionContext.TransactionId
+                : implicitContext.TransactionId;
+
+            try
+            {
+                var returnValue = func(transactionId);
+
+                implicitContext?.Complete();
+
+                return returnValue;
+            }
+            finally
+            {
+                ((IDisposable)implicitContext).Dispose();
+            }
+        }
+        #endregion
     }
-}
+    }
