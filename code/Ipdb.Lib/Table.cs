@@ -7,7 +7,6 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Ipdb.Lib
@@ -30,50 +29,88 @@ namespace Ipdb.Lib
 
         public QueryOp<T> QueryOp { get; }
 
-        public IImmutableList<T> Query(
+        #region Query
+        public IEnumerable<T> Query(
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
-            var implicitContext = transactionContext ?? _databaseService.CreateTransaction();
+            var implicitContext = transactionContext == null
+                ? _databaseService.CreateTransaction()
+                : null;
             var transactionId = transactionContext != null
                 ? transactionContext.TransactionId
-                : implicitContext.TransactionId;
+                : implicitContext!.TransactionId;
             var transactionCache = _databaseService.GetTransactionCache(transactionId);
 
-            try
+            while (true)
             {
-                while (true)
+                var primitivePredicate = predicate.FirstPrimitivePredicate;
+
+                if (primitivePredicate == null)
                 {
-                    var primitivePredicate = predicate.FirstPrimitivePredicate;
-
-                    if (primitivePredicate == null)
+                    try
                     {
-                        var result = QueryResult(predicate);
-
-                        implicitContext.Complete();
-
-                        return result;
+                        return ListDocuments(predicate, transactionCache);
                     }
-                    else if (primitivePredicate is IIndexEqual<T> ie)
+                    finally
                     {
-                        var revisionIds = FindEqualHash(
-                            transactionCache,
-                            ie.IndexDefinition.PropertyPath,
-                            ie.KeyHash);
-
-                        predicate = predicate.Simplify(primitivePredicate, revisionIds)
-                            ?? throw new InvalidOperationException("Predicate should simplify");
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(
-                            $"Primitive '{primitivePredicate.GetType().Name}'");
+                        ((IDisposable?)implicitContext)?.Dispose();
                     }
                 }
+                else if (primitivePredicate is IIndexEqual<T> ie)
+                {
+                    var revisionIds = FindEqualHash(
+                        transactionCache,
+                        ie.IndexDefinition.PropertyPath,
+                        ie.KeyHash);
+
+                    predicate = predicate.Simplify(primitivePredicate, revisionIds)
+                        ?? throw new InvalidOperationException("Predicate should simplify");
+                }
+                else
+                {
+                    throw new NotSupportedException(
+                        $"Primitive '{primitivePredicate.GetType().Name}'");
+                }
             }
-            finally
+        }
+
+        private static IEnumerable<T> ListDocuments(
+            PredicateBase<T> predicate,
+            TransactionCache transactionCache)
+        {
+            if (predicate is ResultPredicate<T> rp)
             {
-                ((IDisposable)implicitContext).Dispose();
+                var revisionIds = rp.RevisionIds;
+
+                //  From past transactions
+                foreach (var log in transactionCache.DatabaseCache.TransactionLogs)
+                {   //  Revision ids found in this transaction
+                    var foundIds = revisionIds.Intersect(log.NewDocuments.Keys);
+
+                    foreach (var id in foundIds)
+                    {
+                        yield return Deserialize(log.NewDocuments[id]);
+                    }
+                    revisionIds = revisionIds.Except(foundIds);
+                }
+                //  From current transaction
+                var currentIds = revisionIds.Intersect(
+                    transactionCache.TransactionLog.NewDocuments.Keys);
+
+                if (currentIds.Count != revisionIds.Count)
+                {
+                    throw new InvalidOperationException("Some revision IDs aren't found");
+                }
+                foreach (var id in currentIds)
+                {
+                    yield return Deserialize(transactionCache.TransactionLog.NewDocuments[id]);
+                }
+            }
+            else
+            {
+                throw new NotSupportedException(
+                    $"Result predicate:  '{predicate.GetType().Name}'");
             }
         }
 
@@ -87,7 +124,7 @@ namespace Ipdb.Lib
                 new TableIndexKey(_schema.TableName, propertyPath),
                 keyHash);
 
-            //  From past transaction
+            //  From past transactions
             foreach (var log in transactionCache.DatabaseCache.TransactionLogs)
             {   //  Remove documents that were removed in a transaction
                 revisionIds.ExceptWith(log.DeletedDocuments);
@@ -110,20 +147,7 @@ namespace Ipdb.Lib
 
             return revisionIds.ToImmutable();
         }
-
-        private IImmutableList<T> QueryResult(PredicateBase<T> resultPredicate)
-        {
-            if (resultPredicate is ResultPredicate<T> rp)
-            {
-                //rp.RevisionIds;
-                throw new NotImplementedException();
-            }
-            else
-            {
-                throw new NotSupportedException(
-                    $"Result predicate:  '{resultPredicate.GetType().Name}'");
-            }
-        }
+        #endregion
 
         public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
@@ -171,6 +195,15 @@ namespace Ipdb.Lib
             }
 
             return bufferWriter.WrittenMemory.ToArray();
+        }
+
+        private static T Deserialize(byte[] buffer)
+        {
+            var reader = new Utf8JsonReader(new ReadOnlySpan<byte>(buffer));
+
+            return JsonSerializer.Deserialize<T>(ref reader) 
+                ?? throw new JsonException(
+                    $"Failed to deserialize document of type {typeof(T).Name}");
         }
         #endregion
     }

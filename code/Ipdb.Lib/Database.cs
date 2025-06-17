@@ -73,7 +73,18 @@ namespace Ipdb.Lib
 
         public TransactionContext CreateTransaction()
         {
-            return _dataManager.CreateTransaction();
+            var transactionContext = new TransactionContext(this);
+
+            ChangeDatabaseState(currentDbState =>
+            {
+                var newTransactionMap = currentDbState.TransactionMap.Add(
+                    transactionContext.TransactionId,
+                    new TransactionCache(currentDbState.DatabaseCache, new TransactionLog()));
+
+                return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
+            });
+
+            return transactionContext;
         }
 
         void IDisposable.Dispose()
@@ -99,5 +110,52 @@ namespace Ipdb.Lib
             return CreateTransaction();
         }
         #endregion
+
+        #region Transaction
+        internal void CompleteTransaction(long transactionId)
+        {
+            ChangeDatabaseState(currentDbState =>
+            {   //  Fetch transaction cache
+                var transactionCache = currentDbState.TransactionMap[transactionId];
+                //  Remove it from map
+                var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
+                //  Transfer the logs from the transaction to the database cache
+                var newTransactionLogs = currentDbState.DatabaseCache.TransactionLogs.Add(
+                    transactionCache.TransactionLog.ToImmutable());
+                var newDbCache = new DatabaseCache(
+                    newTransactionLogs,
+                    currentDbState.DatabaseCache.DocumentBlocks,
+                    currentDbState.DatabaseCache.IndexBlocks);
+
+                return new DatabaseState(newDbCache, newTransactionMap);
+            });
+        }
+
+        internal void RollbackTransaction(long transactionId)
+        {
+            ChangeDatabaseState(currentDbState =>
+            {   //  Remove transaction from map (and forget about it)
+                var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
+
+                return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
+            });
+        }
+        #endregion
+
+        private void ChangeDatabaseState(Func<DatabaseState, DatabaseState> stateChange)
+        {
+            var exchangeSucceeded = false;
+
+            //  Optimistically try to change the db state:  repeat if necessary
+            while (!exchangeSucceeded)
+            {
+                var currentDbState = _databaseState;
+                var newDbState = stateChange(currentDbState);
+
+                exchangeSucceeded = object.ReferenceEquals(
+                    currentDbState,
+                    Interlocked.CompareExchange(ref _databaseState, newDbState, currentDbState));
+            }
+        }
     }
 }

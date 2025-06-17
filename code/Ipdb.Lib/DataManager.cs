@@ -16,7 +16,6 @@ namespace Ipdb.Lib
         private const string DATA_FILE_NAME = "ipdb.data";
 
         private readonly StorageManager _storageManager;
-        private long _nextTransactionId = 0;
 
         #region Constructors
         public DataManager(
@@ -52,29 +51,5 @@ namespace Ipdb.Lib
         {
             ((IDisposable)_storageManager).Dispose();
         }
-
-        #region Transaction
-        public TransactionContext CreateTransaction()
-        {
-            var transactionId = Interlocked.Increment(ref _nextTransactionId);
-
-            DocumentManager.OpenTransaction(transactionId);
-            IndexManager.OpenTransaction(transactionId);
-
-            return new TransactionContext(transactionId, this);
-        }
-
-        public void CompleteTransaction(long transactionId)
-        {
-            DocumentManager.CompleteTransaction(transactionId);
-            IndexManager.CompleteTransaction(transactionId);
-        }
-
-        public void RollbackTransaction(long transactionId)
-        {
-            DocumentManager.RollbackTransaction(transactionId);
-            IndexManager.RollbackTransaction(transactionId);
-        }
-        #endregion
     }
 }

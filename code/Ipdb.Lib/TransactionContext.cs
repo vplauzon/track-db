@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 
 namespace Ipdb.Lib
 {
@@ -13,13 +14,15 @@ namespace Ipdb.Lib
         }
         #endregion
 
-        private readonly DataManager _dataManager;
+        private static long _nextTransactionId = 0;
+
+        private readonly Database _database;
         private TransactionState _state = TransactionState.Open;
 
-        internal TransactionContext(long transactionId, DataManager dataManager)
+        internal TransactionContext(Database database)
         {
-            TransactionId = transactionId;
-            _dataManager = dataManager;
+            TransactionId = Interlocked.Increment(ref _nextTransactionId);
+            _database = database;
         }
 
         public long TransactionId { get; }
@@ -37,7 +40,7 @@ namespace Ipdb.Lib
             if (_state == TransactionState.Open)
             {
                 _state = TransactionState.Complete;
-                _dataManager.CompleteTransaction(TransactionId);
+                _database.CompleteTransaction(TransactionId);
             }
             else
             {
@@ -51,7 +54,7 @@ namespace Ipdb.Lib
             if (_state == TransactionState.Open)
             {
                 _state = TransactionState.Cancelled;
-                _dataManager.RollbackTransaction(TransactionId);
+                _database.RollbackTransaction(TransactionId);
             }
             else
             {
