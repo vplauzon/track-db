@@ -23,6 +23,11 @@ namespace Ipdb.Lib.Cache
         {
         }
 
+        public bool IsEmpty => !NewDocuments.Any()
+            && !DeletedDocuments.Any()
+            && !NewIndexes.Any()
+            && !DeletedIndexes.Any();
+
         public ImmutableTransactionLog ToImmutable()
         {
             return new ImmutableTransactionLog(

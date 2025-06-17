@@ -119,15 +119,23 @@ namespace Ipdb.Lib
                 var transactionCache = currentDbState.TransactionMap[transactionId];
                 //  Remove it from map
                 var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
-                //  Transfer the logs from the transaction to the database cache
-                var newTransactionLogs = currentDbState.DatabaseCache.TransactionLogs.Add(
-                    transactionCache.TransactionLog.ToImmutable());
-                var newDbCache = new DatabaseCache(
-                    newTransactionLogs,
-                    currentDbState.DatabaseCache.DocumentBlocks,
-                    currentDbState.DatabaseCache.IndexBlocks);
 
-                return new DatabaseState(newDbCache, newTransactionMap);
+                if (transactionCache.TransactionLog.IsEmpty)
+                {
+                    return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
+                }
+                else
+                {
+                    //  Transfer the logs from the transaction to the database cache
+                    var newTransactionLogs = currentDbState.DatabaseCache.TransactionLogs.Add(
+                        transactionCache.TransactionLog.ToImmutable());
+                    var newDbCache = new DatabaseCache(
+                        newTransactionLogs,
+                        currentDbState.DatabaseCache.DocumentBlocks,
+                        currentDbState.DatabaseCache.IndexBlocks);
+
+                    return new DatabaseState(newDbCache, newTransactionMap);
+                }
             });
         }
 
