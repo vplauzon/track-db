@@ -88,10 +88,5 @@ namespace Ipdb.Lib
         }
         #endregion
         #endregion
-
-        public bool IsIndexUsed<PT>(Expression<Func<T, PT>> propertyExtractor)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

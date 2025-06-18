@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Text.Json;
 
 namespace Ipdb.Lib
@@ -14,10 +13,6 @@ namespace Ipdb.Lib
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class Table<T>
     {
-        #region Inner Types
-        private record DocumentRevision(long RevisionId, T Document);
-        #endregion
-
         private readonly TableSchema<T> _schema;
         private readonly ImmutableDictionary<string, IndexDefinition<T>> _indexByPath;
         private readonly IDatabaseService _databaseService;
@@ -34,7 +29,7 @@ namespace Ipdb.Lib
         public QueryOp<T> QueryOp { get; }
 
         #region Query
-        public IEnumerable<T> Query(
+        public IImmutableList<T> Query(
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
@@ -50,11 +45,14 @@ namespace Ipdb.Lib
                         potentialRevisionIds,
                         transactionCache);
 
-                    return predicate.FilterDocuments(potentialDocuments.Select(d => d.Document));
+                    return predicate
+                    .FilterDocuments(potentialDocuments)
+                    .Select(d => d.Document)
+                    .ToImmutableArray();
                 });
         }
 
-        private IEnumerable<DocumentRevision> ListPotentialDocuments(
+        private IEnumerable<DocumentRevision<T>> ListPotentialDocuments(
             IImmutableSet<long> revisionIds,
             TransactionCache transactionCache)
         {
@@ -65,7 +63,7 @@ namespace Ipdb.Lib
 
                 foreach (var id in foundIds)
                 {
-                    yield return new DocumentRevision(id, Deserialize(log.NewDocuments[id]));
+                    yield return new DocumentRevision<T>(id, Deserialize(log.NewDocuments[id]));
                 }
                 revisionIds = revisionIds.Except(foundIds);
             }
@@ -79,7 +77,7 @@ namespace Ipdb.Lib
             }
             foreach (var id in currentIds)
             {
-                yield return new DocumentRevision(
+                yield return new DocumentRevision<T>(
                     id,
                     Deserialize(transactionCache.TransactionLog.NewDocuments[id]));
             }
@@ -170,8 +168,7 @@ namespace Ipdb.Lib
                 transactionId =>
                 {
                     var transactionCache = _databaseService.GetTransactionCache(transactionId);
-
-                    var primaryKey = _schema.Indexes.First().KeyExtractor(document);
+                    //var primaryKey = _schema.Indexes.First().KeyExtractor(document);
                     var revisionId = _databaseService.GetNewDocumentRevisionId();
                     var serializedDocument = Serialize(document);
 
@@ -188,9 +185,42 @@ namespace Ipdb.Lib
         }
 
         #region Delete
-        public long DeleteDocuments(Expression<Func<T, bool>> predicate)
+        public int DeleteDocuments(
+            PredicateBase<T> predicate,
+            TransactionContext? transactionContext = null)
         {
-            throw new NotImplementedException();
+            return TemporaryTransaction(
+                transactionContext,
+                transactionId =>
+                {
+                    var transactionCache = _databaseService.GetTransactionCache(transactionId);
+                    var potentialRevisionIds = FindPotentialRevisionIds(
+                        predicate,
+                        transactionCache);
+                    var potentialDocuments = ListPotentialDocuments(
+                        potentialRevisionIds,
+                        transactionCache);
+                    var documents = predicate.FilterDocuments(potentialDocuments);
+                    var deleteCount = 0;
+
+                    foreach(var doc in documents)
+                    {
+                        transactionCache.TransactionLog.DeleteDocument(doc.RevisionId);
+                        foreach (var index in _schema.Indexes)
+                        {
+                            var indexHash = index.HashExtractor(doc.Document);
+
+                            transactionCache.TransactionLog.DeleteIndexValue(
+                                new TableIndexHash(
+                                    new TableIndexKey(_schema.TableName, index.PropertyPath),
+                                    indexHash),
+                                doc.RevisionId);
+                        }
+                        ++deleteCount;
+                    }
+
+                    return deleteCount;
+                });
         }
         #endregion
 

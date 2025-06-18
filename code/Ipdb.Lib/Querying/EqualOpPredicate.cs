@@ -58,11 +58,13 @@ namespace Ipdb.Lib.Querying
             }
         }
 
-        internal override IEnumerable<T> FilterDocuments(IEnumerable<T> documents)
+        internal override IEnumerable<DocumentRevision<T>> FilterDocuments(
+            IEnumerable<DocumentRevision<T>> documents)
         {
             return documents
-                .Where(d => object.Equals(_indexDefinition.KeyExtractor(d), _propertyValue))
-                .ToImmutableArray();
+                .Where(d => object.Equals(
+                    _indexDefinition.KeyExtractor(d.Document),
+                    _propertyValue));
         }
     }
 }

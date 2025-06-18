@@ -23,7 +23,8 @@ namespace Ipdb.Lib.Querying
             PredicateBase<T> primitive,
             IImmutableSet<long> revisionIds) => null;
 
-        internal override IEnumerable<T> FilterDocuments(IEnumerable<T> documents)
+        internal override IEnumerable<DocumentRevision<T>> FilterDocuments(
+            IEnumerable<DocumentRevision<T>> documents)
         {
             throw new NotSupportedException("This should never be invoked");
         }
