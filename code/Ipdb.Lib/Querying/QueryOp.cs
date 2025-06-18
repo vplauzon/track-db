@@ -18,11 +18,25 @@ namespace Ipdb.Lib.Querying
             _indexMap = indexMap;
         }
 
-        public EqualOpPredicate<T, PT> Equal<PT>(
+        public EqualOpPredicate<T> Equal<PT>(
             Expression<Func<T, PT>> propertyExtractor,
             PT propertyValue)
+            where PT : notnull
         {
-            return new EqualOpPredicate<T, PT>(_indexMap, propertyExtractor, propertyValue);
+            var propertyPath = propertyExtractor.ToPath();
+
+            if (_indexMap.TryGetValue(propertyPath, out var indexDefinition))
+            {
+                var hashValue = ((Func<PT, short>)indexDefinition.HashFunc)(propertyValue);
+
+                return new EqualOpPredicate<T>(indexDefinition, propertyValue, hashValue);
+            }
+            else
+            {
+                throw new ArgumentException(
+                    $"Can't find index with property path '{propertyPath}'",
+                    nameof(propertyPath));
+            }
         }
     }
 }

@@ -10,37 +10,27 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib.Querying
 {
-    public class EqualOpPredicate<T, PT> : PredicateBase<T>, IIndexEqual<T>
+    public class EqualOpPredicate<T> : PredicateBase<T>, IIndexEqual<T>
     {
         private readonly IndexDefinition<T> _indexDefinition;
-        private readonly PT _propertyValue;
+        private readonly object? _propertyValue;
+        private readonly short _hashValue;
 
         #region Constructor
         internal EqualOpPredicate(
-            IImmutableDictionary<string, IndexDefinition<T>> indexMap,
-            Expression<Func<T, PT>> propertyExtractor,
-            PT propertyValue)
+            IndexDefinition<T> indexDefinition,
+            object? propertyValue,
+            short hashValue)
         {
-            var propertyPath = propertyExtractor.ToPath();
-
-            if (indexMap.TryGetValue(propertyPath, out var indexDefinition))
-            {
-                _indexDefinition = indexDefinition;
-            }
-            else
-            {
-                throw new ArgumentException(
-                    $"Can't find index with property path '{propertyPath}'",
-                    nameof(propertyPath));
-            }
+            _indexDefinition = indexDefinition;
             _propertyValue = propertyValue;
+            _hashValue = hashValue;
         }
         #endregion
 
         IndexDefinition<T> IIndexEqual<T>.IndexDefinition => _indexDefinition;
 
-        short IIndexEqual<T>.KeyHash =>
-            ((Func<PT, short>)_indexDefinition.HashFunc)(_propertyValue);
+        short IIndexEqual<T>.KeyHash => _hashValue;
 
         internal override PredicateBase<T>? FirstPrimitivePredicate => this;
 

@@ -170,6 +170,7 @@ namespace Ipdb.Lib
         }
         #endregion
 
+        #region Append
         public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
             TemporaryTransaction(
@@ -177,7 +178,15 @@ namespace Ipdb.Lib
                 transactionId =>
                 {
                     var transactionCache = _databaseService.GetTransactionCache(transactionId);
-                    //var primaryKey = _schema.Indexes.First().KeyExtractor(document);
+                    var primaryIndex = _schema.Indexes.First();
+                    var primaryKeyValue = primaryIndex.KeyExtractor(document);
+                    var primaryKeyHash = primaryIndex.HashExtractor(document);
+                    var deletedCount = DeleteDocumentsInternal(
+                        new EqualOpPredicate<T>(
+                            _schema.Indexes.First(),
+                            primaryKeyValue,
+                            primaryKeyHash),
+                        transactionCache);
                     var revisionId = _databaseService.GetNewDocumentRevisionId();
                     var serializedDocument = Serialize(document);
 
@@ -192,6 +201,7 @@ namespace Ipdb.Lib
                     }
                 });
         }
+        #endregion
 
         #region Delete
         public int DeleteDocuments(
@@ -203,27 +213,35 @@ namespace Ipdb.Lib
                 transactionId =>
                 {
                     var transactionCache = _databaseService.GetTransactionCache(transactionId);
-                    var documents = QueryRevisionDocuments(predicate, transactionCache);
-                    var deleteCount = 0;
 
-                    foreach (var doc in documents)
-                    {
-                        transactionCache.TransactionLog.DeleteDocument(doc.RevisionId);
-                        foreach (var index in _schema.Indexes)
-                        {
-                            var indexHash = index.HashExtractor(doc.Document);
-
-                            transactionCache.TransactionLog.DeleteIndexValue(
-                                new TableIndexHash(
-                                    new TableIndexKey(_schema.TableName, index.PropertyPath),
-                                    indexHash),
-                                doc.RevisionId);
-                        }
-                        ++deleteCount;
-                    }
-
-                    return deleteCount;
+                    return DeleteDocumentsInternal(predicate, transactionCache);
                 });
+        }
+
+        private int DeleteDocumentsInternal(
+            PredicateBase<T> predicate,
+            TransactionCache transactionCache)
+        {
+            var documents = QueryRevisionDocuments(predicate, transactionCache);
+            var deleteCount = 0;
+
+            foreach (var doc in documents)
+            {
+                transactionCache.TransactionLog.DeleteDocument(doc.RevisionId);
+                foreach (var index in _schema.Indexes)
+                {
+                    var indexHash = index.HashExtractor(doc.Document);
+
+                    transactionCache.TransactionLog.DeleteIndexValue(
+                        new TableIndexHash(
+                            new TableIndexKey(_schema.TableName, index.PropertyPath),
+                            indexHash),
+                        doc.RevisionId);
+                }
+                ++deleteCount;
+            }
+
+            return deleteCount;
         }
         #endregion
 
