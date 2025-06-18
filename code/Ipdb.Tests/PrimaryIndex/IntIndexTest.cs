@@ -1,8 +1,6 @@
 using Ipdb.Lib;
-using Ipdb.Lib.Querying;
 using System;
 using System.Collections.Immutable;
-using System.Net;
 using System.Threading.Tasks;
 
 namespace Ipdb.Tests.PrimaryIndex
