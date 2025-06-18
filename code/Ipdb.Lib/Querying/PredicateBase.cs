@@ -37,7 +37,7 @@ namespace Ipdb.Lib.Querying
         /// </summary>
         /// <param name="documents"></param>
         /// <returns></returns>
-        internal abstract IEnumerable<DocumentRevision<T>> FilterDocuments(
+        internal abstract IEnumerable<DocumentRevision<T>> FilterRevisionDocuments(
             IEnumerable<DocumentRevision<T>> documents);
     }
 }

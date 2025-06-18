@@ -58,7 +58,7 @@ namespace Ipdb.Lib.Querying
             }
         }
 
-        internal override IEnumerable<DocumentRevision<T>> FilterDocuments(
+        internal override IEnumerable<DocumentRevision<T>> FilterRevisionDocuments(
             IEnumerable<DocumentRevision<T>> documents)
         {
             return documents

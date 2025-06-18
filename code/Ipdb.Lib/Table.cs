@@ -38,21 +38,30 @@ namespace Ipdb.Lib
                 transactionId =>
                 {
                     var transactionCache = _databaseService.GetTransactionCache(transactionId);
-                    var potentialRevisionIds = FindPotentialRevisionIds(
-                        predicate,
-                        transactionCache);
-                    var potentialDocuments = ListPotentialDocuments(
-                        potentialRevisionIds,
-                        transactionCache);
+                    var revisionDocuments = QueryRevisionDocuments(predicate, transactionCache);
 
-                    return predicate
-                    .FilterDocuments(potentialDocuments)
+                    return revisionDocuments
                     .Select(d => d.Document)
                     .ToImmutableArray();
                 });
         }
 
-        private IEnumerable<DocumentRevision<T>> ListPotentialDocuments(
+        private IEnumerable<DocumentRevision<T>> QueryRevisionDocuments(
+            PredicateBase<T> predicate,
+            TransactionCache transactionCache)
+        {
+            var potentialRevisionIds = FindPotentialRevisionIds(
+                predicate,
+                transactionCache);
+            var potentialDocuments = ListPotentialRevisionDocuments(
+                potentialRevisionIds,
+                transactionCache);
+            var documents = predicate.FilterRevisionDocuments(potentialDocuments);
+
+            return documents;
+        }
+
+        private IEnumerable<DocumentRevision<T>> ListPotentialRevisionDocuments(
             IImmutableSet<long> revisionIds,
             TransactionCache transactionCache)
         {
@@ -194,16 +203,10 @@ namespace Ipdb.Lib
                 transactionId =>
                 {
                     var transactionCache = _databaseService.GetTransactionCache(transactionId);
-                    var potentialRevisionIds = FindPotentialRevisionIds(
-                        predicate,
-                        transactionCache);
-                    var potentialDocuments = ListPotentialDocuments(
-                        potentialRevisionIds,
-                        transactionCache);
-                    var documents = predicate.FilterDocuments(potentialDocuments);
+                    var documents = QueryRevisionDocuments(predicate, transactionCache);
                     var deleteCount = 0;
 
-                    foreach(var doc in documents)
+                    foreach (var doc in documents)
                     {
                         transactionCache.TransactionLog.DeleteDocument(doc.RevisionId);
                         foreach (var index in _schema.Indexes)
