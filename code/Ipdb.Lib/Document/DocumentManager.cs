@@ -5,6 +5,13 @@ using System.Threading;
 
 namespace Ipdb.Lib.Document
 {
+    /// <summary>
+    /// Responsible for reading and writing document blocks.
+    /// A document block has the following layout:
+    /// DocumentCount (short)
+    /// Header:  for each document, Revision ID (long) & Length(short)
+    /// Payloads:  for each document, Payload bytes (of length advertised in the header)
+    /// </summary>
     internal class DocumentManager : DataManagerBase
     {
         public DocumentManager(StorageManager storageManager)
