@@ -19,19 +19,5 @@ namespace Ipdb.Lib
         }
 
         protected StorageManager StorageManager { get; }
-
-        #region Serialization
-        protected byte[] Serialize(object document)
-        {
-            var bufferWriter = new ArrayBufferWriter<byte>();
-
-            using (var writer = new Utf8JsonWriter(bufferWriter))
-            {
-                JsonSerializer.Serialize(writer, document);
-            }
-
-            return bufferWriter.WrittenMemory.ToArray();
-        }
-        #endregion
     }
 }

@@ -199,7 +199,7 @@ namespace Ipdb.Lib
                 _dataMaintenanceTriggerSource = new TaskCompletionSource();
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    PushPendingData(MergeTransactionLogs());
+                    await Task.Run(() => PushPendingData());
                 }
             }
         }
@@ -239,9 +239,19 @@ namespace Ipdb.Lib
             }
         }
 
-        private void PushPendingData(DatabaseCache cache)
+        private void PushPendingData()
         {
-            throw new NotImplementedException();
+            var doPersistEverything = _persistEverythingSource != null;
+            var cache = MergeTransactionLogs();
+
+            cache = _dataManager.DocumentManager.PersistDocuments(cache, doPersistEverything);
+            cache = _dataManager.IndexManager.PersistIndexes(cache, doPersistEverything);
+
+            ChangeDatabaseState(state =>
+            {
+                return new DatabaseState(cache, state.TransactionMap);
+            });
+            _persistEverythingSource?.SetResult();
         }
         #endregion
     }

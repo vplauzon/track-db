@@ -7,46 +7,20 @@ namespace Ipdb.Lib.Indexing
 {
     internal class IndexManager : DataManagerBase
     {
-        private readonly IImmutableDictionary<TableIndexKey, IndexBlockCollection>
-            _indexBlockCacheMap;
-
-        #region Constructors
-        public IndexManager(
-            StorageManager storageManager,
-            IImmutableList<TableIndexKey> tableIndexKeys)
+        public IndexManager(StorageManager storageManager)
             : base(storageManager)
         {
-            _indexBlockCacheMap = tableIndexKeys
-                .ToImmutableDictionary(k => k, k => new IndexBlockCollection());
-        }
-        #endregion
-
-        #region Transaction
-        public void OpenTransaction(long transactionId)
-        {
-            throw new NotImplementedException();
         }
 
-        public void CompleteTransaction(long transactionId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void RollbackTransaction(long transactionId)
-        {
-            throw new NotImplementedException();
-        }
-        #endregion
-        
         public void AppendIndex(
             string tableName,
             string propertyPath,
             short indexHash,
             long revisionId)
         {
-            var indexBlockCache =
-                _indexBlockCacheMap[new TableIndexKey(tableName, propertyPath)];
-            var blocks = indexBlockCache.GetIndexBlocks(indexHash);
+            //var indexBlockCache =
+            //    _indexBlockCacheMap[new TableIndexKey(tableName, propertyPath)];
+            //var blocks = indexBlockCache.GetIndexBlocks(indexHash);
 
             //using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
             //{
@@ -60,10 +34,7 @@ namespace Ipdb.Lib.Indexing
             //}
         }
 
-        public IImmutableSet<long> FindEqualHash(
-            string tableName,
-            string propertyPath,
-            short keyHash)
+        public DatabaseCache PersistIndexes(DatabaseCache cache, bool doPersistEverything)
         {
             throw new NotImplementedException();
         }
