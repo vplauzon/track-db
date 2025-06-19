@@ -33,6 +33,7 @@ namespace Ipdb.Lib
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
+            _databaseService.ObserveBackgroundTasks();
             return TemporaryTransaction(
                 transactionContext,
                 transactionId =>
@@ -173,6 +174,7 @@ namespace Ipdb.Lib
         #region Append
         public void AppendDocument(T document, TransactionContext? transactionContext = null)
         {
+            _databaseService.ObserveBackgroundTasks();
             TemporaryTransaction(
                 transactionContext,
                 transactionId =>
@@ -208,6 +210,8 @@ namespace Ipdb.Lib
             PredicateBase<T> predicate,
             TransactionContext? transactionContext = null)
         {
+            _databaseService.ObserveBackgroundTasks();
+
             return TemporaryTransaction(
                 transactionContext,
                 transactionId =>

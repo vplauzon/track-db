@@ -6,6 +6,8 @@ namespace Ipdb.Lib
     {
         long GetNewDocumentRevisionId();
 
+        void ObserveBackgroundTasks();
+
         TransactionCache GetTransactionCache(long transactionId);
 
         TransactionContext CreateTransaction();

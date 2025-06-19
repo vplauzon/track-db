@@ -1,5 +1,6 @@
 ﻿using Ipdb.Lib.Cache;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -18,6 +19,7 @@ namespace Ipdb.Lib
         private readonly Task _dataMaintenanceTask;
         private readonly TaskCompletionSource _dataMaintenanceStopSource =
             new TaskCompletionSource();
+        private readonly ConcurrentQueue<Task> _dataMaintenanceTasks = new();
         private volatile DatabaseState _databaseState = new();
         private long _revisionId = 0;
         private TaskCompletionSource _dataMaintenanceTriggerSource = new TaskCompletionSource();
@@ -56,6 +58,10 @@ namespace Ipdb.Lib
             _dataMaintenanceStopSource.SetResult();
             ((IDisposable)_dataManager).Dispose();
             await _dataMaintenanceTask;
+            while(_dataMaintenanceTasks.TryDequeue(out var task))
+            {
+                await task;
+            }
         }
 
         public Table<T> GetTable<T>(string tableName)
@@ -114,6 +120,14 @@ namespace Ipdb.Lib
             var revisionId = Interlocked.Increment(ref _revisionId);
 
             return revisionId;
+        }
+
+        void IDatabaseService.ObserveBackgroundTasks()
+        {
+            while (_dataMaintenanceTasks.TryPeek(out var task) && task.IsCompleted)
+            {
+                task.Wait();
+            }
         }
 
         TransactionCache IDatabaseService.GetTransactionCache(long transactionId)
@@ -196,7 +210,15 @@ namespace Ipdb.Lib
                     _dataMaintenanceTriggerSource.Task,
                     _dataMaintenanceStopSource.Task);
                 _dataMaintenanceTriggerSource = new TaskCompletionSource();
-                await Task.Run(() => PushPendingData());
+
+                var task = Task.Run(() => PushPendingData());
+
+                _dataMaintenanceTasks.Enqueue(task);
+                try
+                {
+                    await task;
+                }   //  Silently catch the exception:  that would be available in the queue
+                catch { }
             }
         }
 
