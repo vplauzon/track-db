@@ -24,5 +24,10 @@ namespace Ipdb.Lib.Cache
                 + NewIndexes.Values.Sum(c => c.Count)
                 + DeletedIndexes.Values.Sum(c => c.Count);
         }
+
+        public ImmutableTransactionLog Merge(ImmutableTransactionLog next)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

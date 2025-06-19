@@ -166,25 +166,83 @@ namespace Ipdb.Lib
         }
         #endregion
 
-        private void ChangeDatabaseState(Func<DatabaseState, DatabaseState> stateChange)
+        private DatabaseState ChangeDatabaseState(Func<DatabaseState, DatabaseState> stateChange)
         {
-            var exchangeSucceeded = false;
-
             //  Optimistically try to change the db state:  repeat if necessary
-            while (!exchangeSucceeded)
+            while (true)
             {
                 var currentDbState = _databaseState;
                 var newDbState = stateChange(currentDbState);
 
-                exchangeSucceeded = object.ReferenceEquals(
-                    currentDbState,
-                    Interlocked.CompareExchange(ref _databaseState, newDbState, currentDbState));
+                //  Either if the state didn't change or if we can change it
+                if (object.ReferenceEquals(currentDbState, newDbState)
+                    || object.ReferenceEquals(
+                        currentDbState,
+                        Interlocked.CompareExchange(
+                            ref _databaseState,
+                            newDbState,
+                            currentDbState)))
+                {
+                    return newDbState;
+                }
             }
         }
 
+        #region Data Maintenance
         private async Task DataMaintanceAsync()
         {
-            await Task.CompletedTask;
+            while (!_dataMaintenanceStopSource.Task.IsCompleted)
+            {
+                await Task.WhenAny(
+                    _dataMaintenanceTriggerSource.Task,
+                    _dataMaintenanceStopSource.Task);
+                _dataMaintenanceTriggerSource = new TaskCompletionSource();
+                if (!_dataMaintenanceStopSource.Task.IsCompleted)
+                {
+                    PushPendingData(MergeTransactionLogs());
+                }
+            }
         }
+
+        private DatabaseCache MergeTransactionLogs()
+        {
+            var newState = ChangeDatabaseState(state =>
+            {
+                var cache = state.DatabaseCache;
+                var logs = cache.TransactionLogs;
+
+                if (logs.Count >= 2)
+                {
+                    var first = logs[0];
+                    var second = logs[1];
+                    var merged = first.Merge(second);
+                    var newLogs = logs.Skip(2).Prepend(merged).ToImmutableArray();
+                    var newState = new DatabaseState(
+                        new DatabaseCache(newLogs, cache.DocumentBlocks, cache.IndexBlocks),
+                        state.TransactionMap);
+
+                    return newState;
+                }
+                else
+                {
+                    return state;
+                }
+            });
+
+            if (newState.DatabaseCache.TransactionLogs.Count >= 2)
+            {
+                return MergeTransactionLogs();
+            }
+            else
+            {
+                return newState.DatabaseCache;
+            }
+        }
+
+        private void PushPendingData(DatabaseCache cache)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
     }
 }
