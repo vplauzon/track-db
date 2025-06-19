@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -46,6 +45,11 @@ namespace Ipdb.Lib
         }
         #endregion
 
+        void IDisposable.Dispose()
+        {
+            ((IDisposable)_dataManager).Dispose();
+        }
+
         public Table<T> GetTable<T>(string tableName)
         {
             if (_tableMap.ContainsKey(tableName))
@@ -85,11 +89,6 @@ namespace Ipdb.Lib
             });
 
             return transactionContext;
-        }
-
-        void IDisposable.Dispose()
-        {
-            ((IDisposable)_dataManager).Dispose();
         }
 
         #region IDatabaseService

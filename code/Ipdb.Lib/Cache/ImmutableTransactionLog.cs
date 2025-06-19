@@ -11,5 +11,18 @@ namespace Ipdb.Lib.Cache
         IImmutableDictionary<long, byte[]> NewDocuments,
         IImmutableSet<long> DeletedDocuments,
         IImmutableDictionary<TableIndexHash, IImmutableSet<long>> NewIndexes,
-        IImmutableDictionary<TableIndexHash, IImmutableSet<long>> DeletedIndexes);
+        IImmutableDictionary<TableIndexHash, IImmutableSet<long>> DeletedIndexes)
+    {
+        public int GetDocumentSize()
+        {
+            return NewDocuments.Values.Sum(b => b.Length);
+        }
+
+        public int GetItemCount()
+        {
+            return DeletedDocuments.Count
+                + NewIndexes.Values.Sum(c => c.Count)
+                + DeletedIndexes.Values.Sum(c => c.Count);
+        }
+    }
 }

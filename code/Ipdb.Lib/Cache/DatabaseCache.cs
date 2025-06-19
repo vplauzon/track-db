@@ -10,5 +10,16 @@ namespace Ipdb.Lib.Cache
     internal record DatabaseCache(
         IImmutableList<ImmutableTransactionLog> TransactionLogs,
         DocumentBlockCollection DocumentBlocks,
-        IndexBlockCollection IndexBlocks);
+        IndexBlockCollection IndexBlocks)
+    {
+        public int GetTransactionLogsDocumentSize()
+        {
+            return TransactionLogs.Sum(t => t.GetDocumentSize());
+        }
+
+        public int GetTransactionLogsItemCount()
+        {
+            return TransactionLogs.Sum(t => t.GetItemCount());
+        }
+    }
 }
