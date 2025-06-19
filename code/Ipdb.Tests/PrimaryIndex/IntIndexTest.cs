@@ -13,25 +13,37 @@ namespace Ipdb.Tests.PrimaryIndex
 
         private const string TABLE_NAME = "mydocs";
 
-        [Fact]
-        public async Task InsertOnly()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task InsertOnly(bool doPushPendingData)
         {
             await using (var testTable = await CreateTestTableAsync())
             {
                 var doc = new MyDocument(1, "House");
 
                 testTable.Table.AppendDocument(doc);
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PushPendingDataAsync();
+                }
             }
         }
 
-        [Fact]
-        public async Task InsertAndRetrieveAsync()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task InsertAndRetrieveAsync(bool doPushPendingData)
         {
             await using (var testTable = await CreateTestTableAsync())
             {
                 var doc = new MyDocument(42, "House");
 
                 testTable.Table.AppendDocument(doc);
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PushPendingDataAsync();
+                }
 
                 var retrievedDocs = testTable.Table
                     .Query(testTable.Table.QueryOp.Equal(d => d.Id, doc.Id))
@@ -42,8 +54,10 @@ namespace Ipdb.Tests.PrimaryIndex
             }
         }
 
-        [Fact]
-        public async Task InsertUpdateAndRetrieveAsync()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task InsertUpdateAndRetrieveAsync(bool doPushPendingData)
         {
             await using (var testTable = await CreateTestTableAsync())
             {
@@ -51,7 +65,15 @@ namespace Ipdb.Tests.PrimaryIndex
                 var doc2 = new MyDocument(1, "Home");
 
                 testTable.Table.AppendDocument(doc1);
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PushPendingDataAsync();
+                }
                 testTable.Table.AppendDocument(doc2);
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PushPendingDataAsync();
+                }
 
                 var retrievedDocs = testTable.Table
                     .Query(testTable.Table.QueryOp.Equal(d => d.Id, 1))

@@ -234,7 +234,7 @@ namespace Ipdb.Lib
                 return MergeTransactionLogs();
             }
             else
-            {
+            {   //  Here we should have only one transaction log
                 return newState.DatabaseCache;
             }
         }
