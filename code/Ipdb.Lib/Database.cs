@@ -166,25 +166,24 @@ namespace Ipdb.Lib
         }
         #endregion
 
-        private DatabaseState ChangeDatabaseState(Func<DatabaseState, DatabaseState> stateChange)
-        {
-            //  Optimistically try to change the db state:  repeat if necessary
-            while (true)
-            {
-                var currentDbState = _databaseState;
-                var newDbState = stateChange(currentDbState);
+        private DatabaseState ChangeDatabaseState(Func<DatabaseState, DatabaseState?> stateChange)
+        {   //  Optimistically try to change the db state:  repeat if necessary
+            var currentDbState = _databaseState;
+            var newDbState = stateChange(currentDbState);
 
-                //  Either if the state didn't change or if we can change it
-                if (object.ReferenceEquals(currentDbState, newDbState)
-                    || object.ReferenceEquals(
-                        currentDbState,
-                        Interlocked.CompareExchange(
-                            ref _databaseState,
-                            newDbState,
-                            currentDbState)))
-                {
-                    return newDbState;
-                }
+            if (newDbState == null)
+            {
+                return currentDbState;
+            }
+            else if (object.ReferenceEquals(
+                currentDbState,
+                Interlocked.CompareExchange(ref _databaseState, newDbState, currentDbState)))
+            {
+                return newDbState;
+            }
+            else
+            {   //  Exchange fail, we retry
+                return ChangeDatabaseState(stateChange);
             }
         }
 
@@ -197,10 +196,7 @@ namespace Ipdb.Lib
                     _dataMaintenanceTriggerSource.Task,
                     _dataMaintenanceStopSource.Task);
                 _dataMaintenanceTriggerSource = new TaskCompletionSource();
-                if (!_dataMaintenanceStopSource.Task.IsCompleted)
-                {
-                    await Task.Run(() => PushPendingData());
-                }
+                await Task.Run(() => PushPendingData());
             }
         }
 
@@ -242,16 +238,34 @@ namespace Ipdb.Lib
         private void PushPendingData()
         {
             var doPersistEverything = _persistEverythingSource != null;
-            var cache = MergeTransactionLogs();
 
-            cache = _dataManager.DocumentManager.PersistDocuments(cache, doPersistEverything);
-            cache = _dataManager.IndexManager.PersistIndexes(cache, doPersistEverything);
-
-            ChangeDatabaseState(state =>
+            while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
-                return new DatabaseState(cache, state.TransactionMap);
-            });
-            _persistEverythingSource?.SetResult();
+                var cache = MergeTransactionLogs();
+                var newCache = _dataManager.DocumentManager.PersistDocuments(
+                    cache,
+                    doPersistEverything);
+
+                if (newCache == null)
+                {
+                    newCache = _dataManager.IndexManager.PersistIndexes(
+                        cache,
+                        doPersistEverything);
+                }
+                if (newCache != null)
+                {
+                    ChangeDatabaseState(state =>
+                    {
+                        return new DatabaseState(newCache, state.TransactionMap);
+                    });
+                }
+                else
+                {   //  We're done
+                    _persistEverythingSource?.SetResult();
+
+                    return;
+                }
+            }
         }
         #endregion
     }

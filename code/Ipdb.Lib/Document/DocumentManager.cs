@@ -46,7 +46,7 @@ namespace Ipdb.Lib.Document
         //    }
         //}
 
-        public DatabaseCache PersistDocuments(DatabaseCache cache, bool doPersistEverything)
+        public DatabaseCache? PersistDocuments(DatabaseCache cache, bool doPersistEverything)
         {
             throw new NotImplementedException();
         }
