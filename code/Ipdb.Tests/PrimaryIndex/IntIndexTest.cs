@@ -16,7 +16,7 @@ namespace Ipdb.Tests.PrimaryIndex
         [Fact]
         public async Task InsertOnly()
         {
-            using (var testTable = await CreateTestTableAsync())
+            await using (var testTable = await CreateTestTableAsync())
             {
                 var doc = new MyDocument(1, "House");
 
@@ -27,7 +27,7 @@ namespace Ipdb.Tests.PrimaryIndex
         [Fact]
         public async Task InsertAndRetrieveAsync()
         {
-            using (var testTable = await CreateTestTableAsync())
+            await using (var testTable = await CreateTestTableAsync())
             {
                 var doc = new MyDocument(42, "House");
 
@@ -45,7 +45,7 @@ namespace Ipdb.Tests.PrimaryIndex
         [Fact]
         public async Task InsertUpdateAndRetrieveAsync()
         {
-            using (var testTable = await CreateTestTableAsync())
+            await using (var testTable = await CreateTestTableAsync())
             {
                 var doc1 = new MyDocument(1, "House");
                 var doc2 = new MyDocument(1, "Home");

@@ -17,7 +17,7 @@ namespace Ipdb.Tests
             return testTable;
         }
     }
-    internal class TestTable<T> : IDisposable
+    internal class TestTable<T> : IAsyncDisposable
     {
         #region Constructors
         public static async Task<TestTable<T>> CreateAsync(TableSchema<T> schema)
@@ -46,9 +46,9 @@ namespace Ipdb.Tests
 
         public Table<T> Table { get; }
 
-        void IDisposable.Dispose()
+        async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            ((IDisposable)Engine).Dispose();
+            await ((IAsyncDisposable)Engine).DisposeAsync();
         }
     }
 }

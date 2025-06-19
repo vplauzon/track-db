@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    public class Engine : IDisposable
+    public class Engine : IAsyncDisposable
     {
         private readonly string _localRootDirectory;
         private readonly IDictionary<string, Database> _databaseMap =
@@ -32,11 +32,11 @@ namespace Ipdb.Lib
             return database;
         }
 
-        void IDisposable.Dispose()
+        async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            foreach (IDisposable database in _databaseMap.Values)
+            foreach (IAsyncDisposable database in _databaseMap.Values)
             {
-                database.Dispose();
+                await database.DisposeAsync();
             }
         }
     }

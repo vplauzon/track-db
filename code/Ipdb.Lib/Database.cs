@@ -10,13 +10,18 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib
 {
-    public class Database : IDisposable, IDatabaseService
+    public class Database : IAsyncDisposable, IDatabaseService
     {
         private readonly DataManager _dataManager;
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
+        private readonly Task _dataMaintenanceTask;
+        private readonly TaskCompletionSource _dataMaintenanceStopSource =
+            new TaskCompletionSource();
         private volatile DatabaseState _databaseState = new();
         private long _revisionId = 0;
+        private TaskCompletionSource _dataMaintenanceTriggerSource = new TaskCompletionSource();
+        private TaskCompletionSource? _persistEverythingSource = null;
 
         #region Constructor
         internal Database(string databaseRootDirectory, DatabaseSchema databaseSchema)
@@ -42,12 +47,15 @@ namespace Ipdb.Lib
                 tableMap.Add(tableSchema.TableName, table!);
             }
             _tableMap = tableMap.ToImmutableDictionary();
+            _dataMaintenanceTask = DataMaintanceAsync();
         }
         #endregion
 
-        void IDisposable.Dispose()
+        async ValueTask IAsyncDisposable.DisposeAsync()
         {
+            _dataMaintenanceStopSource.SetResult();
             ((IDisposable)_dataManager).Dispose();
+            await _dataMaintenanceTask;
         }
 
         public Table<T> GetTable<T>(string tableName)
@@ -89,6 +97,15 @@ namespace Ipdb.Lib
             });
 
             return transactionContext;
+        }
+
+        /// <summary>For test only:  push every pending data to disk.</summary>
+        /// <returns></returns>
+        internal async Task PushPendingDataAsync()
+        {
+            _persistEverythingSource = new TaskCompletionSource();
+            _dataMaintenanceTriggerSource.TrySetResult();
+            await _persistEverythingSource.Task;
         }
 
         #region IDatabaseService
@@ -163,6 +180,11 @@ namespace Ipdb.Lib
                     currentDbState,
                     Interlocked.CompareExchange(ref _databaseState, newDbState, currentDbState));
             }
+        }
+
+        private async Task DataMaintanceAsync()
+        {
+            await Task.CompletedTask;
         }
     }
 }
