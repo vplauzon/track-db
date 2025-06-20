@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -20,7 +21,7 @@ namespace Ipdb.Lib.Document
     {
         #region Inner types
         [StructLayout(LayoutKind.Sequential, Pack = 1)]
-        private record Header(long RevisionId, short Length);
+        private readonly record struct Header(long RevisionId, short Length);
         #endregion
 
         public DocumentManager(StorageManager storageManager)
@@ -135,8 +136,19 @@ namespace Ipdb.Lib.Document
                 var header = documents
                     .Select(d => new Header(d.Key, (short)d.Value.Length))
                     .ToArray();
+                var headerBuffer = new byte[header.Length * Marshal.SizeOf<Header>()];
+                var headerSpan = MemoryMarshal.Cast<byte, Header>(headerBuffer.AsSpan());
+                var documentPayload = documents
+                    .SelectMany(d => d.Value)
+                    .ToArray();
 
                 accessor.Write(offset, (short)documents.Count());
+                offset += sizeof(short);
+                header.AsSpan().CopyTo(headerSpan);
+                accessor.WriteArray(offset, headerBuffer, 0, headerBuffer.Length);
+                offset += sizeof(byte) * headerBuffer.Length;
+                accessor.WriteArray(offset, documentPayload, 0, documentPayload.Length);
+                offset += sizeof(byte) * documentPayload.Length;
                 throw new NotImplementedException();
             }
         }
