@@ -1,6 +1,10 @@
 ﻿using Ipdb.Lib.Cache;
 using System;
 using System.Buffers;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Ipdb.Lib.Document
@@ -14,6 +18,11 @@ namespace Ipdb.Lib.Document
     /// </summary>
     internal class DocumentManager : DataManagerBase
     {
+        #region Inner types
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
+        private record Header(long RevisionId, short Length);
+        #endregion
+
         public DocumentManager(StorageManager storageManager)
             : base(storageManager)
         {
@@ -53,9 +62,89 @@ namespace Ipdb.Lib.Document
         //    }
         //}
 
+        #region Persist documents
         public DatabaseCache? PersistDocuments(DatabaseCache cache, bool doPersistEverything)
+        {
+            return PersistsNewDocuments(cache, doPersistEverything)
+                ?? DeleteDocuments(cache, doPersistEverything);
+        }
+
+        private DatabaseCache? PersistsNewDocuments(DatabaseCache cache, bool doPersistEverything)
+        {   //  Removing the DocumentCount
+            var remainingSize = StorageManager.BlockSize - sizeof(short);
+            var transactionLog = cache.TransactionLogs.First();
+            var newDocuments = transactionLog.NewDocuments
+                .OrderBy(o => o.Key)
+                .ToImmutableArray();
+            var documentCount = 0;
+
+            while (documentCount + 1 < newDocuments.Length)
+            {
+                var document = newDocuments[documentCount];
+                var newRemainingSize = remainingSize
+                    - Marshal.SizeOf<Header>()
+                    - sizeof(byte) * document.Value.Length;
+
+                if (newRemainingSize > 0)
+                {
+                    remainingSize = newRemainingSize;
+                    ++documentCount;
+                }
+                else if (documentCount == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Document size exceed capacity:  " +
+                        $"{sizeof(byte) * document.Value.Length}");
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (documentCount > 0
+                //  We want to have remaining documents:  prooving we max out block
+                && (documentCount < newDocuments.Length || doPersistEverything))
+            {
+                var newNewDocuments = newDocuments
+                    .Skip(documentCount)
+                    .ToImmutableDictionary(p => p.Key, p => p.Value);
+                var newCache = new DatabaseCache(
+                    cache.TransactionLogs.Prepend(
+                        transactionLog with { NewDocuments = newNewDocuments })
+                    .ToImmutableArray(),
+                    cache.DocumentBlocks,
+                    cache.IndexBlocks);
+
+                return PersistNewBlock(cache, newDocuments.Take(documentCount));
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        private DatabaseCache PersistNewBlock(
+            DatabaseCache cache,
+            IEnumerable<KeyValuePair<long, byte[]>> documents)
+        {
+            var blockId = StorageManager.ReserveBlock();
+
+            using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
+            {
+                var offset = 0;
+                var header = documents
+                    .Select(d => new Header(d.Key, (short)d.Value.Length))
+                    .ToArray();
+
+                accessor.Write(offset, (short)documents.Count());
+                throw new NotImplementedException();
+            }
+        }
+
+        private DatabaseCache? DeleteDocuments(DatabaseCache cache, bool doPersistEverything)
         {
             throw new NotImplementedException();
         }
+        #endregion
     }
 }
