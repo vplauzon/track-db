@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -34,17 +33,18 @@ namespace Ipdb.Lib.DbStorage
         #region Write
         public void Write(short value)
         {
-            throw new NotImplementedException();
+            _buffer.AddRange(BitConverter.GetBytes(value));
         }
 
-        public void WriteArray<T>(T[] array)
+        public void WriteArray<T>(T[] array) where T : notnull
         {
-            throw new NotImplementedException();
-        }
-
-        public void Write(IEnumerable<byte> value)
-        {
-            throw new NotImplementedException();
+            if (typeof(T) == typeof(byte))
+            {
+                _buffer.AddRange(array.Cast<byte>());
+            }
+            else
+            {
+            }
         }
         #endregion
     }
