@@ -36,7 +36,7 @@ namespace Ipdb.Lib.DbStorage
 
         public DatabaseCache? PersistIndexes(DatabaseCache cache, bool doPersistEverything)
         {
-            throw new NotImplementedException();
+            return null;
         }
     }
 }

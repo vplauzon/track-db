@@ -13,7 +13,7 @@ namespace Ipdb.Lib.Cache
 
         #region Constructors
         public DocumentBlockCollection()
-            :this(ImmutableList<DocumentBlock>.Empty)
+            : this(ImmutableList<DocumentBlock>.Empty)
         {
         }
 
@@ -25,14 +25,21 @@ namespace Ipdb.Lib.Cache
 
         public DocumentBlockCollection AddBlock(DocumentBlock block)
         {
-            var blockIndex = _blocks.BinarySearch(
-                block,
-                Comparer<DocumentBlock>.Create(
-                    (a, b) => a.MinRevisionId.CompareTo(b.MinRevisionId)));
+            if (_blocks.Any())
+            {
+                var blockIndex = _blocks.BinarySearch(
+                    block,
+                    Comparer<DocumentBlock>.Create(
+                        (a, b) => a.MinRevisionId.CompareTo(b.MinRevisionId)));
 
-            throw new NotImplementedException();
+                throw new NotImplementedException();
+            }
+            else
+            {
+                return new DocumentBlockCollection(ImmutableList.Create(block));
+            }
         }
- 
+
         public DocumentBlock GetDocumentBlock(long revisionId)
         {
             throw new NotImplementedException();

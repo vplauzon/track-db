@@ -58,7 +58,7 @@ namespace Ipdb.Lib
             _dataMaintenanceStopSource.SetResult();
             ((IDisposable)_dataManager).Dispose();
             await _dataMaintenanceTask;
-            while(_dataMaintenanceTasks.TryDequeue(out var task))
+            while (_dataMaintenanceTasks.TryDequeue(out var task))
             {
                 await task;
             }

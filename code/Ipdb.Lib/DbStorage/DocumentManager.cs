@@ -65,12 +65,14 @@ namespace Ipdb.Lib.DbStorage
         #region Persist documents
         public DatabaseCache? PersistDocuments(DatabaseCache cache, bool doPersistEverything)
         {
-            return PersistsNewDocuments(cache, doPersistEverything)
+            return !cache.TransactionLogs.Any() || !cache.TransactionLogs.First().NewDocuments.Any()
+                ? null
+                : PersistsNewDocuments(cache, doPersistEverything)
                 ?? DeleteDocuments(cache, doPersistEverything);
         }
 
         private DatabaseCache? PersistsNewDocuments(DatabaseCache cache, bool doPersistEverything)
-        {   //  Removing the DocumentCount
+        {
             var remainingSize = StorageManager.BlockSize - sizeof(short);
             var transactionLog = cache.TransactionLogs.First();
             var newDocuments = transactionLog.NewDocuments
@@ -78,7 +80,7 @@ namespace Ipdb.Lib.DbStorage
                 .ToImmutableArray();
             var documentCount = 0;
 
-            while (documentCount + 1 < newDocuments.Length)
+            while (documentCount < newDocuments.Length)
             {
                 var document = newDocuments[documentCount];
                 var newRemainingSize = remainingSize
@@ -102,20 +104,21 @@ namespace Ipdb.Lib.DbStorage
                 }
             }
             if (documentCount > 0
-                //  We want to have remaining documents:  prooving we max out block
+                //  We want to have remaining documents:  proving we max out block
                 && (documentCount < newDocuments.Length || doPersistEverything))
             {
                 var newNewDocuments = newDocuments
                     .Skip(documentCount)
                     .ToImmutableDictionary(p => p.Key, p => p.Value);
+                var newBlock = PersistNewBlock(newDocuments.Take(documentCount));
                 var newCache = new DatabaseCache(
                     cache.TransactionLogs.Prepend(
                         transactionLog with { NewDocuments = newNewDocuments })
                     .ToImmutableArray(),
-                    cache.DocumentBlocks,
+                    cache.DocumentBlocks.AddBlock(newBlock),
                     cache.IndexBlocks);
 
-                return PersistNewBlock(cache, newDocuments.Take(documentCount));
+                return newCache;
             }
             else
             {
@@ -123,8 +126,7 @@ namespace Ipdb.Lib.DbStorage
             }
         }
 
-        private DatabaseCache PersistNewBlock(
-            DatabaseCache cache,
+        private DocumentBlock PersistNewBlock(
             IEnumerable<KeyValuePair<long, byte[]>> documents)
         {
             var writer = StorageManager.GetBlockWriter();
@@ -142,17 +144,13 @@ namespace Ipdb.Lib.DbStorage
                 block,
                 documents.Min(p => p.Key),
                 documents.Max(p => p.Key));
-            var newCache = new DatabaseCache(
-                cache.TransactionLogs,
-                cache.DocumentBlocks.AddBlock(documentBlock),
-                cache.IndexBlocks);
 
-            return newCache;
+            return documentBlock;
         }
 
         private DatabaseCache? DeleteDocuments(DatabaseCache cache, bool doPersistEverything)
         {
-            throw new NotImplementedException();
+            return null;
         }
         #endregion
     }
