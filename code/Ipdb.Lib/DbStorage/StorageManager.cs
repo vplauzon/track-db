@@ -30,14 +30,40 @@ namespace Ipdb.Lib.DbStorage
         }
         #endregion
 
-        public long BlockSize => BLOCK_SIZE;
+        public short BlockSize => BLOCK_SIZE;
 
         void IDisposable.Dispose()
         {
             _mappedFile.Dispose();
         }
 
-        public int ReserveBlock()
+        public BlockWriter GetBlockWriter()
+        {
+            return new BlockWriter(
+                BlockSize,
+                () =>
+                {
+                    var blockId = ReserveBlock();
+                    var viewAccessor = CreateViewAccessor(blockId, false);
+
+                    return (blockId, viewAccessor);
+                });
+        }
+
+        public void ReleaseBlock(int blockId)
+        {
+            _availableIds.Push(blockId);
+        }
+
+        private MemoryMappedViewAccessor CreateViewAccessor(int blockId, bool isReadOnly)
+        {
+            return _mappedFile.CreateViewAccessor(
+                blockId * BLOCK_SIZE,
+                BLOCK_SIZE,
+                isReadOnly ? MemoryMappedFileAccess.Read : MemoryMappedFileAccess.ReadWrite);
+        }
+
+        private int ReserveBlock()
         {
             if (_availableIds.TryPop(out var blockId))
             {
@@ -47,19 +73,6 @@ namespace Ipdb.Lib.DbStorage
             {
                 throw new NotImplementedException("Need to expend the file");
             }
-        }
-
-        public void ReleaseBlock(int blockId)
-        {
-            _availableIds.Push(blockId);
-        }
-
-        public MemoryMappedViewAccessor CreateViewAccessor(int blockId, bool isReadOnly)
-        {
-            return _mappedFile.CreateViewAccessor(
-                blockId * BLOCK_SIZE,
-                BLOCK_SIZE,
-                isReadOnly ? MemoryMappedFileAccess.Read : MemoryMappedFileAccess.ReadWrite);
         }
     }
 }

@@ -127,29 +127,37 @@ namespace Ipdb.Lib.DbStorage
             DatabaseCache cache,
             IEnumerable<KeyValuePair<long, byte[]>> documents)
         {
-            var blockId = StorageManager.ReserveBlock();
+            var writer = StorageManager.GetBlockWriter();
+            var header = documents
+                .Select(d => new Header(d.Key, (short)d.Value.Length))
+                .ToArray();
 
-            using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
-            {
-                var offset = 0;
-                var header = documents
-                    .Select(d => new Header(d.Key, (short)d.Value.Length))
-                    .ToArray();
-                var headerBuffer = new byte[header.Length * Marshal.SizeOf<Header>()];
-                var headerSpan = MemoryMarshal.Cast<byte, Header>(headerBuffer.AsSpan());
-                var documentPayload = documents
-                    .SelectMany(d => d.Value)
-                    .ToArray();
+            writer.Write((short)documents.Count());
+            writer.WriteArray(header);
 
-                accessor.Write(offset, (short)documents.Count());
-                offset += sizeof(short);
-                header.AsSpan().CopyTo(headerSpan);
-                accessor.WriteArray(offset, headerBuffer, 0, headerBuffer.Length);
-                offset += sizeof(byte) * headerBuffer.Length;
-                accessor.WriteArray(offset, documentPayload, 0, documentPayload.Length);
-                offset += sizeof(byte) * documentPayload.Length;
-                throw new NotImplementedException();
-            }
+            throw new NotImplementedException();
+
+            //using (var accessor = StorageManager.CreateViewAccessor(blockId, false))
+            //{
+            //    var offset = 0;
+            //    var header2 = documents
+            //        .Select(d => new Header(d.Key, (short)d.Value.Length))
+            //        .ToArray();
+            //    var headerBuffer = new byte[header2.Length * Marshal.SizeOf<Header>()];
+            //    var headerSpan = MemoryMarshal.Cast<byte, Header>(headerBuffer.AsSpan());
+            //    var documentPayload = documents
+            //        .SelectMany(d => d.Value)
+            //        .ToArray();
+
+            //    accessor.Write(offset, (short)documents.Count());
+            //    offset += sizeof(short);
+            //    header2.AsSpan().CopyTo(headerSpan);
+            //    accessor.WriteArray(offset, headerBuffer, 0, headerBuffer.Length);
+            //    offset += sizeof(byte) * headerBuffer.Length;
+            //    accessor.WriteArray(offset, documentPayload, 0, documentPayload.Length);
+            //    offset += sizeof(byte) * documentPayload.Length;
+            //    throw new NotImplementedException();
+            //}
         }
 
         private DatabaseCache? DeleteDocuments(DatabaseCache cache, bool doPersistEverything)
