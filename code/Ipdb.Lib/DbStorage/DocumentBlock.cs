@@ -1,6 +1,6 @@
-﻿namespace Ipdb.Lib.Cache
+﻿namespace Ipdb.Lib.DbStorage
 {
-    internal record DocumentBlock(
+    internal readonly record struct DocumentBlock(
         int BlockId,
         long MinRevisionId,
         long MaxRevisionId,

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib.DbStorage;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -10,7 +11,7 @@ namespace Ipdb.Lib.Cache
     {
         private readonly ImmutableList<DocumentBlock> _blocks = ImmutableList<DocumentBlock>.Empty;
 
-        public IEnumerable<IndexBlock> GetDocumentBlocks(short indexHash)
+        public IEnumerable<DocumentBlock> GetDocumentBlocks(short indexHash)
         {
             throw new NotImplementedException();
         }

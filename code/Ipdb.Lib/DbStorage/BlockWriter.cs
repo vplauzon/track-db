@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -36,15 +37,11 @@ namespace Ipdb.Lib.DbStorage
             _buffer.AddRange(BitConverter.GetBytes(value));
         }
 
-        public void WriteArray<T>(T[] array) where T : notnull
+        public void WriteArray<T>(T[] array) where T : struct
         {
-            if (typeof(T) == typeof(byte))
-            {
-                _buffer.AddRange(array.Cast<byte>());
-            }
-            else
-            {
-            }
+            var bytes = MemoryMarshal.Cast<T, byte>(array);
+
+            _buffer.AddRange(bytes);
         }
         #endregion
     }
