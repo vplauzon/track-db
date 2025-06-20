@@ -138,8 +138,16 @@ namespace Ipdb.Lib.DbStorage
             writer.WriteArray(documentPayload.ToArray());
 
             var block = writer.ToBlock();
+            var documentBlock = new DocumentBlock(
+                block,
+                documents.Min(p => p.Key),
+                documents.Max(p => p.Key));
+            var newCache = new DatabaseCache(
+                cache.TransactionLogs,
+                cache.DocumentBlocks.AddBlock(documentBlock),
+                cache.IndexBlocks);
 
-            throw new NotImplementedException();
+            return newCache;
         }
 
         private DatabaseCache? DeleteDocuments(DatabaseCache cache, bool doPersistEverything)

@@ -55,9 +55,13 @@ namespace Ipdb.Tests.PrimaryIndex
         }
 
         [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task InsertUpdateAndRetrieveAsync(bool doPushPendingData)
+        [InlineData(true, true)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(false, false)]
+        public async Task InsertUpdateAndRetrieveAsync(
+            bool doPushPendingData1,
+            bool doPushPendingData2)
         {
             await using (var testTable = await CreateTestTableAsync())
             {
@@ -65,12 +69,12 @@ namespace Ipdb.Tests.PrimaryIndex
                 var doc2 = new MyDocument(1, "Home");
 
                 testTable.Table.AppendDocument(doc1);
-                if (doPushPendingData)
+                if (doPushPendingData1)
                 {
                     await testTable.Database.PushPendingDataAsync();
                 }
                 testTable.Table.AppendDocument(doc2);
-                if (doPushPendingData)
+                if (doPushPendingData2)
                 {
                     await testTable.Database.PushPendingDataAsync();
                 }

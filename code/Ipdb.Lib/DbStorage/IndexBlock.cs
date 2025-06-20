@@ -1,8 +1,7 @@
 ﻿namespace Ipdb.Lib.DbStorage
 {
     internal readonly record struct IndexBlock(
-        int BlockId,
-        short Size,
+        Block Block,
         short MinHash,
         short MaxHash);
 }

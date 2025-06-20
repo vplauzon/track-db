@@ -9,9 +9,31 @@ namespace Ipdb.Lib.Cache
 {
     internal class DocumentBlockCollection
     {
-        private readonly ImmutableList<DocumentBlock> _blocks = ImmutableList<DocumentBlock>.Empty;
+        private readonly ImmutableList<DocumentBlock> _blocks;
 
-        public IEnumerable<DocumentBlock> GetDocumentBlocks(short indexHash)
+        #region Constructors
+        public DocumentBlockCollection()
+            :this(ImmutableList<DocumentBlock>.Empty)
+        {
+        }
+
+        private DocumentBlockCollection(ImmutableList<DocumentBlock> blocks)
+        {
+            _blocks = blocks;
+        }
+        #endregion
+
+        public DocumentBlockCollection AddBlock(DocumentBlock block)
+        {
+            var blockIndex = _blocks.BinarySearch(
+                block,
+                Comparer<DocumentBlock>.Create(
+                    (a, b) => a.MinRevisionId.CompareTo(b.MinRevisionId)));
+
+            throw new NotImplementedException();
+        }
+ 
+        public DocumentBlock GetDocumentBlock(long revisionId)
         {
             throw new NotImplementedException();
         }

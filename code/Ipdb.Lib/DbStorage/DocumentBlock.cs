@@ -1,8 +1,7 @@
 ﻿namespace Ipdb.Lib.DbStorage
 {
     internal readonly record struct DocumentBlock(
-        int BlockId,
+        Block Block,
         long MinRevisionId,
-        long MaxRevisionId,
-        short RecordCount);
+        long MaxRevisionId);
 }
