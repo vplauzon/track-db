@@ -4,11 +4,10 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace Ipdb.Lib.Document
+namespace Ipdb.Lib.DbStorage
 {
     /// <summary>
     /// Responsible for reading and writing document blocks.

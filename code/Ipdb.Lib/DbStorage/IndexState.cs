@@ -4,12 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib.Document
+namespace Ipdb.Lib.DbStorage
 {
     /// <summary>
-    /// State of <see cref="DocumentManager"/>> within a transaction.
+    /// State of <see cref="IndexManager"/>> within a transaction.
     /// </summary>
-    internal class DocumentState
+    internal class IndexState
     {
     }
 }

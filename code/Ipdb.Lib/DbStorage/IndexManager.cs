@@ -3,7 +3,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace Ipdb.Lib.Indexing
+namespace Ipdb.Lib.DbStorage
 {
     internal class IndexManager : DataManagerBase
     {

@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib.Indexing;
+﻿using Ipdb.Lib.DbStorage;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;

@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
-namespace Ipdb.Lib
+namespace Ipdb.Lib.DbStorage
 {
     internal class StorageManager : IDisposable
     {

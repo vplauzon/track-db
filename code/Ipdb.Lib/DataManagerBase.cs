@@ -1,5 +1,4 @@
-﻿using Ipdb.Lib.Document;
-using Ipdb.Lib.Indexing;
+﻿using Ipdb.Lib.DbStorage;
 using System;
 using System.Buffers;
 using System.Collections.Generic;

@@ -1,11 +1,10 @@
-﻿using Ipdb.Lib.Indexing;
-using System;
+﻿using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 
-namespace Ipdb.Lib
+namespace Ipdb.Lib.DbStorage
 {
     internal record IndexDefinition(string PropertyPath);
 

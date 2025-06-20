@@ -1,4 +1,6 @@
-﻿namespace Ipdb.Lib.Querying
+﻿using Ipdb.Lib.DbStorage;
+
+namespace Ipdb.Lib.Querying
 {
     internal interface IIndexEqual<T>
     {
