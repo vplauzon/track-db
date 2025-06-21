@@ -12,6 +12,9 @@ namespace Ipdb.Lib2
     /// <summary>Schema of a table.</summary>
     public abstract class TableSchema
     {
+        private static readonly IImmutableList<Type> SUPPORTED_COLUMN_TYPES =
+            [typeof(int)];
+
         protected TableSchema(string tableName, IImmutableList<string> primaryKeys)
         {
             TableName = tableName;
