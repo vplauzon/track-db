@@ -16,6 +16,7 @@ namespace Ipdb.Lib2
         {
             TableName = tableName;
             PrimaryKeys = primaryKeys;
+            Columns = ColumnSchema.Reflect(RepresentationType);
         }
 
         public string TableName { get; }
@@ -23,6 +24,8 @@ namespace Ipdb.Lib2
         public abstract Type RepresentationType { get; }
 
         public IImmutableList<string> PrimaryKeys { get; }
+
+        internal IImmutableList<ColumnSchema> Columns { get; }
     }
 
     /// <summary>

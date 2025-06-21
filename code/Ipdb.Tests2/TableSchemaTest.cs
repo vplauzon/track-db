@@ -6,7 +6,7 @@ namespace Ipdb.Tests2
     public class TableSchemaTest
     {
         #region Inner types
-        private readonly record struct OnlyInt(int Integer);
+        private record OnlyInt(int Integer);
         #endregion
 
         [Fact]
