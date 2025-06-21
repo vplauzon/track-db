@@ -23,6 +23,10 @@ namespace Ipdb.Tests2
 
             Assert.Single(schema.PrimaryKeys);
             Assert.Equal(nameof(OnlyInt.Integer), schema.PrimaryKeys[0]);
+
+            Assert.Single(schema.Columns);
+            Assert.Equal("Integer", schema.Columns[0].PropertyName);
+            Assert.Equal(typeof(int), schema.Columns[0].ColumnType);
         }
     }
 }
