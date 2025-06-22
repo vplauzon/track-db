@@ -12,7 +12,7 @@ namespace Ipdb.Lib2
     /// <summary>Schema of a table.</summary>
     public abstract class TableSchema
     {
-        private static readonly IImmutableList<Type> SUPPORTED_COLUMN_TYPES =
+        private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
             [typeof(int)];
 
         protected TableSchema(string tableName, IImmutableList<string> primaryKeys)
@@ -20,6 +20,18 @@ namespace Ipdb.Lib2
             TableName = tableName;
             PrimaryKeys = primaryKeys;
             Columns = ColumnSchema.Reflect(RepresentationType);
+
+            var unsupportedColumns = Columns.Where(
+                c => !SUPPORTED_COLUMN_TYPES.Contains(c.ColumnType));
+
+            if (unsupportedColumns.Any())
+            {
+                var unsupportedColumn = Columns.First();
+
+                throw new NotSupportedException(
+                    $"Column '{unsupportedColumn.PropertyName}' has unsupported " +
+                    $"type '{unsupportedColumn.ColumnType}'");
+            }
         }
 
         public string TableName { get; }
