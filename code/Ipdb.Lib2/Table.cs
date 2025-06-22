@@ -8,7 +8,7 @@ namespace Ipdb.Lib2
     {
         private readonly TableSchema<T> _schema;
 
-        public Table(TableSchema<T> schema)
+        internal Table(TableSchema<T> schema)
         {
             _schema = schema;
         }

@@ -14,15 +14,19 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database
     {
+        private readonly IImmutableDictionary<string, object> _tableMap
+            = ImmutableDictionary<string, object>.Empty;
+
         #region Constructors
         public Database(string databaseRootDirectory, params IEnumerable<TableSchema> schemas)
         {
-            var q = schemas
-                .Select(s =>new
+            _tableMap = schemas
+                .Select(s => new
                 {
                     Table = CreateTable(s),
                     s.TableName
-                });
+                })
+                .ToImmutableDictionary(o => o.TableName, o => o.Table);
         }
 
         private object CreateTable(TableSchema schema)
@@ -41,7 +45,27 @@ namespace Ipdb.Lib2
 
         public Table<T> GetTable<T>(string tableName)
         {
-            throw new NotImplementedException();
+            if (_tableMap.ContainsKey(tableName))
+            {
+                var table = _tableMap[tableName];
+
+                if (table is Table<T> t)
+                {
+                    return t;
+                }
+                else
+                {
+                    var docType = table.GetType().GetGenericArguments().First();
+
+                    throw new InvalidOperationException(
+                        $"Table '{tableName}' doesn't have document type '{typeof(T).Name}':  " +
+                        $"it has document type '{docType.Name}'");
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
+            }
         }
 
         public async Task PersistAllDataAsync()
