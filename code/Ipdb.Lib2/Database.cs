@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,9 +15,33 @@ namespace Ipdb.Lib2
     public class Database
     {
         #region Constructors
-        public Database(string databasePath, params IEnumerable<TableSchema>)
+        public Database(string databaseRootDirectory, params IEnumerable<TableSchema> schemas)
         {
+            var q = schemas
+                .Select(s =>new
+                {
+                    Table = CreateTable(s),
+                    s.TableName
+                });
+        }
+
+        private object CreateTable(TableSchema schema)
+        {
+            var tableType = typeof(Table<>).MakeGenericType(schema.RepresentationType);
+            var table = Activator.CreateInstance(
+                tableType,
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                [schema],
+                null);
+
+            return table!;
         }
         #endregion
+
+        public Table<T> GetTable<T>(string tableName)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
