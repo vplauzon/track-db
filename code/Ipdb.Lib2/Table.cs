@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Ipdb.Lib2
 {
@@ -10,6 +11,11 @@ namespace Ipdb.Lib2
         public Table(TableSchema<T> schema)
         {
             _schema = schema;
+        }
+
+        public void AppendRecord(T record)
+        {
+            throw new NotImplementedException();
         }
     }
 }

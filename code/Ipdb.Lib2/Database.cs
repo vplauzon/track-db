@@ -43,5 +43,12 @@ namespace Ipdb.Lib2
         {
             throw new NotImplementedException();
         }
+
+        public async Task PersistAllDataAsync()
+        {
+            await Task.CompletedTask;
+
+            throw new NotImplementedException();
+        }
     }
 }
