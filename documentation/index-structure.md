@@ -1,41 +1,37 @@
 # Index structure
 
-Ipdb has a model where a database contains multiple tables.  Each table can store multiple documents.  It uses hash indexes to support equality search in indexes, e.g. `where id==5`.
+Ipdb's model is a file-on-disk per database with an optional Azure Blob audit log.  A database contains multiple tables.  Each table can store multiple records.
 
-Each document has a primary index and optional secondary indexes.  The primary index uniquely identifies the document.
+Records can be queried from a table and they can be appended or deleted.
 
-A key (primary of secondary) can be of type:
+A record is mapped to a .NET object and hence contain a number of property values.  A table has an optional primary key which is one or many properties.  When a table has a primary key, when a record is appended, if a record with the same primary key exist, it is deleted before insertion automatically.
+
+Records are stored in blocks of 4 KBs on disk.  Each block contains records from only one table.  The block statistics are stored in memory only and contain the min and max of each property.  This allows queries to skip blocks when the query search for values outside a block's statistics.
+
+Tables block lists are kept in memory but loaded when needed.
+
+Blocks are read only but are recycled when they are replaced and no active transaction use them.
+
+New records are persisted to new blocks.  When records are deleted, a new block without those records is created (unless all records in the block were deleted).
+
+Database has an in-memory cache of records being appended and deleted.  The cache is flushed to disk when it exceeds certain threshold.  The cache minimizes writes to disk:
+
+*   A record might be deleted before it's ever written to disk
+*   Multiple records will be written together in a single write
+
+##  Data Model
+
+Record properties can be of type:
 
 * `int`
-* `long`
-* `Enum`
-* `string`
-* A tuple of arbitrary length with a combinaison of the previous types
 
-As an implementation detail, each document revision is identified by a revision-id of type `long`, unique accross all tables in the database.  It is simply incremented from `1`.  This choice has the property of streamlining the insertion/update of multiple documents.
+##  Record ID
 
-All documents and indexes for all table of a database are stored in one file (`ipdb.data`).  The file is divided into 4 KBs block.  A block map is managed by a `Manager` which reserves them and release them (when all data in it is empty) to a `StorageManager`.
+As an implementation detail, each record is identified by a row-id of type `long`, unique accross all tables in the database.  It is simply incremented from `1`.
 
-The list of blocks is kept in memory by the managers.
-
-Block type |Manager |Key| Block belongs to|Data
--|-|-|-|-
-Document|DocumentManager|Revision ID|Database|IsDeleted, JSON document
-Index|IndexManager|Primary/Secondary Key|Table|IsDeleted, Key hash, Active revision ID list with that key hash
-
-Within the block map of `Manager` is kept the range of active (non deleted) keys it has.  It is therefore `O(log(# blocks))` to find a block, but `O(# records in a block)` to find the key within the block as blocks are not ordered.
-
-When a block isn't big enough to contain a new key, it is split (and cleaned up from its deleted items) into two pieces.
-
-When a document is deleted, its entries get marked deleted in all block types.
-
-When a document is appended, it is first virtually deleted then inserted.  We say virtually because optimizations are possible such as changing a key in place.
-
-When a query with more than one key in filter, e.g. `where id==5 and colour=="blue"`, the key hashes are used to find a list of revision ids.  Logic arithmetic is applied to the revision id lists (e.g. union, intersection, etc.) then documents are found from document blocks, documents are deserialized and full keys are used to double check the predicate (avoid hash clash).
+Having a record ID allows us to keep a list of record id to delete.
 
 ## Block Format
-
-### Document
 
 Each record has the following fields:
 
@@ -45,15 +41,11 @@ Revision ID|`long`|Document's revision ID
 Length|`short`|Serialized document Length
 Document|`char[]`|Serialized (in JSON) document
 
-### Index
+##  Transactions
 
-Each record has the following fields:
+Each query and data manipulation (append & delete)
 
-Name|Type|Description
--|-|-
-Key hash|`short`|Hash of the index key
-Revision ID|`long`|Document's revision ID
+##  Partitioning
 
-Transient errors during listing
-Bulk table retention
-Test coverage
+##  Merge
+

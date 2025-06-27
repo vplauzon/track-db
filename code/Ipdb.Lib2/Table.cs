@@ -13,7 +13,7 @@ namespace Ipdb.Lib2
             _schema = schema;
         }
 
-        public void AppendRecord(T record)
+        public void AppendRecord(T record, TransactionContext? transactionContext = null)
         {
             throw new NotImplementedException();
         }
