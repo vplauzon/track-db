@@ -89,8 +89,7 @@ namespace Ipdb.Lib2
                     transactionContext.TransactionId,
                     new TransactionCache(
                         currentDbState.DatabaseCache,
-                        new ImmutableMemoryBlockMap(),
-                        ImmutableHashSet<long>.Empty.ToBuilder()));
+                        new TransactionLog()));
 
                 return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
             });
@@ -100,26 +99,23 @@ namespace Ipdb.Lib2
 
         internal void CompleteTransaction(long transactionId)
         {
+            //  Fetch transaction cache
+            var transactionCache = _databaseState.TransactionMap[transactionId];
+            var newTransactionLog = transactionCache.TransactionLog.ToImmutable();
+
             ChangeDatabaseState(currentDbState =>
-            {   //  Fetch transaction cache
-                var transactionCache = currentDbState.TransactionMap[transactionId];
-                //  Remove it from map
+            {   //  Remove it from map
                 var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
 
-                if (transactionCache.TransactionMemoryBlockMap.IsEmpty
-                && !transactionCache.DeletedRecordIds.Any())
+                if (transactionCache.TransactionLog.IsEmpty)
                 {
                     return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
                 }
                 else
                 {
-                    //  Transfer the logs from the transaction to the database cache
-                    var newTransactionLogs = currentDbState.DatabaseCache.TransactionLogs.Add(
-                        transactionCache.TransactionLog.ToImmutable());
                     var newDbCache = new DatabaseCache(
-                        newTransactionLogs,
-                        currentDbState.DatabaseCache.DocumentBlocks,
-                        currentDbState.DatabaseCache.IndexBlocks);
+                        currentDbState.DatabaseCache.StorageBlockMap,
+                        currentDbState.DatabaseCache.TransactionLogs.Add(newTransactionLog));
 
                     return new DatabaseState(newDbCache, newTransactionMap);
                 }
