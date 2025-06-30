@@ -5,19 +5,27 @@ using System.Linq;
 namespace Ipdb.Lib2.Cache
 {
     internal record TransactionLog(
-        BlockBuilder BlockBuilder,
-        ImmutableHashSet<long>.Builder DeletedRecordIds)
+        ImmutableDictionary<string, TableTransactionLog>.Builder TableTransactionLogMap)
     {
         public TransactionLog()
-            : this(new BlockBuilder(), ImmutableHashSet<long>.Empty.ToBuilder())
+            : this(ImmutableDictionary<string, TableTransactionLog>.Empty.ToBuilder())
         {
         }
 
-        public bool IsEmpty => BlockBuilder.IsEmpty && !DeletedRecordIds.Any();
+        public bool IsEmpty => TableTransactionLogMap.Values.All(t => t.IsEmpty);
 
         public ImmutableTransactionLog ToImmutable()
         {
             throw new NotImplementedException();
+        }
+
+        public void AddRecord(object record, TableSchema schema)
+        {
+            if (!TableTransactionLogMap.ContainsKey(schema.TableName))
+            {
+                TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
+            }
+            TableTransactionLogMap[schema.TableName].AddRecord(record);
         }
     }
 }

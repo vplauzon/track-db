@@ -18,15 +18,15 @@ namespace Ipdb.Tests2
 
             Assert.Equal(TABLE_NAME, schema.TableName);
             Assert.Equal(typeof(IntOnly), schema.RepresentationType);
-            Assert.Empty(schema.PrimaryKeys);
+            Assert.Empty(schema.PrimaryKeyPropertyPaths);
 
-            schema = schema.AddPrimaryKey(o => o.Integer);
+            schema = schema.AddPrimaryKeyProperty(o => o.Integer);
 
-            Assert.Single(schema.PrimaryKeys);
-            Assert.Equal(nameof(IntOnly.Integer), schema.PrimaryKeys[0]);
+            Assert.Single(schema.PrimaryKeyPropertyPaths);
+            Assert.Equal(nameof(IntOnly.Integer), schema.PrimaryKeyPropertyPaths[0]);
 
             Assert.Single(schema.Columns);
-            Assert.Equal("Integer", schema.Columns[0].PropertyName);
+            Assert.Equal("Integer", schema.Columns[0].PropertyPath);
             Assert.Equal(typeof(int), schema.Columns[0].ColumnType);
         }
     }

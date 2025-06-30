@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib2
 {
-    internal readonly record struct ColumnSchema(string PropertyName, Type ColumnType)
+    internal readonly record struct ColumnSchema(string PropertyPath, Type ColumnType)
     {
         public static IImmutableList<ColumnSchema> Reflect(Type representationType)
         {
@@ -35,7 +35,7 @@ namespace Ipdb.Lib2
                 }
 
                 return new ColumnSchema(
-                    PropertyName: param.Name,
+                    PropertyPath: param.Name,
                     ColumnType: param.ParameterType);
             });
 

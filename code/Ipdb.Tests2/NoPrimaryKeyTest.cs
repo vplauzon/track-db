@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Ipdb.Tests2
 {
-    public class IntOnlyTest
+    public class NoPrimaryKeyTest
     {
         #region Inner types
         private record IntOnly(int Integer);
@@ -34,8 +34,7 @@ namespace Ipdb.Tests2
         private TestTable<IntOnly> CreateTestTable()
         {
             return new TestTable<IntOnly>(
-                new TableSchema<IntOnly>(TABLE_NAME)
-                .AddPrimaryKeyProperty(d => d.Integer));
+                new TableSchema<IntOnly>(TABLE_NAME));
         }
     }
 }

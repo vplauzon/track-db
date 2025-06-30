@@ -18,7 +18,7 @@ namespace Ipdb.Lib2
         protected TableSchema(string tableName, IImmutableList<string> primaryKeys)
         {
             TableName = tableName;
-            PrimaryKeys = primaryKeys;
+            PrimaryKeyPropertyPaths = primaryKeys;
             Columns = ColumnSchema.Reflect(RepresentationType);
 
             var unsupportedColumns = Columns.Where(
@@ -29,7 +29,7 @@ namespace Ipdb.Lib2
                 var unsupportedColumn = Columns.First();
 
                 throw new NotSupportedException(
-                    $"Column '{unsupportedColumn.PropertyName}' has unsupported " +
+                    $"Column '{unsupportedColumn.PropertyPath}' has unsupported " +
                     $"type '{unsupportedColumn.ColumnType}'");
             }
         }
@@ -38,7 +38,7 @@ namespace Ipdb.Lib2
 
         public abstract Type RepresentationType { get; }
 
-        public IImmutableList<string> PrimaryKeys { get; }
+        public IImmutableList<string> PrimaryKeyPropertyPaths { get; }
 
         internal IImmutableList<ColumnSchema> Columns { get; }
     }
@@ -77,28 +77,29 @@ namespace Ipdb.Lib2
         /// Add a primary key mapped to a property.
         /// </summary>
         /// <typeparam name="PT"></typeparam>
-        /// <param name="primaryKeyExtractor"></param>
+        /// <param name="propertyExtractor"></param>
         /// <returns></returns>
-        public TableSchema<T> AddPrimaryKey<PT>(Expression<Func<T, PT>> primaryKeyExtractor)
+        public TableSchema<T> AddPrimaryKeyProperty<PT>(
+            Expression<Func<T, PT>> propertyExtractor)
         {
-            if (primaryKeyExtractor.Body is MemberExpression me)
+            if (propertyExtractor.Body is MemberExpression me)
             {
                 if (me.Member.MemberType == MemberTypes.Property)
                 {
                     var propertyName = me.Member.Name;
 
-                    return new TableSchema<T>(TableName, PrimaryKeys.Add(propertyName));
+                    return new TableSchema<T>(TableName, PrimaryKeyPropertyPaths.Add(propertyName));
                 }
                 else
                 {
                     throw new NotSupportedException(
-                        $"Primary key expression only supports properties:  '{primaryKeyExtractor}'");
+                        $"Primary key expression only supports properties:  '{propertyExtractor}'");
                 }
             }
             else
             {
                 throw new NotSupportedException(
-                    $"Primary key expression not supported:  '{primaryKeyExtractor}'");
+                    $"Primary key expression not supported:  '{propertyExtractor}'");
             }
         }
     }

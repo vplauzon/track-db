@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 namespace Ipdb.Tests2
 {
     internal class TestTable<T> : IAsyncDisposable
+        where T : notnull
     {
         public TestTable(TableSchema<T> schema)
         {

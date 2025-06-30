@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 
 namespace Ipdb.Lib2
 {
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class Table<T>
+        where T: notnull
     {
         private readonly Database _database;
         private readonly TableSchema<T> _schema;
@@ -21,7 +23,11 @@ namespace Ipdb.Lib2
                 transactionContext,
                 transactionCache =>
                 {
-                    throw new NotImplementedException();
+                    if (_schema.PrimaryKeyPropertyPaths.Any())
+                    {   //  Delete existing version of the record
+                        throw new NotImplementedException();
+                    }
+                    transactionCache.TransactionLog.AddRecord(record, _schema);
                 });
         }
     }

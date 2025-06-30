@@ -39,7 +39,7 @@ namespace Ipdb.Lib2
                 tableType,
                 BindingFlags.Instance | BindingFlags.NonPublic,
                 null,
-                [schema],
+                [this, schema],
                 null);
 
             return table!;
@@ -47,6 +47,7 @@ namespace Ipdb.Lib2
         #endregion
 
         public Table<T> GetTable<T>(string tableName)
+            where T : notnull
         {
             if (_tableMap.ContainsKey(tableName))
             {
