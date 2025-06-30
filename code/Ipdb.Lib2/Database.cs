@@ -97,6 +97,27 @@ namespace Ipdb.Lib2
             return transactionContext;
         }
 
+        internal void ExecuteWithinTransactionContext(
+            TransactionContext? transactionContext,
+            Action<long> action)
+        {
+            var temporaryTransactionContext = transactionContext == null
+                ? CreateTransaction()
+                : null;
+
+            try
+            {
+                action(transactionContext?.TransactionId
+                    ?? temporaryTransactionContext!.TransactionId);
+                temporaryTransactionContext?.Complete();
+            }
+            catch
+            {
+                temporaryTransactionContext?.Rollback();
+                throw;
+            }
+        }
+
         internal void CompleteTransaction(long transactionId)
         {
             //  Fetch transaction cache
