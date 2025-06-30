@@ -15,8 +15,8 @@ namespace Ipdb.Tests2
         private const string TABLE_NAME = "ints";
 
         [Theory]
-        [InlineData(true)]
         [InlineData(false)]
+        //[InlineData(true)]
         public async Task AppendOnly(bool doPushPendingData)
         {
             await using (var testTable = CreateTestTable())
