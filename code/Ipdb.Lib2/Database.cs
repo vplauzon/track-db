@@ -99,7 +99,7 @@ namespace Ipdb.Lib2
 
         internal void ExecuteWithinTransactionContext(
             TransactionContext? transactionContext,
-            Action<long> action)
+            Action<TransactionCache> action)
         {
             var temporaryTransactionContext = transactionContext == null
                 ? CreateTransaction()
@@ -107,8 +107,11 @@ namespace Ipdb.Lib2
 
             try
             {
-                action(transactionContext?.TransactionId
-                    ?? temporaryTransactionContext!.TransactionId);
+                var transactionId = transactionContext?.TransactionId
+                    ?? temporaryTransactionContext!.TransactionId;
+                var transactionCache = _databaseState.TransactionMap[transactionId];
+
+                action(transactionCache);
                 temporaryTransactionContext?.Complete();
             }
             catch

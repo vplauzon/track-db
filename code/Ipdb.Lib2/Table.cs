@@ -19,7 +19,7 @@ namespace Ipdb.Lib2
         {
             _database.ExecuteWithinTransactionContext(
                 transactionContext,
-                transactionId =>
+                transactionCache =>
                 {
                     throw new NotImplementedException();
                 });
