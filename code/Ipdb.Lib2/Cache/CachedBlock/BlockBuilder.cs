@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Immutable;
 
-namespace Ipdb.Lib2.Cache
+namespace Ipdb.Lib2.Cache.CachedBlock
 {
     internal class BlockBuilder
     {
