@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -21,7 +22,15 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         private static ICachedColumn CreateCachedColumn(Type columnType)
         {
-            throw new NotImplementedException();
+            var cachedColumnType = typeof(SimpleCachedColumn<>).MakeGenericType(columnType);
+            var cachedColumn = Activator.CreateInstance(
+                cachedColumnType,
+                BindingFlags.Instance | BindingFlags.Public,
+                null,
+                null,
+                null);
+
+            return (ICachedColumn)cachedColumn!;
         }
 
         private static ICachedColumn CreateRecordIdColumn()
