@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib2.Cache;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -19,9 +20,15 @@ namespace Ipdb.Lib2
             _schema = schema;
         }
 
+        #region Append
         public void AppendRecord(T record, TransactionContext? transactionContext = null)
         {
-            AppendRecords([record], transactionContext);
+            _database.ExecuteWithinTransactionContext(
+                transactionContext,
+                transactionCache =>
+                {
+                    AppendRecordInternal(record, transactionCache);
+                });
         }
 
         public void AppendRecords(
@@ -32,14 +39,17 @@ namespace Ipdb.Lib2
                 transactionContext,
                 transactionCache =>
                 {
-                    var objectRecords = records.Cast<object>().ToImmutableArray();
-                    var recordIds = _database.NewRecordIds(objectRecords.Length);
-
-                    transactionCache.TransactionLog.AddRecords(
-                        recordIds,
-                        objectRecords,
-                        _schema);
+                    foreach (var record in records)
+                    {
+                        AppendRecordInternal(record, transactionCache);
+                    }
                 });
         }
+
+        private void AppendRecordInternal(T record, TransactionCache transactionCache)
+        {
+            transactionCache.TransactionLog.AddRecord(_database.NewRecordId(), record, _schema);
+        }
+        #endregion
     }
 }

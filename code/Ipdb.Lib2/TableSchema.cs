@@ -41,6 +41,16 @@ namespace Ipdb.Lib2
         public IImmutableList<string> PartitionKeyPropertyPaths { get; }
 
         internal IImmutableList<ColumnSchema> Columns { get; }
+
+        internal void FromObjectToColumns(object record, object[] columns)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal void FromColumnsToObject(object[] columns, object record)
+        {
+            throw new NotImplementedException();
+        }
     }
 
     /// <summary>

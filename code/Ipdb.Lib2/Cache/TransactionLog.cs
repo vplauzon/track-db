@@ -20,16 +20,13 @@ namespace Ipdb.Lib2.Cache
             throw new NotImplementedException();
         }
 
-        public void AddRecords(
-            IImmutableList<long> recordIds,
-            IImmutableList<object> records,
-            TableSchema schema)
+        public void AddRecord(long recordId, object record, TableSchema schema)
         {
             if (!TableTransactionLogMap.ContainsKey(schema.TableName))
             {
                 TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
             }
-            TableTransactionLogMap[schema.TableName].AddRecords(recordIds, records);
+            TableTransactionLogMap[schema.TableName].AddRecord(recordId, record);
         }
     }
 }

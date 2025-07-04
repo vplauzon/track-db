@@ -32,7 +32,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         public bool IsEmpty => throw new NotImplementedException();
 
-        public void AddRecords(IImmutableList<long> recordIds, IImmutableList<object> records)
+        public void AddRecord(long recordId, object record)
         {
             throw new NotImplementedException();
         }
