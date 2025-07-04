@@ -33,9 +33,7 @@ namespace Ipdb.Tests2
 
         private TestTable<IntOnly> CreateTestTable()
         {
-            return new TestTable<IntOnly>(
-                new TableSchema<IntOnly>(TABLE_NAME)
-                .AddPrimaryKeyProperty(d => d.Integer));
+            return new TestTable<IntOnly>(new TableSchema<IntOnly>(TABLE_NAME));
         }
     }
 }

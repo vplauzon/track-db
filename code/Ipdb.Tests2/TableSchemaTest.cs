@@ -18,12 +18,12 @@ namespace Ipdb.Tests2
 
             Assert.Equal(TABLE_NAME, schema.TableName);
             Assert.Equal(typeof(IntOnly), schema.RepresentationType);
-            Assert.Empty(schema.PrimaryKeyPropertyPaths);
+            Assert.Empty(schema.PartitionKeyPropertyPaths);
 
-            schema = schema.AddPrimaryKeyProperty(o => o.Integer);
+            schema = schema.AddPartitionKeyProperty(o => o.Integer);
 
-            Assert.Single(schema.PrimaryKeyPropertyPaths);
-            Assert.Equal(nameof(IntOnly.Integer), schema.PrimaryKeyPropertyPaths[0]);
+            Assert.Single(schema.PartitionKeyPropertyPaths);
+            Assert.Equal(nameof(IntOnly.Integer), schema.PartitionKeyPropertyPaths[0]);
 
             Assert.Single(schema.Columns);
             Assert.Equal("Integer", schema.Columns[0].PropertyPath);

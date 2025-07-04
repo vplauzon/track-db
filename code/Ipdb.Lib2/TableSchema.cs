@@ -15,10 +15,10 @@ namespace Ipdb.Lib2
         private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
             [typeof(int)];
 
-        protected TableSchema(string tableName, IImmutableList<string> primaryKeys)
+        protected TableSchema(string tableName, IImmutableList<string> partitionKeyPropertyPaths)
         {
             TableName = tableName;
-            PrimaryKeyPropertyPaths = primaryKeys;
+            PartitionKeyPropertyPaths = partitionKeyPropertyPaths;
             Columns = ColumnSchema.Reflect(RepresentationType);
 
             var unsupportedColumns = Columns.Where(
@@ -38,7 +38,7 @@ namespace Ipdb.Lib2
 
         public abstract Type RepresentationType { get; }
 
-        public IImmutableList<string> PrimaryKeyPropertyPaths { get; }
+        public IImmutableList<string> PartitionKeyPropertyPaths { get; }
 
         internal IImmutableList<ColumnSchema> Columns { get; }
     }
@@ -74,12 +74,12 @@ namespace Ipdb.Lib2
         public override Type RepresentationType => typeof(T);
 
         /// <summary>
-        /// Add a primary key mapped to a property.
+        /// Add a partition key column mapped to a property.
         /// </summary>
         /// <typeparam name="PT"></typeparam>
         /// <param name="propertyExtractor"></param>
         /// <returns></returns>
-        public TableSchema<T> AddPrimaryKeyProperty<PT>(
+        public TableSchema<T> AddPartitionKeyProperty<PT>(
             Expression<Func<T, PT>> propertyExtractor)
         {
             if (propertyExtractor.Body is MemberExpression me)
@@ -88,7 +88,9 @@ namespace Ipdb.Lib2
                 {
                     var propertyName = me.Member.Name;
 
-                    return new TableSchema<T>(TableName, PrimaryKeyPropertyPaths.Add(propertyName));
+                    return new TableSchema<T>(
+                        TableName,
+                        PartitionKeyPropertyPaths.Add(propertyName));
                 }
                 else
                 {
