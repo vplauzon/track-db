@@ -9,6 +9,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         private readonly TableSchema _schema;
         private readonly IImmutableList<ICachedColumn> _columns;
+        private readonly object[] _columnBuffer;
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
@@ -18,6 +19,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 .Select(c => CreateCachedColumn(c.ColumnType))
                 .Append(CreateRecordIdColumn())
                 .ToImmutableArray();
+            _columnBuffer = new object[_schema.Columns.Count];
         }
 
         private static ICachedColumn CreateCachedColumn(Type columnType)
@@ -43,6 +45,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         public void AddRecord(long recordId, object record)
         {
+            _schema.FromObjectToColumns(record, _columnBuffer);
+
             throw new NotImplementedException();
         }
     }
