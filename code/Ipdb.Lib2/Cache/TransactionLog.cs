@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
@@ -19,13 +20,16 @@ namespace Ipdb.Lib2.Cache
             throw new NotImplementedException();
         }
 
-        public void AddRecord(object record, TableSchema schema)
+        public void AddRecords(
+            IImmutableList<long> recordIds,
+            IImmutableList<object> records,
+            TableSchema schema)
         {
             if (!TableTransactionLogMap.ContainsKey(schema.TableName))
             {
                 TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
             }
-            TableTransactionLogMap[schema.TableName].AddRecord(record);
+            TableTransactionLogMap[schema.TableName].AddRecords(recordIds, records);
         }
     }
 }

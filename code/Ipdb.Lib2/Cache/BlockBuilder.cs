@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Immutable;
 
 namespace Ipdb.Lib2.Cache
 {
@@ -13,7 +14,7 @@ namespace Ipdb.Lib2.Cache
 
         public bool IsEmpty => throw new NotImplementedException();
 
-        public void AddRecord(object record)
+        public void AddRecords(IImmutableList<long> recordIds, IImmutableList<object> records)
         {
             throw new NotImplementedException();
         }

@@ -18,6 +18,7 @@ namespace Ipdb.Lib2
     {
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
+        private long _recordId = 0;
         private volatile DatabaseState _databaseState = new();
 
         #region Constructors
@@ -78,6 +79,22 @@ namespace Ipdb.Lib2
 
             throw new NotImplementedException();
         }
+
+        #region Record IDs
+        public long NewRecordId()
+        {
+            return Interlocked.Increment(ref _recordId);
+        }
+
+        public IImmutableList<long> NewRecordIds(int recordCount)
+        {
+            var nextId = Interlocked.Add(ref _recordId, recordCount);
+
+            return Enumerable.Range(0, recordCount)
+                .Select(i => i + nextId - recordCount)
+                .ToImmutableArray();
+        }
+        #endregion
 
         #region Transaction
         public TransactionContext CreateTransaction()

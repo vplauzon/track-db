@@ -15,9 +15,9 @@ namespace Ipdb.Lib2.Cache
 
         public bool IsEmpty => BlockBuilder.IsEmpty && !DeletedRecordIds.Any();
 
-        public void AddRecord(object record)
+        public void AddRecords(IImmutableList<long> recordIds, IImmutableList<object> records)
         {
-            BlockBuilder.AddRecord(record);
+            BlockBuilder.AddRecords(recordIds, records);
         }
     }
 }
