@@ -15,6 +15,9 @@ namespace Ipdb.Lib2
         private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
             [typeof(int)];
 
+        private readonly Action<object, object?[]> _objectToColumnsAction;
+
+        #region Constructor
         protected TableSchema(string tableName, IImmutableList<string> partitionKeyPropertyPaths)
         {
             TableName = tableName;
@@ -32,7 +35,50 @@ namespace Ipdb.Lib2
                     $"Column '{unsupportedColumn.PropertyPath}' has unsupported " +
                     $"type '{unsupportedColumn.ColumnType}'");
             }
+
+            var methodInfos = Columns
+                .Select(c => GetPropertyRead(RepresentationType, c.PropertyPath))
+                .ToImmutableArray();
+
+            _objectToColumnsAction = (record, columns) =>
+            {
+                if (columns.Length != methodInfos.Length)
+                {
+                    throw new ArgumentException(
+                        $"'{nameof(columns)}' has length {columns.Length} while the expected" +
+                        $" number of columns is {methodInfos.Length}");
+                }
+                for (var i = 0; i != methodInfos.Length; i++)
+                {
+                    columns[i] = methodInfos[i].Invoke(record, null);
+                }
+            };
         }
+
+        private static MethodInfo GetPropertyRead(
+            Type representationType,
+            string propertyPath)
+        {
+            var propertyInfo = representationType.GetProperty(propertyPath);
+
+            if (propertyInfo == null)
+            {
+                throw new InvalidOperationException(
+                    $"Type '{representationType.Name}' doesn't have property '{propertyPath}'");
+            }
+
+            var methodInfo = propertyInfo.GetGetMethod();
+
+            if (methodInfo == null)
+            {
+                throw new InvalidOperationException(
+                    $"Type '{representationType.Name}' doesn't have get-method on property " +
+                    $"'{propertyPath}'");
+            }
+
+            return methodInfo;
+        }
+        #endregion
 
         public string TableName { get; }
 
@@ -42,12 +88,12 @@ namespace Ipdb.Lib2
 
         internal IImmutableList<ColumnSchema> Columns { get; }
 
-        internal void FromObjectToColumns(object record, object[] columns)
+        internal void FromObjectToColumns(object record, object?[] columns)
         {
-            throw new NotImplementedException();
+            _objectToColumnsAction(record, columns);
         }
 
-        internal void FromColumnsToObject(object[] columns, object record)
+        internal void FromColumnsToObject(object?[] columns, object record)
         {
             throw new NotImplementedException();
         }
