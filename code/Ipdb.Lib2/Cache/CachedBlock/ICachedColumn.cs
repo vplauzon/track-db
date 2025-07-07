@@ -8,5 +8,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 {
     internal interface ICachedColumn
     {
+        void AppendValue(object? value);
     }
 }

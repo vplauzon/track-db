@@ -20,13 +20,13 @@ namespace Ipdb.Lib2.Cache
             throw new NotImplementedException();
         }
 
-        public void AddRecord(long recordId, object record, TableSchema schema)
+        public void AppendRecord(long recordId, object record, TableSchema schema)
         {
             if (!TableTransactionLogMap.ContainsKey(schema.TableName))
             {
                 TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
             }
-            TableTransactionLogMap[schema.TableName].AddRecord(recordId, record);
+            TableTransactionLogMap[schema.TableName].AppendRecord(recordId, record);
         }
     }
 }

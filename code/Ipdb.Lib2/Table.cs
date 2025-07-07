@@ -48,7 +48,7 @@ namespace Ipdb.Lib2
 
         private void AppendRecordInternal(T record, TransactionCache transactionCache)
         {
-            transactionCache.TransactionLog.AddRecord(_database.NewRecordId(), record, _schema);
+            transactionCache.TransactionLog.AppendRecord(_database.NewRecordId(), record, _schema);
         }
         #endregion
     }

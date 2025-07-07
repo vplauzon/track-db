@@ -44,11 +44,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         public bool IsEmpty => throw new NotImplementedException();
 
-        public void AddRecord(long recordId, object record)
+        public void AppendRecord(long recordId, object record)
         {
+            _recordIdColumn.AppendValue(recordId);
             _schema.FromObjectToColumns(record, _dataColumnBuffer);
-
-            throw new NotImplementedException();
         }
     }
 }
