@@ -14,7 +14,7 @@ namespace Ipdb.Lib2
     /// Database:  a collection of tables that can share transactions
     /// and are persisted in the same file.
     /// </summary>
-    public class Database
+    public class Database : IAsyncDisposable
     {
         private readonly IImmutableDictionary<string, object> _tableMap
             = ImmutableDictionary<string, object>.Empty;
@@ -46,6 +46,11 @@ namespace Ipdb.Lib2
             return table!;
         }
         #endregion
+
+        ValueTask IAsyncDisposable.DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
 
         public Table<T> GetTable<T>(string tableName)
             where T : notnull

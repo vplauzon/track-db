@@ -17,7 +17,10 @@ namespace Ipdb.Lib2.Cache
 
         public ImmutableTransactionLog ToImmutable()
         {
-            throw new NotImplementedException();
+            var immutableMap = TableTransactionLogMap
+                .ToImmutableDictionary(p => p.Key, p => p.Value.ToImmutable());
+
+            return new ImmutableTransactionLog(immutableMap);
         }
 
         public void AppendRecord(long recordId, object record, TableSchema schema)

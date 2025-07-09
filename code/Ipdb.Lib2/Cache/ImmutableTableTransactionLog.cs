@@ -1,8 +1,9 @@
-﻿using System.Collections.Immutable;
+﻿using Ipdb.Lib2.Cache.CachedBlock;
+using System.Collections.Immutable;
 
 namespace Ipdb.Lib2.Cache
 {
     internal record ImmutableTableTransactionLog(
-        ImmutableInMemoryBlock InMemoryBlock,
+        IBlock InMemoryBlock,
         IImmutableSet<long> DeletedRecordId);
 }

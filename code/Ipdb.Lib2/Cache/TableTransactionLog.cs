@@ -14,11 +14,18 @@ namespace Ipdb.Lib2.Cache
         {
         }
 
-        public bool IsEmpty => BlockBuilder.IsEmpty && !DeletedRecordIds.Any();
+        public bool IsEmpty => ((IBlock)BlockBuilder).RecordCount == 0 && !DeletedRecordIds.Any();
 
         public void AppendRecord(long recordId, object record)
         {
             BlockBuilder.AppendRecord(recordId, record);
+        }
+
+        public ImmutableTableTransactionLog ToImmutable()
+        {
+            return new ImmutableTableTransactionLog(
+                new BlockBuilder(BlockBuilder),
+                DeletedRecordIds.ToImmutableHashSet());
         }
     }
 }
