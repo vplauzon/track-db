@@ -17,7 +17,7 @@ namespace Ipdb.Tests2
         [Theory]
         [InlineData(false)]
         //[InlineData(true)]
-        public async Task AppendOnly(bool doPushPendingData)
+        public async Task AppendOneRecord(bool doPushPendingData)
         {
             await using (var testTable = CreateTestTable())
             {
