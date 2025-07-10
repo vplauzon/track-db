@@ -124,6 +124,15 @@ namespace Ipdb.Lib2
             TransactionContext? transactionContext,
             Action<TransactionCache> action)
         {
+            ExecuteWithinTransactionContext(
+                transactionContext,
+                tc => 0);
+        }
+
+        internal T ExecuteWithinTransactionContext<T>(
+            TransactionContext? transactionContext,
+            Func<TransactionCache, T> func)
+        {
             var temporaryTransactionContext = transactionContext == null
                 ? CreateTransaction()
                 : null;
@@ -133,9 +142,11 @@ namespace Ipdb.Lib2
                 var transactionId = transactionContext?.TransactionId
                     ?? temporaryTransactionContext!.TransactionId;
                 var transactionCache = _databaseState.TransactionMap[transactionId];
+                var result = func(transactionCache);
 
-                action(transactionCache);
                 temporaryTransactionContext?.Complete();
+
+                return result;
             }
             catch
             {

@@ -31,6 +31,45 @@ namespace Ipdb.Tests2
             }
         }
 
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
+        public async Task AppendMultipleRecords(bool doPushPendingData)
+        {
+            await using (var testTable = CreateTestTable())
+            {
+                testTable.Table.AppendRecord(new IntOnly(1));
+                testTable.Table.AppendRecord(new IntOnly(2));
+                testTable.Table.AppendRecord(new IntOnly(3));
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PersistAllDataAsync();
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
+        public async Task QueryEqual(bool doPushPendingData)
+        {
+            await using (var testTable = CreateTestTable())
+            {
+                testTable.Table.AppendRecord(new IntOnly(1));
+                testTable.Table.AppendRecord(new IntOnly(2));
+                testTable.Table.AppendRecord(new IntOnly(3));
+                if (doPushPendingData)
+                {
+                    await testTable.Database.PersistAllDataAsync();
+                }
+
+                var results = testTable.Table.Query(i => i.Integer == 2);
+
+                Assert.Single(results);
+                Assert.Equal(2, results[0].Integer);
+            }
+        }
+
         private TestTable<IntOnly> CreateTestTable()
         {
             return new TestTable<IntOnly>(new TableSchema<IntOnly>(TABLE_NAME));
