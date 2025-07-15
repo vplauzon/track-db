@@ -9,7 +9,7 @@ namespace Ipdb.Lib2.Query
 {
     internal class QueryPredicateFactory
     {
-        public static IQueryPredicate<T> Create<T>(
+        public static IQueryPredicate Create<T>(
             Expression<Func<T, bool>> predicateExpression)
         {
             throw new NotImplementedException();

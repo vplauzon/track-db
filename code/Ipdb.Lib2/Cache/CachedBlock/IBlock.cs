@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using Ipdb.Lib2.Query;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -11,5 +13,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         IEnumerable<long> RecordIds { get; }
         
         IEnumerable<object> GetColumnData(int columnIndex);
+        
+        IImmutableList<long> Query(IQueryPredicate predicate);
     }
 }

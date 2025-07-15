@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib2.Query;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -75,6 +76,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         IEnumerable<object> IBlock.GetColumnData(int columnIndex)
         {
             return _dataColumns[columnIndex].Data;
+        }
+
+        IImmutableList<long> IBlock.Query(IQueryPredicate predicate)
+        {
+            throw new NotImplementedException();
         }
         #endregion
     }

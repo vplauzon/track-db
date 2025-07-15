@@ -63,7 +63,9 @@ namespace Ipdb.Tests2
                     await testTable.Database.PersistAllDataAsync();
                 }
 
-                var results = testTable.Table.Query(i => i.Integer == 2);
+                var results = testTable.Table.Query()
+                    .Where(i => i.Integer == 2)
+                    .ToImmutableList();
 
                 Assert.Single(results);
                 Assert.Equal(2, results[0].Integer);
