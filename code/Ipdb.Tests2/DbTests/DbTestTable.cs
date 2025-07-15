@@ -6,12 +6,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Tests2
+namespace Ipdb.Tests2.DbTests
 {
-    internal class TestTable<T> : IAsyncDisposable
+    internal class DbTestTable<T> : IAsyncDisposable
         where T : notnull
     {
-        public TestTable(TableSchema<T> schema)
+        public DbTestTable(TableSchema<T> schema)
         {
             Database = new Database(
                 Path.Combine(

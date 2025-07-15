@@ -2,7 +2,7 @@
 using System;
 using Xunit;
 
-namespace Ipdb.Tests2
+namespace Ipdb.Tests2.DbTests
 {
     public class TableSchemaTest
     {

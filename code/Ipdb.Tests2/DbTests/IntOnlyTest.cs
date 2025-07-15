@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2
+namespace Ipdb.Tests2.DbTests
 {
     public class IntOnlyTest
     {
@@ -72,9 +72,9 @@ namespace Ipdb.Tests2
             }
         }
 
-        private TestTable<IntOnly> CreateTestTable()
+        private DbTestTable<IntOnly> CreateTestTable()
         {
-            return new TestTable<IntOnly>(new TableSchema<IntOnly>(TABLE_NAME));
+            return new DbTestTable<IntOnly>(new TableSchema<IntOnly>(TABLE_NAME));
         }
     }
 }
