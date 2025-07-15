@@ -20,7 +20,8 @@ namespace Ipdb.Tests2.QueryPredicateTests
             var predicateLessThan = QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5);
             var predicateLessThanEqual =
                 QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5);
-            var predicateGreaterThan = QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5);
+            var predicateGreaterThan =
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5);
             var predicateGreaterThanEqual =
                 QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5);
             var testingPairs = new[]
