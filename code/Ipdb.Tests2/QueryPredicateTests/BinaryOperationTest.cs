@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Ipdb.Tests2.QueryPredicateTests
 {
-    public class OnePropertyTest
+    public class BinaryOperationTest
     {
         private record IntegerOnly(int Value);
 
