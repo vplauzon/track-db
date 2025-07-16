@@ -135,11 +135,14 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 {
                     var allRecordIds = _recordIdColumn.Data;
                     var filteredRecordIds = rp.RecordIndexes
-                        .Select(i => allRecordIds[i])
+                        .Select(i => allRecordIds[i]);
+                    var truncatedRecordIds = takeCount == null
+                        ? filteredRecordIds
+                        : filteredRecordIds.Take(takeCount.Value);
+
+                    return filteredRecordIds
                         .Cast<long>()
                         .ToImmutableArray();
-
-                    return filteredRecordIds;
                 }
                 else
                 {
@@ -151,6 +154,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             {
                 return ImmutableArray<long>.Empty;
             }
+        }
+
+        IImmutableList<object> IBlock.GetRecords(IEnumerable<long> recordIds)
+        {
+            throw new NotImplementedException();
         }
 
         private IQueryPredicate Simplify(

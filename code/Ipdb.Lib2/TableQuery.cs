@@ -65,12 +65,12 @@ namespace Ipdb.Lib2
         #region IEnumerator<T>
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
         {
-            return ExecuteQuery();
+            return ExecuteQuery().GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ExecuteQuery();
+            return ExecuteQuery().GetEnumerator();
         }
         #endregion
 
@@ -80,7 +80,7 @@ namespace Ipdb.Lib2
         }
 
         #region Query internals
-        private IEnumerator<T> ExecuteQuery()
+        private IEnumerable<T> ExecuteQuery()
         {
             var result = _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
@@ -92,18 +92,25 @@ namespace Ipdb.Lib2
             return result;
         }
 
-        private IEnumerator<T> ExecuteQuery(TransactionCache transactionCache)
+        private IEnumerable<T> ExecuteQuery(TransactionCache transactionCache)
         {
-            var transactionRecordIds =
-                ExecuteQueryOnUncommittedTransactionLog(transactionCache, _takeCount);
-            var cacheCommitedRecordIds = ExecuteQueryOnCacheCommittedTransactionLogs(
-                transactionCache,
-                _takeCount == null ? _takeCount : _takeCount.Value - transactionRecordIds.Count);
+            var takeCount = _takeCount;
 
-            throw new NotImplementedException();
+            foreach (var record in
+                ExecuteQueryOnUncommittedTransactionLog(transactionCache, takeCount))
+            {
+                yield return record;
+                takeCount = takeCount.HasValue ? takeCount - 1 : null;
+            }
+            foreach (var record in
+                ExecuteQueryOnCacheCommittedTransactionLogs(transactionCache, takeCount))
+            {
+                yield return record;
+                takeCount = takeCount.HasValue ? takeCount - 1 : null;
+            }
         }
 
-        private IImmutableList<long> ExecuteQueryOnUncommittedTransactionLog(
+        private IEnumerable<T> ExecuteQueryOnUncommittedTransactionLog(
             TransactionCache transactionCache,
             int? takeCount)
         {
@@ -113,36 +120,43 @@ namespace Ipdb.Lib2
             {
                 IBlock txBlock = log.BlockBuilder;
                 var recordIds = txBlock.Query(_predicate, takeCount);
+                var records = txBlock.GetRecords(recordIds);
 
-                return recordIds;
+                return records
+                    .Cast<T>()
+                    .ToImmutableArray();
             }
             else
             {
-                return ImmutableArray<long>.Empty;
+                return ImmutableArray<T>.Empty;
             }
         }
 
-        private IImmutableList<long> ExecuteQueryOnCacheCommittedTransactionLogs(
+        private IEnumerable<T> ExecuteQueryOnCacheCommittedTransactionLogs(
             TransactionCache transactionCache,
             int? takeCount)
         {
-            var resultList = new List<IImmutableList<long>>();
+            var recordList = new List<IImmutableList<T>>();
 
             foreach (var committedLog in transactionCache.DatabaseCache.CommittedLogs)
             {
-                if (committedLog
+                if ((takeCount == null || takeCount > 0)
+                    && committedLog
                     .TableTransactionLogs
                     .TryGetValue(_table.Schema.TableName, out var log))
                 {
                     IBlock block = log.InMemoryBlock;
-                    var result = block.Query(_predicate, takeCount);
+                    var recordIds = block.Query(_predicate, takeCount);
+                    var records = block.GetRecords(recordIds)
+                        .Cast<T>()
+                        .ToImmutableArray();
 
-                    resultList.Add(result);
-                    takeCount = takeCount == null ? null : takeCount.Value - result.Count();
+                    recordList.Add(records);
+                    takeCount = takeCount == null ? null : takeCount.Value - records.Count();
                 }
             }
 
-            return resultList
+            return recordList
                 .SelectMany(r => r)
                 .ToImmutableArray();
         }
