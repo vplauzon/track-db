@@ -82,10 +82,44 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         {
             if (takeCount != 0)
             {
-                while (!(predicate is ResultPredicate))
+                //  Initial simplification
+                predicate = predicate.Simplify(p => null) ?? predicate;
+
+                while (!predicate.IsTerminal)
                 {
+                    var primitivePredicate = predicate.FirstPrimitivePredicate;
+
+                    if (primitivePredicate == null)
+                    {   //  Should be terminal by now
+                        throw new InvalidOperationException("Can't complete query");
+                    }
+                    else
+                    {
+                        if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
+                        {
+                            //binaryOperatorPredicate.PropertyPath;
+                            throw new NotImplementedException();
+                        }
+                        else
+                        {
+                            throw new NotSupportedException(
+                                $"Primitive predicate:  '{primitivePredicate.GetType().Name}'");
+                        }
+                    }
                 }
-                throw new NotImplementedException();
+                if (predicate is AllInPredicate)
+                {
+                    throw new NotImplementedException();
+                }
+                else if (predicate is ResultPredicate)
+                {
+                    throw new NotImplementedException();
+                }
+                else
+                {
+                    throw new NotSupportedException(
+                        $"Terminal predicate:  {predicate.GetType().Name}");
+                }
             }
             else
             {

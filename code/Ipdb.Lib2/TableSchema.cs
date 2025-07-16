@@ -15,6 +15,7 @@ namespace Ipdb.Lib2
         private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
             [typeof(int)];
 
+        private readonly IImmutableDictionary<string, int> _propertyPathToIndexMap;
         private readonly Action<object, object?[]> _objectToColumnsAction;
 
         #region Constructor
@@ -23,6 +24,8 @@ namespace Ipdb.Lib2
             TableName = tableName;
             PartitionKeyPropertyPaths = partitionKeyPropertyPaths;
             Columns = ColumnSchema.Reflect(RepresentationType);
+            _propertyPathToIndexMap = Enumerable.Range(0, Columns.Count)
+                .ToImmutableDictionary(i => Columns[i].PropertyPath, i => i);
 
             var unsupportedColumns = Columns.Where(
                 c => !SUPPORTED_COLUMN_TYPES.Contains(c.ColumnType));
@@ -87,6 +90,20 @@ namespace Ipdb.Lib2
         public IImmutableList<string> PartitionKeyPropertyPaths { get; }
 
         internal IImmutableList<ColumnSchema> Columns { get; }
+
+        internal bool TryGetColumn(string propertyPath, out ColumnSchema columnSchema)
+        {
+            if(_propertyPathToIndexMap.TryGetValue(propertyPath, out var columnIndex))
+            {
+                columnSchema = Columns[columnIndex];
+
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
 
         internal void FromObjectToColumns(object record, object?[] columns)
         {

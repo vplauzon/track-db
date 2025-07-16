@@ -12,6 +12,11 @@ namespace Ipdb.Lib2.Query
         BinaryOperator BinaryOperator)
         : IQueryPredicate
     {
+        bool IQueryPredicate.IsTerminal => false;
+
         IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => this;
+
+        IQueryPredicate? IQueryPredicate.Simplify(
+            Func<IQueryPredicate, IQueryPredicate?> replaceFunc) => null;
     }
 }

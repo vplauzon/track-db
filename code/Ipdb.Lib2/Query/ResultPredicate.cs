@@ -8,6 +8,14 @@ namespace Ipdb.Lib2.Query
 {
     internal class ResultPredicate : IQueryPredicate
     {
+        bool IQueryPredicate.IsTerminal => true;
+
         IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
+
+        IQueryPredicate? IQueryPredicate.Simplify(
+            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
+        {
+            return null;
+        }
     }
 }
