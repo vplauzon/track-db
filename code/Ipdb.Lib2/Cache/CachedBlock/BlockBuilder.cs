@@ -80,7 +80,17 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         IImmutableList<long> IBlock.Query(IQueryPredicate predicate, int? takeCount)
         {
-            throw new NotImplementedException();
+            if (takeCount != 0)
+            {
+                while (!(predicate is ResultPredicate))
+                {
+                }
+                throw new NotImplementedException();
+            }
+            else
+            {
+                return ImmutableArray<long>.Empty;
+            }
         }
         #endregion
     }
