@@ -8,5 +8,6 @@ namespace Ipdb.Lib2.Query
 {
     internal class ResultPredicate : IQueryPredicate
     {
+        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
     }
 }

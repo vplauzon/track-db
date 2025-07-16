@@ -8,5 +8,7 @@ namespace Ipdb.Lib2.Query
 {
     internal interface IQueryPredicate
     {
+        /// <summary>Returns the first primitive predicate in the chain.</summary>>
+        IQueryPredicate? FirstPrimitivePredicate { get; }
     }
 }

@@ -78,7 +78,7 @@ namespace Ipdb.Lib2.Query
         {
             if (valueExpression is ConstantExpression constantExpression)
             {
-                return new PropertyPredicate(
+                return new BinaryOperatorPredicate(
                     propertyPath,
                     constantExpression.Value,
                     binaryOperator);
@@ -87,7 +87,7 @@ namespace Ipdb.Lib2.Query
             {
                 if (memberExpression.Expression is ConstantExpression innerConstantExpression)
                 {
-                    return new PropertyPredicate(
+                    return new BinaryOperatorPredicate(
                         propertyPath,
                         GetConstantValue(innerConstantExpression.Value, memberExpression.Member),
                         binaryOperator);

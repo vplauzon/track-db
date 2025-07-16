@@ -11,5 +11,6 @@ namespace Ipdb.Lib2.Query
         IQueryPredicate LeftPredicate)
         : IQueryPredicate
     {
+        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
     }
 }
