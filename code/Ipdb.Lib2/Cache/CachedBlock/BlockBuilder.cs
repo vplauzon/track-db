@@ -1,4 +1,5 @@
-﻿using Ipdb.Lib2.Query;
+﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
+using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -41,20 +42,19 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             Type columnType,
             IEnumerable<object> data)
         {
-            var cachedColumnType = typeof(SimpleCachedColumn<>).MakeGenericType(columnType);
-            var cachedColumn = Activator.CreateInstance(
-                cachedColumnType,
-                BindingFlags.Instance | BindingFlags.Public,
-                null,
-                [data],
-                null);
-
-            return (ICachedColumn)cachedColumn!;
+            if (columnType == typeof(int))
+            {
+                return new ArrayIntColumn(data);
+            }
+            else
+            {
+                throw new NotSupportedException($"Column type:  '{columnType}'");
+            }
         }
 
         private static ICachedColumn CreateRecordIdColumn(IEnumerable<long> recordIds)
         {
-            return new SimpleCachedColumn<long>(recordIds.Cast<object>());
+            return new ArrayLongColumn(recordIds.Cast<object>());
         }
         #endregion
 
@@ -97,8 +97,28 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     {
                         if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
                         {
-                            //binaryOperatorPredicate.PropertyPath;
-                            throw new NotImplementedException();
+                            if (_schema.TryGetColumnIndex(
+                                binaryOperatorPredicate.PropertyPath,
+                                out var columnIndex))
+                            {
+                                var column = _dataColumns[columnIndex];
+                                var resultIndexes = column.Filter(
+                                    binaryOperatorPredicate.BinaryOperator,
+                                    binaryOperatorPredicate.Value);
+                                var resultPredicate = new ResultPredicate(resultIndexes);
+
+                                predicate = Simplify(
+                                    predicate,
+                                    p => object.ReferenceEquals(p, primitivePredicate)
+                                    ? resultPredicate
+                                    : null);
+                            }
+                            else
+                            {
+                                throw new InvalidOperationException(
+                                    $"Unknown property path:  " +
+                                    $"'{binaryOperatorPredicate.PropertyPath}'");
+                            }
                         }
                         else
                         {
@@ -109,11 +129,17 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 }
                 if (predicate is AllInPredicate)
                 {
-                    throw new NotImplementedException();
+                    return _recordIdColumn.Data.Cast<long>().ToImmutableArray();
                 }
-                else if (predicate is ResultPredicate)
+                else if (predicate is ResultPredicate rp)
                 {
-                    throw new NotImplementedException();
+                    var allRecordIds = _recordIdColumn.Data;
+                    var filteredRecordIds = rp.RecordIndexes
+                        .Select(i => allRecordIds[i])
+                        .Cast<long>()
+                        .ToImmutableArray();
+
+                    return filteredRecordIds;
                 }
                 else
                 {
@@ -125,6 +151,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             {
                 return ImmutableArray<long>.Empty;
             }
+        }
+
+        private IQueryPredicate Simplify(
+            IQueryPredicate predicate,
+            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
+        {
+            return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
         }
         #endregion
     }

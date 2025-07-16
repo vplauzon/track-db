@@ -39,13 +39,13 @@ namespace Ipdb.Tests2.QueryPredicateTests
                 var predicate = testingPair.Item1;
                 var binaryOperator = testingPair.Item2;
 
-                Assert.IsType<PropertyPredicate>(predicate);
+                Assert.IsType<BinaryOperatorPredicate>(predicate);
 
-                var propertyPredicate = (PropertyPredicate)predicate;
+                var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
 
-                Assert.Equal(nameof(IntegerOnly.Value), propertyPredicate.PropertyPath);
-                Assert.Equal(binaryOperator, propertyPredicate.BinaryOperator);
-                Assert.Equal(5, propertyPredicate.Value);
+                Assert.Equal(nameof(IntegerOnly.Value), binaryOperatorPredicate.PropertyPath);
+                Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
+                Assert.Equal(5, binaryOperatorPredicate.Value);
             }
         }
 
@@ -81,9 +81,9 @@ namespace Ipdb.Tests2.QueryPredicateTests
                     var predicate = testingPair.Item1;
                     var binaryOperator = testingPair.Item2;
 
-                    Assert.IsType<PropertyPredicate>(predicate);
+                    Assert.IsType<BinaryOperatorPredicate>(predicate);
 
-                    var propertyPredicate = (PropertyPredicate)predicate;
+                    var propertyPredicate = (BinaryOperatorPredicate)predicate;
 
                     Assert.Equal(nameof(IntegerOnly.Value), propertyPredicate.PropertyPath);
                     Assert.Equal(binaryOperator, propertyPredicate.BinaryOperator);

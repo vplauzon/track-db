@@ -91,18 +91,9 @@ namespace Ipdb.Lib2
 
         internal IImmutableList<ColumnSchema> Columns { get; }
 
-        internal bool TryGetColumn(string propertyPath, out ColumnSchema columnSchema)
+        internal bool TryGetColumnIndex(string propertyPath, out int columnIndex)
         {
-            if(_propertyPathToIndexMap.TryGetValue(propertyPath, out var columnIndex))
-            {
-                columnSchema = Columns[columnIndex];
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return _propertyPathToIndexMap.TryGetValue(propertyPath, out columnIndex);
         }
 
         internal void FromObjectToColumns(object record, object?[] columns)
