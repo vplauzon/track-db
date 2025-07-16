@@ -173,7 +173,7 @@ namespace Ipdb.Lib2
                 {
                     var newDbCache = new DatabaseCache(
                         currentDbState.DatabaseCache.StorageBlockMap,
-                        currentDbState.DatabaseCache.TransactionLogs.Add(newTransactionLog));
+                        currentDbState.DatabaseCache.CommittedLogs.Add(newTransactionLog));
 
                     return new DatabaseState(newDbCache, newTransactionMap);
                 }

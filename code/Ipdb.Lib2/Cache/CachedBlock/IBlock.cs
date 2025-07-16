@@ -14,6 +14,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         
         IEnumerable<object> GetColumnData(int columnIndex);
         
-        IImmutableList<long> Query(IQueryPredicate predicate);
+        IImmutableList<long> Query(IQueryPredicate predicate, int? takeCount);
     }
 }

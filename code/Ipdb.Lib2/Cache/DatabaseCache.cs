@@ -10,7 +10,7 @@ namespace Ipdb.Lib2.Cache
 {
     internal record DatabaseCache(
         StorageBlockMap StorageBlockMap,
-        IImmutableList<ImmutableTransactionLog> TransactionLogs)
+        IImmutableList<ImmutableTransactionLog> CommittedLogs)
     {
     }
 }

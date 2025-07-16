@@ -78,7 +78,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             return _dataColumns[columnIndex].Data;
         }
 
-        IImmutableList<long> IBlock.Query(IQueryPredicate predicate)
+        IImmutableList<long> IBlock.Query(IQueryPredicate predicate, int? takeCount)
         {
             throw new NotImplementedException();
         }

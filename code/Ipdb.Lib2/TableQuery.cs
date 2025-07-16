@@ -4,6 +4,7 @@ using Ipdb.Lib2.Query;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -93,13 +94,28 @@ namespace Ipdb.Lib2
 
         private IEnumerator<T> ExecuteQuery(TransactionCache transactionCache)
         {
-            IBlock txBlock = transactionCache
-                .TransactionLog
-                .TableTransactionLogMap[_table.Schema.TableName]
-                .BlockBuilder;
-            var recordIds = txBlock.Query(_predicate);
+            var recordIds = ExecuteQueryOnTransactionLog(transactionCache, _takeCount);
 
             throw new NotImplementedException();
+        }
+
+        private IImmutableList<long> ExecuteQueryOnTransactionLog(
+            TransactionCache transactionCache,
+            int? takeCount)
+        {
+            if (transactionCache
+                .TransactionLog
+                .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var log))
+            {
+                IBlock txBlock = log.BlockBuilder;
+                var recordIds = txBlock.Query(_predicate, takeCount);
+
+                return recordIds;
+            }
+            else
+            {
+                return ImmutableArray<long>.Empty;
+            }
         }
         #endregion
     }
