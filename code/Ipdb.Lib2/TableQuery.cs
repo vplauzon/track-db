@@ -40,8 +40,9 @@ namespace Ipdb.Lib2
         public TableQuery<T> Where(Expression<Func<T, bool>> predicate)
         {
             var queryPredicate = QueryPredicateFactory.Create(predicate);
+            var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
 
-            throw new NotImplementedException();
+            return new TableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
         }
 
         public TableQuery<T> Take(int count)
