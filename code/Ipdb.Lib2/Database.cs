@@ -126,7 +126,12 @@ namespace Ipdb.Lib2
         {
             ExecuteWithinTransactionContext(
                 transactionContext,
-                tc => 0);
+                tc =>
+                {
+                    action(tc);
+
+                    return 0;
+                });
         }
 
         internal T ExecuteWithinTransactionContext<T>(
