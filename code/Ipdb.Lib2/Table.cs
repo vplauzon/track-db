@@ -14,14 +14,11 @@ namespace Ipdb.Lib2
     public class Table<T>
         where T : notnull
     {
-        internal Table(string name, Database database, TableSchema<T> schema)
+        internal Table(Database database, TableSchema<T> schema)
         {
-            Name = name;
             Database = database;
             Schema = schema;
         }
-
-        public string Name { get; }
 
         public Database Database { get; }
 

@@ -92,8 +92,10 @@ namespace Ipdb.Lib2
 
         private IEnumerator<T> ExecuteQuery(TransactionCache transactionCache)
         {
-            IBlock txBlock =
-                transactionCache.TransactionLog.TableTransactionLogMap[_table.Name].BlockBuilder;
+            IBlock txBlock = transactionCache
+                .TransactionLog
+                .TableTransactionLogMap[_table.Schema.TableName]
+                .BlockBuilder;
             var recordIds = txBlock.Query(_predicate);
 
             throw new NotImplementedException();
