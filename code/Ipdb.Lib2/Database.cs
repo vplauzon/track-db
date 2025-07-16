@@ -159,13 +159,13 @@ namespace Ipdb.Lib2
         {
             //  Fetch transaction cache
             var transactionCache = _databaseState.TransactionMap[transactionId];
-            var newTransactionLog = transactionCache.TransactionLog.ToImmutable();
+            var newTransactionLog = transactionCache.UncommittedTransactionLog.ToImmutable();
 
             ChangeDatabaseState(currentDbState =>
             {   //  Remove it from map
                 var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
 
-                if (transactionCache.TransactionLog.IsEmpty)
+                if (transactionCache.UncommittedTransactionLog.IsEmpty)
                 {
                     return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
                 }

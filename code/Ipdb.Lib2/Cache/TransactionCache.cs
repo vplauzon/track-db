@@ -9,5 +9,5 @@ namespace Ipdb.Lib2.Cache
 {
     internal record TransactionCache(
         DatabaseCache DatabaseCache,
-        TransactionLog TransactionLog);
+        TransactionLog UncommittedTransactionLog);
 }

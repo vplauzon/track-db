@@ -94,17 +94,21 @@ namespace Ipdb.Lib2
 
         private IEnumerator<T> ExecuteQuery(TransactionCache transactionCache)
         {
-            var recordIds = ExecuteQueryOnTransactionLog(transactionCache, _takeCount);
+            var transactionRecordIds =
+                ExecuteQueryOnUncommittedTransactionLog(transactionCache, _takeCount);
+            var cacheCommitedRecordIds = ExecuteQueryOnCacheCommittedTransactionLogs(
+                transactionCache,
+                _takeCount == null ? _takeCount : _takeCount.Value - transactionRecordIds.Count);
 
             throw new NotImplementedException();
         }
 
-        private IImmutableList<long> ExecuteQueryOnTransactionLog(
+        private IImmutableList<long> ExecuteQueryOnUncommittedTransactionLog(
             TransactionCache transactionCache,
             int? takeCount)
         {
             if (transactionCache
-                .TransactionLog
+                .UncommittedTransactionLog
                 .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var log))
             {
                 IBlock txBlock = log.BlockBuilder;
@@ -116,6 +120,31 @@ namespace Ipdb.Lib2
             {
                 return ImmutableArray<long>.Empty;
             }
+        }
+
+        private IImmutableList<long> ExecuteQueryOnCacheCommittedTransactionLogs(
+            TransactionCache transactionCache,
+            int? takeCount)
+        {
+            var resultList = new List<IImmutableList<long>>();
+
+            foreach (var committedLog in transactionCache.DatabaseCache.CommittedLogs)
+            {
+                if (committedLog
+                    .TableTransactionLogs
+                    .TryGetValue(_table.Schema.TableName, out var log))
+                {
+                    IBlock block = log.InMemoryBlock;
+                    var result = block.Query(_predicate, takeCount);
+
+                    resultList.Add(result);
+                    takeCount = takeCount == null ? null : takeCount.Value - result.Count();
+                }
+            }
+
+            return resultList
+                .SelectMany(r => r)
+                .ToImmutableArray();
         }
         #endregion
     }

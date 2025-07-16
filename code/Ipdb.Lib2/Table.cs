@@ -52,7 +52,7 @@ namespace Ipdb.Lib2
 
         private void AppendRecordInternal(T record, TransactionCache transactionCache)
         {
-            transactionCache.TransactionLog.AppendRecord(Database.NewRecordId(), record, Schema);
+            transactionCache.UncommittedTransactionLog.AppendRecord(Database.NewRecordId(), record, Schema);
         }
         #endregion
 
