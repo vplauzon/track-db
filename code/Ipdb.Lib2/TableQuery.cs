@@ -1,5 +1,6 @@
 ﻿using Ipdb.Lib2.Cache;
 using Ipdb.Lib2.Cache.CachedBlock;
+using Ipdb.Lib2.DbStorage;
 using Ipdb.Lib2.Query;
 using System;
 using System.Collections;
@@ -7,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Net.NetworkInformation;
 
 namespace Ipdb.Lib2
 {
@@ -86,7 +88,14 @@ namespace Ipdb.Lib2
                 _transactionContext,
                 transactionCache =>
                 {
-                    return ExecuteQuery(transactionCache);
+                    if (_takeCount == 0)
+                    {
+                        return Array.Empty<T>();
+                    }
+                    else
+                    {
+                        return ExecuteQuery(transactionCache);
+                    }
                 });
 
             return result;
@@ -94,73 +103,43 @@ namespace Ipdb.Lib2
 
         private IEnumerable<T> ExecuteQuery(TransactionCache transactionCache)
         {
-            var takeCount = _takeCount;
+            var takeCount = _takeCount ?? int.MaxValue;
 
-            foreach (var record in
-                ExecuteQueryOnUncommittedTransactionLog(transactionCache, takeCount))
+            foreach (var block in ListBlocks(transactionCache))
             {
-                yield return record;
-                takeCount = takeCount.HasValue ? takeCount - 1 : null;
-            }
-            foreach (var record in
-                ExecuteQueryOnCacheCommittedTransactionLogs(transactionCache, takeCount))
-            {
-                yield return record;
-                takeCount = takeCount.HasValue ? takeCount - 1 : null;
+                var recordIds = block.Query(_predicate);
+                var records = block.GetRecords(recordIds)
+                    .Cast<T>();
+
+                foreach (var record in records)
+                {
+                    yield return record;
+                    --takeCount;
+                    if (takeCount == 0)
+                    {
+                        yield break;
+                    }
+                }
             }
         }
 
-        private IEnumerable<T> ExecuteQueryOnUncommittedTransactionLog(
-            TransactionCache transactionCache,
-            int? takeCount)
+        private IEnumerable<IBlock> ListBlocks(TransactionCache transactionCache)
         {
             if (transactionCache
                 .UncommittedTransactionLog
-                .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var log))
+                .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var ul))
             {
-                IBlock txBlock = log.BlockBuilder;
-                var recordIds = txBlock.Query(_predicate);
-                var records = txBlock.GetRecords(recordIds);
-
-                return records
-                    .Take(takeCount ?? int.MaxValue)
-                    .Cast<T>()
-                    .ToImmutableArray();
+                yield return ul.BlockBuilder;
             }
-            else
-            {
-                return ImmutableArray<T>.Empty;
-            }
-        }
-
-        private IEnumerable<T> ExecuteQueryOnCacheCommittedTransactionLogs(
-            TransactionCache transactionCache,
-            int? takeCount)
-        {
-            var recordList = new List<IImmutableList<T>>();
-
             foreach (var committedLog in transactionCache.DatabaseCache.CommittedLogs)
             {
-                if ((takeCount == null || takeCount > 0)
-                    && committedLog
+                if (committedLog
                     .TableTransactionLogs
-                    .TryGetValue(_table.Schema.TableName, out var log))
+                    .TryGetValue(_table.Schema.TableName, out var cl))
                 {
-                    IBlock block = log.InMemoryBlock;
-                    var recordIds = block.Query(_predicate);
-                    var records = block.GetRecords(recordIds)
-                        .Take(takeCount ?? int.MaxValue)
-                        .Cast<T>()
-                        .ToImmutableArray();
-
-                    recordList.Add(records);
-                    takeCount = takeCount == null ? null : takeCount.Value - records.Count();
+                    yield return cl.InMemoryBlock;
                 }
             }
-
-            return recordList
-                .SelectMany(r => r)
-                .ToImmutableArray();
         }
         #endregion
     }
