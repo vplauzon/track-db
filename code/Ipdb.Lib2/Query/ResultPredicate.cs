@@ -7,9 +7,15 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib2.Query
 {
-    internal record ResultPredicate(IImmutableList<short> RecordIndexes)
-        : IQueryPredicate
+    internal class ResultPredicate : IQueryPredicate
     {
+        public ResultPredicate(IEnumerable<short> recordIndexes)
+        {
+            RecordIndexes = recordIndexes.ToImmutableArray();
+        }
+
+        public IImmutableList<short> RecordIndexes { get; }
+
         bool IQueryPredicate.IsTerminal => true;
 
         IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;

@@ -12,10 +12,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         IEnumerable<long> RecordIds { get; }
         
-        IEnumerable<object> GetColumnData(int columnIndex);
+        IEnumerable<object?> GetColumnData(int columnIndex);
 
-        IImmutableList<object> GetRecords(IEnumerable<long> recordIds);
-        
-        IImmutableList<long> Query(IQueryPredicate predicate, int? takeCount);
+        IEnumerable<object> GetRecords(IEnumerable<long> recordIds);
+
+        /// <summary>Performs the query within the block's data.</summary>
+        /// <param name="predicate"></param>
+        /// <returns>Returns record IDs matching the query.</returns>
+        IEnumerable<long> Query(IQueryPredicate predicate);
     }
 }

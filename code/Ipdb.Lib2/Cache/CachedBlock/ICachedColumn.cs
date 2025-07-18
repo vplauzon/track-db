@@ -12,9 +12,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         int RecordCount { get; }
 
-        IImmutableList<object> Data { get; }
+        IEnumerable<object?> Data { get; }
 
-        IImmutableList<short> Filter(BinaryOperator binaryOperator, object? value);
+        IEnumerable<short> Filter(BinaryOperator binaryOperator, object? value);
 
         void AppendValue(object? value);
     }

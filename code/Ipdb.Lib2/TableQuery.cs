@@ -119,10 +119,11 @@ namespace Ipdb.Lib2
                 .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var log))
             {
                 IBlock txBlock = log.BlockBuilder;
-                var recordIds = txBlock.Query(_predicate, takeCount);
+                var recordIds = txBlock.Query(_predicate);
                 var records = txBlock.GetRecords(recordIds);
 
                 return records
+                    .Take(takeCount ?? int.MaxValue)
                     .Cast<T>()
                     .ToImmutableArray();
             }
@@ -146,8 +147,9 @@ namespace Ipdb.Lib2
                     .TryGetValue(_table.Schema.TableName, out var log))
                 {
                     IBlock block = log.InMemoryBlock;
-                    var recordIds = block.Query(_predicate, takeCount);
+                    var recordIds = block.Query(_predicate);
                     var records = block.GetRecords(recordIds)
+                        .Take(takeCount ?? int.MaxValue)
                         .Cast<T>()
                         .ToImmutableArray();
 

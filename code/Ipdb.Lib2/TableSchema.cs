@@ -17,6 +17,7 @@ namespace Ipdb.Lib2
 
         private readonly IImmutableDictionary<string, int> _propertyPathToIndexMap;
         private readonly Action<object, object?[]> _objectToColumnsAction;
+        //private readonly Func<object?[], object> _columnsToObjectFunc;
 
         #region Constructor
         protected TableSchema(string tableName, IImmutableList<string> partitionKeyPropertyPaths)

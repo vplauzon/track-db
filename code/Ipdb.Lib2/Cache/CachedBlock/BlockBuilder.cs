@@ -40,7 +40,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         private static ICachedColumn CreateCachedColumn(
             Type columnType,
-            IEnumerable<object> data)
+            IEnumerable<object?> data)
         {
             if (columnType == typeof(int))
             {
@@ -73,90 +73,76 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         IEnumerable<long> IBlock.RecordIds => _recordIdColumn.Data.Cast<long>();
 
-        IEnumerable<object> IBlock.GetColumnData(int columnIndex)
+        IEnumerable<object?> IBlock.GetColumnData(int columnIndex)
         {
             return _dataColumns[columnIndex].Data;
         }
 
-        IImmutableList<long> IBlock.Query(IQueryPredicate predicate, int? takeCount)
+        IEnumerable<long> IBlock.Query(IQueryPredicate predicate)
         {
-            if (takeCount != 0)
+            //  Initial simplification
+            predicate = predicate.Simplify(p => null) ?? predicate;
+
+            while (!predicate.IsTerminal)
             {
-                //  Initial simplification
-                predicate = predicate.Simplify(p => null) ?? predicate;
+                var primitivePredicate = predicate.FirstPrimitivePredicate;
 
-                while (!predicate.IsTerminal)
-                {
-                    var primitivePredicate = predicate.FirstPrimitivePredicate;
-
-                    if (primitivePredicate == null)
-                    {   //  Should be terminal by now
-                        throw new InvalidOperationException("Can't complete query");
-                    }
-                    else
-                    {
-                        if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
-                        {
-                            if (_schema.TryGetColumnIndex(
-                                binaryOperatorPredicate.PropertyPath,
-                                out var columnIndex))
-                            {
-                                var column = _dataColumns[columnIndex];
-                                var resultIndexes = column.Filter(
-                                    binaryOperatorPredicate.BinaryOperator,
-                                    binaryOperatorPredicate.Value);
-                                var resultPredicate = new ResultPredicate(resultIndexes);
-
-                                predicate = Simplify(
-                                    predicate,
-                                    p => object.ReferenceEquals(p, primitivePredicate)
-                                    ? resultPredicate
-                                    : null);
-                            }
-                            else
-                            {
-                                throw new InvalidOperationException(
-                                    $"Unknown property path:  " +
-                                    $"'{binaryOperatorPredicate.PropertyPath}'");
-                            }
-                        }
-                        else
-                        {
-                            throw new NotSupportedException(
-                                $"Primitive predicate:  '{primitivePredicate.GetType().Name}'");
-                        }
-                    }
-                }
-                if (predicate is AllInPredicate)
-                {
-                    return _recordIdColumn.Data.Cast<long>().ToImmutableArray();
-                }
-                else if (predicate is ResultPredicate rp)
-                {
-                    var allRecordIds = _recordIdColumn.Data;
-                    var filteredRecordIds = rp.RecordIndexes
-                        .Select(i => allRecordIds[i]);
-                    var truncatedRecordIds = takeCount == null
-                        ? filteredRecordIds
-                        : filteredRecordIds.Take(takeCount.Value);
-
-                    return filteredRecordIds
-                        .Cast<long>()
-                        .ToImmutableArray();
+                if (primitivePredicate == null)
+                {   //  Should be terminal by now
+                    throw new InvalidOperationException("Can't complete query");
                 }
                 else
                 {
-                    throw new NotSupportedException(
-                        $"Terminal predicate:  {predicate.GetType().Name}");
+                    if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
+                    {
+                        if (_schema.TryGetColumnIndex(
+                            binaryOperatorPredicate.PropertyPath,
+                            out var columnIndex))
+                        {
+                            var column = _dataColumns[columnIndex];
+                            var resultIndexes = column.Filter(
+                                binaryOperatorPredicate.BinaryOperator,
+                                binaryOperatorPredicate.Value);
+                            var resultPredicate = new ResultPredicate(resultIndexes);
+
+                            predicate = Simplify(
+                                predicate,
+                                p => object.ReferenceEquals(p, primitivePredicate)
+                                ? resultPredicate
+                                : null);
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException(
+                                $"Unknown property path:  " +
+                                $"'{binaryOperatorPredicate.PropertyPath}'");
+                        }
+                    }
+                    else
+                    {
+                        throw new NotSupportedException(
+                            $"Primitive predicate:  '{primitivePredicate.GetType().Name}'");
+                    }
                 }
+            }
+            if (predicate is AllInPredicate)
+            {
+                return _recordIdColumn.Data.Cast<long>().ToImmutableArray();
+            }
+            else if (predicate is ResultPredicate rp)
+            {
+                return _recordIdColumn.Data
+                    .Cast<long>()
+                    .ToImmutableArray();
             }
             else
             {
-                return ImmutableArray<long>.Empty;
+                throw new NotSupportedException(
+                    $"Terminal predicate:  {predicate.GetType().Name}");
             }
         }
 
-        IImmutableList<object> IBlock.GetRecords(IEnumerable<long> recordIds)
+        IEnumerable<object> IBlock.GetRecords(IEnumerable<long> recordIds)
         {
             throw new NotImplementedException();
         }

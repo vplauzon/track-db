@@ -18,7 +18,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         private T[] _array;
         private int _itemCount = 0;
 
-        protected PrimitiveArrayCachedColumnBase(IEnumerable<object> data)
+        protected PrimitiveArrayCachedColumnBase(IEnumerable<object?> data)
         {
             _array = data
                 .Select(d => d == null ? NullValue : (T)d)
@@ -26,11 +26,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _itemCount = _array.Length;
         }
 
+        public ReadOnlySpan<T> RawData => new ReadOnlySpan<T>(_array, 0, _itemCount);
+
         #region ICachedColumn
         int ICachedColumn.RecordCount => _itemCount;
 
-        IImmutableList<object> ICachedColumn.Data =>
-            _array.Take(_itemCount).Select(i => GetObjectData(i)).ToImmutableArray();
+        IEnumerable<object?> ICachedColumn.Data =>
+            _array.Take(_itemCount).Select(i => GetObjectData(i));
 
         void ICachedColumn.AppendValue(object? value)
         {
@@ -48,7 +50,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
-        IImmutableList<short> ICachedColumn.Filter(BinaryOperator binaryOperator, object? value)
+        IEnumerable<short> ICachedColumn.Filter(BinaryOperator binaryOperator, object? value)
         {
             if (value != null && value.GetType() != typeof(T))
             {
@@ -66,7 +68,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 binaryOperator,
                 matchBuilder);
 
-            return matchBuilder.ToImmutableArray();
+            return matchBuilder;
         }
         #endregion
 
