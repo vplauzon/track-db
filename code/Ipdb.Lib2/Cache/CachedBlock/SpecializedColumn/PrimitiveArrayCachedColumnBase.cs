@@ -28,6 +28,17 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
         public ReadOnlySpan<T> RawData => new ReadOnlySpan<T>(_array, 0, _itemCount);
 
+        public IEnumerable<T> EnumerableRawData
+        {
+            get
+            {
+                for (var i = 0; i != _itemCount; ++i)
+                {
+                    yield return _array[i];
+                }
+            }
+        }
+
         #region ICachedColumn
         int ICachedColumn.RecordCount => _itemCount;
 

@@ -11,7 +11,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     internal class BlockBuilder : IBlock
     {
         private readonly TableSchema _schema;
-        private readonly ICachedColumn _recordIdColumn;
+        private readonly ArrayLongColumn _recordIdColumn;
         private readonly IImmutableList<ICachedColumn> _dataColumns;
         private readonly object[] _dataColumnBuffer;
 
@@ -19,7 +19,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         public BlockBuilder(TableSchema schema)
         {
             _schema = schema;
-            _recordIdColumn = CreateRecordIdColumn(Array.Empty<long>());
+            _recordIdColumn = new ArrayLongColumn(Array.Empty<object>());
             _dataColumns = _schema.Columns
                 .Select(c => CreateCachedColumn(c.ColumnType, Array.Empty<object>()))
                 .ToImmutableArray();
@@ -29,7 +29,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         public BlockBuilder(IBlock block)
         {
             _schema = block.TableSchema;
-            _recordIdColumn = CreateRecordIdColumn(block.RecordIds);
+            _recordIdColumn = new ArrayLongColumn(block.RecordIds.Cast<object>());
             _dataColumns = Enumerable.Range(0, _schema.Columns.Count)
                 .Select(i => CreateCachedColumn(
                     _schema.Columns[i].ColumnType,
@@ -51,27 +51,22 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 throw new NotSupportedException($"Column type:  '{columnType}'");
             }
         }
-
-        private static ICachedColumn CreateRecordIdColumn(IEnumerable<long> recordIds)
-        {
-            return new ArrayLongColumn(recordIds.Cast<object>());
-        }
         #endregion
 
         public bool IsEmpty => throw new NotImplementedException();
 
         public void AppendRecord(long recordId, object record)
         {
-            _recordIdColumn.AppendValue(recordId);
+            ((ICachedColumn)_recordIdColumn).AppendValue(recordId);
             _schema.FromObjectToColumns(record, _dataColumnBuffer);
         }
 
         #region IBlock
         TableSchema IBlock.TableSchema => _schema;
 
-        int IBlock.RecordCount => _recordIdColumn.RecordCount;
+        int IBlock.RecordCount => _recordIdColumn.RawData.Length;
 
-        IEnumerable<long> IBlock.RecordIds => _recordIdColumn.Data.Cast<long>();
+        IEnumerable<long> IBlock.RecordIds => _recordIdColumn.EnumerableRawData;
 
         IEnumerable<object?> IBlock.GetColumnData(int columnIndex)
         {
@@ -127,13 +122,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
             if (predicate is AllInPredicate)
             {
-                return _recordIdColumn.Data.Cast<long>().ToImmutableArray();
+                return _recordIdColumn.EnumerableRawData;
             }
             else if (predicate is ResultPredicate rp)
             {
-                return _recordIdColumn.Data
-                    .Cast<long>()
-                    .ToImmutableArray();
+                return rp.RecordIndexes
+                    .Select(i => _recordIdColumn.RawData[i]);
             }
             else
             {
