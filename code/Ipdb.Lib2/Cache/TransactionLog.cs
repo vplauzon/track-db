@@ -31,5 +31,14 @@ namespace Ipdb.Lib2.Cache
             }
             TableTransactionLogMap[schema.TableName].AppendRecord(recordId, record);
         }
+
+        public void DeleteRecordIds(IEnumerable<long> recordIds, TableSchema schema)
+        {
+            if (!TableTransactionLogMap.ContainsKey(schema.TableName))
+            {
+                TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
+            }
+            TableTransactionLogMap[schema.TableName].DeleteRecordIds(recordIds);
+        }
     }
 }

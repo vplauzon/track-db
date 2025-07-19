@@ -82,7 +82,36 @@ namespace Ipdb.Lib2
 
         public void Delete()
         {
-            throw new NotImplementedException();
+            _table.Database.ExecuteWithinTransactionContext(
+                _transactionContext,
+                transactionCache =>
+                {
+                    if (_takeCount != 0)
+                    {
+                        transactionCache.UncommittedTransactionLog.TableTransactionLogMap.TryGetValue(
+                            _table.Schema.TableName,
+                            out var uncommittedLog);
+
+                        var deletedRecordIds = ExecuteQuery(
+                            transactionCache,
+                            (block, recordIds) =>
+                            {
+                                return recordIds;
+                            })
+                        .ToImmutableList();
+                        var uncommittedBlock = uncommittedLog?.BlockBuilder;
+                        var uncommittedDeletedRecordIds = uncommittedBlock
+                        ?.DeleteRecords(deletedRecordIds)
+                        .ToImmutableHashSet();
+                        var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
+                        ? deletedRecordIds
+                        : deletedRecordIds.Where(id => !uncommittedDeletedRecordIds.Contains(id));
+
+                        transactionCache.UncommittedTransactionLog.DeleteRecordIds(
+                            committedDeletedRecordIds,
+                            _table.Schema);
+                    }
+                });
         }
 
         #region Query internals
@@ -103,6 +132,7 @@ namespace Ipdb.Lib2
                             (block, recordIds) =>
                             {
                                 var records = block.GetRecords(recordIds)
+                                    .Select(o => o.Record)
                                     .Cast<T>();
 
                                 return records;

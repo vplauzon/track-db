@@ -1,5 +1,6 @@
 ﻿using Ipdb.Lib2.Cache.CachedBlock;
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
@@ -19,6 +20,14 @@ namespace Ipdb.Lib2.Cache
         public void AppendRecord(long recordId, object record)
         {
             BlockBuilder.AppendRecord(recordId, record);
+        }
+
+        public void DeleteRecordIds(IEnumerable<long> recordIds)
+        {
+            foreach (var id in recordIds)
+            {
+                DeletedRecordIds.Add(id);
+            }
         }
 
         public ImmutableTableTransactionLog ToImmutable()

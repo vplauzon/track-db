@@ -14,7 +14,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         
         IEnumerable<object?> GetColumnData(int columnIndex);
 
-        IEnumerable<object> GetRecords(IEnumerable<long> recordIds);
+        IEnumerable<RecordObject> GetRecords(IEnumerable<long> recordIds);
 
         /// <summary>Performs the query within the block's data.</summary>
         /// <param name="predicate"></param>

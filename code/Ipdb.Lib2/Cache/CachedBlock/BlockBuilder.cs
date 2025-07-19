@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -63,6 +64,43 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             {
                 _dataColumns[i].AppendValue(_dataColumnBuffer[i]);
             }
+        }
+
+        public IEnumerable<long> DeleteRecords(ImmutableList<long> recordIds)
+        {
+            var recordIdSet = recordIds.ToImmutableHashSet();
+
+            if (recordIdSet.Any() && _recordIdColumn.RawData.Length > 0)
+            {
+                var columns = new object?[_schema.Columns.Count];
+                var deletedRecordPairs = Enumerable.Range(0, _recordIdColumn.RawData.Length)
+                    .Select(recordIndex => new
+                    {
+                        RecordId = _recordIdColumn.RawData[recordIndex],
+                        RecordIndex = (short)recordIndex
+                    })
+                    .Where(o => recordIdSet.Contains(o.RecordId))
+                    .OrderBy(o => o.RecordIndex)
+                    .ToImmutableArray();
+
+                if (deletedRecordPairs.Any())
+                {
+                    var deletedRecordIndexes = deletedRecordPairs
+                        .Select(o => o.RecordIndex)
+                        .ToImmutableArray();
+
+                    foreach (var dataColumn in _dataColumns)
+                    {
+                        dataColumn.DeleteRecords(deletedRecordIndexes);
+                    }
+                    ((ICachedColumn)_recordIdColumn).DeleteRecords(deletedRecordIndexes);
+
+                    return deletedRecordPairs
+                        .Select(o => o.RecordId);
+                }
+            }
+
+            return Array.Empty<long>();
         }
 
         #region IBlock
@@ -143,27 +181,39 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
         }
 
-        IEnumerable<object> IBlock.GetRecords(IEnumerable<long> recordIds)
+        IEnumerable<RecordObject> IBlock.GetRecords(IEnumerable<long> recordIds)
         {
-            var columns = new object?[_schema.Columns.Count];
-
-            foreach (var recordId in recordIds)
+            object?[] GetColumnsData(object?[] columns, short index)
             {
-                var recordIndex = (short)_recordIdColumn.RawData.IndexOf(recordId);
-
-                if (recordIndex == -1)
+                for (int i = 0; i != columns.Length; ++i)
                 {
-                    throw new ArgumentOutOfRangeException(
-                        $"Record ID {recordId} not found in block");
+                    columns[i] = _dataColumns[i].GetData(index);
                 }
 
-                // Create record object from columns at recordIndex
-                for (int i = 0; i < _schema.Columns.Count; i++)
-                {
-                    columns[i] = _dataColumns[i].GetData(recordIndex)!;
-                }
+                return columns;
+            }
 
-                yield return _schema.FromColumnsToObject(columns);
+            var recordIdSet = recordIds.ToImmutableHashSet();
+
+            if (recordIdSet.Any() && _recordIdColumn.RawData.Length > 0)
+            {
+                var columns = new object?[_schema.Columns.Count];
+                var records = Enumerable.Range(0, _recordIdColumn.RawData.Length)
+                    .Select(recordIndex => new
+                    {
+                        RecordId = _recordIdColumn.RawData[recordIndex],
+                        RecordIndex = (short)recordIndex
+                    })
+                    .Where(o => recordIdSet.Contains(o.RecordId))
+                    .Select(o => new RecordObject(
+                        o.RecordId,
+                        _schema.FromColumnsToObject(GetColumnsData(columns, o.RecordIndex))));
+
+                return records;
+            }
+            else
+            {
+                return Array.Empty<RecordObject>();
             }
         }
 

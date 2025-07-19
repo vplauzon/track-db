@@ -17,5 +17,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         IEnumerable<short> Filter(BinaryOperator binaryOperator, object? value);
 
         void AppendValue(object? value);
+        
+        /// <summary>
+        /// Delete record indexes
+        /// </summary>
+        /// <param name="recordIndexes">Assumed to be in increasing order.</param>
+        void DeleteRecords(IEnumerable<short> recordIndexes);
     }
 }

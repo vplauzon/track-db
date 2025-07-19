@@ -79,6 +79,30 @@ namespace Ipdb.Tests2.DbTests
         [Theory]
         [InlineData(false)]
         //[InlineData(true)]
+        public async Task AppendOneRecordAndDeleteUncommitted(bool doPushPendingData)
+        {
+            await using (var testTable = CreateTestTable())
+            {
+                var record = new IntOnly(1);
+
+                using (var tx = testTable.Database.CreateTransaction())
+                {
+                    testTable.Table.AppendRecord(record, tx);
+                    testTable.Table.Query(tx).Delete();
+                    tx.Complete();
+                }
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                
+                var records = testTable.Table.Query()
+                    .ToImmutableArray();
+
+                Assert.Empty(records);
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
         public async Task Query(bool doPushPendingData)
         {
             await using (var testTable = CreateTestTable())

@@ -52,22 +52,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             return _array[index];
         }
 
-        void ICachedColumn.AppendValue(object? value)
-        {
-            var strongValue = value == null
-                ? NullValue
-                : (T)value;
-
-            if (_array.Length <= _itemCount)
-            {
-                var newArray = new T[Math.Max(10, _array.Length * 2)];
-
-                Array.Copy(_array, newArray, _array.Length);
-                _array = newArray;
-            }
-            _array[_itemCount++] = strongValue;
-        }
-
         IEnumerable<short> ICachedColumn.Filter(BinaryOperator binaryOperator, object? value)
         {
             if (value != null && value.GetType() != typeof(T))
@@ -87,6 +71,42 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 matchBuilder);
 
             return matchBuilder;
+        }
+
+        void ICachedColumn.AppendValue(object? value)
+        {
+            var strongValue = value == null
+                ? NullValue
+                : (T)value;
+
+            if (_array.Length <= _itemCount)
+            {
+                var newArray = new T[Math.Max(10, _array.Length * 2)];
+
+                Array.Copy(_array, newArray, _array.Length);
+                _array = newArray;
+            }
+            _array[_itemCount++] = strongValue;
+        }
+
+        void ICachedColumn.DeleteRecords(IEnumerable<short> recordIndexes)
+        {
+            short offset = 0;
+            var recordIndexStack = new Stack<short>(recordIndexes);
+
+            for (short i = 0; i != _itemCount; ++i)
+            {
+                if (recordIndexStack.Any() && recordIndexStack.Peek() == i)
+                {
+                    ++offset;
+                    recordIndexStack.Pop();
+                }
+                else if (offset != 0)
+                {
+                    _array[i - offset] = _array[i];
+                }
+            }
+            _itemCount -= offset;
         }
         #endregion
 
