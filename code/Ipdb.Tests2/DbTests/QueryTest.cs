@@ -20,6 +20,14 @@ namespace Ipdb.Tests2.DbTests
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(3));
                 await testTable.Database.ForceDataManagementAsync(doPushPendingData);
 
+                var resultsAll = testTable.Table.Query()
+                    .ToImmutableList();
+
+                Assert.Equal(3, resultsAll.Count);
+                Assert.Contains(1, resultsAll.Select(r => r.Integer));
+                Assert.Contains(2, resultsAll.Select(r => r.Integer));
+                Assert.Contains(3, resultsAll.Select(r => r.Integer));
+
                 var resultsEqual = testTable.Table.Query()
                     .Where(i => i.Integer == 2)
                     .ToImmutableList();
