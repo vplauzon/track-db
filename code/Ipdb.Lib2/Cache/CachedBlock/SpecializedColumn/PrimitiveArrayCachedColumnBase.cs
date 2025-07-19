@@ -42,8 +42,15 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         #region ICachedColumn
         int ICachedColumn.RecordCount => _itemCount;
 
-        IEnumerable<object?> ICachedColumn.Data =>
-            _array.Take(_itemCount).Select(i => GetObjectData(i));
+        object? ICachedColumn.GetData(short index)
+        {
+            if (index < 0 || index >= _itemCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return _array[index];
+        }
 
         void ICachedColumn.AppendValue(object? value)
         {

@@ -59,6 +59,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         {
             ((ICachedColumn)_recordIdColumn).AppendValue(recordId);
             _schema.FromObjectToColumns(record, _dataColumnBuffer);
+            for (int i = 0; i != _dataColumns.Count(); ++i)
+            {
+                _dataColumns[i].AppendValue(_dataColumnBuffer[i]);
+            }
         }
 
         #region IBlock
@@ -70,7 +74,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         IEnumerable<object?> IBlock.GetColumnData(int columnIndex)
         {
-            return _dataColumns[columnIndex].Data;
+            var column = _dataColumns[columnIndex];
+
+            return Enumerable.Range(0, _recordIdColumn.RawData.Length)
+                .Select(i => column.GetData((short)i));
         }
 
         IEnumerable<long> IBlock.Query(IQueryPredicate predicate)
@@ -138,7 +145,26 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         IEnumerable<object> IBlock.GetRecords(IEnumerable<long> recordIds)
         {
-            throw new NotImplementedException();
+            var columns = new object?[_schema.Columns.Count];
+
+            foreach (var recordId in recordIds)
+            {
+                var recordIndex = (short)_recordIdColumn.RawData.IndexOf(recordId);
+
+                if (recordIndex == -1)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        $"Record ID {recordId} not found in block");
+                }
+
+                // Create record object from columns at recordIndex
+                for (int i = 0; i < _schema.Columns.Count; i++)
+                {
+                    columns[i] = _dataColumns[i].GetData(recordIndex)!;
+                }
+
+                yield return _schema.FromColumnsToObject(columns);
+            }
         }
 
         private IQueryPredicate Simplify(

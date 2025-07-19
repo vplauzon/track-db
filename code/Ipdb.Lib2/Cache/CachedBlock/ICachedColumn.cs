@@ -12,7 +12,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         int RecordCount { get; }
 
-        IEnumerable<object?> Data { get; }
+        object? GetData(short index);
 
         IEnumerable<short> Filter(BinaryOperator binaryOperator, object? value);
 
