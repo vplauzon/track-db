@@ -78,11 +78,9 @@ namespace Ipdb.Lib2
             }
         }
 
-        public async Task PersistAllDataAsync()
+        internal async Task ForceDataManagementAsync(bool persistAll = false)
         {
             await Task.CompletedTask;
-
-            throw new NotImplementedException();
         }
 
         #region Record IDs

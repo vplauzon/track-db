@@ -1,6 +1,7 @@
 using Ipdb.Lib2;
 using System;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -24,10 +25,7 @@ namespace Ipdb.Tests2.DbTests
                 var record = new IntOnly(1);
 
                 testTable.Table.AppendRecord(record);
-                if (doPushPendingData)
-                {
-                    await testTable.Database.PersistAllDataAsync();
-                }
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
             }
         }
 
@@ -41,34 +39,66 @@ namespace Ipdb.Tests2.DbTests
                 testTable.Table.AppendRecord(new IntOnly(1));
                 testTable.Table.AppendRecord(new IntOnly(2));
                 testTable.Table.AppendRecord(new IntOnly(3));
-                if (doPushPendingData)
-                {
-                    await testTable.Database.PersistAllDataAsync();
-                }
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
             }
         }
 
         [Theory]
         [InlineData(false)]
         //[InlineData(true)]
-        public async Task QueryEqual(bool doPushPendingData)
+        public async Task Query(bool doPushPendingData)
         {
             await using (var testTable = CreateTestTable())
             {
                 testTable.Table.AppendRecord(new IntOnly(1));
                 testTable.Table.AppendRecord(new IntOnly(2));
                 testTable.Table.AppendRecord(new IntOnly(3));
-                if (doPushPendingData)
-                {
-                    await testTable.Database.PersistAllDataAsync();
-                }
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
 
-                var results = testTable.Table.Query()
+                var resultsEqual = testTable.Table.Query()
                     .Where(i => i.Integer == 2)
                     .ToImmutableList();
 
-                Assert.Single(results);
-                Assert.Equal(2, results[0].Integer);
+                Assert.Single(resultsEqual);
+                Assert.Equal(2, resultsEqual[0].Integer);
+
+                var resultsNotEqual = testTable.Table.Query()
+                    .Where(i => i.Integer != 2)
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsNotEqual.Count);
+                Assert.Contains(1, resultsNotEqual.Select(r => r.Integer));
+                Assert.Contains(3, resultsNotEqual.Select(r => r.Integer));
+
+                var resultsLessThan = testTable.Table.Query()
+                    .Where(i => i.Integer < 2)
+                    .ToImmutableList();
+
+                Assert.Single(resultsLessThan);
+                Assert.Equal(1, resultsLessThan[0].Integer);
+
+                var resultsLessThanOrEqual = testTable.Table.Query()
+                    .Where(i => i.Integer <= 2)
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsLessThanOrEqual.Count);
+                Assert.Contains(1, resultsLessThanOrEqual.Select(r => r.Integer));
+                Assert.Contains(2, resultsLessThanOrEqual.Select(r => r.Integer));
+
+                var resultsGreaterThan = testTable.Table.Query()
+                    .Where(i => i.Integer > 2)
+                    .ToImmutableList();
+
+                Assert.Single(resultsGreaterThan);
+                Assert.Equal(3, resultsGreaterThan[0].Integer);
+
+                var resultsGreaterThanOrEqual = testTable.Table.Query()
+                    .Where(i => i.Integer >= 2)
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsGreaterThanOrEqual.Count);
+                Assert.Contains(2, resultsGreaterThanOrEqual.Select(r => r.Integer));
+                Assert.Contains(3, resultsGreaterThanOrEqual.Select(r => r.Integer));
             }
         }
 
