@@ -17,70 +17,93 @@ namespace Ipdb.Lib2
 
         private readonly IImmutableDictionary<string, int> _propertyPathToIndexMap;
         private readonly Action<object, object?[]> _objectToColumnsAction;
-        //private readonly Func<object?[], object> _columnsToObjectFunc;
+        private readonly Func<object?[], object> _columnsToObjectFunc;
 
         #region Constructor
         protected TableSchema(string tableName, IImmutableList<string> partitionKeyPropertyPaths)
         {
-            TableName = tableName;
-            PartitionKeyPropertyPaths = partitionKeyPropertyPaths;
-            Columns = ColumnSchema.Reflect(RepresentationType);
-            _propertyPathToIndexMap = Enumerable.Range(0, Columns.Count)
-                .ToImmutableDictionary(i => Columns[i].PropertyPath, i => i);
+            var maxConstructorParams = RepresentationType.GetConstructors()
+                .Max(c => c.GetParameters().Count());
+            var argMaxConstructor = RepresentationType.GetConstructors()
+                .First(c => c.GetParameters().Count() == maxConstructorParams);
+            var columnSchemas = argMaxConstructor.GetParameters().Select(param =>
+            {
+                if (param.Name == null)
+                {
+                    throw new InvalidOperationException(
+                        "Record constructor parameter must have a name");
+                }
 
-            var unsupportedColumns = Columns.Where(
-                c => !SUPPORTED_COLUMN_TYPES.Contains(c.ColumnType));
+                var matchingProp = RepresentationType.GetProperty(param.Name);
+
+                if (matchingProp == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Constructor parameter '{param.Name}' does not have a matching property");
+                }
+                if (matchingProp.PropertyType != param.ParameterType)
+                {
+                    throw new InvalidOperationException(
+                        $"Constructor parameter '{param.Name}' is type '{param.ParameterType}' " +
+                        $"while matching property is type '{matchingProp.PropertyType}'");
+                }
+                if (matchingProp.GetGetMethod() == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Constructor parameter '{param.Name}' matching property can't be read");
+                }
+
+                return new
+                {
+                    Schema = new ColumnSchema(
+                        PropertyPath: param.Name,
+                        ColumnType: param.ParameterType),
+                    Property = matchingProp
+                };
+            })
+                .ToImmutableArray();
+            var unsupportedColumns = columnSchemas.Where(
+                c => !SUPPORTED_COLUMN_TYPES.Contains(c.Schema.ColumnType));
 
             if (unsupportedColumns.Any())
             {
-                var unsupportedColumn = Columns.First();
+                var unsupportedColumn = unsupportedColumns.First();
 
                 throw new NotSupportedException(
-                    $"Column '{unsupportedColumn.PropertyPath}' has unsupported " +
-                    $"type '{unsupportedColumn.ColumnType}'");
+                    $"Column '{unsupportedColumn.Schema.PropertyPath}' has unsupported " +
+                    $"type '{unsupportedColumn.Schema.ColumnType}'");
             }
-
-            var methodInfos = Columns
-                .Select(c => GetPropertyRead(RepresentationType, c.PropertyPath))
+            TableName = tableName;
+            PartitionKeyPropertyPaths = partitionKeyPropertyPaths;
+            Columns = columnSchemas
+                .Select(c => c.Schema)
                 .ToImmutableArray();
-
+            _propertyPathToIndexMap = Enumerable.Range(0, Columns.Count)
+                .ToImmutableDictionary(i => Columns[i].PropertyPath, i => i);
             _objectToColumnsAction = (record, columns) =>
             {
-                if (columns.Length != methodInfos.Length)
+                if (columns.Length != columnSchemas.Length)
                 {
                     throw new ArgumentException(
                         $"'{nameof(columns)}' has length {columns.Length} while the expected" +
-                        $" number of columns is {methodInfos.Length}");
+                        $" number of columns is {columnSchemas.Length}");
                 }
-                for (var i = 0; i != methodInfos.Length; i++)
+                for (var i = 0; i != columnSchemas.Length; i++)
                 {
-                    columns[i] = methodInfos[i].Invoke(record, null);
+                    columns[i] = columnSchemas[i].Property.GetGetMethod()!.Invoke(record, null);
                 }
             };
-        }
-
-        private static MethodInfo GetPropertyRead(
-            Type representationType,
-            string propertyPath)
-        {
-            var propertyInfo = representationType.GetProperty(propertyPath);
-
-            if (propertyInfo == null)
+            _columnsToObjectFunc = (columns) =>
             {
-                throw new InvalidOperationException(
-                    $"Type '{representationType.Name}' doesn't have property '{propertyPath}'");
-            }
+                if (columns.Length != columnSchemas.Length)
+                {
+                    throw new ArgumentException(
+                        $"'{nameof(columns)}' has length {columns.Length} while the expected" +
+                        $" number of columns is {columnSchemas.Length}");
+                }
 
-            var methodInfo = propertyInfo.GetGetMethod();
-
-            if (methodInfo == null)
-            {
-                throw new InvalidOperationException(
-                    $"Type '{representationType.Name}' doesn't have get-method on property " +
-                    $"'{propertyPath}'");
-            }
-
-            return methodInfo;
+                return argMaxConstructor.Invoke(columns);
+            };
         }
         #endregion
 
@@ -102,9 +125,9 @@ namespace Ipdb.Lib2
             _objectToColumnsAction(record, columns);
         }
 
-        internal void FromColumnsToObject(object?[] columns, object record)
+        internal object FromColumnsToObject(object?[] columns)
         {
-            throw new NotImplementedException();
+            return _columnsToObjectFunc(columns);
         }
     }
 

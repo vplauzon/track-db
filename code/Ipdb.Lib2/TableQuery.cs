@@ -1,6 +1,5 @@
 ﻿using Ipdb.Lib2.Cache;
 using Ipdb.Lib2.Cache.CachedBlock;
-using Ipdb.Lib2.DbStorage;
 using Ipdb.Lib2.Query;
 using System;
 using System.Collections;
@@ -8,7 +7,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Net.NetworkInformation;
 
 namespace Ipdb.Lib2
 {
