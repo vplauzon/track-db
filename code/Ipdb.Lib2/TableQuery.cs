@@ -1,5 +1,6 @@
 ﻿using Ipdb.Lib2.Cache;
 using Ipdb.Lib2.Cache.CachedBlock;
+using Ipdb.Lib2.DbStorage;
 using Ipdb.Lib2.Query;
 using System;
 using System.Collections;
@@ -79,6 +80,11 @@ namespace Ipdb.Lib2
             throw new NotImplementedException();
         }
 
+        public void Delete()
+        {
+            throw new NotImplementedException();
+        }
+
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
@@ -92,26 +98,34 @@ namespace Ipdb.Lib2
                     }
                     else
                     {
-                        return ExecuteQuery(transactionCache);
+                        return ExecuteQuery(
+                            transactionCache,
+                            (block, recordIds) =>
+                            {
+                                var records = block.GetRecords(recordIds)
+                                    .Cast<T>();
+
+                                return records;
+                            });
                     }
                 });
 
             return result;
         }
 
-        private IEnumerable<T> ExecuteQuery(TransactionCache transactionCache)
+        private IEnumerable<U> ExecuteQuery<U>(
+            TransactionCache transactionCache,
+            Func<IBlock, IEnumerable<long>, IEnumerable<U>> recordIdsFunc)
         {
             var takeCount = _takeCount ?? int.MaxValue;
 
             foreach (var block in ListBlocks(transactionCache))
             {
                 var recordIds = block.Query(_predicate);
-                var records = block.GetRecords(recordIds)
-                    .Cast<T>();
 
-                foreach (var record in records)
+                foreach (var item in recordIdsFunc(block, recordIds))
                 {
-                    yield return record;
+                    yield return item;
                     --takeCount;
                     if (takeCount == 0)
                     {

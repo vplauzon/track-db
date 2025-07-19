@@ -46,6 +46,39 @@ namespace Ipdb.Tests2.DbTests
         [Theory]
         [InlineData(false)]
         //[InlineData(true)]
+        public async Task AppendOneRecordAndDelete(bool doPushPendingData)
+        {
+            await using (var testTable = CreateTestTable())
+            {
+                var record = new IntOnly(1);
+
+                testTable.Table.AppendRecord(record);
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                testTable.Table.Query()
+                    .Where(r => r.Integer == 1)
+                    .Delete();
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
+        public async Task AppendMultipleRecordsAndDelete(bool doPushPendingData)
+        {
+            await using (var testTable = CreateTestTable())
+            {
+                testTable.Table.AppendRecord(new IntOnly(1));
+                testTable.Table.AppendRecord(new IntOnly(2));
+                testTable.Table.AppendRecord(new IntOnly(3));
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                testTable.Table.Query()
+                    .Delete();
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
         public async Task Query(bool doPushPendingData)
         {
             await using (var testTable = CreateTestTable())
