@@ -94,9 +94,9 @@ namespace Ipdb.Lib2
 
                         var deletedRecordIds = ExecuteQuery(
                             transactionCache,
-                            (block, recordIds) =>
+                            (block, result) =>
                             {
-                                return recordIds;
+                                return result.RecordId;
                             })
                         .ToImmutableList();
                         var uncommittedBlock = uncommittedLog?.BlockBuilder;
@@ -117,7 +117,7 @@ namespace Ipdb.Lib2
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var result = _table.Database.ExecuteWithinTransactionContext(
+            var results = _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
                 transactionCache =>
                 {
@@ -127,35 +127,35 @@ namespace Ipdb.Lib2
                     }
                     else
                     {
-                        return ExecuteQuery(
+                        return ExecuteQuery<T>(
                             transactionCache,
-                            (block, recordIds) =>
+                            (block, result) =>
                             {
-                                var records = block.GetRecords(recordIds)
-                                    .Select(o => o.Record)
-                                    .Cast<T>();
+                                var row = result.FullProjectionFunc();
+                                var objectRow = (T)_table.Schema.FromColumnsToObject(row);
 
-                                return records;
+                                return objectRow;
                             });
                     }
                 });
 
-            return result;
+            return results;
         }
 
         private IEnumerable<U> ExecuteQuery<U>(
             TransactionCache transactionCache,
-            Func<IBlock, IEnumerable<long>, IEnumerable<U>> recordIdsFunc)
+            Func<IBlock, QueryResult, U> recordIdsFunc)
         {
+            var projectionColumnIndexes = ImmutableArray<int>.Empty;
             var takeCount = _takeCount ?? int.MaxValue;
 
             foreach (var block in ListBlocks(transactionCache))
             {
-                var recordIds = block.Query(_predicate);
+                var results = block.Query(_predicate, projectionColumnIndexes);
 
-                foreach (var item in recordIdsFunc(block, recordIds))
+                foreach (var result in results)
                 {
-                    yield return item;
+                    yield return recordIdsFunc(block, result);
                     --takeCount;
                     if (takeCount == 0)
                     {

@@ -14,11 +14,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         
         IEnumerable<object?> GetColumnData(int columnIndex);
 
-        IEnumerable<RecordObject> GetRecords(IEnumerable<long> recordIds);
-
-        /// <summary>Performs the query within the block's data.</summary>
+        /// <summary>Performs a query within the block's data.</summary>
         /// <param name="predicate"></param>
-        /// <returns>Returns record IDs matching the query.</returns>
-        IEnumerable<long> Query(IQueryPredicate predicate);
+        /// <param name="projectionColumnIndexes"></param>
+        /// <returns>Returns results matching the query.</returns>
+        IEnumerable<QueryResult> Query(
+            IQueryPredicate predicate,
+            IImmutableList<int> projectionColumnIndexes);
     }
 }

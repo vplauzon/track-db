@@ -118,7 +118,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 .Select(i => column.GetData((short)i));
         }
 
-        IEnumerable<long> IBlock.Query(IQueryPredicate predicate)
+        IEnumerable<QueryResult> IBlock.Query(
+            IQueryPredicate predicate,
+            IImmutableList<int> projectionColumnIndexes)
         {
             //  Initial simplification
             predicate = predicate.Simplify(p => null) ?? predicate;
@@ -167,12 +169,14 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
             if (predicate is AllInPredicate)
             {
-                return _recordIdColumn.EnumerableRawData;
+                return CreateResults(Enumerable.Range(
+                    0,
+                    ((ICachedColumn)_recordIdColumn).RecordCount)
+                    .Select(i => (short)i));
             }
             else if (predicate is ResultPredicate rp)
             {
-                return rp.RecordIndexes
-                    .Select(i => _recordIdColumn.RawData[i]);
+                return CreateResults(rp.RecordIndexes);
             }
             else
             {
@@ -180,42 +184,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     $"Terminal predicate:  {predicate.GetType().Name}");
             }
         }
-
-        IEnumerable<RecordObject> IBlock.GetRecords(IEnumerable<long> recordIds)
-        {
-            object?[] GetColumnsData(object?[] columns, short index)
-            {
-                for (int i = 0; i != columns.Length; ++i)
-                {
-                    columns[i] = _dataColumns[i].GetData(index);
-                }
-
-                return columns;
-            }
-
-            var recordIdSet = recordIds.ToImmutableHashSet();
-
-            if (recordIdSet.Any() && _recordIdColumn.RawData.Length > 0)
-            {
-                var columns = new object?[_schema.Columns.Count];
-                var records = Enumerable.Range(0, _recordIdColumn.RawData.Length)
-                    .Select(recordIndex => new
-                    {
-                        RecordId = _recordIdColumn.RawData[recordIndex],
-                        RecordIndex = (short)recordIndex
-                    })
-                    .Where(o => recordIdSet.Contains(o.RecordId))
-                    .Select(o => new RecordObject(
-                        o.RecordId,
-                        _schema.FromColumnsToObject(GetColumnsData(columns, o.RecordIndex))));
-
-                return records;
-            }
-            else
-            {
-                return Array.Empty<RecordObject>();
-            }
-        }
+        #endregion
 
         private IQueryPredicate Simplify(
             IQueryPredicate predicate,
@@ -223,6 +192,46 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         {
             return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
         }
-        #endregion
+
+        private IEnumerable<QueryResult> CreateResults(IEnumerable<short> rowIndexes)
+        {
+            return CreateResults(rowIndexes, ImmutableArray<ICachedColumn>.Empty);
+        }
+
+        private IEnumerable<QueryResult> CreateResults(
+            IEnumerable<short> rowIndexes,
+            IImmutableList<ICachedColumn> projectionColumns)
+        {
+            var fullBuffer = new object?[_dataColumns.Count];
+            var projectionBuffer = new object?[projectionColumns.Count];
+            var results = rowIndexes
+                .Select(i => new QueryResult(
+                    _recordIdColumn.RawData[i],
+                    () =>
+                    {
+                        CreateRow(projectionBuffer, i, projectionColumns);
+
+                        return projectionBuffer;
+                    },
+                    () =>
+                    {
+                        CreateRow(fullBuffer, i, _dataColumns);
+
+                        return fullBuffer;
+                    }));
+
+            return results;
+        }
+
+        private void CreateRow(
+            object?[] buffer,
+            short rowIndex,
+            IImmutableList<ICachedColumn> projectionColumns)
+        {
+            for (int i = 0; i != projectionColumns.Count; ++i)
+            {
+                buffer[i] = projectionColumns[i].GetData(rowIndex);
+            }
+        }
     }
 }
