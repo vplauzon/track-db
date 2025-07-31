@@ -13,19 +13,19 @@ namespace Ipdb.Lib2
     public class TableQuery<T> : IEnumerable<T>
         where T : notnull
     {
-        private readonly Table<T> _table;
+        private readonly TypedTable<T> _table;
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
 
         #region Constructors
-        internal TableQuery(Table<T> table, TransactionContext? transactionContext)
+        internal TableQuery(TypedTable<T> table, TransactionContext? transactionContext)
             : this(table, transactionContext, new AllInPredicate(), null)
         {
         }
 
         internal TableQuery(
-            Table<T> table,
+            TypedTable<T> table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
             int? takeCount)
@@ -152,7 +152,7 @@ namespace Ipdb.Lib2
             {
                 var results = block.Query(_predicate, projectionColumnIndexes);
 
-                foreach (var result in results)
+                foreach (var result in RemoveDeleted(results))
                 {
                     yield return recordIdsFunc(block, result);
                     --takeCount;
@@ -161,6 +161,14 @@ namespace Ipdb.Lib2
                         yield break;
                     }
                 }
+            }
+        }
+
+        private IEnumerable<QueryResult> RemoveDeleted(IEnumerable<QueryResult> results)
+        {
+            foreach (var result in results)
+            {
+                //yield return recordIdsFunc(block, result);
             }
         }
 

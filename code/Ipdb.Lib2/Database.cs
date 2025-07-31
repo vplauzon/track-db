@@ -35,7 +35,7 @@ namespace Ipdb.Lib2
 
         private object CreateTable(TableSchema schema)
         {
-            var tableType = typeof(Table<>).MakeGenericType(schema.RepresentationType);
+            var tableType = typeof(TypedTable<>).MakeGenericType(schema.RepresentationType);
             var table = Activator.CreateInstance(
                 tableType,
                 BindingFlags.Instance | BindingFlags.NonPublic,
@@ -52,14 +52,14 @@ namespace Ipdb.Lib2
             return ValueTask.CompletedTask;
         }
 
-        public Table<T> GetTable<T>(string tableName)
+        public TypedTable<T> GetTable<T>(string tableName)
             where T : notnull
         {
             if (_tableMap.ContainsKey(tableName))
             {
                 var table = _tableMap[tableName];
 
-                if (table is Table<T> t)
+                if (table is TypedTable<T> t)
                 {
                     return t;
                 }

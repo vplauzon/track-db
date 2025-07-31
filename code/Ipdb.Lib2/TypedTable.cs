@@ -11,10 +11,10 @@ using System.Linq.Expressions;
 namespace Ipdb.Lib2
 {
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
-    public class Table<T>
+    public class TypedTable<T>
         where T : notnull
     {
-        internal Table(Database database, TableSchema<T> schema)
+        internal TypedTable(Database database, TableSchema<T> schema)
         {
             Database = database;
             Schema = schema;

@@ -23,7 +23,7 @@ namespace Ipdb.Tests2.DbTests
 
         public Database Database { get; }
 
-        public Table<T> Table { get; }
+        public TypedTable<T> Table { get; }
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
