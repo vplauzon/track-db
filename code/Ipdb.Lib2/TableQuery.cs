@@ -6,7 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Linq.Expressions;
 
 namespace Ipdb.Lib2
 {
@@ -15,6 +14,7 @@ namespace Ipdb.Lib2
         private readonly Table _table;
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
+        private readonly IImmutableList<int> _projectionColumnIndexes;
         private readonly int? _takeCount;
 
         #region Constructors
@@ -22,11 +22,15 @@ namespace Ipdb.Lib2
             Table table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
+            IEnumerable<int>? projectionColumnIndexes,
             int? takeCount)
         {
             _table = table;
             _transactionContext = transactionContext;
             _predicate = predicate;
+            _projectionColumnIndexes =
+                (projectionColumnIndexes ?? Enumerable.Range(0, _table.Schema.Columns.Count))
+                .ToImmutableArray();
             _takeCount = takeCount;
         }
         #endregion
@@ -113,12 +117,11 @@ namespace Ipdb.Lib2
             TransactionCache transactionCache,
             Func<IBlock, QueryResult, U> extractResultFunc)
         {
-            var projectionColumnIndexes = ImmutableArray<int>.Empty;
             var takeCount = _takeCount ?? int.MaxValue;
 
             foreach (var block in ListBlocks(transactionCache))
             {
-                var results = block.Query(_predicate, projectionColumnIndexes);
+                var results = block.Query(_predicate, _projectionColumnIndexes);
 
                 foreach (var result in RemoveDeleted(results))
                 {

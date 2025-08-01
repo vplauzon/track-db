@@ -84,113 +84,21 @@ namespace Ipdb.Lib2
 
         public void Delete()
         {
-            _table.Database.ExecuteWithinTransactionContext(
-                _transactionContext,
-                transactionCache =>
-                {
-                    if (_takeCount != 0)
-                    {
-                        transactionCache.UncommittedTransactionLog.TableTransactionLogMap.TryGetValue(
-                            _table.Schema.TableName,
-                            out var uncommittedLog);
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
-                        var deletedRecordIds = ExecuteQuery(
-                            transactionCache,
-                            (block, result) =>
-                            {
-                                return result.RecordId;
-                            })
-                        .ToImmutableList();
-                        var uncommittedBlock = uncommittedLog?.BlockBuilder;
-                        var uncommittedDeletedRecordIds = uncommittedBlock
-                        ?.DeleteRecords(deletedRecordIds)
-                        .ToImmutableHashSet();
-                        var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
-                        ? deletedRecordIds
-                        : deletedRecordIds.Where(id => !uncommittedDeletedRecordIds.Contains(id));
-
-                        transactionCache.UncommittedTransactionLog.DeleteRecordIds(
-                            committedDeletedRecordIds,
-                            _table.Schema);
-                    }
-                });
+            tableQuery.Delete();
         }
 
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var results = _table.Database.ExecuteWithinTransactionContext(
-                _transactionContext,
-                transactionCache =>
-                {
-                    if (_takeCount == 0)
-                    {
-                        return Array.Empty<T>();
-                    }
-                    else
-                    {
-                        return ExecuteQuery<T>(
-                            transactionCache,
-                            (block, result) =>
-                            {
-                                var row = result.ProjectionFunc();
-                                var objectRow = (T)_table.Schema.FromColumnsToObject(row);
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
-                                return objectRow;
-                            });
-                    }
-                });
-
-            return results;
-        }
-
-        private IEnumerable<U> ExecuteQuery<U>(
-            TransactionCache transactionCache,
-            Func<IBlock, QueryResult, U> recordIdsFunc)
-        {
-            var takeCount = _takeCount ?? int.MaxValue;
-
-            foreach (var block in ListBlocks(transactionCache))
+            foreach(var result in tableQuery)
             {
-                var results = block.Query(_predicate, _projectionColumnIndexes);
+                var objectRow = (T)_table.Schema.FromColumnsToObject(result.ToArray());
 
-                foreach (var result in RemoveDeleted(results))
-                {
-                    yield return recordIdsFunc(block, result);
-                    --takeCount;
-                    if (takeCount == 0)
-                    {
-                        yield break;
-                    }
-                }
-            }
-        }
-
-        private IEnumerable<QueryResult> RemoveDeleted(IEnumerable<QueryResult> results)
-        {
-            //foreach (var result in results)
-            //{
-            //    yield return recordIdsFunc(block, result);
-            //}
-            return results;
-        }
-
-        private IEnumerable<IBlock> ListBlocks(TransactionCache transactionCache)
-        {
-            if (transactionCache
-                .UncommittedTransactionLog
-                .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var ul))
-            {
-                yield return ul.BlockBuilder;
-            }
-            foreach (var committedLog in transactionCache.DatabaseCache.CommittedLogs)
-            {
-                if (committedLog
-                    .TableTransactionLogs
-                    .TryGetValue(_table.Schema.TableName, out var cl))
-                {
-                    yield return cl.InMemoryBlock;
-                }
+                yield return objectRow;
             }
         }
         #endregion
