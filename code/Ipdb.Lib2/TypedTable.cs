@@ -1,28 +1,22 @@
 ﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.Cache.CachedBlock;
-using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Linq.Expressions;
 
 namespace Ipdb.Lib2
 {
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
-    public class TypedTable<T>
+    public class TypedTable<T> : Table
         where T : notnull
     {
-        internal TypedTable(Database database, TableSchema<T> schema)
+        internal TypedTable(Database database, TypedTableSchema<T> schema)
+            : base(database, schema)
         {
-            Database = database;
-            Schema = schema;
         }
 
-        public Database Database { get; }
-
-        public TableSchema<T> Schema { get; }
+        public new TypedTableSchema<T> Schema => (TypedTableSchema<T>)base.Schema;
 
         #region Append
         public void AppendRecord(T record, TransactionContext? transactionContext = null)
@@ -52,14 +46,19 @@ namespace Ipdb.Lib2
 
         private void AppendRecordInternal(T record, TransactionCache transactionCache)
         {
-            transactionCache.UncommittedTransactionLog.AppendRecord(Database.NewRecordId(), record, Schema);
+            var columns = Schema.FromObjectToColumns(record);
+
+            transactionCache.UncommittedTransactionLog.AppendRecord(
+                Database.NewRecordId(),
+                columns,
+                Schema);
         }
         #endregion
 
         #region Query
-        public TableQuery<T> Query(TransactionContext? transactionContext = null)
+        public TypedTableQuery<T> Query(TransactionContext? transactionContext = null)
         {
-            return new TableQuery<T>(this, transactionContext);
+            return new TypedTableQuery<T>(this, transactionContext);
         }
         #endregion
     }

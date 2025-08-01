@@ -16,8 +16,8 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database : IAsyncDisposable
     {
-        private readonly IImmutableDictionary<string, object> _tableMap
-            = ImmutableDictionary<string, object>.Empty;
+        private readonly IImmutableDictionary<string, Table> _tableMap
+            = ImmutableDictionary<string, Table>.Empty;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState = new();
 
@@ -33,17 +33,28 @@ namespace Ipdb.Lib2
                 .ToImmutableDictionary(o => o.TableName, o => o.Table);
         }
 
-        private object CreateTable(TableSchema schema)
+        private Table CreateTable(TableSchema schema)
         {
-            var tableType = typeof(TypedTable<>).MakeGenericType(schema.RepresentationType);
-            var table = Activator.CreateInstance(
-                tableType,
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                null,
-                [this, schema],
-                null);
+            var schemaType = schema.GetType();
 
-            return table!;
+            if (schemaType.IsGenericType
+                && schemaType.GetGenericTypeDefinition() == typeof(TypedTableSchema<>))
+            {
+                var representationType = schemaType.GenericTypeArguments[0];
+                var tableType = typeof(TypedTable<>).MakeGenericType(representationType);
+                var table = Activator.CreateInstance(
+                    tableType,
+                    BindingFlags.Instance | BindingFlags.NonPublic,
+                    null,
+                    [this, schema],
+                    null);
+
+                return (Table)table!;
+            }
+            else
+            {
+                return new Table(this, schema);
+            }
         }
         #endregion
 
@@ -52,29 +63,40 @@ namespace Ipdb.Lib2
             return ValueTask.CompletedTask;
         }
 
-        public TypedTable<T> GetTable<T>(string tableName)
-            where T : notnull
+        public Table GetTable(string tableName)
         {
             if (_tableMap.ContainsKey(tableName))
             {
                 var table = _tableMap[tableName];
 
-                if (table is TypedTable<T> t)
-                {
-                    return t;
-                }
-                else
-                {
-                    var docType = table.GetType().GetGenericArguments().First();
-
-                    throw new InvalidOperationException(
-                        $"Table '{tableName}' doesn't have document type '{typeof(T).Name}':  " +
-                        $"it has document type '{docType.Name}'");
-                }
+                return table;
             }
             else
             {
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
+            }
+        }
+
+        public TypedTable<T> GetTypedTable<T>(string tableName)
+            where T : notnull
+        {
+            var table = GetTable(tableName);
+
+            if (table is TypedTable<T> t)
+            {
+                return t;
+            }
+            else if (table.GetType() == typeof(Table))
+            {
+                throw new InvalidOperationException($"Table '{tableName}' is a non-typed table");
+            }
+            else
+            {
+                var docType = table.GetType().GetGenericArguments().First();
+
+                throw new InvalidOperationException(
+                    $"Table '{tableName}' doesn't have document type '{typeof(T).Name}':  " +
+                    $"it has document type '{docType.Name}'");
             }
         }
 

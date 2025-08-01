@@ -10,7 +10,7 @@ using System.Linq.Expressions;
 
 namespace Ipdb.Lib2
 {
-    public class TableQuery<T> : IEnumerable<T>
+    public class TypedTableQuery<T> : IEnumerable<T>
         where T : notnull
     {
         private readonly TypedTable<T> _table;
@@ -19,12 +19,12 @@ namespace Ipdb.Lib2
         private readonly int? _takeCount;
 
         #region Constructors
-        internal TableQuery(TypedTable<T> table, TransactionContext? transactionContext)
+        internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
             : this(table, transactionContext, new AllInPredicate(), null)
         {
         }
 
-        internal TableQuery(
+        internal TypedTableQuery(
             TypedTable<T> table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
@@ -38,25 +38,25 @@ namespace Ipdb.Lib2
         #endregion
 
         #region Query alteration
-        public TableQuery<T> Where(Expression<Func<T, bool>> predicate)
+        public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
         {
             var queryPredicate = QueryPredicateFactory.Create(predicate);
             var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
 
-            return new TableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
+            return new TypedTableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
         }
 
-        public TableQuery<T> Take(int count)
+        public TypedTableQuery<T> Take(int count)
         {
             throw new NotImplementedException();
         }
 
-        public TableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
+        public TypedTableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
         {
             throw new NotImplementedException();
         }
 
-        public TableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
+        public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
             throw new NotImplementedException();
         }
@@ -166,10 +166,11 @@ namespace Ipdb.Lib2
 
         private IEnumerable<QueryResult> RemoveDeleted(IEnumerable<QueryResult> results)
         {
-            foreach (var result in results)
-            {
-                //yield return recordIdsFunc(block, result);
-            }
+            //foreach (var result in results)
+            //{
+            //    yield return recordIdsFunc(block, result);
+            //}
+            return results;
         }
 
         private IEnumerable<IBlock> ListBlocks(TransactionCache transactionCache)

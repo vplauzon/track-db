@@ -14,7 +14,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         private readonly TableSchema _schema;
         private readonly ArrayLongColumn _recordIdColumn;
         private readonly IImmutableList<ICachedColumn> _dataColumns;
-        private readonly object[] _dataColumnBuffer;
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
@@ -24,7 +23,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             _dataColumns = _schema.Columns
                 .Select(c => CreateCachedColumn(c.ColumnType, Array.Empty<object>()))
                 .ToImmutableArray();
-            _dataColumnBuffer = new object[_schema.Columns.Count];
         }
 
         public BlockBuilder(IBlock block)
@@ -36,7 +34,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     _schema.Columns[i].ColumnType,
                     block.GetColumnData(i)))
                 .ToImmutableArray();
-            _dataColumnBuffer = new object[_schema.Columns.Count];
         }
 
         private static ICachedColumn CreateCachedColumn(
@@ -56,13 +53,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         public bool IsEmpty => throw new NotImplementedException();
 
-        public void AppendRecord(long recordId, object record)
+        public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
             ((ICachedColumn)_recordIdColumn).AppendValue(recordId);
-            _schema.FromObjectToColumns(record, _dataColumnBuffer);
             for (int i = 0; i != _dataColumns.Count(); ++i)
             {
-                _dataColumns[i].AppendValue(_dataColumnBuffer[i]);
+                _dataColumns[i].AppendValue(record[i]);
             }
         }
 

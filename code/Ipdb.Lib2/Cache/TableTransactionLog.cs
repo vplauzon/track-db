@@ -17,7 +17,7 @@ namespace Ipdb.Lib2.Cache
 
         public bool IsEmpty => ((IBlock)BlockBuilder).RecordCount == 0 && !DeletedRecordIds.Any();
 
-        public void AppendRecord(long recordId, object record)
+        public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
             BlockBuilder.AppendRecord(recordId, record);
         }

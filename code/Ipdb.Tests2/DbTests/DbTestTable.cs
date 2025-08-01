@@ -11,14 +11,14 @@ namespace Ipdb.Tests2.DbTests
     internal class DbTestTable<T> : IAsyncDisposable
         where T : notnull
     {
-        public DbTestTable(TableSchema<T> schema)
+        public DbTestTable(TypedTableSchema<T> schema)
         {
             Database = new Database(
                 Path.Combine(
                     Environment.GetEnvironmentVariable("DbRoot")!,
                     $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss-fff}"),
                 schema);
-            Table = Database.GetTable<T>(schema.TableName);
+            Table = Database.GetTypedTable<T>(schema.TableName);
         }
 
         public Database Database { get; }

@@ -17,7 +17,7 @@ namespace Ipdb.Tests2.DbTests
 
         public static DbTestTable<IntOnly> CreateIntOnly()
         {
-            return new DbTestTable<IntOnly>(new TableSchema<IntOnly>(TABLE_NAME));
+            return new DbTestTable<IntOnly>(TypedTableSchema<IntOnly>.FromConstructor(TABLE_NAME));
         }
     }
 }

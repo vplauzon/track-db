@@ -23,7 +23,7 @@ namespace Ipdb.Lib2.Cache
             return new ImmutableTransactionLog(immutableMap);
         }
 
-        public void AppendRecord(long recordId, object record, TableSchema schema)
+        public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
         {
             if (!TableTransactionLogMap.ContainsKey(schema.TableName))
             {

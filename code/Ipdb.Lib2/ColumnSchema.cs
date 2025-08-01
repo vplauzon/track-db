@@ -7,5 +7,5 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib2
 {
-    internal readonly record struct ColumnSchema(string PropertyPath, Type ColumnType);
+    public readonly record struct ColumnSchema(string ColumnName, Type ColumnType);
 }
