@@ -10,7 +10,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     internal class BlockBuilder : IBlock
     {
         private readonly TableSchema _schema;
-        private readonly IImmutableList<ICachedColumn> _dataColumns;
+        private readonly IImmutableList<IDataColumn> _dataColumns;
         private readonly object?[] _projectionBuffer;
 
         #region Constructors
@@ -45,7 +45,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
         }
 
-        private static ICachedColumn CreateCachedColumn(Type columnType, int capacity)
+        private static IDataColumn CreateCachedColumn(Type columnType, int capacity)
         {
             if (columnType == typeof(int))
             {
@@ -210,7 +210,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 for (var i = 0; i != projectionColumnIndexes.Count; ++i)
                 {
                     _projectionBuffer[i] = projectionColumnIndexes[i] < _dataColumns.Count
-                        ? _dataColumns[projectionColumnIndexes[i]].GetData(rowIndex)
+                        ? _dataColumns[projectionColumnIndexes[i]].GetValue(rowIndex)
                         : rowIndex;
                 }
                 yield return memory;

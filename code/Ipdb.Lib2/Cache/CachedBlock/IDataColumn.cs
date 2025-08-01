@@ -1,5 +1,4 @@
-﻿using Ipdb.Lib2.Query;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -8,19 +7,13 @@ using System.Threading.Tasks;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
-    internal interface ICachedColumn
+    internal interface IDataColumn : IReadOnlyDataColumn
     {
-        int RecordCount { get; }
-
-        object? GetData(short index);
-
-        IEnumerable<short> Filter(BinaryOperator binaryOperator, object? value);
-
+        /// <summary>Append value at the end of the column.</summary>
+        /// <param name="value"></param>
         void AppendValue(object? value);
-        
-        /// <summary>
-        /// Delete record indexes
-        /// </summary>
+
+        /// <summary>Delete record indexes.</summary>
         /// <param name="recordIndexes">Assumed to be in increasing order.</param>
         void DeleteRecords(IEnumerable<short> recordIndexes);
     }

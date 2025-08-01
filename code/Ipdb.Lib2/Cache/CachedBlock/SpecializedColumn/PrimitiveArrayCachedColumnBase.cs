@@ -12,7 +12,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
     /// Specialized column store to leverage vectorized operation at compilation.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal abstract class PrimitiveArrayCachedColumnBase<T> : ICachedColumn
+    internal abstract class PrimitiveArrayCachedColumnBase<T> : IDataColumn
         where T : struct, IEquatable<T>, IComparable<T>
     {
         private T[] _array;
@@ -36,10 +36,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             }
         }
 
-        #region ICachedColumn
-        int ICachedColumn.RecordCount => _itemCount;
+        #region IReadOnlyDataColumn
+        int IReadOnlyDataColumn.RecordCount => _itemCount;
 
-        object? ICachedColumn.GetData(short index)
+        object? IReadOnlyDataColumn.GetValue(short index)
         {
             if (index < 0 || index >= _itemCount)
             {
@@ -49,7 +49,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             return _array[index];
         }
 
-        IEnumerable<short> ICachedColumn.Filter(BinaryOperator binaryOperator, object? value)
+        IEnumerable<short> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
         {
             if (value != null && value.GetType() != typeof(T))
             {
@@ -69,8 +69,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
             return matchBuilder;
         }
+        #endregion
 
-        void ICachedColumn.AppendValue(object? value)
+        #region IDataColumn
+        void IDataColumn.AppendValue(object? value)
         {
             var strongValue = value == null
                 ? NullValue
@@ -86,7 +88,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
-        void ICachedColumn.DeleteRecords(IEnumerable<short> recordIndexes)
+        void IDataColumn.DeleteRecords(IEnumerable<short> recordIndexes)
         {
             short offset = 0;
             var recordIndexStack = new Stack<short>(recordIndexes);
