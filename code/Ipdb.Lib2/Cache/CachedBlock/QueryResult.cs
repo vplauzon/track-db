@@ -8,6 +8,5 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 {
     internal record QueryResult(
         long RecordId,
-        Func<object?[]> ProjectionFunc,
-        Func<object?[]> FullProjectionFunc);
+        Func<object?[]> ProjectionFunc);
 }

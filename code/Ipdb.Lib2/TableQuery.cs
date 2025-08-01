@@ -10,23 +10,16 @@ using System.Linq.Expressions;
 
 namespace Ipdb.Lib2
 {
-    public class TypedTableQuery<T> : IEnumerable<T>
-        where T : notnull
+    public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
-        private readonly TypedTable<T> _table;
+        private readonly Table _table;
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
-        private IImmutableList<int> _projectionColumnIndexes;
 
         #region Constructors
-        internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
-            : this(table, transactionContext, new AllInPredicate(), null)
-        {
-        }
-
-        internal TypedTableQuery(
-            TypedTable<T> table,
+        internal TableQuery(
+            Table table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
             int? takeCount)
@@ -35,38 +28,11 @@ namespace Ipdb.Lib2
             _transactionContext = transactionContext;
             _predicate = predicate;
             _takeCount = takeCount;
-            _projectionColumnIndexes = Enumerable.Range(0, table.Schema.Columns.Count)
-                .ToImmutableArray();
-        }
-        #endregion
-
-        #region Query alteration
-        public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
-        {
-            var queryPredicate = QueryPredicateFactory.Create(predicate);
-            var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
-
-            return new TypedTableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
-        }
-
-        public TypedTableQuery<T> Take(int count)
-        {
-            throw new NotImplementedException();
-        }
-
-        public TypedTableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
-        {
-            throw new NotImplementedException();
-        }
-
-        public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
-        {
-            throw new NotImplementedException();
         }
         #endregion
 
         #region IEnumerator<T>
-        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        IEnumerator<ReadOnlyMemory<object?>> IEnumerable<ReadOnlyMemory<object?>>.GetEnumerator()
         {
             return ExecuteQuery().GetEnumerator();
         }
@@ -117,7 +83,7 @@ namespace Ipdb.Lib2
         }
 
         #region Query internals
-        private IEnumerable<T> ExecuteQuery()
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery()
         {
             var results = _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
@@ -125,18 +91,17 @@ namespace Ipdb.Lib2
                 {
                     if (_takeCount == 0)
                     {
-                        return Array.Empty<T>();
+                        return Array.Empty<ReadOnlyMemory<object?>>();
                     }
                     else
                     {
-                        return ExecuteQuery<T>(
+                        return ExecuteQuery(
                             transactionCache,
                             (block, result) =>
                             {
                                 var row = result.ProjectionFunc();
-                                var objectRow = (T)_table.Schema.FromColumnsToObject(row);
 
-                                return objectRow;
+                                return new ReadOnlyMemory<object?>(row);
                             });
                     }
                 });
@@ -146,17 +111,18 @@ namespace Ipdb.Lib2
 
         private IEnumerable<U> ExecuteQuery<U>(
             TransactionCache transactionCache,
-            Func<IBlock, QueryResult, U> recordIdsFunc)
+            Func<IBlock, QueryResult, U> extractResultFunc)
         {
+            var projectionColumnIndexes = ImmutableArray<int>.Empty;
             var takeCount = _takeCount ?? int.MaxValue;
 
             foreach (var block in ListBlocks(transactionCache))
             {
-                var results = block.Query(_predicate, _projectionColumnIndexes);
+                var results = block.Query(_predicate, projectionColumnIndexes);
 
                 foreach (var result in RemoveDeleted(results))
                 {
-                    yield return recordIdsFunc(block, result);
+                    yield return extractResultFunc(block, result);
                     --takeCount;
                     if (takeCount == 0)
                     {

@@ -163,16 +163,22 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     }
                 }
             }
+            var projectionColumns = projectionColumnIndexes
+                .Select(i => _dataColumns[i])
+                .ToImmutableArray();
+
             if (predicate is AllInPredicate)
             {
-                return CreateResults(Enumerable.Range(
-                    0,
-                    ((ICachedColumn)_recordIdColumn).RecordCount)
-                    .Select(i => (short)i));
+                return CreateResults(
+                    Enumerable.Range(
+                        0,
+                        ((ICachedColumn)_recordIdColumn).RecordCount)
+                    .Select(i => (short)i),
+                    projectionColumns);
             }
             else if (predicate is ResultPredicate rp)
             {
-                return CreateResults(rp.RecordIndexes);
+                return CreateResults(rp.RecordIndexes, projectionColumns);
             }
             else
             {
@@ -189,16 +195,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
         }
 
-        private IEnumerable<QueryResult> CreateResults(IEnumerable<short> rowIndexes)
-        {
-            return CreateResults(rowIndexes, ImmutableArray<ICachedColumn>.Empty);
-        }
-
         private IEnumerable<QueryResult> CreateResults(
             IEnumerable<short> rowIndexes,
             IImmutableList<ICachedColumn> projectionColumns)
         {
-            var fullBuffer = new object?[_dataColumns.Count];
             var projectionBuffer = new object?[projectionColumns.Count];
             var results = rowIndexes
                 .Select(i => new QueryResult(
@@ -208,12 +208,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                         CreateRow(projectionBuffer, i, projectionColumns);
 
                         return projectionBuffer;
-                    },
-                    () =>
-                    {
-                        CreateRow(fullBuffer, i, _dataColumns);
-
-                        return fullBuffer;
                     }));
 
             return results;
