@@ -9,18 +9,18 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 {
     internal class BlockBuilder : ReadOnlyBlockBase, IBlock
     {
-        private readonly IImmutableList<IDataColumn> _dataColumns;
         private readonly object?[] _projectionBuffer;
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
-            : base(schema)
+            : base(
+                  schema,
+                  schema.Columns
+                  .Select(c => CreateCachedColumn(c.ColumnType, 0))
+                  //  Record ID column
+                  .Append(new ArrayLongColumn(0)))
         {
-            _dataColumns = Schema.Columns
-                .Select(c => CreateCachedColumn(c.ColumnType, 0))
-                //  Record ID column
-                .Append(new ArrayLongColumn(0))
-                .ToImmutableArray();
+            DataColumns = base.DataColumns.Cast<IDataColumn>().ToImmutableArray();
             //  Reserve space for record ID + row index
             _projectionBuffer = new object?[Schema.Columns.Count + 2];
         }
@@ -39,7 +39,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             {
                 for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
                 {
-                    _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                    DataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
                 }
             }
         }
@@ -61,32 +61,34 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
         #endregion
 
+        protected new IImmutableList<IDataColumn> DataColumns { get; }
+
         public bool IsEmpty => throw new NotImplementedException();
 
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
-            if (record.Length != _dataColumns.Count - 1)
+            if (record.Length != DataColumns.Count - 1)
             {
                 throw new ArgumentException(
-                    $"Expected {_dataColumns.Count - 1} columns but is {record.Length}",
+                    $"Expected {DataColumns.Count - 1} columns but is {record.Length}",
                     nameof(record));
             }
             for (int i = 0; i != record.Length; ++i)
             {
-                _dataColumns[i].AppendValue(record[i]);
+                DataColumns[i].AppendValue(record[i]);
             }
-            _dataColumns[record.Length].AppendValue(recordId);
+            DataColumns[record.Length].AppendValue(recordId);
         }
 
         public IEnumerable<long> DeleteRecords(ImmutableList<long> recordIds)
         {
             var recordIdSet = recordIds.ToImmutableHashSet();
 
-            if (recordIdSet.Any() && _dataColumns.First().RecordCount > 0)
+            if (recordIdSet.Any() && DataColumns.First().RecordCount > 0)
             {
                 var columns = new object?[Schema.Columns.Count];
-                var recordIdColumn = (ArrayLongColumn)_dataColumns.Last();
-                var deletedRecordPairs = Enumerable.Range(0, _dataColumns.First().RecordCount)
+                var recordIdColumn = (ArrayLongColumn)DataColumns.Last();
+                var deletedRecordPairs = Enumerable.Range(0, DataColumns.First().RecordCount)
                     .Select(recordIndex => new
                     {
                         RecordId = recordIdColumn.RawData[recordIndex],
@@ -102,7 +104,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                         .Select(o => o.RecordIndex)
                         .ToImmutableArray();
 
-                    foreach (var dataColumn in _dataColumns)
+                    foreach (var dataColumn in DataColumns)
                     {
                         dataColumn.DeleteRecords(deletedRecordIndexes);
                     }
@@ -118,7 +120,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #region IBlock
         TableSchema IBlock.TableSchema => Schema;
 
-        int IBlock.RecordCount => _dataColumns.First().RecordCount;
+        int IBlock.RecordCount => DataColumns.First().RecordCount;
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Query(
             IQueryPredicate predicate,
@@ -148,7 +150,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 {
                     if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
                     {
-                        var column = _dataColumns[binaryOperatorPredicate.ColumnIndex];
+                        var column = DataColumns[binaryOperatorPredicate.ColumnIndex];
                         var resultIndexes = column.Filter(
                             binaryOperatorPredicate.BinaryOperator,
                             binaryOperatorPredicate.Value);
@@ -172,7 +174,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 return CreateResults(
                     Enumerable.Range(
                         0,
-                        _dataColumns.First().RecordCount)
+                        DataColumns.First().RecordCount)
                     .Select(i => (short)i),
                     materializedProjectionColumnIndexes);
             }
@@ -208,8 +210,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             {
                 for (var i = 0; i != projectionColumnIndexes.Count; ++i)
                 {
-                    _projectionBuffer[i] = projectionColumnIndexes[i] < _dataColumns.Count
-                        ? _dataColumns[projectionColumnIndexes[i]].GetValue(rowIndex)
+                    _projectionBuffer[i] = projectionColumnIndexes[i] < DataColumns.Count
+                        ? DataColumns[projectionColumnIndexes[i]].GetValue(rowIndex)
                         : rowIndex;
                 }
                 yield return memory;
