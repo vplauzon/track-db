@@ -118,12 +118,14 @@ namespace Ipdb.Lib2
             Func<IBlock, QueryResult, U> extractResultFunc)
         {
             var takeCount = _takeCount ?? int.MaxValue;
+            var deletedRecordIds = transactionCache.ListDeletedRecordIds(_table.Schema.TableName)
+                .ToImmutableHashSet();
 
             foreach (var block in ListBlocks(transactionCache))
             {
                 var results = block.Query(_predicate, _projectionColumnIndexes);
 
-                foreach (var result in RemoveDeleted(results))
+                foreach (var result in RemoveDeleted(deletedRecordIds, results))
                 {
                     yield return extractResultFunc(block, result);
                     --takeCount;
@@ -135,31 +137,24 @@ namespace Ipdb.Lib2
             }
         }
 
-        private IEnumerable<QueryResult> RemoveDeleted(IEnumerable<QueryResult> results)
+        private IEnumerable<QueryResult> RemoveDeleted(
+            IImmutableSet<long> deletedRecordIds,
+            IEnumerable<QueryResult> results)
         {
-            //foreach (var result in results)
-            //{
-            //    yield return recordIdsFunc(block, result);
-            //}
-            return results;
+            foreach (var result in results)
+            {
+                if (!deletedRecordIds.Contains(result.RecordId))
+                {
+                    yield return result;
+                }
+            }
         }
 
         private IEnumerable<IBlock> ListBlocks(TransactionCache transactionCache)
         {
-            if (transactionCache
-                .UncommittedTransactionLog
-                .TableTransactionLogMap.TryGetValue(_table.Schema.TableName, out var ul))
+            foreach (var block in transactionCache.ListTransactionLogBlocks(_table.Schema.TableName))
             {
-                yield return ul.BlockBuilder;
-            }
-            foreach (var committedLog in transactionCache.DatabaseCache.CommittedLogs)
-            {
-                if (committedLog
-                    .TableTransactionLogs
-                    .TryGetValue(_table.Schema.TableName, out var cl))
-                {
-                    yield return cl.InMemoryBlock;
-                }
+                yield return block;
             }
         }
         #endregion

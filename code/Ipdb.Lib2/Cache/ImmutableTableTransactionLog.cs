@@ -5,5 +5,5 @@ namespace Ipdb.Lib2.Cache
 {
     internal record ImmutableTableTransactionLog(
         IBlock InMemoryBlock,
-        IImmutableSet<long> DeletedRecordId);
+        IImmutableSet<long> DeletedRecordIds);
 }
