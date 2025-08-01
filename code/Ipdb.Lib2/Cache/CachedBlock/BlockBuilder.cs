@@ -7,10 +7,8 @@ using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
-    internal class BlockBuilder : ReadOnlyBlockBase, IBlock
+    internal class BlockBuilder : ReadOnlyBlockBase
     {
-        private readonly object?[] _projectionBuffer;
-
         #region Constructors
         public BlockBuilder(TableSchema schema)
             : base(
@@ -21,8 +19,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                   .Append(new ArrayLongColumn(0)))
         {
             DataColumns = base.DataColumns.Cast<IDataColumn>().ToImmutableArray();
-            //  Reserve space for record ID + row index
-            _projectionBuffer = new object?[Schema.Columns.Count + 2];
         }
 
         public BlockBuilder(IBlock block)
@@ -62,8 +58,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #endregion
 
         protected new IImmutableList<IDataColumn> DataColumns { get; }
-
-        public bool IsEmpty => throw new NotImplementedException();
 
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
@@ -115,107 +109,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
 
             return Array.Empty<long>();
-        }
-
-        #region IBlock
-        TableSchema IBlock.TableSchema => Schema;
-
-        int IBlock.RecordCount => DataColumns.First().RecordCount;
-
-        IEnumerable<ReadOnlyMemory<object?>> IBlock.Query(
-            IQueryPredicate predicate,
-            IEnumerable<int> projectionColumnIndexes)
-        {
-            var materializedProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
-
-            if (materializedProjectionColumnIndexes.Count() > _projectionBuffer.Length)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(projectionColumnIndexes),
-                    $"{materializedProjectionColumnIndexes.Count()} columns instead of " +
-                    $"maximum {_projectionBuffer.Length}");
-            }
-            //  Initial simplification
-            predicate = predicate.Simplify(p => null) ?? predicate;
-
-            while (!predicate.IsTerminal)
-            {
-                var primitivePredicate = predicate.FirstPrimitivePredicate;
-
-                if (primitivePredicate == null)
-                {   //  Should be terminal by now
-                    throw new InvalidOperationException("Can't complete query");
-                }
-                else
-                {
-                    if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
-                    {
-                        var column = DataColumns[binaryOperatorPredicate.ColumnIndex];
-                        var resultIndexes = column.Filter(
-                            binaryOperatorPredicate.BinaryOperator,
-                            binaryOperatorPredicate.Value);
-                        var resultPredicate = new ResultPredicate(resultIndexes);
-
-                        predicate = Simplify(
-                            predicate,
-                            p => object.ReferenceEquals(p, primitivePredicate)
-                            ? resultPredicate
-                            : null);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(
-                            $"Primitive predicate:  '{primitivePredicate.GetType().Name}'");
-                    }
-                }
-            }
-            if (predicate is AllInPredicate)
-            {
-                return CreateResults(
-                    Enumerable.Range(
-                        0,
-                        DataColumns.First().RecordCount)
-                    .Select(i => (short)i),
-                    materializedProjectionColumnIndexes);
-            }
-            else if (predicate is ResultPredicate rp)
-            {
-                return CreateResults(rp.RecordIndexes, materializedProjectionColumnIndexes);
-            }
-            else
-            {
-                throw new NotSupportedException(
-                    $"Terminal predicate:  {predicate.GetType().Name}");
-            }
-        }
-        #endregion
-
-        private IQueryPredicate Simplify(
-            IQueryPredicate predicate,
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
-        {
-            return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
-        }
-
-        private IEnumerable<ReadOnlyMemory<object?>> CreateResults(
-            IEnumerable<short> rowIndexes,
-            IImmutableList<int> projectionColumnIndexes)
-        {
-            var memory = new ReadOnlyMemory<object?>(
-                    _projectionBuffer,
-                    0,
-                    projectionColumnIndexes.Count);
-
-            foreach (var rowIndex in rowIndexes)
-            {
-                for (var i = 0; i != projectionColumnIndexes.Count; ++i)
-                {
-                    _projectionBuffer[i] = projectionColumnIndexes[i] < DataColumns.Count
-                        ? DataColumns[projectionColumnIndexes[i]].GetValue(rowIndex)
-                        : rowIndex;
-                }
-                yield return memory;
-            }
         }
     }
 }
