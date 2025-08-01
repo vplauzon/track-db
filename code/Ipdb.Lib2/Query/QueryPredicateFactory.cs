@@ -12,7 +12,8 @@ namespace Ipdb.Lib2.Query
     internal class QueryPredicateFactory
     {
         public static IQueryPredicate Create<T>(
-            Expression<Func<T, bool>> predicateExpression)
+            Expression<Func<T, bool>> predicateExpression,
+            TableSchema schema)
         {
             if (predicateExpression.Body is BinaryExpression binaryExpression)
             {
@@ -22,7 +23,7 @@ namespace Ipdb.Lib2.Query
                     && leftMemberExpression.Member is PropertyInfo leftPropertyInfo)
                 {
                     return CreateBinaryExpression(
-                        GetPropertyPath(leftPropertyInfo),
+                        GetColumnIndex(GetPropertyPath(leftPropertyInfo), schema),
                         binaryOperator,
                         binaryExpression.Right);
                 }
@@ -30,7 +31,7 @@ namespace Ipdb.Lib2.Query
                     && rightMemberExpression.Member is PropertyInfo rightPropertyInfo)
                 {
                     return CreateBinaryExpression(
-                        GetPropertyPath(rightPropertyInfo),
+                        GetColumnIndex(GetPropertyPath(rightPropertyInfo), schema),
                         binaryOperator,
                         binaryExpression.Left);
                 }
@@ -41,6 +42,20 @@ namespace Ipdb.Lib2.Query
             }
 
             throw new NotSupportedException($"Unsupported expression");
+        }
+
+        private static int GetColumnIndex(string columnName, TableSchema schema)
+        {
+            if (schema.TryGetColumnIndex(columnName, out var columnIndex))
+            {
+                return columnIndex;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(columnName),
+                    $"Column '{columnName}' doesn't exist in table '{schema.TableName}'");
+            }
         }
 
         private static BinaryOperator GetBinaryOperator(ExpressionType nodeType)
@@ -72,14 +87,14 @@ namespace Ipdb.Lib2.Query
         }
 
         private static IQueryPredicate CreateBinaryExpression(
-            string propertyPath,
+            int columnIndex,
             BinaryOperator binaryOperator,
             Expression valueExpression)
         {
             if (valueExpression is ConstantExpression constantExpression)
             {
                 return new BinaryOperatorPredicate(
-                    propertyPath,
+                    columnIndex,
                     constantExpression.Value,
                     binaryOperator);
             }
@@ -88,7 +103,7 @@ namespace Ipdb.Lib2.Query
                 if (memberExpression.Expression is ConstantExpression innerConstantExpression)
                 {
                     return new BinaryOperatorPredicate(
-                        propertyPath,
+                        columnIndex,
                         GetConstantValue(innerConstantExpression.Value, memberExpression.Member),
                         binaryOperator);
                 }
@@ -103,7 +118,7 @@ namespace Ipdb.Lib2.Query
 
         private static object? GetConstantValue(object? container, MemberInfo member)
         {
-            if(container == null)
+            if (container == null)
             {
                 throw new NotSupportedException(
                     "Can't extract constant value from a null object");

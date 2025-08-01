@@ -133,28 +133,17 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 {
                     if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
                     {
-                        if (_schema.TryGetColumnIndex(
-                            binaryOperatorPredicate.PropertyPath,
-                            out var columnIndex))
-                        {
-                            var column = _dataColumns[columnIndex];
-                            var resultIndexes = column.Filter(
-                                binaryOperatorPredicate.BinaryOperator,
-                                binaryOperatorPredicate.Value);
-                            var resultPredicate = new ResultPredicate(resultIndexes);
+                        var column = _dataColumns[binaryOperatorPredicate.ColumnIndex];
+                        var resultIndexes = column.Filter(
+                            binaryOperatorPredicate.BinaryOperator,
+                            binaryOperatorPredicate.Value);
+                        var resultPredicate = new ResultPredicate(resultIndexes);
 
-                            predicate = Simplify(
-                                predicate,
-                                p => object.ReferenceEquals(p, primitivePredicate)
-                                ? resultPredicate
-                                : null);
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException(
-                                $"Unknown property path:  " +
-                                $"'{binaryOperatorPredicate.PropertyPath}'");
-                        }
+                        predicate = Simplify(
+                            predicate,
+                            p => object.ReferenceEquals(p, primitivePredicate)
+                            ? resultPredicate
+                            : null);
                     }
                     else
                     {

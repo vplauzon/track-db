@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Ipdb.Lib2.Query
 {
     internal record BinaryOperatorPredicate(
-        string PropertyPath,
+        int ColumnIndex,
         object? Value,
         BinaryOperator BinaryOperator)
         : IQueryPredicate

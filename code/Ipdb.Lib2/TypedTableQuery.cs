@@ -43,7 +43,7 @@ namespace Ipdb.Lib2
         #region Query alteration
         public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
         {
-            var queryPredicate = QueryPredicateFactory.Create(predicate);
+            var queryPredicate = QueryPredicateFactory.Create(predicate, _table.Schema);
             var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
 
             return new TypedTableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);

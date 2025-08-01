@@ -1,4 +1,5 @@
-﻿using Ipdb.Lib2.Query;
+﻿using Ipdb.Lib2;
+using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,15 +16,22 @@ namespace Ipdb.Tests2.QueryPredicateTests
         [Fact]
         public void IntegerConstant()
         {
-            var predicateEqual = QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5);
-            var predicateNotEqual = QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5);
-            var predicateLessThan = QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5);
+            var schema = new TableSchema(
+                "MyTable",
+                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
+                []);
+            var predicateEqual =
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5, schema);
+            var predicateNotEqual =
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5, schema);
+            var predicateLessThan =
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5, schema);
             var predicateLessThanEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5);
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5, schema);
             var predicateGreaterThan =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5);
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5, schema);
             var predicateGreaterThanEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5);
+                QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5, schema);
             var testingPairs = new[]
             {
                 (predicateEqual, BinaryOperator.Equal),
@@ -43,7 +51,7 @@ namespace Ipdb.Tests2.QueryPredicateTests
 
                 var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
 
-                Assert.Equal(nameof(IntegerOnly.Value), binaryOperatorPredicate.PropertyPath);
+                Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
                 Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
                 Assert.Equal(5, binaryOperatorPredicate.Value);
             }
@@ -52,20 +60,25 @@ namespace Ipdb.Tests2.QueryPredicateTests
         [Fact]
         public void IntegerVariable()
         {
+            var schema = new TableSchema(
+                "MyTable",
+                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
+                []);
+
             for (var i = 14; i != 15; ++i)
             {
                 var predicateEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5, schema);
                 var predicateNotEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5, schema);
                 var predicateLessThan =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5, schema);
                 var predicateLessThanEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5, schema);
                 var predicateGreaterThan =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5, schema);
                 var predicateGreaterThanEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5);
+                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5, schema);
                 var testingPairs = new[]
                 {
                     (predicateEqual, BinaryOperator.Equal),
@@ -85,7 +98,7 @@ namespace Ipdb.Tests2.QueryPredicateTests
 
                     var propertyPredicate = (BinaryOperatorPredicate)predicate;
 
-                    Assert.Equal(nameof(IntegerOnly.Value), propertyPredicate.PropertyPath);
+                    Assert.Equal(0, propertyPredicate.ColumnIndex);
                     Assert.Equal(binaryOperator, propertyPredicate.BinaryOperator);
                     Assert.Equal(5, propertyPredicate.Value);
                 }
