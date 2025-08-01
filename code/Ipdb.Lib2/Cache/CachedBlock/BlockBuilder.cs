@@ -7,23 +7,22 @@ using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
-    internal class BlockBuilder : IBlock
+    internal class BlockBuilder : ReadOnlyBlockBase, IBlock
     {
-        private readonly TableSchema _schema;
         private readonly IImmutableList<IDataColumn> _dataColumns;
         private readonly object?[] _projectionBuffer;
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
+            : base(schema)
         {
-            _schema = schema;
-            _dataColumns = _schema.Columns
+            _dataColumns = Schema.Columns
                 .Select(c => CreateCachedColumn(c.ColumnType, 0))
                 //  Record ID column
                 .Append(new ArrayLongColumn(0))
                 .ToImmutableArray();
             //  Reserve space for record ID + row index
-            _projectionBuffer = new object?[_schema.Columns.Count + 2];
+            _projectionBuffer = new object?[Schema.Columns.Count + 2];
         }
 
         public BlockBuilder(IBlock block)
@@ -33,12 +32,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             var data = block.Query(
                 new AllInPredicate(),
                 //  Include record ID
-                Enumerable.Range(0, _schema.Columns.Count + 1));
+                Enumerable.Range(0, Schema.Columns.Count + 1));
 
             //  Copy data
             foreach (var row in data)
             {
-                for (var columnIndex = 0; columnIndex != _schema.Columns.Count + 1; ++columnIndex)
+                for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
                 {
                     _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
                 }
@@ -85,7 +84,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
             if (recordIdSet.Any() && _dataColumns.First().RecordCount > 0)
             {
-                var columns = new object?[_schema.Columns.Count];
+                var columns = new object?[Schema.Columns.Count];
                 var recordIdColumn = (ArrayLongColumn)_dataColumns.Last();
                 var deletedRecordPairs = Enumerable.Range(0, _dataColumns.First().RecordCount)
                     .Select(recordIndex => new
@@ -117,7 +116,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
 
         #region IBlock
-        TableSchema IBlock.TableSchema => _schema;
+        TableSchema IBlock.TableSchema => Schema;
 
         int IBlock.RecordCount => _dataColumns.First().RecordCount;
 
