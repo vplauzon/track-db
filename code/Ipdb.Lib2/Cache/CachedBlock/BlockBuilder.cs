@@ -59,6 +59,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         protected new IImmutableList<IDataColumn> DataColumns { get; }
 
+        #region Writable block methods
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
             if (record.Length != DataColumns.Count - 1)
@@ -110,5 +111,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
             return Array.Empty<long>();
         }
+        #endregion
     }
 }
