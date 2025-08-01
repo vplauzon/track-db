@@ -17,7 +17,7 @@ namespace Ipdb.Lib2
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
-        private IImmutableList<int> _projectionColumnIndexes;
+        private readonly object?[] _rowBuffer;
 
         #region Constructors
         internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
@@ -35,8 +35,7 @@ namespace Ipdb.Lib2
             _transactionContext = transactionContext;
             _predicate = predicate;
             _takeCount = takeCount;
-            _projectionColumnIndexes = Enumerable.Range(0, table.Schema.Columns.Count)
-                .ToImmutableArray();
+            _rowBuffer = new object?[_table.Schema.Columns.Count];
         }
         #endregion
 
@@ -94,9 +93,11 @@ namespace Ipdb.Lib2
         {
             var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
-            foreach(var result in tableQuery)
+            foreach (var result in tableQuery)
             {
-                var objectRow = (T)_table.Schema.FromColumnsToObject(result.ToArray());
+                result.CopyTo(_rowBuffer);
+                
+                var objectRow = (T)_table.Schema.FromColumnsToObject(_rowBuffer);
 
                 yield return objectRow;
             }
