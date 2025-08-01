@@ -18,38 +18,42 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         {
             _schema = schema;
             _dataColumns = _schema.Columns
-                .Select(c => CreateCachedColumn(c.ColumnType, Array.Empty<object>()))
+                .Select(c => CreateCachedColumn(c.ColumnType, 0))
                 //  Record ID column
-                .Append(new ArrayLongColumn(Array.Empty<object>()))
+                .Append(new ArrayLongColumn(0))
                 .ToImmutableArray();
             //  Reserve space for record ID + row index
             _projectionBuffer = new object?[_schema.Columns.Count + 2];
         }
 
         public BlockBuilder(IBlock block)
+            : this(block.TableSchema)
         {
-            _schema = block.TableSchema;
-            _dataColumns = Enumerable.Range(0, _schema.Columns.Count)
-                .Select(i => CreateCachedColumn(
-                    _schema.Columns[i].ColumnType,
-                    block.GetColumnData(i)))
-                .Append(CreateCachedColumn(typeof(long), block.GetColumnData(_schema.Columns.Count)))
-                .ToImmutableArray();
-            //  Reserve space for record ID + row index
-            _projectionBuffer = new object?[_schema.Columns.Count + 2];
+            var recordCount = block.RecordCount;
+            var data = block.Query(
+                new AllInPredicate(),
+                //  Include record ID
+                Enumerable.Range(0, _schema.Columns.Count + 1));
+
+            //  Copy data
+            foreach (var row in data)
+            {
+                for (var columnIndex = 0; columnIndex != _schema.Columns.Count + 1; ++columnIndex)
+                {
+                    _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                }
+            }
         }
 
-        private static ICachedColumn CreateCachedColumn(
-            Type columnType,
-            IEnumerable<object?> data)
+        private static ICachedColumn CreateCachedColumn(Type columnType, int capacity)
         {
             if (columnType == typeof(int))
             {
-                return new ArrayIntColumn(data);
+                return new ArrayIntColumn(capacity);
             }
             else if (columnType == typeof(long))
             {
-                return new ArrayLongColumn(data);
+                return new ArrayLongColumn(capacity);
             }
             else
             {
@@ -116,16 +120,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         TableSchema IBlock.TableSchema => _schema;
 
         int IBlock.RecordCount => _dataColumns.First().RecordCount;
-
-        IEnumerable<long> IBlock.RecordIds => ((ArrayLongColumn)_dataColumns.Last()).EnumerableRawData;
-
-        IEnumerable<object?> IBlock.GetColumnData(int columnIndex)
-        {
-            var column = _dataColumns[columnIndex];
-
-            return Enumerable.Range(0, _dataColumns.First().RecordCount)
-                .Select(i => column.GetData((short)i));
-        }
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Query(
             IQueryPredicate predicate,

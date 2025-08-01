@@ -11,10 +11,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         int RecordCount { get; }
 
-        IEnumerable<long> RecordIds { get; }
-        
-        IEnumerable<object?> GetColumnData(int columnIndex);
-
         /// <summary>Performs a query within the block's data.</summary>
         /// <param name="predicate"></param>
         /// <param name="projectionColumnIndexes"></param>

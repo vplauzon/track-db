@@ -18,12 +18,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         private T[] _array;
         private int _itemCount = 0;
 
-        protected PrimitiveArrayCachedColumnBase(IEnumerable<object?> data)
+        protected PrimitiveArrayCachedColumnBase(int capacity)
         {
-            _array = data
-                .Select(d => d == null ? NullValue : (T)d)
-                .ToArray();
-            _itemCount = _array.Length;
+            _array = new T[Math.Min(10, capacity)];
         }
 
         public ReadOnlySpan<T> RawData => new ReadOnlySpan<T>(_array, 0, _itemCount);

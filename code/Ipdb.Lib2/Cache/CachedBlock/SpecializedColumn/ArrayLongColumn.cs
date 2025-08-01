@@ -8,8 +8,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
     internal class ArrayLongColumn : PrimitiveArrayCachedColumnBase<long>
     {
-        public ArrayLongColumn(IEnumerable<object?> data)
-            : base(data)
+        public ArrayLongColumn(int capacity)
+            : base(capacity)
         {
         }
 
