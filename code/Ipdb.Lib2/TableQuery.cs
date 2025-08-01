@@ -66,9 +66,11 @@ namespace Ipdb.Lib2
 
                         var deletedRecordIds = ExecuteQuery(
                             transactionCache,
+                            //  Fetch only the record ID
+                            [_table.Schema.Columns.Count],
                             (block, result) =>
                             {
-                                return result.RecordId;
+                                return (long)result.Span[0]!;
                             })
                         .ToImmutableList();
                         var uncommittedBlock = uncommittedLog?.BlockBuilder;
@@ -101,11 +103,10 @@ namespace Ipdb.Lib2
                     {
                         return ExecuteQuery(
                             transactionCache,
+                            _projectionColumnIndexes,
                             (block, result) =>
                             {
-                                var row = result.ProjectionFunc();
-
-                                return new ReadOnlyMemory<object?>(row);
+                                return result;
                             });
                     }
                 });
@@ -115,7 +116,8 @@ namespace Ipdb.Lib2
 
         private IEnumerable<U> ExecuteQuery<U>(
             TransactionCache transactionCache,
-            Func<IBlock, QueryResult, U> extractResultFunc)
+            IEnumerable<int> projectionColumnIndexes,
+            Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var deletedRecordIds = transactionCache.ListDeletedRecordIds(_table.Schema.TableName)
@@ -123,11 +125,15 @@ namespace Ipdb.Lib2
 
             foreach (var block in ListBlocks(transactionCache))
             {
-                var results = block.Query(_predicate, _projectionColumnIndexes);
+                var results = block.Query(
+                    _predicate,
+                    //  Add Record ID at the end, so we can use it to detect deleted rows
+                    projectionColumnIndexes.Append(_table.Schema.Columns.Count));
 
                 foreach (var result in RemoveDeleted(deletedRecordIds, results))
                 {
-                    yield return extractResultFunc(block, result);
+                    //  Remove last column (record ID)
+                    yield return extractResultFunc(block, result.Slice(0, result.Length - 1));
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -137,13 +143,15 @@ namespace Ipdb.Lib2
             }
         }
 
-        private IEnumerable<QueryResult> RemoveDeleted(
+        private IEnumerable<ReadOnlyMemory<object?>> RemoveDeleted(
             IImmutableSet<long> deletedRecordIds,
-            IEnumerable<QueryResult> results)
+            IEnumerable<ReadOnlyMemory<object?>> results)
         {
             foreach (var result in results)
             {
-                if (!deletedRecordIds.Contains(result.RecordId))
+                var recordId = (long)result.Span[result.Length - 1]!;
+
+                if (!deletedRecordIds.Contains(recordId))
                 {
                     yield return result;
                 }

@@ -1,4 +1,5 @@
 ﻿using Ipdb.Lib2.Query;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
@@ -17,9 +18,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         /// <summary>Performs a query within the block's data.</summary>
         /// <param name="predicate"></param>
         /// <param name="projectionColumnIndexes"></param>
-        /// <returns>Returns results matching the query.</returns>
-        IEnumerable<QueryResult> Query(
+        /// <returns>Projected columns of rows matching query.</returns>
+        IEnumerable<ReadOnlyMemory<object?>> Query(
             IQueryPredicate predicate,
-            IImmutableList<int> projectionColumnIndexes);
+            IEnumerable<int> projectionColumnIndexes);
     }
 }

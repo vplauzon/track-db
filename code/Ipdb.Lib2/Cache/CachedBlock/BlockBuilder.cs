@@ -4,8 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection;
-using System.Text.RegularExpressions;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -13,6 +11,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         private readonly TableSchema _schema;
         private readonly IImmutableList<ICachedColumn> _dataColumns;
+        private readonly object?[] _projectionBuffer;
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
@@ -23,6 +22,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 //  Record ID column
                 .Append(new ArrayLongColumn(Array.Empty<object>()))
                 .ToImmutableArray();
+            //  Reserve space for record ID + row index
+            _projectionBuffer = new object?[_schema.Columns.Count + 2];
         }
 
         public BlockBuilder(IBlock block)
@@ -34,6 +35,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     block.GetColumnData(i)))
                 .Append(CreateCachedColumn(typeof(long), block.GetColumnData(_schema.Columns.Count)))
                 .ToImmutableArray();
+            //  Reserve space for record ID + row index
+            _projectionBuffer = new object?[_schema.Columns.Count + 2];
         }
 
         private static ICachedColumn CreateCachedColumn(
@@ -124,10 +127,19 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 .Select(i => column.GetData((short)i));
         }
 
-        IEnumerable<QueryResult> IBlock.Query(
+        IEnumerable<ReadOnlyMemory<object?>> IBlock.Query(
             IQueryPredicate predicate,
-            IImmutableList<int> projectionColumnIndexes)
+            IEnumerable<int> projectionColumnIndexes)
         {
+            var materializedProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
+
+            if (materializedProjectionColumnIndexes.Count() > _projectionBuffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(projectionColumnIndexes),
+                    $"{materializedProjectionColumnIndexes.Count()} columns instead of " +
+                    $"maximum {_projectionBuffer.Length}");
+            }
             //  Initial simplification
             predicate = predicate.Simplify(p => null) ?? predicate;
 
@@ -162,10 +174,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     }
                 }
             }
-            var projectionColumns = projectionColumnIndexes
-                .Select(i => _dataColumns[i])
-                .ToImmutableArray();
-
             if (predicate is AllInPredicate)
             {
                 return CreateResults(
@@ -173,11 +181,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                         0,
                         _dataColumns.First().RecordCount)
                     .Select(i => (short)i),
-                    projectionColumns);
+                    materializedProjectionColumnIndexes);
             }
             else if (predicate is ResultPredicate rp)
             {
-                return CreateResults(rp.RecordIndexes, projectionColumns);
+                return CreateResults(rp.RecordIndexes, materializedProjectionColumnIndexes);
             }
             else
             {
@@ -194,33 +202,24 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
         }
 
-        private IEnumerable<QueryResult> CreateResults(
+        private IEnumerable<ReadOnlyMemory<object?>> CreateResults(
             IEnumerable<short> rowIndexes,
-            IImmutableList<ICachedColumn> projectionColumns)
+            IImmutableList<int> projectionColumnIndexes)
         {
-            var projectionBuffer = new object?[projectionColumns.Count];
-            var recordIdColumn = (ArrayLongColumn)_dataColumns.Last();
-            var results = rowIndexes
-                .Select(i => new QueryResult(
-                    recordIdColumn.RawData[i],
-                    () =>
-                    {
-                        CreateRow(projectionBuffer, i, projectionColumns);
+            var memory = new ReadOnlyMemory<object?>(
+                    _projectionBuffer,
+                    0,
+                    projectionColumnIndexes.Count);
 
-                        return projectionBuffer;
-                    }));
-
-            return results;
-        }
-
-        private void CreateRow(
-            object?[] buffer,
-            short rowIndex,
-            IImmutableList<ICachedColumn> projectionColumns)
-        {
-            for (int i = 0; i != projectionColumns.Count; ++i)
+            foreach (var rowIndex in rowIndexes)
             {
-                buffer[i] = projectionColumns[i].GetData(rowIndex);
+                for (var i = 0; i != projectionColumnIndexes.Count; ++i)
+                {
+                    _projectionBuffer[i] = projectionColumnIndexes[i] < _dataColumns.Count
+                        ? _dataColumns[projectionColumnIndexes[i]].GetData(rowIndex)
+                        : rowIndex;
+                }
+                yield return memory;
             }
         }
     }
