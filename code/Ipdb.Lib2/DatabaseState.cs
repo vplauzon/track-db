@@ -21,9 +21,7 @@ namespace Ipdb.Lib2
     {
         public DatabaseState()
             : this(
-                  new DatabaseCache(
-                      StorageBlockMap.Empty,
-                      ImmutableArray<ImmutableTransactionLog>.Empty),
+                  new DatabaseCache(),
                   ImmutableDictionary<long, TransactionCache>.Empty)
         {
         }

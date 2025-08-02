@@ -19,13 +19,11 @@ namespace Ipdb.Lib2.Cache
             {
                 yield return ul.BlockBuilder;
             }
-            foreach (var committedLog in DatabaseCache.CommittedLogs)
+            if (DatabaseCache.TableTransactionLogs.TryGetValue(tableName, out var logs))
             {
-                if (committedLog
-                    .TableTransactionLogs
-                    .TryGetValue(tableName, out var cl))
+                foreach (var log in logs)
                 {
-                    yield return cl.InMemoryBlock;
+                    yield return log.InMemoryBlock;
                 }
             }
         }
@@ -40,13 +38,11 @@ namespace Ipdb.Lib2.Cache
                     yield return id;
                 }
             }
-            foreach (var committedLog in DatabaseCache.CommittedLogs)
+            if (DatabaseCache.TableTransactionLogs.TryGetValue(tableName, out var logs))
             {
-                if (committedLog
-                    .TableTransactionLogs
-                    .TryGetValue(tableName, out var cl))
+                foreach (var log in logs)
                 {
-                    foreach (var id in cl.DeletedRecordIds)
+                    foreach (var id in log.DeletedRecordIds)
                     {
                         yield return id;
                     }

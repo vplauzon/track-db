@@ -15,14 +15,6 @@ namespace Ipdb.Lib2.Cache
 
         public bool IsEmpty => TableTransactionLogMap.Values.All(t => t.IsEmpty);
 
-        public ImmutableTransactionLog ToImmutable()
-        {
-            var immutableMap = TableTransactionLogMap
-                .ToImmutableDictionary(p => p.Key, p => p.Value.ToImmutable());
-
-            return new ImmutableTransactionLog(immutableMap);
-        }
-
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
         {
             if (!TableTransactionLogMap.ContainsKey(schema.TableName))

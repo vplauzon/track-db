@@ -1,6 +1,8 @@
 ﻿using Ipdb.Lib2.Cache;
+using Ipdb.Lib2.Cache.CachedBlock;
 using Ipdb.Lib2.DbStorage;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -20,6 +22,12 @@ namespace Ipdb.Lib2
         private readonly Lazy<StorageManager> _storageManager;
         private readonly IImmutableDictionary<string, Table> _tableMap
             = ImmutableDictionary<string, Table>.Empty;
+        private readonly Task _dataMaintenanceTask;
+        private readonly ConcurrentQueue<Task> _dataMaintenanceSubTasks = new();
+        private readonly TaskCompletionSource _dataMaintenanceStopSource =
+            new TaskCompletionSource();
+        private TaskCompletionSource _dataMaintenanceTriggerSource = new TaskCompletionSource();
+        private TaskCompletionSource? _persistEverythingSource = null;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState = new();
 
@@ -34,6 +42,7 @@ namespace Ipdb.Lib2
                     s.TableName
                 })
                 .ToImmutableDictionary(o => o.TableName, o => o.Table);
+            _dataMaintenanceTask = DataMaintanceAsync();
         }
 
         private Table CreateTable(TableSchema schema)
@@ -63,14 +72,14 @@ namespace Ipdb.Lib2
 
         internal StorageManager StorageManager => _storageManager.Value;
 
-        ValueTask IAsyncDisposable.DisposeAsync()
+        async ValueTask IAsyncDisposable.DisposeAsync()
         {
+            _dataMaintenanceStopSource.SetResult();
+            await _dataMaintenanceTask;
             if (_storageManager.IsValueCreated)
             {
                 ((IDisposable)_storageManager.Value).Dispose();
             }
-
-            return ValueTask.CompletedTask;
         }
 
         public Table GetTable(string tableName)
@@ -112,7 +121,9 @@ namespace Ipdb.Lib2
 
         internal async Task ForceDataManagementAsync(bool persistAll = false)
         {
-            await Task.CompletedTask;
+            _persistEverythingSource = new TaskCompletionSource();
+            _dataMaintenanceTriggerSource.TrySetResult();
+            await _persistEverythingSource.Task;
         }
 
         #region Record IDs
@@ -194,7 +205,6 @@ namespace Ipdb.Lib2
         {
             //  Fetch transaction cache
             var transactionCache = _databaseState.TransactionMap[transactionId];
-            var newTransactionLog = transactionCache.UncommittedTransactionLog.ToImmutable();
 
             ChangeDatabaseState(currentDbState =>
             {   //  Remove it from map
@@ -206,11 +216,9 @@ namespace Ipdb.Lib2
                 }
                 else
                 {
-                    var newDbCache = new DatabaseCache(
-                        currentDbState.DatabaseCache.StorageBlockMap,
-                        currentDbState.DatabaseCache.CommittedLogs.Add(newTransactionLog));
-
-                    return new DatabaseState(newDbCache, newTransactionMap);
+                    return new DatabaseState(
+                        currentDbState.DatabaseCache.CommitLog(transactionCache.UncommittedTransactionLog),
+                        newTransactionMap);
                 }
             });
         }
@@ -224,7 +232,6 @@ namespace Ipdb.Lib2
                 return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
             });
         }
-        #endregion
 
         private DatabaseState ChangeDatabaseState(Func<DatabaseState, DatabaseState?> stateChange)
         {   //  Optimistically try to change the db state:  repeat if necessary
@@ -246,5 +253,94 @@ namespace Ipdb.Lib2
                 return ChangeDatabaseState(stateChange);
             }
         }
+        #endregion
+
+        #region Data Maintenance
+        private async Task DataMaintanceAsync()
+        {
+            while (!_dataMaintenanceStopSource.Task.IsCompleted)
+            {
+                await Task.WhenAny(
+                    _dataMaintenanceTriggerSource.Task,
+                    _dataMaintenanceStopSource.Task);
+
+                //  Reset the trigger source
+                _dataMaintenanceTriggerSource = new TaskCompletionSource();
+
+                var subTask = Task.Run(() => DataMaintanceIteration());
+
+                //  Queue sub task so it can be observed later
+                _dataMaintenanceSubTasks.Enqueue(subTask);
+            }
+        }
+
+        private void DataMaintanceIteration()
+        {
+            var doPersistEverything = _persistEverythingSource != null;
+
+            while (!_dataMaintenanceStopSource.Task.IsCompleted)
+            {
+                var cache = MergeTransactionLogs();
+
+                {   //  We're done
+                    _persistEverythingSource?.SetResult();
+
+                    return;
+                }
+            }
+        }
+
+        private DatabaseCache MergeTransactionLogs()
+        {
+            var isChanging = false;
+
+            var newState = ChangeDatabaseState(state =>
+            {
+                var cache = state.DatabaseCache;
+
+                //  Merge one table at the time, to avoid racing conditions
+                foreach (var pair in cache.TableTransactionLogs)
+                {
+                    var tableName = pair.Key;
+                    var logs = pair.Value;
+
+                    if (logs.Count > 1)
+                    {
+                        var newBlock = new BlockBuilder(logs.First().InMemoryBlock.TableSchema);
+                        var newDeletedRecordIds = ImmutableHashSet<long>.Empty.ToBuilder();
+
+                        foreach (var log in logs)
+                        {
+                            newBlock.AppendBlock(log.InMemoryBlock);
+                            newDeletedRecordIds.UnionWith(log.DeletedRecordIds);
+                        }
+
+                        var newLog = new ImmutableTableTransactionLog(
+                            newBlock,
+                            newDeletedRecordIds.ToImmutableHashSet());
+                        var newCache = new DatabaseCache(
+                            cache.StorageBlockMap,
+                            cache.TableTransactionLogs
+                            .SetItem(tableName, new[] { newLog }.ToImmutableArray()));
+
+                        isChanging = true;
+
+                        return new DatabaseState(newCache, state.TransactionMap);
+                    }
+                }
+
+                return state;
+            });
+
+            if (isChanging)
+            {
+                return MergeTransactionLogs();
+            }
+            else
+            {   //  Here we should have only one transaction log
+                return newState.DatabaseCache;
+            }
+        }
     }
+    #endregion
 }
