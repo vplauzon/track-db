@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -19,25 +20,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                   .Append(new ArrayLongColumn(0)))
         {
             DataColumns = base.DataColumns.Cast<IDataColumn>().ToImmutableArray();
-        }
-
-        public BlockBuilder(IBlock block)
-            : this(block.TableSchema)
-        {
-            var recordCount = block.RecordCount;
-            var data = block.Query(
-                new AllInPredicate(),
-                //  Include record ID
-                Enumerable.Range(0, Schema.Columns.Count + 1));
-
-            //  Copy data
-            foreach (var row in data)
-            {
-                for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
-                {
-                    DataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
-                }
-            }
         }
 
         private static IDataColumn CreateCachedColumn(Type columnType, int capacity)
@@ -60,6 +42,28 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         protected new IImmutableList<IDataColumn> DataColumns { get; }
 
         #region Writable block methods
+        public void AppendBlock(IBlock block)
+        {
+            var data = block.Query(
+                new AllInPredicate(),
+                //  Include record ID
+                Enumerable.Range(0, Schema.Columns.Count + 1));
+
+            if (!block.TableSchema.AreColumnsCompatible(Schema.Columns))
+            {
+                throw new ArgumentException("Columns are incompatible", nameof(block));
+            }
+
+            //  Copy data
+            foreach (var row in data)
+            {
+                for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
+                {
+                    DataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                }
+            }
+        }
+
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
             if (record.Length != DataColumns.Count - 1)

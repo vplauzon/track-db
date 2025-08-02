@@ -32,8 +32,13 @@ namespace Ipdb.Lib2.Cache
 
         public ImmutableTableTransactionLog ToImmutable()
         {
+            IBlock oldBlock = BlockBuilder;
+            var newBlock = new BlockBuilder(oldBlock.TableSchema);
+
+            newBlock.AppendBlock(oldBlock);
+
             return new ImmutableTableTransactionLog(
-                new BlockBuilder(BlockBuilder),
+                newBlock,
                 DeletedRecordIds.ToImmutableHashSet());
         }
     }
