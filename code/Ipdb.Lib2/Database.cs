@@ -26,7 +26,7 @@ namespace Ipdb.Lib2
         #region Constructors
         public Database(string databaseRootDirectory, params IEnumerable<TableSchema> schemas)
         {
-            _storageManager = new StorageManager(databaseRootDirectory);
+            _storageManager = new Lazy<StorageManager>(() => new StorageManager(databaseRootDirectory));
             _tableMap = schemas
                 .Select(s => new
                 {
