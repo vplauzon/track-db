@@ -13,7 +13,7 @@ namespace Ipdb.Lib2.Cache
         IImmutableDictionary<string, ImmutableTableTransactionLogs> TableTransactionLogsMap)
     {
         public DatabaseCache()
-            :this(
+            : this(
                  StorageBlockMap.Empty,
                  ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
         {
@@ -34,12 +34,15 @@ namespace Ipdb.Lib2.Cache
                 if (logs.ContainsKey(tableName))
                 {
                     logs[tableName] = new ImmutableTableTransactionLogs(
-                        logs[tableName].Logs.Add(newTableTransactionLog.ToImmutable()));
+                        logs[tableName].Logs.Add(newTableTransactionLog.ToImmutable()),
+                        logs[tableName].SerializedSize
+                        + newTableTransactionLog.BlockBuilder.Serialize().Length);
                 }
                 else
                 {
                     logs[tableName] = new ImmutableTableTransactionLogs(
-                        new[] { newTableTransactionLog.ToImmutable() }.ToImmutableArray());
+                        new[] { newTableTransactionLog.ToImmutable() }.ToImmutableArray(),
+                        newTableTransactionLog.BlockBuilder.Serialize().Length);
                 }
             }
 

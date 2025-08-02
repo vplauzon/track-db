@@ -1,5 +1,4 @@
 ﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.Cache.CachedBlock;
 using Ipdb.Lib2.DbStorage;
 using System;
 using System.Collections.Concurrent;
@@ -76,6 +75,10 @@ namespace Ipdb.Lib2
         {
             _dataMaintenanceStopSource.SetResult();
             await _dataMaintenanceTask;
+            while (_dataMaintenanceSubTasks.TryDequeue(out var subTask))
+            {
+                subTask.Wait();
+            }
             if (_storageManager.IsValueCreated)
             {
                 ((IDisposable)_storageManager.Value).Dispose();
@@ -145,6 +148,8 @@ namespace Ipdb.Lib2
         #region Transaction
         public TransactionContext CreateTransaction()
         {
+            ObserveSubTasks();
+
             var transactionContext = new TransactionContext(this);
 
             ChangeDatabaseState(currentDbState =>
@@ -271,26 +276,63 @@ namespace Ipdb.Lib2
 
                 //  Queue sub task so it can be observed later
                 _dataMaintenanceSubTasks.Enqueue(subTask);
+
+                await subTask;
+            }
+        }
+
+        private void ObserveSubTasks()
+        {
+            var incompletedTasks = new List<Task>();
+
+            try
+            {
+                while (_dataMaintenanceSubTasks.TryDequeue(out var subTask))
+                {
+                    if (!subTask.IsCompleted || subTask.IsFaulted)
+                    {
+                        incompletedTasks.Add(subTask);
+                    }
+                    if (subTask.IsCompleted)
+                    {   //  Observe task before discarting it
+                        subTask.Wait();
+                    }
+                }
+            }
+            finally
+            {   //  Requeue all incompleted or faulted tasks so they can be observed
+                foreach (var task in incompletedTasks)
+                {
+                    _dataMaintenanceSubTasks.Enqueue(task);
+                }
             }
         }
 
         private void DataMaintanceIteration()
         {
-            var doPersistEverything = _persistEverythingSource != null;
-
-            while (!_dataMaintenanceStopSource.Task.IsCompleted)
+            try
             {
-                var cache = MergeTransactionLogs();
+                var doPersistEverything = _persistEverythingSource != null;
 
-                {   //  We're done
-                    _persistEverythingSource?.SetResult();
+                while (!_dataMaintenanceStopSource.Task.IsCompleted)
+                {
+                    var state = MergeTransactionLogs();
 
-                    return;
+                    if (!PersistOldRecords(state))
+                    {   //  We're done
+                        _persistEverythingSource?.TrySetResult();
+
+                        return;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                _persistEverythingSource?.TrySetException(ex);
             }
         }
 
-        private DatabaseCache MergeTransactionLogs()
+        private DatabaseState MergeTransactionLogs()
         {
             var isChanging = false;
 
@@ -326,8 +368,13 @@ namespace Ipdb.Lib2
             }
             else
             {   //  Here we should have only one transaction log
-                return newState.DatabaseCache;
+                return newState;
             }
+        }
+
+        private bool PersistOldRecords(DatabaseState state)
+        {
+            throw new NotImplementedException();
         }
     }
     #endregion

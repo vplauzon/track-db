@@ -5,10 +5,11 @@ using System.Linq;
 namespace Ipdb.Lib2.Cache
 {
     internal record ImmutableTableTransactionLogs(
-        IImmutableList<ImmutableTableTransactionLog> Logs)
+        IImmutableList<ImmutableTableTransactionLog> Logs,
+        int SerializedSize)
     {
         public ImmutableTableTransactionLogs()
-            : this(ImmutableArray<ImmutableTableTransactionLog>.Empty)
+            : this(ImmutableArray<ImmutableTableTransactionLog>.Empty, 0)
         {
         }
 
@@ -33,7 +34,9 @@ namespace Ipdb.Lib2.Cache
                     newBlock,
                     newDeletedRecordIds.ToImmutableHashSet());
 
-                return new ImmutableTableTransactionLogs(new[] { newLog }.ToImmutableArray());
+                return new ImmutableTableTransactionLogs(
+                    new[] { newLog }.ToImmutableArray(),
+                    newBlock.Serialize().Length);
             }
             else
             {
