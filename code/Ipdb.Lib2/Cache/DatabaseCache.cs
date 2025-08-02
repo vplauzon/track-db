@@ -10,22 +10,22 @@ namespace Ipdb.Lib2.Cache
 {
     internal record DatabaseCache(
         StorageBlockMap StorageBlockMap,
-        IImmutableDictionary<string, IImmutableList<ImmutableTableTransactionLog>> TableTransactionLogs)
+        IImmutableDictionary<string, ImmutableTableTransactionLogs> TableTransactionLogsMap)
     {
         public DatabaseCache()
             :this(
                  StorageBlockMap.Empty,
-                 ImmutableDictionary<string, IImmutableList<ImmutableTableTransactionLog>>.Empty)
+                 ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
         {
         }
 
         public DatabaseCache CommitLog(TransactionLog transactionLog)
         {
-            var logs = ImmutableDictionary<string, IImmutableList<ImmutableTableTransactionLog>>
+            var logs = ImmutableDictionary<string, ImmutableTableTransactionLogs>
                 .Empty
                 .ToBuilder();
 
-            logs.AddRange(TableTransactionLogs);
+            logs.AddRange(TableTransactionLogsMap);
             foreach (var pair in transactionLog.TableTransactionLogMap)
             {
                 var tableName = pair.Key;
@@ -33,11 +33,13 @@ namespace Ipdb.Lib2.Cache
 
                 if (logs.ContainsKey(tableName))
                 {
-                    logs[tableName] = logs[tableName].Add(newTableTransactionLog.ToImmutable());
+                    logs[tableName] = new ImmutableTableTransactionLogs(
+                        logs[tableName].Logs.Add(newTableTransactionLog.ToImmutable()));
                 }
                 else
                 {
-                    logs[tableName] = new[] { newTableTransactionLog.ToImmutable() }.ToImmutableArray();
+                    logs[tableName] = new ImmutableTableTransactionLogs(
+                        new[] { newTableTransactionLog.ToImmutable() }.ToImmutableArray());
                 }
             }
 

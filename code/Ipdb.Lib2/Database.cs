@@ -299,29 +299,17 @@ namespace Ipdb.Lib2
                 var cache = state.DatabaseCache;
 
                 //  Merge one table at the time, to avoid racing conditions
-                foreach (var pair in cache.TableTransactionLogs)
+                foreach (var pair in cache.TableTransactionLogsMap)
                 {
                     var tableName = pair.Key;
                     var logs = pair.Value;
 
-                    if (logs.Count > 1)
+                    if (logs.Logs.Count > 1)
                     {
-                        var newBlock = new BlockBuilder(logs.First().InMemoryBlock.TableSchema);
-                        var newDeletedRecordIds = ImmutableHashSet<long>.Empty.ToBuilder();
-
-                        foreach (var log in logs)
-                        {
-                            newBlock.AppendBlock(log.InMemoryBlock);
-                            newDeletedRecordIds.UnionWith(log.DeletedRecordIds);
-                        }
-
-                        var newLog = new ImmutableTableTransactionLog(
-                            newBlock,
-                            newDeletedRecordIds.ToImmutableHashSet());
                         var newCache = new DatabaseCache(
                             cache.StorageBlockMap,
-                            cache.TableTransactionLogs
-                            .SetItem(tableName, new[] { newLog }.ToImmutableArray()));
+                            cache.TableTransactionLogsMap
+                            .SetItem(tableName, logs.MergeLogs()));
 
                         isChanging = true;
 
