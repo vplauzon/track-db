@@ -33,17 +33,28 @@ namespace Ipdb.Lib2.DbStorage
             _mappedFile.Dispose();
         }
 
-        public BlockWriter GetBlockWriter()
+        public byte[] ReadBlock(int blockId)
         {
-            return new BlockWriter(
-                BlockSize,
-                () =>
-                {
-                    var blockId = ReserveBlock();
-                    var viewAccessor = CreateViewAccessor(blockId, false);
+            using (var accessor = CreateViewAccessor(blockId, true))
+            {
+                var buffer = new byte[BLOCK_SIZE];
 
-                    return (blockId, viewAccessor);
-                });
+                accessor.ReadArray(0, buffer, 0, BLOCK_SIZE);
+
+                return buffer;
+            }
+        }
+
+        public int WriteBlock(byte[] buffer)
+        {
+            var blockId = ReserveBlock();
+
+            using (var accessor = CreateViewAccessor(blockId, true))
+            {
+                accessor.WriteArray(0, buffer, 0, BLOCK_SIZE);
+            }
+
+            return blockId;
         }
 
         public void ReleaseBlock(int blockId)

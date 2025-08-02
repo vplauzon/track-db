@@ -1,4 +1,5 @@
 ﻿using Ipdb.Lib2.Cache;
+using Ipdb.Lib2.DbStorage;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -16,6 +17,7 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database : IAsyncDisposable
     {
+        private readonly Lazy<StorageManager> _storageManager;
         private readonly IImmutableDictionary<string, Table> _tableMap
             = ImmutableDictionary<string, Table>.Empty;
         private long _recordId = 0;
@@ -24,6 +26,7 @@ namespace Ipdb.Lib2
         #region Constructors
         public Database(string databaseRootDirectory, params IEnumerable<TableSchema> schemas)
         {
+            _storageManager = new StorageManager(databaseRootDirectory);
             _tableMap = schemas
                 .Select(s => new
                 {
@@ -58,8 +61,15 @@ namespace Ipdb.Lib2
         }
         #endregion
 
+        internal StorageManager StorageManager => _storageManager.Value;
+
         ValueTask IAsyncDisposable.DisposeAsync()
         {
+            if (_storageManager.IsValueCreated)
+            {
+                ((IDisposable)_storageManager.Value).Dispose();
+            }
+
             return ValueTask.CompletedTask;
         }
 
