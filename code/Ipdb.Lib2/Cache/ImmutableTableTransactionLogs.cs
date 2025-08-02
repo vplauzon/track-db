@@ -25,6 +25,10 @@ namespace Ipdb.Lib2.Cache
                     newDeletedRecordIds.UnionWith(log.DeletedRecordIds);
                 }
 
+                var deletedRecordIds = newBlock.DeleteRecords(newDeletedRecordIds);
+
+                newDeletedRecordIds.ExceptWith(deletedRecordIds);
+
                 var newLog = new ImmutableTableTransactionLog(
                     newBlock,
                     newDeletedRecordIds.ToImmutableHashSet());

@@ -79,7 +79,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             DataColumns[record.Length].AppendValue(recordId);
         }
 
-        public IEnumerable<long> DeleteRecords(ImmutableList<long> recordIds)
+        /// <summary>Tries to delete records passed in.</summary>
+        /// <param name="recordIds"></param>
+        /// <returns>The deleted record IDs.</returns>
+        public IEnumerable<long> DeleteRecords(IEnumerable<long> recordIds)
         {
             var recordIdSet = recordIds.ToImmutableHashSet();
 
