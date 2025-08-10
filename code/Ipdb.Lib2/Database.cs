@@ -22,8 +22,9 @@ namespace Ipdb.Lib2
         private const int MAX_IN_MEMORY_SIZE = 5 * 4 * 1024;
 
         private readonly Lazy<StorageManager> _storageManager;
-        private readonly IImmutableDictionary<string, Table> _tableMap
-            = ImmutableDictionary<string, Table>.Empty;
+        private readonly IImmutableDictionary<string, Table> _userTableMap;
+        private readonly Table _tombstoneTable;
+        private readonly IImmutableDictionary<string, Table> _allTableMap;
         private readonly Task _dataMaintenanceTask;
         private readonly ConcurrentQueue<Task> _dataMaintenanceSubTasks = new();
         private readonly TaskCompletionSource _dataMaintenanceStopSource =
@@ -38,13 +39,29 @@ namespace Ipdb.Lib2
         {
             _storageManager =
                 new Lazy<StorageManager>(() => new StorageManager(Path.GetTempFileName()));
-            _tableMap = schemas
+            _userTableMap = schemas
                 .Select(s => new
                 {
                     Table = CreateTable(s),
                     s.TableName
                 })
                 .ToImmutableDictionary(o => o.TableName, o => o.Table);
+
+            var invalidTableName = _userTableMap.Keys.FirstOrDefault(name => name.Contains("$"));
+
+            if (invalidTableName != null)
+            {
+                throw new ArgumentException(
+                    $"Table name '{invalidTableName}' is invalid",
+                    nameof(schemas));
+            }
+            _tombstoneTable = new Table(this, new TableSchema(
+                "$tombstone",
+                [
+                    new ColumnSchema("RecordId", typeof(long))
+                ],
+                Array.Empty<int>()));
+            _allTableMap = _userTableMap.Add(_tombstoneTable.Schema.TableName, _tombstoneTable);
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -91,9 +108,9 @@ namespace Ipdb.Lib2
 
         public Table GetTable(string tableName)
         {
-            if (_tableMap.ContainsKey(tableName))
+            if (_userTableMap.ContainsKey(tableName))
             {
-                var table = _tableMap[tableName];
+                var table = _userTableMap[tableName];
 
                 return table;
             }
@@ -390,7 +407,7 @@ namespace Ipdb.Lib2
 
         private bool IsTooMuchCacheData(DatabaseState state)
         {
-            var totalSerializedSize = 
+            var totalSerializedSize =
                 state.DatabaseCache.TableTransactionLogsMap.Values.Sum(l => l.SerializedSize);
 
             return totalSerializedSize > MAX_IN_MEMORY_SIZE;

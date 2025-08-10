@@ -12,7 +12,7 @@ namespace Ipdb.Lib2
     public class TableSchema
     {
         private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
-            [typeof(int)];
+            [typeof(int), typeof(long)];
 
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
 
