@@ -19,6 +19,8 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database : IAsyncDisposable
     {
+        private const int MAX_IN_MEMORY_SIZE = 5 * 4 * 1024;
+
         private readonly Lazy<StorageManager> _storageManager;
         private readonly IImmutableDictionary<string, Table> _tableMap
             = ImmutableDictionary<string, Table>.Empty;
@@ -323,7 +325,7 @@ namespace Ipdb.Lib2
                 {
                     var state = MergeTransactionLogs();
 
-                    if (!PersistOldRecords(state))
+                    if (!PersistOldRecords(state, doPersistEverything))
                     {   //  We're done
                         _persistEverythingSource?.TrySetResult();
 
@@ -377,9 +379,22 @@ namespace Ipdb.Lib2
             }
         }
 
-        private bool PersistOldRecords(DatabaseState state)
+        private bool PersistOldRecords(DatabaseState state, bool doPersistEverything)
         {
-            throw new NotImplementedException();
+            if (doPersistEverything || IsTooMuchCacheData(state))
+            {
+                throw new NotImplementedException();
+            }
+
+            return false;
+        }
+
+        private bool IsTooMuchCacheData(DatabaseState state)
+        {
+            var totalSerializedSize = 
+                state.DatabaseCache.TableTransactionLogsMap.Values.Sum(l => l.SerializedSize);
+
+            return totalSerializedSize > MAX_IN_MEMORY_SIZE;
         }
     }
     #endregion
