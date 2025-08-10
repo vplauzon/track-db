@@ -356,7 +356,6 @@ namespace Ipdb.Lib2
                     if (logs.Logs.Count > 1)
                     {
                         var newCache = new DatabaseCache(
-                            cache.StorageBlockMap,
                             cache.TableTransactionLogsMap
                             .SetItem(tableName, logs.MergeLogs()));
 

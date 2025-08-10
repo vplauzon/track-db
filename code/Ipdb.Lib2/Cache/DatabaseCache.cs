@@ -1,5 +1,4 @@
-﻿using Ipdb.Lib2.DbStorage;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -9,13 +8,10 @@ using System.Threading.Tasks;
 namespace Ipdb.Lib2.Cache
 {
     internal record DatabaseCache(
-        StorageBlockMap StorageBlockMap,
         IImmutableDictionary<string, ImmutableTableTransactionLogs> TableTransactionLogsMap)
     {
         public DatabaseCache()
-            : this(
-                 StorageBlockMap.Empty,
-                 ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
+            : this(ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
         {
         }
 
@@ -46,7 +42,7 @@ namespace Ipdb.Lib2.Cache
                 }
             }
 
-            return new DatabaseCache(StorageBlockMap, logs.ToImmutableDictionary());
+            return new DatabaseCache(logs.ToImmutableDictionary());
         }
     }
 }
