@@ -11,6 +11,7 @@ namespace Ipdb.Lib2.DbStorage
         private const int BLOCK_SIZE = 4096;
         private const int INCREMENT_BLOCK_COUNT = 256;
 
+        private readonly string _filePath;
         private readonly MemoryMappedFile _mappedFile;
         private readonly Stack<int> _availableIds = new(
             Enumerable.Range(0, INCREMENT_BLOCK_COUNT).Reverse());
@@ -18,6 +19,7 @@ namespace Ipdb.Lib2.DbStorage
         #region Constructors
         public StorageManager(string filePath)
         {
+            _filePath = filePath;
             _mappedFile = MemoryMappedFile.CreateFromFile(
                 filePath,
                 FileMode.CreateNew,
@@ -31,6 +33,7 @@ namespace Ipdb.Lib2.DbStorage
         void IDisposable.Dispose()
         {
             _mappedFile.Dispose();
+            File.Delete(_filePath);
         }
 
         public byte[] ReadBlock(int blockId)

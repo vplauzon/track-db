@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -31,9 +32,10 @@ namespace Ipdb.Lib2
         private volatile DatabaseState _databaseState = new();
 
         #region Constructors
-        public Database(string databaseRootDirectory, params IEnumerable<TableSchema> schemas)
+        public Database(params IEnumerable<TableSchema> schemas)
         {
-            _storageManager = new Lazy<StorageManager>(() => new StorageManager(databaseRootDirectory));
+            _storageManager =
+                new Lazy<StorageManager>(() => new StorageManager(Path.GetTempFileName()));
             _tableMap = schemas
                 .Select(s => new
                 {
@@ -124,9 +126,12 @@ namespace Ipdb.Lib2
 
         internal async Task ForceDataManagementAsync(bool persistAll = false)
         {
-            _persistEverythingSource = new TaskCompletionSource();
-            _dataMaintenanceTriggerSource.TrySetResult();
-            await _persistEverythingSource.Task;
+            if (persistAll)
+            {
+                _persistEverythingSource = new TaskCompletionSource();
+                _dataMaintenanceTriggerSource.TrySetResult();
+                await _persistEverythingSource.Task;
+            }
         }
 
         #region Record IDs

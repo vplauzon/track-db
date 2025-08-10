@@ -13,11 +13,7 @@ namespace Ipdb.Tests2.DbTests
     {
         public DbTestTable(TypedTableSchema<T> schema)
         {
-            Database = new Database(
-                Path.Combine(
-                    Environment.GetEnvironmentVariable("DbRoot")!,
-                    $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss-fff}"),
-                schema);
+            Database = new Database(schema);
             Table = Database.GetTypedTable<T>(schema.TableName);
         }
 
