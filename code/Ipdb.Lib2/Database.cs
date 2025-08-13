@@ -1,4 +1,5 @@
 ﻿using Ipdb.Lib2.Cache;
+using Ipdb.Lib2.Cache.CachedBlock;
 using Ipdb.Lib2.DbStorage;
 using System;
 using System.Collections.Concurrent;
@@ -19,12 +20,15 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database : IAsyncDisposable
     {
+        #region MyRegion
+        private record TombstoneRow(long RecordId, long? BlockId, string TableName);
+        #endregion
+
         private const int MAX_IN_MEMORY_SIZE = 5 * 4 * 1024;
 
         private readonly Lazy<StorageManager> _storageManager;
         private readonly IImmutableDictionary<string, Table> _userTableMap;
-        private readonly Table _tombstoneTable;
-        private readonly IImmutableDictionary<string, Table> _allTableMap;
+        private readonly TypedTable<TombstoneRow> _tombstoneTable;
         private readonly Task _dataMaintenanceTask;
         private readonly ConcurrentQueue<Task> _dataMaintenanceSubTasks = new();
         private readonly TaskCompletionSource _dataMaintenanceStopSource =
@@ -55,13 +59,9 @@ namespace Ipdb.Lib2
                     $"Table name '{invalidTableName}' is invalid",
                     nameof(schemas));
             }
-            _tombstoneTable = new Table(this, new TableSchema(
-                "$tombstone",
-                [
-                    new ColumnSchema("RecordId", typeof(long))
-                ],
-                Array.Empty<int>()));
-            _allTableMap = _userTableMap.Add(_tombstoneTable.Schema.TableName, _tombstoneTable);
+            _tombstoneTable = new TypedTable<TombstoneRow>(
+                this,
+                TypedTableSchema<TombstoneRow>.FromConstructor("$tombstone"));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -174,13 +174,27 @@ namespace Ipdb.Lib2
         {
             ObserveSubTasks();
 
-            var transactionContext = new TransactionContext(this);
+            var transactionContext = new TransactionContext(
+                this,
+                transactionId =>
+                {
+                    if (_databaseState.TransactionMap.TryGetValue(transactionId, out var transaction))
+                    {
+                        return transaction;
+                    }
+                    else
+                    {
+                        throw new ArgumentException(
+                            "Transaction ID can't be found in database state",
+                            nameof(transactionId));
+                    }
+                });
 
             ChangeDatabaseState(currentDbState =>
             {
                 var newTransactionMap = currentDbState.TransactionMap.Add(
                     transactionContext.TransactionId,
-                    new TransactionCache(
+                    new TransactionState(
                         currentDbState.DatabaseCache,
                         new TransactionLog()));
 
@@ -192,7 +206,7 @@ namespace Ipdb.Lib2
 
         internal void ExecuteWithinTransactionContext(
             TransactionContext? transactionContext,
-            Action<TransactionCache> action)
+            Action<TransactionContext> action)
         {
             ExecuteWithinTransactionContext(
                 transactionContext,
@@ -206,7 +220,7 @@ namespace Ipdb.Lib2
 
         internal T ExecuteWithinTransactionContext<T>(
             TransactionContext? transactionContext,
-            Func<TransactionCache, T> func)
+            Func<TransactionContext, T> func)
         {
             var temporaryTransactionContext = transactionContext == null
                 ? CreateTransaction()
@@ -214,10 +228,8 @@ namespace Ipdb.Lib2
 
             try
             {
-                var transactionId = transactionContext?.TransactionId
-                    ?? temporaryTransactionContext!.TransactionId;
-                var transactionCache = _databaseState.TransactionMap[transactionId];
-                var result = func(transactionCache);
+                var actualTransactionContext = transactionContext ?? temporaryTransactionContext;
+                var result = func(actualTransactionContext!);
 
                 temporaryTransactionContext?.Complete();
 
@@ -227,6 +239,30 @@ namespace Ipdb.Lib2
             {
                 temporaryTransactionContext?.Rollback();
                 throw;
+            }
+        }
+
+        internal IEnumerable<T> EnumeratesWithinTransactionContext<T>(
+            TransactionContext? transactionContext,
+            Func<TransactionContext, IEnumerable<T>> func)
+        {
+            var temporaryTransactionContext = transactionContext == null
+                ? CreateTransaction()
+                : null;
+
+            try
+            {
+                var actualTransactionContext = transactionContext ?? temporaryTransactionContext;
+                var results = func(actualTransactionContext!);
+
+                foreach (var result in results)
+                {
+                    yield return result;
+                }
+            }
+            finally
+            {
+                temporaryTransactionContext?.Rollback();
             }
         }
 
@@ -281,6 +317,31 @@ namespace Ipdb.Lib2
             {   //  Exchange fail, we retry
                 return ChangeDatabaseState(stateChange);
             }
+        }
+        #endregion
+
+        #region Tombstone
+        internal void DeleteRecords(
+            IEnumerable<long> recordIds,
+            long? blockId,
+            string tableName,
+            TransactionContext transactionContext)
+        {
+            var tombstoneRows = recordIds
+                .Select(id => new TombstoneRow(id, blockId, tableName));
+
+            _tombstoneTable.AppendRecords(tombstoneRows, transactionContext);
+        }
+
+        internal IEnumerable<long> GetDeletedRecordIds(
+            string tableName,
+            TransactionContext transactionContext)
+        {
+            return tableName != _tombstoneTable.Schema.TableName
+                ? _tombstoneTable.Query(transactionContext)
+                .Where(ts => ts.TableName == tableName)
+                .Select(ts => ts.RecordId)
+                : Array.Empty<long>();
         }
         #endregion
 
@@ -340,7 +401,7 @@ namespace Ipdb.Lib2
 
                 while (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    var state = MergeTransactionLogs();
+                    var state = MergeTransactionLogsToCanonical();
 
                     if (!PersistOldRecords(state, doPersistEverything))
                     {   //  We're done
@@ -356,43 +417,106 @@ namespace Ipdb.Lib2
             }
         }
 
-        private DatabaseState MergeTransactionLogs()
+        private DatabaseState MergeTransactionLogsToCanonical()
         {
-            var isChanging = false;
+            var newState = MergeTransactionLogs();
 
-            var newState = ChangeDatabaseState(state =>
+            if (newState.DatabaseCache.TableTransactionLogsMap.Values.All(
+                l => l.InMemoryBlocks.Count() == 1))
             {
-                var cache = state.DatabaseCache;
-
-                //  Merge one table at the time, to avoid racing conditions
-                foreach (var pair in cache.TableTransactionLogsMap)
-                {
-                    var tableName = pair.Key;
-                    var logs = pair.Value;
-
-                    if (logs.Logs.Count > 1)
-                    {
-                        var newCache = new DatabaseCache(
-                            cache.TableTransactionLogsMap
-                            .SetItem(tableName, logs.MergeLogs()));
-
-                        isChanging = true;
-
-                        return new DatabaseState(newCache, state.TransactionMap);
-                    }
-                }
-
-                return state;
-            });
-
-            if (isChanging)
-            {
-                return MergeTransactionLogs();
-            }
-            else
-            {   //  Here we should have only one transaction log
                 return newState;
             }
+            else
+            {
+                return MergeTransactionLogsToCanonical();
+            }
+        }
+
+        private DatabaseState MergeTransactionLogs()
+        {
+            using (var transactionContext = CreateTransaction())
+            {
+                var mergedCache = new DatabaseCache(MergeTransactionLogs(transactionContext));
+                //  Push merges to db state
+                var newState = ChangeDatabaseState(state =>
+                {
+                    var currentCache = state.DatabaseCache;
+                    var truncatedCache =
+                        currentCache.RemovePrefixes(transactionContext.TransactionState.DatabaseCache);
+                    var resultingCache = mergedCache.Append(truncatedCache);
+
+                    return new DatabaseState(resultingCache, state.TransactionMap);
+                });
+
+                transactionContext.Complete();
+
+                return newState;
+            }
+        }
+
+        private IImmutableDictionary<string, ImmutableTableTransactionLogs> MergeTransactionLogs(
+            TransactionContext transactionContext)
+        {
+            var initialMap = transactionContext.TransactionState.DatabaseCache.TableTransactionLogsMap;
+            var mapBuilder = ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty.ToBuilder();
+            var actuallyDeletedRecordIds = new List<long>();
+
+            //  Merge all tables but delete
+            foreach (var pair in initialMap.Remove(_tombstoneTable.Schema.TableName))
+            {
+                var tableName = pair.Key;
+                var logs = pair.Value;
+                var deletedRecordIds = GetDeletedRecordIds(tableName, transactionContext)
+                    .ToImmutableArray();
+
+                if (logs.InMemoryBlocks.Count > 1 || deletedRecordIds.Any())
+                {
+                    var blockBuilder = logs.MergeLogs();
+
+                    actuallyDeletedRecordIds.AddRange(
+                        blockBuilder.DeleteRecords(deletedRecordIds));
+                    if (((IBlock)blockBuilder).RecordCount > 0)
+                    {
+                        mapBuilder.Add(tableName, new ImmutableTableTransactionLogs(blockBuilder));
+                    }
+                }
+                else
+                {
+                    mapBuilder.Add(tableName, logs);
+                }
+            }
+            //  Process tombstone table
+            if (transactionContext.TransactionState.DatabaseCache.TableTransactionLogsMap.TryGetValue(
+                _tombstoneTable.Schema.TableName,
+                out var tombstoneLogs))
+            {
+                if (tombstoneLogs.InMemoryBlocks.Count > 1 || actuallyDeletedRecordIds.Any())
+                {
+                    var blockBuilder = tombstoneLogs.MergeLogs();
+
+                    actuallyDeletedRecordIds.AddRange(
+                        blockBuilder.DeleteRecords(actuallyDeletedRecordIds));
+                    if (((IBlock)blockBuilder).RecordCount > 0)
+                    {
+                        mapBuilder.Add(
+                            _tombstoneTable.Schema.TableName,
+                            new ImmutableTableTransactionLogs(blockBuilder));
+                    }
+                }
+                else
+                {
+                    mapBuilder.Add(_tombstoneTable.Schema.TableName, tombstoneLogs);
+                }
+            }
+            //  Validate no unpersisted delete in tombstone
+            if (_tombstoneTable.Query()
+                .Where(ts => ts.BlockId == null)
+                .Count() > 0)
+            {
+                throw new InvalidOperationException("Tombstone is corrupted after merge");
+            }
+
+            return mapBuilder.ToImmutableDictionary();
         }
 
         private bool PersistOldRecords(DatabaseState state, bool doPersistEverything)
@@ -408,7 +532,7 @@ namespace Ipdb.Lib2
         private bool IsTooMuchCacheData(DatabaseState state)
         {
             var totalSerializedSize =
-                state.DatabaseCache.TableTransactionLogsMap.Values.Sum(l => l.SerializedSize);
+                state.DatabaseCache.TableTransactionLogsMap.Values.Sum(l => l.SerializedSize.Value);
 
             return totalSerializedSize > MAX_IN_MEMORY_SIZE;
         }

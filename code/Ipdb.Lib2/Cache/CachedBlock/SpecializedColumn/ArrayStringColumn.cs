@@ -6,25 +6,23 @@ using System.Data;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
-    internal class ArrayLongColumn : PrimitiveArrayCachedColumnBase<long>
+    internal class ArrayStringColumn : PrimitiveArrayCachedColumnBase<string?>
     {
-        public ArrayLongColumn(bool allowNull, int capacity)
+        public ArrayStringColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)
         {
         }
 
-        protected override long NullValue => long.MinValue;
+        protected override string? NullValue => null;
 
-        protected override object? GetObjectData(long data)
+        protected override object? GetObjectData(string? data)
         {
-            return data == int.MinValue
-                ? null
-                : (object)data;
+            return data;
         }
 
         protected override void FilterInternal(
-            long value,
-            ReadOnlySpan<long> storedValues,
+            string? value,
+            ReadOnlySpan<string?> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<short>.Builder matchBuilder)
         {
@@ -51,7 +49,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.LessThan:
                     for (short i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] < value)
+                        if (storedValues[i]?.CompareTo(value) < 0)
                         {
                             matchBuilder.Add(i);
                         }
@@ -60,7 +58,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.LessThanOrEqual:
                     for (short i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] <= value)
+                        if (storedValues[i]?.CompareTo(value) <= 0)
                         {
                             matchBuilder.Add(i);
                         }
@@ -69,7 +67,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.GreaterThan:
                     for (short i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] > value)
+                        if (storedValues[i]?.CompareTo(value) > 0)
                         {
                             matchBuilder.Add(i);
                         }
@@ -78,7 +76,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.GreaterThanOrEqual:
                     for (short i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] >= value)
+                        if (storedValues[i]?.CompareTo(value) >= 0)
                         {
                             matchBuilder.Add(i);
                         }

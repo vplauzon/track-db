@@ -56,16 +56,16 @@ namespace Ipdb.Lib2
         {
             _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
-                transactionCache =>
+                tc =>
                 {
                     if (_takeCount != 0)
                     {
-                        transactionCache.UncommittedTransactionLog.TableTransactionLogMap.TryGetValue(
+                        tc.TransactionState.UncommittedTransactionLog.TableBlockBuilderMap.TryGetValue(
                             _table.Schema.TableName,
-                            out var uncommittedLog);
+                            out var blockBuilder);
 
                         var deletedRecordIds = ExecuteQuery(
-                            transactionCache,
+                            tc,
                             //  Fetch only the record ID
                             [_table.Schema.Columns.Count],
                             (block, result) =>
@@ -73,17 +73,18 @@ namespace Ipdb.Lib2
                                 return (long)result.Span[0]!;
                             })
                         .ToImmutableList();
-                        var uncommittedBlock = uncommittedLog?.BlockBuilder;
-                        var uncommittedDeletedRecordIds = uncommittedBlock
+                        var uncommittedDeletedRecordIds = blockBuilder
                         ?.DeleteRecords(deletedRecordIds)
                         .ToImmutableHashSet();
                         var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
                         ? deletedRecordIds
                         : deletedRecordIds.Where(id => !uncommittedDeletedRecordIds.Contains(id));
 
-                        transactionCache.UncommittedTransactionLog.DeleteRecordIds(
+                        _table.Database.DeleteRecords(
                             committedDeletedRecordIds,
-                            _table.Schema);
+                            null,
+                            _table.Schema.TableName,
+                            tc);
                     }
                 });
         }
@@ -91,9 +92,9 @@ namespace Ipdb.Lib2
         #region Query internals
         private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery()
         {
-            var results = _table.Database.ExecuteWithinTransactionContext(
+            var results = _table.Database.EnumeratesWithinTransactionContext(
                 _transactionContext,
-                transactionCache =>
+                tc =>
                 {
                     if (_takeCount == 0)
                     {
@@ -102,7 +103,7 @@ namespace Ipdb.Lib2
                     else
                     {
                         return ExecuteQuery(
-                            transactionCache,
+                            tc,
                             _projectionColumnIndexes,
                             (block, result) =>
                             {
@@ -115,12 +116,15 @@ namespace Ipdb.Lib2
         }
 
         private IEnumerable<U> ExecuteQuery<U>(
-            TransactionCache transactionCache,
+            TransactionContext transactionContext,
             IEnumerable<int> projectionColumnIndexes,
             Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
         {
+            var transactionCache = transactionContext.TransactionState;
             var takeCount = _takeCount ?? int.MaxValue;
-            var deletedRecordIds = transactionCache.ListDeletedRecordIds(_table.Schema.TableName)
+            var deletedRecordIds = _table.Database.GetDeletedRecordIds(
+                _table.Schema.TableName,
+                transactionContext)
                 .ToImmutableHashSet();
 
             foreach (var block in ListBlocks(transactionCache))
@@ -158,7 +162,7 @@ namespace Ipdb.Lib2
             }
         }
 
-        private IEnumerable<IBlock> ListBlocks(TransactionCache transactionCache)
+        private IEnumerable<IBlock> ListBlocks(TransactionState transactionCache)
         {
             foreach (var block in transactionCache.ListTransactionLogBlocks(_table.Schema.TableName))
             {

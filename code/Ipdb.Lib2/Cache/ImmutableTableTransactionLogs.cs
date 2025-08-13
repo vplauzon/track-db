@@ -1,47 +1,44 @@
 ﻿using Ipdb.Lib2.Cache.CachedBlock;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 
 namespace Ipdb.Lib2.Cache
 {
     internal record ImmutableTableTransactionLogs(
-        IImmutableList<ImmutableTableTransactionLog> Logs,
-        int SerializedSize)
+        IImmutableList<IBlock> InMemoryBlocks,
+        Lazy<int> SerializedSize)
     {
         public ImmutableTableTransactionLogs()
-            : this(ImmutableArray<ImmutableTableTransactionLog>.Empty, 0)
+            : this(ImmutableArray<IBlock>.Empty, new Lazy<int>(0))
         {
         }
 
-        public ImmutableTableTransactionLogs MergeLogs()
+        public ImmutableTableTransactionLogs(BlockBuilder blockBuilder)
+            : this(
+                  new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray(),
+                  new Lazy<int>(
+                      () => blockBuilder.Serialize().Length,
+                      LazyThreadSafetyMode.ExecutionAndPublication))
         {
-            if (Logs.Count > 1)
+        }
+
+        public BlockBuilder MergeLogs()
+        {
+            if (!InMemoryBlocks.Any())
             {
-                var newBlock = new BlockBuilder(Logs.First().InMemoryBlock.TableSchema);
-                var newDeletedRecordIds = ImmutableHashSet<long>.Empty.ToBuilder();
-
-                foreach (var log in Logs)
-                {
-                    newBlock.AppendBlock(log.InMemoryBlock);
-                    newDeletedRecordIds.UnionWith(log.DeletedRecordIds);
-                }
-
-                var deletedRecordIds = newBlock.DeleteRecords(newDeletedRecordIds);
-
-                newDeletedRecordIds.ExceptWith(deletedRecordIds);
-
-                var newLog = new ImmutableTableTransactionLog(
-                    newBlock,
-                    newDeletedRecordIds.ToImmutableHashSet());
-
-                return new ImmutableTableTransactionLogs(
-                    new[] { newLog }.ToImmutableArray(),
-                    newBlock.Serialize().Length);
+                throw new InvalidOperationException("No in memory blocks to merge");
             }
-            else
+
+            var newBlock = new BlockBuilder(InMemoryBlocks.First().TableSchema);
+
+            foreach (var block in InMemoryBlocks)
             {
-                return this;
+                newBlock.AppendBlock(block);
             }
+
+            return newBlock;
         }
     }
 }

@@ -1,5 +1,4 @@
-﻿using Ipdb.Lib2.Cache;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -23,9 +22,9 @@ namespace Ipdb.Lib2
         {
             Database.ExecuteWithinTransactionContext(
                 transactionContext,
-                transactionCache =>
+                tc =>
                 {
-                    AppendRecordInternal(record, transactionCache);
+                    AppendRecordInternal(record, tc);
                 });
         }
 
@@ -35,20 +34,20 @@ namespace Ipdb.Lib2
         {
             Database.ExecuteWithinTransactionContext(
                 transactionContext,
-                transactionCache =>
+                tc =>
                 {
                     foreach (var record in records)
                     {
-                        AppendRecordInternal(record, transactionCache);
+                        AppendRecordInternal(record, tc);
                     }
                 });
         }
 
-        private void AppendRecordInternal(T record, TransactionCache transactionCache)
+        private void AppendRecordInternal(T record, TransactionContext transactionContext)
         {
             var columns = Schema.FromObjectToColumns(record);
 
-            transactionCache.UncommittedTransactionLog.AppendRecord(
+            transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
                 Database.NewRecordId(),
                 columns,
                 Schema);

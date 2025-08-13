@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib2.Cache;
+using System;
 using System.Threading;
 
 namespace Ipdb.Lib2
@@ -6,7 +7,7 @@ namespace Ipdb.Lib2
     public class TransactionContext : IDisposable
     {
         #region Inner types
-        private enum TransactionState
+        private enum TransactionStatus
         {
             Open,
             Complete,
@@ -17,19 +18,25 @@ namespace Ipdb.Lib2
         private static long _nextTransactionId = 0;
 
         private readonly Database _database;
-        private TransactionState _state = TransactionState.Open;
+        private readonly Func<long, TransactionState> _cacheResolutionFunc;
+        private TransactionStatus _state = TransactionStatus.Open;
 
-        internal TransactionContext(Database database)
+        internal TransactionContext(
+            Database database,
+            Func<long, TransactionState> cacheResolutionFunc)
         {
-            TransactionId = Interlocked.Increment(ref _nextTransactionId);
             _database = database;
+            _cacheResolutionFunc = cacheResolutionFunc;
+            TransactionId = Interlocked.Increment(ref _nextTransactionId);
         }
 
         public long TransactionId { get; }
 
+        internal TransactionState TransactionState => _cacheResolutionFunc(TransactionId);
+
         void IDisposable.Dispose()
         {
-            if (_state == TransactionState.Open)
+            if (_state == TransactionStatus.Open)
             {
                 Rollback();
             }
@@ -37,9 +44,9 @@ namespace Ipdb.Lib2
 
         public void Complete()
         {
-            if (_state == TransactionState.Open)
+            if (_state == TransactionStatus.Open)
             {
-                _state = TransactionState.Complete;
+                _state = TransactionStatus.Complete;
                 _database.CompleteTransaction(TransactionId);
             }
             else
@@ -51,9 +58,9 @@ namespace Ipdb.Lib2
 
         public void Rollback()
         {
-            if (_state == TransactionState.Open)
+            if (_state == TransactionStatus.Open)
             {
-                _state = TransactionState.Cancelled;
+                _state = TransactionStatus.Cancelled;
                 _database.RollbackTransaction(TransactionId);
             }
             else

@@ -13,13 +13,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
     /// </summary>
     /// <typeparam name="T"></typeparam>
     internal abstract class PrimitiveArrayCachedColumnBase<T> : IDataColumn
-        where T : struct, IEquatable<T>, IComparable<T>
     {
         private T[] _array;
         private int _itemCount = 0;
 
-        protected PrimitiveArrayCachedColumnBase(int capacity)
+        protected PrimitiveArrayCachedColumnBase(bool allowNull, int capacity)
         {
+            AllowNull = allowNull;
             _array = new T[Math.Min(10, capacity)];
         }
 
@@ -75,7 +75,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         void IDataColumn.AppendValue(object? value)
         {
             var strongValue = value == null
-                ? NullValue
+                ? (AllowNull ? NullValue : throw new ArgumentNullException(nameof(value)))
                 : (T)value;
 
             if (_array.Length <= _itemCount)
@@ -108,6 +108,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _itemCount -= offset;
         }
         #endregion
+
+        protected bool AllowNull { get; }
 
         protected abstract T NullValue { get; }
 

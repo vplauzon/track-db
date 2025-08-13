@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib2.Cache.CachedBlock;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -6,31 +7,24 @@ using System.Linq;
 namespace Ipdb.Lib2.Cache
 {
     internal record TransactionLog(
-        ImmutableDictionary<string, TableTransactionLog>.Builder TableTransactionLogMap)
+        ImmutableDictionary<string, BlockBuilder>.Builder TableBlockBuilderMap)
     {
         public TransactionLog()
-            : this(ImmutableDictionary<string, TableTransactionLog>.Empty.ToBuilder())
+            : this(ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder())
         {
         }
 
-        public bool IsEmpty => TableTransactionLogMap.Values.All(t => t.IsEmpty);
+        public bool IsEmpty => TableBlockBuilderMap.Values
+            .Cast<IBlock>()
+            .All(t => t.RecordCount == 0);
 
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
         {
-            if (!TableTransactionLogMap.ContainsKey(schema.TableName))
+            if (!TableBlockBuilderMap.ContainsKey(schema.TableName))
             {
-                TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
+                TableBlockBuilderMap.Add(schema.TableName, new BlockBuilder(schema));
             }
-            TableTransactionLogMap[schema.TableName].AppendRecord(recordId, record);
-        }
-
-        public void DeleteRecordIds(IEnumerable<long> recordIds, TableSchema schema)
-        {
-            if (!TableTransactionLogMap.ContainsKey(schema.TableName))
-            {
-                TableTransactionLogMap.Add(schema.TableName, new TableTransactionLog(schema));
-            }
-            TableTransactionLogMap[schema.TableName].DeleteRecordIds(recordIds);
+            TableBlockBuilderMap[schema.TableName].AppendRecord(recordId, record);
         }
     }
 }

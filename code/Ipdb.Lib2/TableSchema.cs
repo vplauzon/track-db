@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ipdb.Lib2.Cache.CachedBlock;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -11,9 +12,6 @@ namespace Ipdb.Lib2
     /// </summary>
     public class TableSchema
     {
-        private static readonly IImmutableSet<Type> SUPPORTED_COLUMN_TYPES =
-            [typeof(int), typeof(long)];
-
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
 
         public TableSchema(
@@ -23,7 +21,7 @@ namespace Ipdb.Lib2
         {
             //  Validate column types
             var unsupportedColumns = columns
-                .Where(c => !SUPPORTED_COLUMN_TYPES.Contains(c.ColumnType));
+                .Where(c => !BlockBuilder.SupportedDataColumnTypes.Contains(c.ColumnType));
 
             if (unsupportedColumns.Any())
             {

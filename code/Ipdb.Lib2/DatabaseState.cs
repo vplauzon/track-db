@@ -17,12 +17,12 @@ namespace Ipdb.Lib2
     /// <param name="TransactionMap"></param>
     internal record DatabaseState(
         DatabaseCache DatabaseCache,
-        IImmutableDictionary<long, TransactionCache> TransactionMap)
+        IImmutableDictionary<long, TransactionState> TransactionMap)
     {
         public DatabaseState()
             : this(
                   new DatabaseCache(),
-                  ImmutableDictionary<long, TransactionCache>.Empty)
+                  ImmutableDictionary<long, TransactionState>.Empty)
         {
         }
     }
