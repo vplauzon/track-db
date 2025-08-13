@@ -534,8 +534,8 @@ namespace Ipdb.Lib2
 
         private bool IsTooMuchCacheData(DatabaseState state)
         {
-            var totalSerializedSize =
-                state.DatabaseCache.TableTransactionLogsMap.Values.Sum(l => l.SerializedSize.Value);
+            var totalSerializedSize = state.DatabaseCache.TableTransactionLogsMap.Values.Sum(
+                l => l.SerializedSize.Value);
 
             return totalSerializedSize > MAX_IN_MEMORY_SIZE;
         }

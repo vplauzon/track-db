@@ -57,9 +57,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         protected new IImmutableList<IDataColumn> DataColumns { get; }
 
         #region Writable block methods
-        public byte[] Serialize()
+        public SerializedBlock Serialize()
         {
-            return new byte[10];
+            throw new NotImplementedException();
         }
 
         public void AppendBlock(IBlock block)

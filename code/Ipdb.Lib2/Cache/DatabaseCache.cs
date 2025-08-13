@@ -42,7 +42,7 @@ namespace Ipdb.Lib2.Cache
                     logs[tableName] = new ImmutableTableTransactionLogs(
                         new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray(),
                         new Lazy<int>(
-                            () => blockBuilder.Serialize().Length,
+                            () => blockBuilder.Serialize().Payload.Length,
                             LazyThreadSafetyMode.ExecutionAndPublication));
                 }
             }

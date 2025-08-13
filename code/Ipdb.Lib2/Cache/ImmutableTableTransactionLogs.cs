@@ -19,7 +19,7 @@ namespace Ipdb.Lib2.Cache
             : this(
                   new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray(),
                   new Lazy<int>(
-                      () => blockBuilder.Serialize().Length,
+                      () => blockBuilder.Serialize().Payload.Length,
                       LazyThreadSafetyMode.ExecutionAndPublication))
         {
         }
