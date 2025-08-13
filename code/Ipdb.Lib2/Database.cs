@@ -154,12 +154,12 @@ namespace Ipdb.Lib2
         }
 
         #region Record IDs
-        public long NewRecordId()
+        internal long NewRecordId()
         {
             return Interlocked.Increment(ref _recordId);
         }
 
-        public IImmutableList<long> NewRecordIds(int recordCount)
+        internal IImmutableList<long> NewRecordIds(int recordCount)
         {
             var nextId = Interlocked.Add(ref _recordId, recordCount);
 
@@ -417,6 +417,7 @@ namespace Ipdb.Lib2
             }
         }
 
+        #region Merge Transaction Logs
         private DatabaseState MergeTransactionLogsToCanonical()
         {
             var newState = MergeTransactionLogs();
@@ -518,7 +519,9 @@ namespace Ipdb.Lib2
 
             return mapBuilder.ToImmutableDictionary();
         }
+        #endregion
 
+        #region Persist old records
         private bool PersistOldRecords(DatabaseState state, bool doPersistEverything)
         {
             if (doPersistEverything || IsTooMuchCacheData(state))
@@ -536,6 +539,7 @@ namespace Ipdb.Lib2
 
             return totalSerializedSize > MAX_IN_MEMORY_SIZE;
         }
+        #endregion
     }
     #endregion
 }
