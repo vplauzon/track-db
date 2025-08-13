@@ -9,16 +9,19 @@ namespace Ipdb.Tests2.DbTests
     public class QueryTest
     {
         [Theory]
-        [InlineData(false)]
-        //[InlineData(true)]
-        public async Task IntOnly(bool doPushPendingData)
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task IntOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var testTable = DbTestTables.CreateIntOnly())
             {
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(1));
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData1);
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(2));
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(3));
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData2);
 
                 var resultsAll = testTable.Table.Query()
                     .ToImmutableList();

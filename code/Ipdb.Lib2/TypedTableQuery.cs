@@ -78,7 +78,9 @@ namespace Ipdb.Lib2
 
         public long Count()
         {
-            throw new NotImplementedException();
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+
+            return tableQuery.Count();
         }
 
         public void Delete()

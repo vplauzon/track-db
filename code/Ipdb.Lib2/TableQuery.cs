@@ -38,18 +38,27 @@ namespace Ipdb.Lib2
         #region IEnumerator<T>
         IEnumerator<ReadOnlyMemory<object?>> IEnumerable<ReadOnlyMemory<object?>>.GetEnumerator()
         {
-            return ExecuteQuery().GetEnumerator();
+            return ExecuteQuery(_projectionColumnIndexes).GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ExecuteQuery().GetEnumerator();
+            return ExecuteQuery(_projectionColumnIndexes).GetEnumerator();
         }
         #endregion
 
         public long Count()
         {
-            throw new NotImplementedException();
+            //  Project no columns
+            var items = ExecuteQuery(Array.Empty<int>());
+            var count = (long)0;
+
+            foreach (var item in items)
+            {
+                ++count;
+            }
+
+            return count;
         }
 
         public void Delete()
@@ -90,7 +99,8 @@ namespace Ipdb.Lib2
         }
 
         #region Query internals
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery()
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
+            IEnumerable<int> projectionColumnIndexes)
         {
             var results = _table.Database.EnumeratesWithinTransactionContext(
                 _transactionContext,
@@ -104,7 +114,7 @@ namespace Ipdb.Lib2
                     {
                         return ExecuteQuery(
                             tc,
-                            _projectionColumnIndexes,
+                            projectionColumnIndexes,
                             (block, result) =>
                             {
                                 return result;
