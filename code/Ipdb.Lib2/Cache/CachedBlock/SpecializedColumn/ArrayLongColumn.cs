@@ -89,5 +89,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                         $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
             }
         }
+
+        protected override SerializedColumn Serialize(ReadOnlyMemory<long> storedValues)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

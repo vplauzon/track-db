@@ -2,7 +2,6 @@ using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Data;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
@@ -86,6 +85,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     throw new NotSupportedException(
                         $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
             }
+        }
+
+        protected override SerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
+        {
+            throw new NotImplementedException();
         }
     }
 }

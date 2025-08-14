@@ -9,4 +9,8 @@
     <Version>0.0.1.0</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="EasyCompressor.ZstdSharp" Version="2.1.0" />
+  </ItemGroup>
+
 </Project>

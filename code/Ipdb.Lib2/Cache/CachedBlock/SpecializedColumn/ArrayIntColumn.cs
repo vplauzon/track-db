@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
@@ -88,6 +89,15 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     throw new NotSupportedException(
                         $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
             }
+        }
+
+        protected override SerializedColumn Serialize(ReadOnlyMemory<int> storedValues)
+        {
+            var values = Enumerable.Range(0, storedValues.Length)
+                .Select(i => storedValues.Span[i])
+                .Select(v => v == NullValue ? null : (long?)v);
+
+            return Int64Codec.Compress(values);
         }
     }
 }

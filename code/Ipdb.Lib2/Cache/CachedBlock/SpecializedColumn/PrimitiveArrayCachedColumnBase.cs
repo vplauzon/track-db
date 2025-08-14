@@ -107,6 +107,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             }
             _itemCount -= offset;
         }
+
+        SerializedColumn IDataColumn.Serialize()
+        {
+            return Serialize(new ReadOnlyMemory<T>(_array, 0, _itemCount));
+        }
         #endregion
 
         protected bool AllowNull { get; }
@@ -120,5 +125,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<short>.Builder matchBuilder);
+
+        protected abstract SerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
     }
 }
