@@ -21,8 +21,4 @@
     <ProjectReference Include="..\Ipdb.Lib2\Ipdb.Lib2.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Codecs\" />
-  </ItemGroup>
-
 </Project>
