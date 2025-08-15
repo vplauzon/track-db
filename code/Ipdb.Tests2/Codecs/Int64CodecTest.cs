@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2
+namespace Ipdb.Tests2.Codecs
 {
     public class Int64CodecTest
     {
