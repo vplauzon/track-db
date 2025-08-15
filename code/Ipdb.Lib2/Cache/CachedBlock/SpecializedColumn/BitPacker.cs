@@ -9,28 +9,30 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
     internal static class BitPacker
     {
         /// <summary>
-        /// Packs a sequence of <see cref="long"/>s.  Each item is encoded into a sequence of bits.
+        /// Packs a sequence of <see cref="ulong"/>s.  Each item is encoded into a sequence of bits.
         /// Number of bits per item is dictated by the range of value, which is 0 to
         /// <paramref name="maximumValue"/>.
         /// </summary>
         /// <param name="data">
-        /// Sequence of <see cref="long"/> items with minimum value of 0 and maximum value of
+        /// Sequence of <see cref="ulong"/> items with minimum value of 0 and maximum value of
         /// <paramref name="maximumValue"/>.
         /// </param>
         /// <param name="dataCount">The number of items in <paramref name="data"/>.</param>
         /// <param name="maximumValue">Maximum value in <paramref name="data"/>.</param>
         /// <returns>Byte array of bit-packed representation of <paramref name="data"/>.</returns>
-        public static byte[] Pack(IEnumerable<long> data, int dataCount, long maximumValue)
+        public static byte[] Pack(IEnumerable<ulong> data, int dataCount, ulong maximumValue)
         {
             // Calculate number of bits needed per value
-            var bitsPerValue = (int)Math.Ceiling(Math.Log2(maximumValue + 1));
+            var bitsPerValue = maximumValue == ulong.MaxValue 
+                ? 64 
+                : (int)Math.Ceiling(Math.Log2(maximumValue + 1));
             // Calculate total bits and bytes needed
             var totalBits = dataCount * bitsPerValue;
             var totalBytes = (totalBits + 7) / 8; // Round up to nearest byte
             var result = new byte[totalBytes];
             var currentBitPosition = 0;
             
-            foreach (long value in data)
+            foreach (var value in data)
             {
                 // Calculate which byte(s) this value's bits will go into
                 var startByteIndex = currentBitPosition / 8;
@@ -45,7 +47,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     var bitsToWrite = Math.Min(8 - bitOffsetInStartByte, (int)remainingBits);
                     
                     // Extract the bits we want to write
-                    var mask = (1L << bitsToWrite) - 1;
+                    // Handle the case where we need all 64 bits (for ulong.MaxValue)
+                    var mask = bitsToWrite == 64 ? ulong.MaxValue : (1UL << bitsToWrite) - 1;
                     var bits = (byte)(remainingValue & mask);
                     
                     // Shift the bits to their correct position in the byte
@@ -73,12 +76,14 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         /// <param name="data">The byte array containing bit-packed values.</param>
         /// <param name="dataCount">The number of values to unpack.</param>
         /// <param name="maximumValue">The maximum possible value in the original data.</param>
-        /// <returns>Array of unpacked long values.</returns>
-        public static long[] Unpack(ReadOnlySpan<byte> data, int dataCount, long maximumValue)
+        /// <returns>Array of unpacked ulong values.</returns>
+        public static ulong[] Unpack(ReadOnlySpan<byte> data, int dataCount, ulong maximumValue)
         {
             // Calculate number of bits per value (same as Pack method)
-            var bitsPerValue = (int)Math.Ceiling(Math.Log2(maximumValue + 1));
-            var result = new long[dataCount];
+            var bitsPerValue = maximumValue == ulong.MaxValue 
+                ? 64 
+                : (int)Math.Ceiling(Math.Log2(maximumValue + 1));
+            var result = new ulong[dataCount];
             var currentBitPosition = 0;
             
             for (var i = 0; i < dataCount; i++)
@@ -87,7 +92,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 var startByteIndex = currentBitPosition / 8;
                 var bitOffsetInStartByte = currentBitPosition % 8;
                 var remainingBits = bitsPerValue;
-                var value = 0L;
+                var value = 0UL;
                 var bitsProcessed = 0;
                 
                 while (remainingBits > 0)
@@ -97,11 +102,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     
                     // Extract bits from current byte
                     var currentByte = data[startByteIndex];
-                    var mask = (1 << bitsToRead) - 1;
-                    var bits = (currentByte >> bitOffsetInStartByte) & mask;
+                    var mask = bitsToRead == 64 ? ulong.MaxValue : (1UL << bitsToRead) - 1;
+                    var bits = (currentByte >> bitOffsetInStartByte) & (byte)mask;
                     
-                    // Add these bits to our value
-                    value |= ((long)bits << bitsProcessed);
+                    // Add these bits to our value (ensure 64-bit operations throughout)
+                    value |= ((ulong)bits << bitsProcessed);
                     
                     // Update our trackers
                     remainingBits -= bitsToRead;

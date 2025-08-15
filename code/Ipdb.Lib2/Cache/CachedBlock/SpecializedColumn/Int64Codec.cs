@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Numerics;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
@@ -73,10 +74,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             var extremeNullRegime = nonNull == itemCount || nonNull == 0;
             var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
             var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
-            var packedDeltas = min == max ? Array.Empty<byte>() : BitPacker.Pack(
-                values.Where(v => v != null).Select(v => v!.Value - min),
+            var packedDeltas = nonNull == 0 || min == max ? Array.Empty<byte>() : BitPacker.Pack(
+                values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
                 nonNull,
-                max - min);
+                ToZeroBase(max, min));
             var payloadSize = nonNullSize + bitmapSize + packedDeltas.Length * sizeof(byte);
             var payload = new byte[payloadSize];
             var payloadSpan = payload.AsSpan();
@@ -106,6 +107,19 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 nonNull == 0 ? null : min,
                 nonNull == 0 ? null : max,
                 payload);
+        }
+
+        private static ulong ToZeroBase(long value, long min)
+        {
+            // Fast path: if the subtraction won't overflow
+            if ((value >= 0 && min >= 0) || (value <= 0 && min <= 0) ||
+                (value >= min && value - min >= 0))
+            {
+                return (ulong)(value - min);
+            }
+
+            // Slow path: use BigInteger for large ranges
+            return (ulong)(new BigInteger(value) - new BigInteger(min));
         }
 
         public static IEnumerable<long?> Decompress(SerializedColumn column)
@@ -140,8 +154,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 var min = (long)column.ColumnMinimum!;
                 var max = (long)column.ColumnMaximum!;
                 var deltas = hasDeltas
-                    ? BitPacker.Unpack(packedDeltaSpan, nonNull, max - min)
-                    : Array.Empty<long>();
+                    ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
+                    : Array.Empty<ulong>();
                 var values = new long?[column.ItemCount];
                 var deltaI = 0;
 
@@ -154,9 +168,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
                     if (valid)
                     {
-                        var delta = hasDeltas ? deltas[deltaI++] : 0;
+                        var delta = hasDeltas ? deltas[deltaI++] : 0UL;
 
-                        values[i] = delta + min;
+                        values[i] = FromZeroBase(delta, min);
                     }
                     else
                     {
@@ -166,6 +180,19 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
                 return values;
             }
+        }
+
+        private static long FromZeroBase(ulong delta, long min)
+        {
+            // Fast path: if the addition won't overflow
+            if ((delta <= long.MaxValue && min >= 0) ||
+                (delta <= (ulong)(long.MaxValue - min)))
+            {
+                return (long)delta + min;
+            }
+
+            // Slow path: use BigInteger for large ranges
+            return (long)(new BigInteger(delta) + new BigInteger(min));
         }
     }
 }

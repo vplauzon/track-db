@@ -15,14 +15,13 @@ namespace Ipdb.Tests2.Codecs
         public void BasicScenarios()
         {
             var random = new Random();
-            var scenarios = new IEnumerable<long>[]
+            var scenarios = new IEnumerable<ulong>[]
             {
-                new long[] { 0, 0, 0, 1 },
-                new long[] { 1,3,4 },
-                new long[] { 0, 1, 2, 3, 4, 5, 6 },
-                new long[] { 0, 42 },
+                new ulong[] { 0, 0, 0, 1 },
+                new ulong[] { 0, 1, 2, 3, 4, 5, 6 },
+                new ulong[] { 0, 42 },
                 Enumerable.Range(0, 25000)
-                .Select(i=>(long)random.Next(0, 25000))
+                .Select(i => (ulong)random.Next(0, 25000))
                 .ToImmutableArray(),
             };
 
@@ -32,25 +31,28 @@ namespace Ipdb.Tests2.Codecs
         [Fact]
         public void EdgeCases()
         {
-            var scenarios = new IEnumerable<long>[]
+            var scenarios = new IEnumerable<ulong>[]
             {
                 // Empty sequence
-                Array.Empty<long>(),
+                Array.Empty<ulong>(),
                 
                 // Single value sequences
-                new long[] { 0 },
-                new long[] { 42 },
-                new long[] { 255 },
+                new ulong[] { 0 },
+                new ulong[] { 42 },
+                new ulong[] { 255 },
                 
                 // All same values
-                Enumerable.Repeat(7L, 100).ToArray(),
+                Enumerable.Repeat(7UL, 100).ToArray(),
                 
                 // Maximum values requiring specific bits
-                new long[] { 1, 0, 1, 1 },              // 1 bit
-                new long[] { 3, 0, 2, 1 },              // 2 bits
-                new long[] { 15, 8, 7, 4 },             // 4 bits
-                new long[] { 255, 128, 64, 32 },        // 8 bits
-                new long[] { 65535, 32768, 16384 },     // 16 bits
+                new ulong[] { 1, 0, 1, 1 },              // 1 bit
+                new ulong[] { 3, 0, 2, 1 },              // 2 bits
+                new ulong[] { 15, 8, 7, 4 },             // 4 bits
+                new ulong[] { 255, 128, 64, 32 },        // 8 bits
+                new ulong[] { 65535, 32768, 16384 },     // 16 bits
+                
+                // Maximum possible ulong value test
+                new ulong[] { ulong.MaxValue, 0, ulong.MaxValue/2, ulong.MaxValue }
             };
 
             TestSequences(scenarios);
@@ -60,19 +62,19 @@ namespace Ipdb.Tests2.Codecs
         public void ByteBoundaryTests()
         {
             // Create sequences that span byte boundaries
-            var scenarios = new IEnumerable<long>[]
+            var scenarios = new IEnumerable<ulong>[]
             {
                 // 3 bits per value = spans bytes
-                new long[] { 7, 7, 7, 7, 7, 7, 7, 7 },
+                new ulong[] { 7, 7, 7, 7, 7, 7, 7, 7 },
                 
                 // 6 bits per value = aligns with bytes sometimes
-                new long[] { 63, 63, 63, 63, 63, 63, 63, 63 },
+                new ulong[] { 63, 63, 63, 63, 63, 63, 63, 63 },
                 
                 // 12 bits per value = always spans bytes
-                new long[] { 4095, 4095, 4095, 4095 },
+                new ulong[] { 4095, 4095, 4095, 4095 },
                 
                 // Mix of values needing different bits
-                new long[] { 4095, 255, 15, 3 }
+                new ulong[] { 4095, 255, 15, 3 }
             };
 
             TestSequences(scenarios);
@@ -82,43 +84,40 @@ namespace Ipdb.Tests2.Codecs
         public void StressTest()
         {
             var random = new Random(42); // Fixed seed for reproducibility
-            var scenarios = new IEnumerable<long>[]
+            var scenarios = new IEnumerable<ulong>[]
             {
                 // Large sequence with varied values
                 Enumerable.Range(0, 100000)
-                    .Select(i => (long)random.Next(0, 1000000))
+                    .Select(i => (ulong)random.Next(0, 1000000))
                     .ToArray(),
                 
                 // Large sequence with small values (dense packing)
                 Enumerable.Range(0, 100000)
-                    .Select(i => (long)random.Next(0, 8))
+                    .Select(i => (ulong)random.Next(0, 8))
                     .ToArray(),
                 
                 // Large sequence with large values (sparse packing)
                 Enumerable.Range(0, 10000)
-                    .Select(i => (long)random.Next(1000000, 2000000))
+                    .Select(i => (ulong)random.Next(1000000, 2000000))
                     .ToArray()
             };
 
             TestSequences(scenarios);
         }
 
-        private void TestSequences(IEnumerable<IEnumerable<long>> scenarios)
+        private void TestSequences(IEnumerable<IEnumerable<ulong>> scenarios)
         {
             foreach (var originalSequence in scenarios)
             {
-                var min = originalSequence.Any() ? originalSequence.Min() : 0;
-                var max = originalSequence.Any() ? originalSequence.Max() : 0;
-
+                var max = originalSequence.Any() ? originalSequence.Max() : 0UL;
                 var packedArray = BitPacker.Pack(
-                    originalSequence.Select(i => i - min),
+                    originalSequence,
                     originalSequence.Count(),
-                    max - min);
+                    max);
                 var unpackedArray = BitPacker.Unpack(
                     packedArray,
                     originalSequence.Count(),
-                    max - min)
-                    .Select(i => i + min)
+                    max)
                     .ToImmutableArray();
 
                 Assert.True(Enumerable.SequenceEqual(unpackedArray, originalSequence));
