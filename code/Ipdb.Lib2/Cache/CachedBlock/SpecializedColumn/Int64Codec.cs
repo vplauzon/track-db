@@ -1,16 +1,25 @@
-﻿using EasyCompressor;
-using System;
+﻿using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.IO;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
+    /// <summary>
+    /// Compression of a sequence of nullable 64 bits integers into a byte array.
+    /// The byte array relies on the metadata carried by <see cref="SerializedColumn"/>.
+    /// The structure of the metadata is:  <c>nonNull</c> (UInt16), null bitmap & deltas.
+    /// 
+    /// <c>nonNull</c> is present iif we are not in "extreme null regime".  This is defined when
+    /// either all items are null or none are.
+    /// 
+    /// Similarly, null bitmaps is present iif we are not in extreme null regime.
+    /// 
+    /// Deltas are present only when the min and max are different.
+    /// </summary>
     internal static partial class Int64Codec
     {
-        private static readonly ICompressor _zstdCompressor = ZstdSharpCompressor.Shared;
-
         /// <summary>
         /// <paramref name="values"/> is enumerated into three times.
         /// Since everything is transient, we do away with sanity checks
@@ -27,6 +36,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             }
             var itemCount = values.Count();
 
+            if (itemCount > UInt16.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(values),
+                    $"Sequence is too large:  '{itemCount}'");
+            }
+
             // Build validity bitmap (1 = valid, 0 = null)
             var bitmapBytes = (itemCount + 7) / 8;
             var bitmap = new byte[bitmapBytes];
@@ -41,7 +57,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 if (v != null)
                 {
                     bitmap[i >> 3] |= (byte)(1 << (i & 7));
-                    nonNull++;
+                    ++nonNull;
                     if (v < min)
                     {
                         min = v.Value;
@@ -54,104 +70,80 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 ++i;
             }
 
-            // If all nulls, set min=0, bitWidth=0, no values section.
-            var bitWidth = 0;
-
-            if (nonNull > 0)
-            {
-                long range = (long)max - min; // non-negative
-                while (range > 0)
-                {
-                    bitWidth++;
-                    range >>= 1;
-                }
-                // We still store 64-bits deltas (fast path) — Zstd will compress them well.
-                // If you want even smaller, you can bit-pack deltas using bitWidth; start simple first.
-            }
-
-            //  Prepare raw payload buffer (uncompressed)
-            var extremeNulls = nonNull == itemCount || nonNull == 0;
-            var headerSize = extremeNulls ? 0 : sizeof(int);
-            var bitmapSize = extremeNulls ? 0 : bitmapBytes * sizeof(byte);
-            var deltaSize = nonNull * sizeof(long);
-            var payloadSize = headerSize + bitmapSize + nonNull * deltaSize;
-            //  Everything from offset 5 onward is compressed; we will build it in a second buffer first
-            //  to keep the compressor’s input contiguous.
+            var extremeNullRegime = nonNull == itemCount || nonNull == 0;
+            var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
+            var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
+            var packedDeltas = min == max ? Array.Empty<byte>() : BitPacker.Pack(
+                values.Where(v => v != null).Select(v => v!.Value - min),
+                nonNull,
+                max - min);
+            var payloadSize = nonNullSize + bitmapSize + packedDeltas.Length * sizeof(byte);
             var payload = new byte[payloadSize];
             var payloadSpan = payload.AsSpan();
-            var headerSpan = payloadSpan.Slice(0, headerSize);
-            var bitmapSpan = payloadSpan.Slice(headerSize, bitmapSize);
-            var deltaSpan = payloadSpan.Slice(headerSize + bitmapSize);
+            var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
+            var bitmapSpan = payloadSpan.Slice(nonNullSize, bitmapSize);
+            var packedDeltaSpan = payloadSpan.Slice(nonNullSize + bitmapSize);
 
-            //  Header
-            if (!extremeNulls)
+            //  Non-Null
+            if (nonNullSpan.Length != 0)
             {
-                BinaryPrimitives.WriteInt32LittleEndian(headerSpan.Slice(0, sizeof(int)), nonNull);
-                headerSpan = headerSpan.Slice(sizeof(int));
+                BinaryPrimitives.WriteUInt16LittleEndian(nonNullSpan.Slice(0, sizeof(UInt16)), (UInt16)nonNull);
             }
-            //  Header span should be 0 length here
-
             //  bitmap
-            if (!extremeNulls)
+            if (bitmapSpan.Length != 0)
             {
                 bitmap.AsSpan().CopyTo(bitmapSpan);
             }
-
-            // deltas (value - min) for non-nulls, as Int32 little-endian
-            if (nonNull > 0)
+            // deltas (value - min) for non-nulls
+            if (packedDeltaSpan.Length != 0)
             {
-                foreach (var v in values)
-                {
-                    if (v != null)
-                    {
-                        var delta = v.Value - min;
-
-                        BinaryPrimitives.WriteInt64LittleEndian(
-                            deltaSpan.Slice(0, sizeof(long)),
-                            delta);
-                        deltaSpan = deltaSpan.Slice(sizeof(long));
-                    }
-                }
+                packedDeltas.CopyTo(packedDeltaSpan);
             }
-
-            var compressedPayload = payload.Any()
-                ? _zstdCompressor.Compress(payload)
-                : Array.Empty<byte>();
 
             return new SerializedColumn(
                 itemCount,
                 nonNull < itemCount,
                 nonNull == 0 ? null : min,
                 nonNull == 0 ? null : max,
-                compressedPayload);
+                payload);
         }
 
         public static IEnumerable<long?> Decompress(SerializedColumn column)
         {
+            if (!column.HasNulls && object.Equals(column.ColumnMinimum, column.ColumnMaximum))
+            {   //  Only one value
+                return Enumerable.Range(0, column.ItemCount)
+                    .Select(i => (long?)column.ColumnMinimum);
+            }
+            else
             if (column.ColumnMinimum == null)
-            {
-                return Enumerable
-                    .Range(0, column.ItemCount)
+            {   //  Only nulls
+                return Enumerable.Range(0, column.ItemCount)
                     .Select(i => (long?)null);
             }
             else
             {
-                var min = new Lazy<long?>(() => ((long?)column.ColumnMinimum)!.Value);
-                var values = new long?[column.ItemCount];
-                var bitmapBytes = (column.ItemCount + 7) / 8;
-                var extremeNulls = !column.HasNulls || column.ColumnMinimum == null;
-                var headerSize = extremeNulls ? 0 : sizeof(int);
-                var bitmapSize = extremeNulls ? 0 : bitmapBytes * sizeof(byte);
-                var compressedPayloadSpan = column.Payload.Span;
-                var payload = _zstdCompressor.Decompress(compressedPayloadSpan.ToArray());
-                var payloadSpan = new ReadOnlySpan<byte>(payload);
-                var headerSpan = payloadSpan.Slice(0, headerSize);
-                var nonNull = column.HasNulls
-                    ? BinaryPrimitives.ReadInt32LittleEndian(headerSpan.Slice(0, sizeof(int)))
+                var extremeNullRegime = !column.HasNulls || column.ColumnMinimum == null;
+                var hasDeltas = !object.Equals(column.ColumnMinimum, column.ColumnMaximum);
+                var payloadSpan = column.Payload.Span;
+                var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
+                var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
+                var nonNull = nonNullSpan.Length != 0
+                    ? BinaryPrimitives.ReadUInt16LittleEndian(nonNullSpan.Slice(0, sizeof(UInt16)))
+                    : column.HasNulls
+                    ? 0
                     : column.ItemCount;
-                var deltaSize = nonNull * sizeof(long);
-                var bitmapSpan = payloadSpan.Slice(headerSize, bitmapSize);
-                var deltaSpan = payloadSpan.Slice(headerSize + bitmapSize);
+                var bitmapBytes = (column.ItemCount + 7) / 8;
+                var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
+                var bitmapSpan = payloadSpan.Slice(nonNullSize, bitmapSize);
+                var packedDeltaSpan = payloadSpan.Slice(nonNullSize + bitmapSize);
+                var min = (long)column.ColumnMinimum!;
+                var max = (long)column.ColumnMaximum!;
+                var deltas = hasDeltas
+                    ? BitPacker.Unpack(packedDeltaSpan, nonNull, max - min)
+                    : Array.Empty<long>();
+                var values = new long?[column.ItemCount];
+                var deltaI = 0;
 
                 //  Read deltas back
                 for (var i = 0; i < column.ItemCount; i++)
@@ -162,11 +154,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
                     if (valid)
                     {
-                        var delta = BinaryPrimitives.ReadInt64LittleEndian(
-                            deltaSpan.Slice(0, sizeof(long)));
+                        var delta = hasDeltas ? deltas[deltaI++] : 0;
 
-                        deltaSpan = deltaSpan.Slice(sizeof(long));
-                        values[i] = min.Value + delta;
+                        values[i] = delta + min;
                     }
                     else
                     {

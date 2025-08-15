@@ -18,6 +18,7 @@ namespace Ipdb.Tests2.Codecs
             var scenarios = new IEnumerable<long>[]
             {
                 new long[] { 0, 0, 0, 1 },
+                new long[] { 1,3,4 },
                 new long[] { 0, 1, 2, 3, 4, 5, 6 },
                 new long[] { 0, 42 },
                 Enumerable.Range(0, 25000)
@@ -106,15 +107,18 @@ namespace Ipdb.Tests2.Codecs
         {
             foreach (var originalSequence in scenarios)
             {
+                var min = originalSequence.Any() ? originalSequence.Min() : 0;
                 var max = originalSequence.Any() ? originalSequence.Max() : 0;
+
                 var packedArray = BitPacker.Pack(
-                    originalSequence,
+                    originalSequence.Select(i => i - min),
                     originalSequence.Count(),
-                    max);
+                    max - min);
                 var unpackedArray = BitPacker.Unpack(
                     packedArray,
                     originalSequence.Count(),
-                    max)
+                    max - min)
+                    .Select(i => i + min)
                     .ToImmutableArray();
 
                 Assert.True(Enumerable.SequenceEqual(unpackedArray, originalSequence));

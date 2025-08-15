@@ -74,7 +74,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         /// <param name="dataCount">The number of values to unpack.</param>
         /// <param name="maximumValue">The maximum possible value in the original data.</param>
         /// <returns>Array of unpacked long values.</returns>
-        public static long[] Unpack(byte[] data, int dataCount, long maximumValue)
+        public static long[] Unpack(ReadOnlySpan<byte> data, int dataCount, long maximumValue)
         {
             // Calculate number of bits per value (same as Pack method)
             var bitsPerValue = (int)Math.Ceiling(Math.Log2(maximumValue + 1));
