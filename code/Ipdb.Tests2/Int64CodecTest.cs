@@ -12,16 +12,25 @@ namespace Ipdb.Tests2
     public class Int64CodecTest
     {
         [Fact]
-        public void SimpleArray()
+        public void Scenarios()
         {
-            var array = new long?[] { 1, 2, 3 };
-            var bundle = Int64Codec.Compress(array);
-            var decodedArray = Int64Codec.Decompress(bundle)
-                .ToImmutableArray();
+            var scenarios = new[]
+            {
+                new long?[] { 1, 2, 3, 4, 5, 6 },
+                new long?[] { 1, null, 3, 4, null },
+                new long?[] { null, null, null, null }
+            };
 
-            Assert.True(Enumerable.SequenceEqual(decodedArray, array));
-            Assert.Equal(array.Min(), decodedArray.Min());
-            Assert.Equal(array.Max(), decodedArray.Max());
+            foreach(var array in scenarios)
+            {
+                var bundle = Int64Codec.Compress(array);
+                var decodedArray = Int64Codec.Decompress(bundle)
+                    .ToImmutableArray();
+
+                Assert.True(Enumerable.SequenceEqual(decodedArray, array));
+                Assert.Equal(array.Min(), decodedArray.Min());
+                Assert.Equal(array.Max(), decodedArray.Max());
+            }
         }
     }
 }

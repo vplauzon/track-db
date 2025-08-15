@@ -3,8 +3,9 @@
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
     internal record SerializedColumn(
+        int ItemCount,
+        bool HasNulls,
         object? ColumnMinimum,
         object? ColumnMaximum,
-        int ItemCount,
         ReadOnlyMemory<byte> Payload);
 }
