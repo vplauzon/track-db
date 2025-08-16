@@ -14,7 +14,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         void AppendValue(object? value);
 
         /// <summary>Delete record indexes.</summary>
-        /// <param name="recordIndexes">Assumed to be in increasing order.</param>
+        /// <param name="recordIndexes"></param>
         void DeleteRecords(IEnumerable<short> recordIndexes);
 
         SerializedColumn Serialize();

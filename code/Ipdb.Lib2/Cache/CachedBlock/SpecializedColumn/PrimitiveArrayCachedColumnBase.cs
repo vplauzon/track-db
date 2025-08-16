@@ -14,13 +14,15 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
     /// <typeparam name="T"></typeparam>
     internal abstract class PrimitiveArrayCachedColumnBase<T> : IDataColumn
     {
+        private readonly int MIN_CAPACITY = 10;
+
         private T[] _array;
         private int _itemCount = 0;
 
         protected PrimitiveArrayCachedColumnBase(bool allowNull, int capacity)
         {
             AllowNull = allowNull;
-            _array = new T[Math.Min(10, capacity)];
+            _array = new T[Math.Min(MIN_CAPACITY, capacity)];
         }
 
         public ReadOnlySpan<T> RawData => new ReadOnlySpan<T>(_array, 0, _itemCount);
@@ -80,7 +82,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
             if (_array.Length <= _itemCount)
             {
-                var newArray = new T[Math.Max(10, _array.Length * 2)];
+                var newArray = new T[Math.Max(MIN_CAPACITY, _array.Length * 2)];
 
                 Array.Copy(_array, newArray, _array.Length);
                 _array = newArray;
@@ -91,7 +93,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         void IDataColumn.DeleteRecords(IEnumerable<short> recordIndexes)
         {
             short offset = 0;
-            var recordIndexStack = new Stack<short>(recordIndexes);
+            var recordIndexStack = new Stack<short>(recordIndexes.Order());
 
             for (short i = 0; i != _itemCount; ++i)
             {
@@ -106,6 +108,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 }
             }
             _itemCount -= offset;
+            if (_itemCount < _array.Length / 4 && _itemCount > MIN_CAPACITY)
+            {
+                var newArray = new T[Math.Max(MIN_CAPACITY, _itemCount * 2)];
+
+                Array.Copy(_array, newArray, _itemCount);
+                _array = newArray;
+            }
         }
 
         SerializedColumn IDataColumn.Serialize()
