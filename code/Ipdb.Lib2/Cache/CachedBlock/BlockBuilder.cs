@@ -1,6 +1,7 @@
 ﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
 using Ipdb.Lib2.Query;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -39,7 +40,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         private static IDataColumn CreateCachedColumn(Type columnType, int capacity)
         {
-            if(_dataColumnFactories.TryGetValue(columnType, out var factory))
+            if (_dataColumnFactories.TryGetValue(columnType, out var factory))
             {
                 return factory(capacity);
             }
@@ -59,7 +60,42 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #region Writable block methods
         public SerializedBlock Serialize()
         {
-            throw new NotImplementedException();
+            var serializedColumns = DataColumns
+                .Select(c => c.Serialize())
+                .ToImmutableArray();
+            var columnMinima = serializedColumns
+                .Select(c => c.ColumnMinimum)
+                .ToImmutableArray();
+            var columnMaxima = serializedColumns
+                .Select(c => c.ColumnMaximum)
+                .ToImmutableArray();
+            var payloadSizes = serializedColumns
+                .Select(c => (short)c.Payload.Length)
+                .ToImmutableArray();
+            var payloadSizesSize = sizeof(short) * payloadSizes.Length;
+            var blockPayload = new byte[
+                payloadSizesSize
+                + payloadSizes.Select(i => (int)i).Sum()];
+            var sizeSpan = blockPayload.AsSpan().Slice(0, payloadSizesSize);
+
+            for (int i = 0; i != payloadSizes.Length; ++i)
+            {
+                //  Write column payload size to the block header
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    sizeSpan.Slice(sizeof(short) * i, sizeof(short)),
+                    (UInt16)payloadSizes[i]);
+                //  Write column payload within block payload
+                serializedColumns[i].Payload.CopyTo(
+                    blockPayload.AsMemory().Slice(
+                        payloadSizesSize + serializedColumns.Take(i).Select(c => c.Payload.Length).Sum(),
+                        serializedColumns[i].Payload.Length));
+            }
+
+            return new SerializedBlock(
+                serializedColumns.First().ItemCount,
+                columnMinima,
+                columnMaxima,
+                blockPayload);
         }
 
         public void AppendBlock(IBlock block)
