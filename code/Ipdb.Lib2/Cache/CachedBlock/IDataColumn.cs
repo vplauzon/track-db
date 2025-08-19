@@ -15,7 +15,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         /// <summary>Delete record indexes.</summary>
         /// <param name="recordIndexes"></param>
-        void DeleteRecords(IEnumerable<short> recordIndexes);
+        void DeleteRecords(IEnumerable<int> recordIndexes);
 
         SerializedColumn Serialize();
     }

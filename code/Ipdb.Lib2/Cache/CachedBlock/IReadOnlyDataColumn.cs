@@ -12,8 +12,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         int RecordCount { get; }
 
-        object? GetValue(short index);
+        object? GetValue(int index);
 
-        IEnumerable<short> Filter(BinaryOperator binaryOperator, object? value);
+        IEnumerable<int> Filter(BinaryOperator binaryOperator, object? value);
     }
 }

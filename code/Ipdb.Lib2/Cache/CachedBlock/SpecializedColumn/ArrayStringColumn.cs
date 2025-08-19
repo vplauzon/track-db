@@ -23,12 +23,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             string? value,
             ReadOnlySpan<string?> storedValues,
             BinaryOperator binaryOperator,
-            ImmutableArray<short>.Builder matchBuilder)
+            ImmutableArray<int>.Builder matchBuilder)
         {
             switch (binaryOperator)
             {
                 case BinaryOperator.Equal:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] == value)
                         {
@@ -37,7 +37,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.NotEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] != value)
                         {
@@ -46,7 +46,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.LessThan:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i]?.CompareTo(value) < 0)
                         {
@@ -55,7 +55,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.LessThanOrEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i]?.CompareTo(value) <= 0)
                         {
@@ -64,7 +64,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.GreaterThan:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i]?.CompareTo(value) > 0)
                         {
@@ -73,7 +73,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.GreaterThanOrEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i]?.CompareTo(value) >= 0)
                         {

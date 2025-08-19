@@ -41,7 +41,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         #region IReadOnlyDataColumn
         int IReadOnlyDataColumn.RecordCount => _itemCount;
 
-        object? IReadOnlyDataColumn.GetValue(short index)
+        object? IReadOnlyDataColumn.GetValue(int index)
         {
             if (index < 0 || index >= _itemCount)
             {
@@ -51,7 +51,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             return _array[index];
         }
 
-        IEnumerable<short> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
+        IEnumerable<int> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
         {
             if (value != null && value.GetType() != typeof(T))
             {
@@ -61,7 +61,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             }
 
             var strongTypeValue = value == null ? NullValue : (T)value;
-            var matchBuilder = ImmutableArray<short>.Empty.ToBuilder();
+            var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
 
             FilterInternal(
                 strongTypeValue,
@@ -90,10 +90,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
-        void IDataColumn.DeleteRecords(IEnumerable<short> recordIndexes)
+        void IDataColumn.DeleteRecords(IEnumerable<int> recordIndexes)
         {
-            short offset = 0;
-            var recordIndexStack = new Stack<short>(recordIndexes.Order());
+            int offset = 0;
+            var recordIndexStack = new Stack<int>(recordIndexes.Order());
 
             for (short i = 0; i != _itemCount; ++i)
             {
@@ -133,7 +133,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             T value,
             ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,
-            ImmutableArray<short>.Builder matchBuilder);
+            ImmutableArray<int>.Builder matchBuilder);
 
         protected abstract SerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
     }

@@ -84,7 +84,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                     Enumerable.Range(
                         0,
                         DataColumns.First().RecordCount)
-                    .Select(i => (short)i),
+                    .Select(i => (int)i),
                     materializedProjectionColumnIndexes);
             }
             else if (predicate is ResultPredicate rp)
@@ -107,7 +107,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
 
         private IEnumerable<ReadOnlyMemory<object?>> CreateResults(
-            IEnumerable<short> rowIndexes,
+            IEnumerable<int> rowIndexes,
             IImmutableList<int> projectionColumnIndexes)
         {
             var memory = new ReadOnlyMemory<object?>(

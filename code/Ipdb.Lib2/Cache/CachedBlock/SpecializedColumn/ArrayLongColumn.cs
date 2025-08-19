@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 {
@@ -26,12 +27,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             long value,
             ReadOnlySpan<long> storedValues,
             BinaryOperator binaryOperator,
-            ImmutableArray<short>.Builder matchBuilder)
+            ImmutableArray<int>.Builder matchBuilder)
         {
             switch (binaryOperator)
             {
                 case BinaryOperator.Equal:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] == value)
                         {
@@ -40,7 +41,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.NotEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] != value)
                         {
@@ -49,7 +50,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.LessThan:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] < value)
                         {
@@ -58,7 +59,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.LessThanOrEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] <= value)
                         {
@@ -67,7 +68,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.GreaterThan:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] > value)
                         {
@@ -76,7 +77,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                     }
                     return;
                 case BinaryOperator.GreaterThanOrEqual:
-                    for (short i = 0; i != storedValues.Length; ++i)
+                    for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] >= value)
                         {
@@ -92,7 +93,13 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
         protected override SerializedColumn Serialize(ReadOnlyMemory<long> storedValues)
         {
-            throw new NotImplementedException();
+            var values = Enumerable.Range(0, storedValues.Length)
+                .Select(i => storedValues.Span[i])
+                .Select(v => v == NullValue ? null : (long?)v);
+            var column = Int64Codec.Compress(values);
+
+            //  No need to convert min and max
+            return column;
         }
     }
 }

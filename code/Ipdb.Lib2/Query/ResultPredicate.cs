@@ -9,12 +9,12 @@ namespace Ipdb.Lib2.Query
 {
     internal class ResultPredicate : IQueryPredicate
     {
-        public ResultPredicate(IEnumerable<short> recordIndexes)
+        public ResultPredicate(IEnumerable<int> recordIndexes)
         {
             RecordIndexes = recordIndexes.ToImmutableArray();
         }
 
-        public IImmutableList<short> RecordIndexes { get; }
+        public IImmutableList<int> RecordIndexes { get; }
 
         bool IQueryPredicate.IsTerminal => true;
 
