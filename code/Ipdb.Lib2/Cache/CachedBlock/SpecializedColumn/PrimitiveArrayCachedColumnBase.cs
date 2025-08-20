@@ -90,6 +90,30 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
+        void IDataColumn.Reorder(IEnumerable<int> orderIndexes)
+        {
+            if (_itemCount > 1)
+            {
+                var newArray = new T[_itemCount];
+                var i = 0;
+
+                foreach (var orderIndex in orderIndexes)
+                {
+                    if (i >= _itemCount)
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(orderIndexes));
+                    }
+                    newArray[orderIndex] = _array[i];
+                    ++i;
+                }
+                if (i < _itemCount)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(orderIndexes));
+                }
+                _array = newArray;
+            }
+        }
+
         void IDataColumn.DeleteRecords(IEnumerable<int> recordIndexes)
         {
             int offset = 0;

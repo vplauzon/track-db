@@ -22,7 +22,7 @@ namespace Ipdb.Tests2.PrefixSerialize
         public void NoData()
         {
             var block = new BlockBuilder(_schema);
-            var prefix = block.PrefixTruncateBlock(MAX_SIZE);
+            var prefix = block.TruncateBlock(MAX_SIZE);
 
             Assert.Equal(0, ((IBlock)prefix).RecordCount);
         }
@@ -34,7 +34,7 @@ namespace Ipdb.Tests2.PrefixSerialize
 
             block.AppendRecord(1, new[] { (object)1 });
 
-            var prefix = block.PrefixTruncateBlock(MAX_SIZE);
+            var prefix = block.TruncateBlock(MAX_SIZE);
 
             Assert.Equal(1, ((IBlock)prefix).RecordCount);
             Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
@@ -43,17 +43,19 @@ namespace Ipdb.Tests2.PrefixSerialize
         [Fact]
         public void ManyRowsData()
         {
+            const int ROW_COUNT = 100000;
+            
             var block = new BlockBuilder(_schema);
 
-            for (var i = 1; i != 100000; ++i)
+            for (var i = 1; i != ROW_COUNT; ++i)
             {
                 block.AppendRecord(i, new[] { (object)i });
             }
 
-            var prefix = block.PrefixTruncateBlock(MAX_SIZE);
+            var prefix = block.TruncateBlock(MAX_SIZE);
 
             Assert.True(((IBlock)prefix).RecordCount > 0);
-            Assert.True(((IBlock)prefix).RecordCount < ((IBlock)block).RecordCount);
+            Assert.True(((IBlock)prefix).RecordCount < ROW_COUNT);
             Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
         }
     }

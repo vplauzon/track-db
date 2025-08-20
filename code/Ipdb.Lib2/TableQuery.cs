@@ -83,7 +83,7 @@ namespace Ipdb.Lib2
                             })
                         .ToImmutableList();
                         var uncommittedDeletedRecordIds = blockBuilder
-                        ?.DeleteRecords(deletedRecordIds)
+                        ?.DeleteRecordsByRecordId(deletedRecordIds)
                         .ToImmutableHashSet();
                         var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
                         ? deletedRecordIds

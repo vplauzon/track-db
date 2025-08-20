@@ -44,8 +44,9 @@ namespace Ipdb.Lib2
             DatabaseSettings databaseSettings,
             params IEnumerable<TableSchema> schemas)
         {
-            _storageManager =
-                new Lazy<StorageManager>(() => new StorageManager(Path.GetTempFileName()));
+            _storageManager = new Lazy<StorageManager>(
+                () => new StorageManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
+                LazyThreadSafetyMode.ExecutionAndPublication);
             _userTableMap = schemas
                 .Select(s => new
                 {
@@ -95,8 +96,6 @@ namespace Ipdb.Lib2
         #endregion
 
         public DatabaseSettings DatabaseSettings { get; }
-
-        internal StorageManager StorageManager => _storageManager.Value;
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
@@ -481,7 +480,7 @@ namespace Ipdb.Lib2
                     var blockBuilder = logs.MergeLogs();
 
                     actuallyDeletedRecordIds.AddRange(
-                        blockBuilder.DeleteRecords(deletedRecordIds));
+                        blockBuilder.DeleteRecordsByRecordId(deletedRecordIds));
                     if (((IBlock)blockBuilder).RecordCount > 0)
                     {
                         mapBuilder.Add(tableName, new ImmutableTableTransactionLogs(blockBuilder));
@@ -502,7 +501,7 @@ namespace Ipdb.Lib2
                     var blockBuilder = tombstoneLogs.MergeLogs();
 
                     actuallyDeletedRecordIds.AddRange(
-                        blockBuilder.DeleteRecords(actuallyDeletedRecordIds));
+                        blockBuilder.DeleteRecordsByRecordId(actuallyDeletedRecordIds));
                     if (((IBlock)blockBuilder).RecordCount > 0)
                     {
                         mapBuilder.Add(
@@ -533,7 +532,17 @@ namespace Ipdb.Lib2
             if (ShouldPersistCachedData(doPersistEverything, state))
             {
                 var tableName = GetOldestTable(state);
-                
+                var logs = state.DatabaseCache.TableTransactionLogsMap[tableName];
+                var inMemoryBlock = logs.InMemoryBlocks.First();
+                var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
+
+                blockBuilder.AppendBlock(inMemoryBlock);
+                blockBuilder.OrderByRecordId();
+
+                var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
+                var serializedBlock = blockToPersist.Serialize();
+                var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+
                 throw new NotImplementedException();
             }
 

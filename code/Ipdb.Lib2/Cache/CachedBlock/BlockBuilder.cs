@@ -5,6 +5,8 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Security.Principal;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -65,15 +67,15 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #region Writable block methods
         public void AppendBlock(IBlock block)
         {
-            var data = block.Query(
-                AllInPredicate.Instance,
-                //  Include record ID
-                Enumerable.Range(0, Schema.Columns.Count + 1));
-
             if (!block.TableSchema.AreColumnsCompatible(Schema.Columns))
             {
                 throw new ArgumentException("Columns are incompatible", nameof(block));
             }
+
+            var data = block.Query(
+                AllInPredicate.Instance,
+                //  Include record ID
+                Enumerable.Range(0, Schema.Columns.Count + 1));
 
             //  Copy data
             foreach (var row in data)
@@ -81,6 +83,36 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
                 {
                     DataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                }
+            }
+        }
+
+        public void OrderByRecordId()
+        {
+            IBlock block = this;
+
+            if (block.RecordCount > 1)
+            {
+                var recordIdColumn = DataColumns.Last();
+                var recordIds = Enumerable.Range(0, block.RecordCount)
+                    .Select(i => ((long?)recordIdColumn.GetValue(i))!.Value)
+                    .ToImmutableArray();
+                var isSorted = recordIds
+                    .Zip(recordIds.Skip(1), (a, b) => a <= b)
+                    .All(x => x);
+
+                if (!isSorted)
+                {
+                    var orderIndexes = recordIds
+                        .Zip(Enumerable.Range(0, recordIds.Length))
+                        .OrderBy(p => p.First)
+                        .Select(p => p.Second)
+                        .ToImmutableArray();
+
+                    foreach (var column in DataColumns)
+                    {
+                        column.Reorder(orderIndexes);
+                    }
                 }
             }
         }
@@ -103,7 +135,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         /// <summary>Tries to delete records passed in.</summary>
         /// <param name="recordIds"></param>
         /// <returns>The deleted record IDs.</returns>
-        public IEnumerable<long> DeleteRecords(IEnumerable<long> recordIds)
+        public IEnumerable<long> DeleteRecordsByRecordId(IEnumerable<long> recordIds)
         {
             var recordIdSet = recordIds.ToImmutableHashSet();
 
@@ -127,10 +159,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                         .Select(o => o.RecordIndex)
                         .ToImmutableArray();
 
-                    foreach (var dataColumn in DataColumns)
-                    {
-                        dataColumn.DeleteRecords(deletedRecordIndexes);
-                    }
+                    DeleteRecordsByRecordIndex(deletedRecordIndexes);
 
                     return deletedRecordPairs
                         .Select(o => o.RecordId);
@@ -139,9 +168,27 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
             return Array.Empty<long>();
         }
+
+        /// <summary>Delete record indexes.</summary>
+        /// <param name="recordIndexes"></param>
+        public void DeleteRecordsByRecordIndex(IEnumerable<int> recordIndexes)
+        {
+            foreach (var dataColumn in DataColumns)
+            {
+                dataColumn.DeleteRecords(recordIndexes);
+            }
+        }
         #endregion
 
         #region Truncation helpers
+        /// <summary>
+        /// A block is serialized with the following items:
+        /// For each column we persist a UInt16 for the column payload size.
+        /// Then for each column, we persist its payload.
+        /// Everything else is metadata outside the block, captured in
+        /// <see cref="SerializedBlock"/>.
+        /// </summary>
+        /// <returns></returns>
         public SerializedBlock Serialize()
         {
             var serializedColumns = DataColumns
@@ -188,7 +235,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         /// </summary>
         /// <param name="maxSize"></param>
         /// <returns></returns>
-        public BlockBuilder PrefixTruncateBlock(int maxSize)
+        public BlockBuilder TruncateBlock(int maxSize)
         {
             IBlock block = this;
             var totalRowCount = block.RecordCount;
@@ -203,20 +250,19 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 var newBlock = CreateTruncatedBlock(startingRowCount);
                 var size = newBlock.Serialize().Payload.Length;
 
-                if (size < maxSize && startingRowCount == totalRowCount)
-                {
-                    return newBlock;
-                }
-                else
+                if (size > maxSize || startingRowCount != totalRowCount)
                 {   //  Allow GC
                     newBlock = null;
-
-                    return OptimizePrefixTruncation(
+                    newBlock = OptimizePrefixTruncation(
                         new TruncationBound(0, 0),
                         new TruncationBound(startingRowCount, size),
                         maxSize,
                         1);
+                    DeleteRecordsByRecordIndex(
+                        Enumerable.Range(0, ((IBlock)newBlock).RecordCount));
                 }
+
+                return newBlock;
             }
         }
 

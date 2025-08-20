@@ -14,7 +14,7 @@ namespace Ipdb.Lib2.DbStorage
         private readonly string _filePath;
         private readonly MemoryMappedFile _mappedFile;
         private readonly Stack<int> _availableIds = new(
-            Enumerable.Range(0, INCREMENT_BLOCK_COUNT).Reverse());
+            Enumerable.Range(1, INCREMENT_BLOCK_COUNT + 1).Reverse());
 
         #region Constructors
         public StorageManager(string filePath)
@@ -22,7 +22,7 @@ namespace Ipdb.Lib2.DbStorage
             _filePath = filePath;
             _mappedFile = MemoryMappedFile.CreateFromFile(
                 filePath,
-                FileMode.CreateNew,
+                FileMode.Create,
                 null,
                 (long)INCREMENT_BLOCK_COUNT * BLOCK_SIZE);
         }
@@ -50,11 +50,16 @@ namespace Ipdb.Lib2.DbStorage
 
         public int WriteBlock(byte[] buffer)
         {
+            if (buffer.Length == 0 || buffer.Length > BLOCK_SIZE)
+            {
+                throw new ArgumentOutOfRangeException(nameof(buffer));
+            }
+
             var blockId = ReserveBlock();
 
-            using (var accessor = CreateViewAccessor(blockId, true))
+            using (var accessor = CreateViewAccessor(blockId, false))
             {
-                accessor.WriteArray(0, buffer, 0, BLOCK_SIZE);
+                accessor.WriteArray(0, buffer, 0, buffer.Length);
             }
 
             return blockId;

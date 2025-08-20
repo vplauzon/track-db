@@ -13,10 +13,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         /// <param name="value"></param>
         void AppendValue(object? value);
 
+        void Reorder(IEnumerable<int> orderIndexes);
+
         /// <summary>Delete record indexes.</summary>
         /// <param name="recordIndexes"></param>
         void DeleteRecords(IEnumerable<int> recordIndexes);
-
+        
         SerializedColumn Serialize();
     }
 }
