@@ -21,7 +21,7 @@ namespace Ipdb.Lib2
 
         #region Constructors
         internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
-            : this(table, transactionContext, new AllInPredicate(), null)
+            : this(table, transactionContext, AllInPredicate.Instance, null)
         {
         }
 

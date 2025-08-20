@@ -66,7 +66,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         public void AppendBlock(IBlock block)
         {
             var data = block.Query(
-                new AllInPredicate(),
+                AllInPredicate.Instance,
                 //  Include record ID
                 Enumerable.Range(0, Schema.Columns.Count + 1));
 
@@ -226,7 +226,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             var columnCount = block.TableSchema.Columns.Count;
             var newBlock = new BlockBuilder(block.TableSchema);
             var records = block.Query(
-                new AllInPredicate(),
+                AllInPredicate.Instance,
                 Enumerable.Range(0, columnCount + 1))
                 .Take(rowCount);
 

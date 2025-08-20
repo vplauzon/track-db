@@ -8,6 +8,12 @@ namespace Ipdb.Lib2.Query
 {
     internal class AllInPredicate : IQueryPredicate
     {
+        private AllInPredicate()
+        {
+        }
+
+        public static AllInPredicate Instance { get; } = new AllInPredicate();
+
         bool IQueryPredicate.IsTerminal => true;
 
         IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;

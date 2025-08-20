@@ -1,6 +1,7 @@
 ﻿using Ipdb.Lib2.Cache;
 using Ipdb.Lib2.Cache.CachedBlock;
 using Ipdb.Lib2.DbStorage;
+using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -531,6 +532,8 @@ namespace Ipdb.Lib2
         {
             if (ShouldPersistCachedData(doPersistEverything, state))
             {
+                var tableName = GetOldestTable(state);
+                
                 throw new NotImplementedException();
             }
 
@@ -544,6 +547,34 @@ namespace Ipdb.Lib2
 
             return totalRecords > DatabaseSettings.MaxCachedRecords
                 || (doPersistEverything && totalRecords > 0);
+        }
+
+        private string GetOldestTable(DatabaseState state)
+        {
+            var oldestRecordId = long.MaxValue;
+            var oldestTableName = string.Empty;
+
+            foreach (var pair in state.DatabaseCache.TableTransactionLogsMap)
+            {
+                var tableName = pair.Key;
+                var logs = pair.Value;
+
+                foreach (var block in logs.InMemoryBlocks)
+                {
+                    var blockOldestRecordId = block
+                        .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
+                        .Select(r => ((long?)r.Span[0])!.Value)
+                        .Min();
+
+                    if (blockOldestRecordId < oldestRecordId)
+                    {
+                        oldestRecordId = blockOldestRecordId;
+                        oldestTableName = tableName;
+                    }
+                }
+            }
+
+            return oldestTableName;
         }
         #endregion
     }
