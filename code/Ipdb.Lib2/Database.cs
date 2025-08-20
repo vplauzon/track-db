@@ -529,7 +529,7 @@ namespace Ipdb.Lib2
         #region Persist old records
         private bool PersistOldRecords(DatabaseState state, bool doPersistEverything)
         {
-            if (doPersistEverything || IsTooMuchCacheData(state))
+            if (ShouldPersistCachedData(doPersistEverything, state))
             {
                 throw new NotImplementedException();
             }
@@ -537,12 +537,13 @@ namespace Ipdb.Lib2
             return false;
         }
 
-        private bool IsTooMuchCacheData(DatabaseState state)
+        private bool ShouldPersistCachedData(bool doPersistEverything, DatabaseState state)
         {
             var totalRecords = state.DatabaseCache.TableTransactionLogsMap.Values
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
 
-            return totalRecords > DatabaseSettings.MaxCachedRecords;
+            return totalRecords > DatabaseSettings.MaxCachedRecords
+                || (doPersistEverything && totalRecords > 0);
         }
         #endregion
     }
