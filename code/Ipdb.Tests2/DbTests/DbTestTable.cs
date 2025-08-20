@@ -13,7 +13,7 @@ namespace Ipdb.Tests2.DbTests
     {
         public DbTestTable(TypedTableSchema<T> schema)
         {
-            Database = new Database(schema);
+            Database = new Database(new DatabaseSettings(), schema);
             Table = Database.GetTypedTable<T>(schema.TableName);
         }
 
