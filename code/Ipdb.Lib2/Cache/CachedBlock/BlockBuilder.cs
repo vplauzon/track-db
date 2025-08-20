@@ -63,46 +63,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         protected new IImmutableList<IDataColumn> DataColumns { get; }
 
         #region Writable block methods
-        public SerializedBlock Serialize()
-        {
-            var serializedColumns = DataColumns
-                .Select(c => c.Serialize())
-                .ToImmutableArray();
-            var columnMinima = serializedColumns
-                .Select(c => c.ColumnMinimum)
-                .ToImmutableArray();
-            var columnMaxima = serializedColumns
-                .Select(c => c.ColumnMaximum)
-                .ToImmutableArray();
-            var payloadSizes = serializedColumns
-                .Select(c => (short)c.Payload.Length)
-                .ToImmutableArray();
-            var payloadSizesSize = sizeof(short) * payloadSizes.Length;
-            var blockPayload = new byte[
-                payloadSizesSize
-                + payloadSizes.Select(i => (int)i).Sum()];
-            var sizeSpan = blockPayload.AsSpan().Slice(0, payloadSizesSize);
-
-            for (int i = 0; i != payloadSizes.Length; ++i)
-            {
-                //  Write column payload size to the block header
-                BinaryPrimitives.WriteUInt16LittleEndian(
-                    sizeSpan.Slice(sizeof(short) * i, sizeof(short)),
-                    (UInt16)payloadSizes[i]);
-                //  Write column payload within block payload
-                serializedColumns[i].Payload.CopyTo(
-                    blockPayload.AsMemory().Slice(
-                        payloadSizesSize + serializedColumns.Take(i).Select(c => c.Payload.Length).Sum(),
-                        serializedColumns[i].Payload.Length));
-            }
-
-            return new SerializedBlock(
-                serializedColumns.First().ItemCount,
-                columnMinima,
-                columnMaxima,
-                blockPayload);
-        }
-
         public void AppendBlock(IBlock block)
         {
             var data = block.Query(
@@ -182,6 +142,46 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #endregion
 
         #region Truncation helpers
+        public SerializedBlock Serialize()
+        {
+            var serializedColumns = DataColumns
+                .Select(c => c.Serialize())
+                .ToImmutableArray();
+            var columnMinima = serializedColumns
+                .Select(c => c.ColumnMinimum)
+                .ToImmutableArray();
+            var columnMaxima = serializedColumns
+                .Select(c => c.ColumnMaximum)
+                .ToImmutableArray();
+            var payloadSizes = serializedColumns
+                .Select(c => (short)c.Payload.Length)
+                .ToImmutableArray();
+            var payloadSizesSize = sizeof(short) * payloadSizes.Length;
+            var blockPayload = new byte[
+                payloadSizesSize
+                + payloadSizes.Select(i => (int)i).Sum()];
+            var sizeSpan = blockPayload.AsSpan().Slice(0, payloadSizesSize);
+
+            for (int i = 0; i != payloadSizes.Length; ++i)
+            {
+                //  Write column payload size to the block header
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    sizeSpan.Slice(sizeof(short) * i, sizeof(short)),
+                    (UInt16)payloadSizes[i]);
+                //  Write column payload within block payload
+                serializedColumns[i].Payload.CopyTo(
+                    blockPayload.AsMemory().Slice(
+                        payloadSizesSize + serializedColumns.Take(i).Select(c => c.Payload.Length).Sum(),
+                        serializedColumns[i].Payload.Length));
+            }
+
+            return new SerializedBlock(
+                serializedColumns.First().ItemCount,
+                columnMinima,
+                columnMaxima,
+                blockPayload);
+        }
+
         /// <summary>
         /// Extract a number of rows from the block builder.  The resulting
         /// block should serialize to as close to but <= <paramref name="maxSize"/>.

@@ -32,18 +32,12 @@ namespace Ipdb.Lib2.Cache
                 if (logs.ContainsKey(tableName))
                 {
                     logs[tableName] = new ImmutableTableTransactionLogs(
-                        logs[tableName].InMemoryBlocks.Add(blockBuilder),
-                        new Lazy<int>(
-                            () => throw new InvalidOperationException(
-                                "Should merge before checking size")));
+                        logs[tableName].InMemoryBlocks.Add(blockBuilder));
                 }
                 else
                 {
                     logs[tableName] = new ImmutableTableTransactionLogs(
-                        new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray(),
-                        new Lazy<int>(
-                            () => blockBuilder.Serialize().Payload.Length,
-                            LazyThreadSafetyMode.ExecutionAndPublication));
+                        new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray());
                 }
             }
 
@@ -78,8 +72,7 @@ namespace Ipdb.Lib2.Cache
                         new ImmutableTableTransactionLogs(
                             logs.InMemoryBlocks
                             .Skip(otherLogs.InMemoryBlocks.Count)
-                            .ToImmutableArray(),
-                            new Lazy<int>(() => throw new NotSupportedException())));
+                            .ToImmutableArray()));
                 }
             }
 
@@ -102,8 +95,7 @@ namespace Ipdb.Lib2.Cache
                     mapBuilder[tableName] = new ImmutableTableTransactionLogs(
                         thisLogs.InMemoryBlocks
                         .Concat(logs.InMemoryBlocks)
-                        .ToImmutableArray(),
-                        new Lazy<int>(() => throw new NotSupportedException()));
+                        .ToImmutableArray());
                 }
                 else
                 {

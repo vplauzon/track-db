@@ -7,20 +7,15 @@ using System.Threading;
 namespace Ipdb.Lib2.Cache
 {
     internal record ImmutableTableTransactionLogs(
-        IImmutableList<IBlock> InMemoryBlocks,
-        Lazy<int> SerializedSize)
+        IImmutableList<IBlock> InMemoryBlocks)
     {
         public ImmutableTableTransactionLogs()
-            : this(ImmutableArray<IBlock>.Empty, new Lazy<int>(0))
+            : this(ImmutableArray<IBlock>.Empty)
         {
         }
 
         public ImmutableTableTransactionLogs(BlockBuilder blockBuilder)
-            : this(
-                  new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray(),
-                  new Lazy<int>(
-                      () => blockBuilder.Serialize().Payload.Length,
-                      LazyThreadSafetyMode.ExecutionAndPublication))
+            : this(new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray())
         {
         }
 
