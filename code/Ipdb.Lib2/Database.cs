@@ -169,16 +169,18 @@ namespace Ipdb.Lib2
         public Table GetMetaDataTable(TableSchema schema)
         {
             var existingMap = _tableToMetaDataTableMap;
+            var metaDataTableName = $"$meta-{schema.TableName}";
 
-            if (existingMap.TryGetValue(schema.TableName, out var metaDataTable))
+            if (existingMap.TryGetValue(metaDataTableName, out var metaDataTable))
             {
                 return metaDataTable;
             }
             else
             {
+                var metaDataSchema = CreateMetaDataSchema(metaDataTableName, schema);
                 var newMap = existingMap.Add(
-                    schema.TableName,
-                    new Table(this, CreateMetaDataSchema(schema)));
+                    metaDataSchema.TableName,
+                    new Table(this, metaDataSchema));
 
                 Interlocked.CompareExchange(ref _tableToMetaDataTableMap, newMap, existingMap);
 
@@ -187,7 +189,7 @@ namespace Ipdb.Lib2
             }
         }
 
-        private TableSchema CreateMetaDataSchema(TableSchema schema)
+        private TableSchema CreateMetaDataSchema(string metaDataTableName, TableSchema schema)
         {
             var metaDataColumns = schema.Columns
                 //  For each column we create a min, max & hasNulls column
@@ -213,7 +215,7 @@ namespace Ipdb.Lib2
                 //  We fan out the columns
                 .SelectMany(c => c);
             var metaDataSchema = new TableSchema(
-                $"meta-{schema.TableName}",
+                metaDataTableName,
                 metaDataColumns,
                 Array.Empty<int>());
 
@@ -726,18 +728,24 @@ namespace Ipdb.Lib2
             {
                 var tableName = pair.Key;
                 var logs = pair.Value;
+                var isMetaData = _tableToMetaDataTableMap.Keys.Contains(tableName);
+                var isTableElligible = !isMetaData
+                    || logs.InMemoryBlocks.Sum(b => b.RecordCount) > DatabaseSettings.MaxMetaDataCachedRecordsPerTable;
 
-                foreach (var block in logs.InMemoryBlocks)
+                if (isTableElligible)
                 {
-                    var blockOldestRecordId = block
-                        .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
-                        .Select(r => ((long?)r.Span[0])!.Value)
-                        .Min();
-
-                    if (blockOldestRecordId < oldestRecordId)
+                    foreach (var block in logs.InMemoryBlocks)
                     {
-                        oldestRecordId = blockOldestRecordId;
-                        oldestTableName = tableName;
+                        var blockOldestRecordId = block
+                            .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
+                            .Select(r => ((long?)r.Span[0])!.Value)
+                            .Min();
+
+                        if (blockOldestRecordId < oldestRecordId)
+                        {
+                            oldestRecordId = blockOldestRecordId;
+                            oldestTableName = tableName;
+                        }
                     }
                 }
             }
