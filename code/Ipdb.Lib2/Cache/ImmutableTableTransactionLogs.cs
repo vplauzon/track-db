@@ -14,8 +14,8 @@ namespace Ipdb.Lib2.Cache
         {
         }
 
-        public ImmutableTableTransactionLogs(BlockBuilder blockBuilder)
-            : this(new[] { blockBuilder }.Cast<IBlock>().ToImmutableArray())
+        public ImmutableTableTransactionLogs(IBlock block)
+            : this(new[] { block }.ToImmutableArray())
         {
         }
 

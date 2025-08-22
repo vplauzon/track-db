@@ -1,5 +1,6 @@
 ﻿namespace Ipdb.Lib2
 {
     public record DatabaseSettings(
-        int MaxCachedRecords = 100);
+        int MaxCachedRecordsPerDb = 100,
+        int MaxMetaDataCachedRecordsPerTable = 50);
 }

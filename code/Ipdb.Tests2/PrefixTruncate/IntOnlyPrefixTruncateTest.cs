@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2.PrefixSerialize
+namespace Ipdb.Tests2.PrefixTruncate
 {
     public class IntOnlyPrefixTruncateTest
     {

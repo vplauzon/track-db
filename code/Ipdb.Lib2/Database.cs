@@ -38,6 +38,8 @@ namespace Ipdb.Lib2
         private TaskCompletionSource? _persistEverythingSource = null;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState = new();
+        private volatile IImmutableDictionary<string, Table> _tableToMetaDataTableMap
+            = ImmutableDictionary<string, Table>.Empty;
 
         #region Constructors
         public Database(
@@ -56,11 +58,26 @@ namespace Ipdb.Lib2
                 .ToImmutableDictionary(o => o.TableName, o => o.Table);
 
             var invalidTableName = _userTableMap.Keys.FirstOrDefault(name => name.Contains("$"));
+            var invalidColumnName = _userTableMap.Values
+                .Select(t => t.Schema.Columns.Select(c => new
+                {
+                    TableName = t.Schema.TableName,
+                    ColumnName = c.ColumnName
+                }))
+                .SelectMany(c => c)
+                .FirstOrDefault(o => o.ColumnName.Contains("$"));
 
             if (invalidTableName != null)
             {
                 throw new ArgumentException(
                     $"Table name '{invalidTableName}' is invalid",
+                    nameof(schemas));
+            }
+            if (invalidColumnName != null)
+            {
+                throw new ArgumentException(
+                    $"Table name '{invalidColumnName.TableName}' has invalid column name " +
+                    $"'{invalidColumnName.ColumnName}'",
                     nameof(schemas));
             }
             _tombstoneTable = new TypedTable<TombstoneRow>(
@@ -147,6 +164,62 @@ namespace Ipdb.Lib2
                     $"it has document type '{docType.Name}'");
             }
         }
+
+        #region Meta data tables
+        public Table GetMetaDataTable(TableSchema schema)
+        {
+            var existingMap = _tableToMetaDataTableMap;
+
+            if (existingMap.TryGetValue(schema.TableName, out var metaDataTable))
+            {
+                return metaDataTable;
+            }
+            else
+            {
+                var newMap = existingMap.Add(
+                    schema.TableName,
+                    new Table(this, CreateMetaDataSchema(schema)));
+
+                Interlocked.CompareExchange(ref _tableToMetaDataTableMap, newMap, existingMap);
+
+                //  Go back to the map in case another thread created the table and won
+                return GetMetaDataTable(schema);
+            }
+        }
+
+        private TableSchema CreateMetaDataSchema(TableSchema schema)
+        {
+            var metaDataColumns = schema.Columns
+                //  For each column we create a min, max & hasNulls column
+                .Select(c => new[]
+                {
+                    new ColumnSchema($"$hasNulls-{c.ColumnName}", typeof(bool)),
+                    new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
+                    new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
+                })
+                //  We add the extent-id columns
+                .Append(new[]
+                {
+                    new ColumnSchema("$hasNulls-$extentId", typeof(bool)),
+                    new ColumnSchema("$min-$extentId", typeof(long)),
+                    new ColumnSchema("$max-$extentId", typeof(long))
+                })
+                //  We add the itemCount & block-id columns
+                .Append(new[]
+                {
+                    new ColumnSchema("$itemCount", typeof(int)),
+                    new ColumnSchema("$blockId", typeof(long))
+                })
+                //  We fan out the columns
+                .SelectMany(c => c);
+            var metaDataSchema = new TableSchema(
+                $"meta-{schema.TableName}",
+                metaDataColumns,
+                Array.Empty<int>());
+
+            return metaDataSchema;
+        }
+        #endregion
 
         internal async Task ForceDataManagementAsync(bool persistAll = false)
         {
@@ -535,27 +608,113 @@ namespace Ipdb.Lib2
                 var logs = state.DatabaseCache.TableTransactionLogsMap[tableName];
                 var inMemoryBlock = logs.InMemoryBlocks.First();
                 var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
+                var metadataTable = GetMetaDataTable(inMemoryBlock.TableSchema);
+                var metadataBlockBuilder = new BlockBuilder(metadataTable.Schema);
+                var isFirstBlock = true;
 
                 blockBuilder.AppendBlock(inMemoryBlock);
                 blockBuilder.OrderByRecordId();
 
-                var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
-                var serializedBlock = blockToPersist.Serialize();
-                var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+                while (((IBlock)blockBuilder).RecordCount > 0)
+                {
+                    var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
+                    var rowCount = ((IBlock)blockToPersist).RecordCount;
 
-                throw new NotImplementedException();
+                    //  We stop before persisting the last (typically incomplete) block
+                    if (isFirstBlock || ((IBlock)blockBuilder).RecordCount == rowCount)
+                    {
+                        var serializedBlock = blockToPersist.Serialize();
+                        var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+
+                        blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
+                        metadataBlockBuilder.AppendRecord(
+                            NewRecordId(),
+                            serializedBlock.GetMetaDataRecord(blockId));
+                        isFirstBlock = false;
+                    }
+                }
+
+                CommitPersistance(blockBuilder, metadataBlockBuilder);
+
+                return true;
             }
 
             return false;
+        }
+
+        private void CommitPersistance(
+            BlockBuilder blockBuilder,
+            BlockBuilder metadataBlockBuilder)
+        {
+            ChangeDatabaseState(state =>
+            {
+                IBlock block = blockBuilder;
+                var tableName = block.TableSchema.TableName;
+                IBlock metaDataBlock = metadataBlockBuilder;
+                var metaDataTableName = metaDataBlock.TableSchema.TableName;
+                var map = state.DatabaseCache.TableTransactionLogsMap;
+
+                if (map.TryGetValue(tableName, out var tableLogs))
+                {
+                    var inMemoryBlocks = tableLogs.InMemoryBlocks;
+
+                    if (block.RecordCount > 0)
+                    {
+                        inMemoryBlocks = inMemoryBlocks.SetItem(0, block);
+                    }
+                    else
+                    {
+                        inMemoryBlocks = inMemoryBlocks.RemoveAt(0);
+                    }
+                    if (inMemoryBlocks.Any())
+                    {
+                        map = map.SetItem(tableName, new ImmutableTableTransactionLogs(inMemoryBlocks));
+                    }
+                    else
+                    {
+                        map = map.Remove(tableName);
+                    }
+                    if (map.TryGetValue(metaDataTableName, out var metaDataTableLogs))
+                    {
+                        var metaDataInMemoryBlocks = metaDataTableLogs.InMemoryBlocks.Add(metaDataBlock);
+
+                        map = map.SetItem(
+                            metaDataTableName,
+                            new ImmutableTableTransactionLogs(metaDataInMemoryBlocks));
+                    }
+                    else
+                    {
+                        map = map.SetItem(
+                            metaDataTableName,
+                            new ImmutableTableTransactionLogs(metadataBlockBuilder));
+                    }
+
+                    return new DatabaseState(new DatabaseCache(map), state.TransactionMap);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Can't find table '{tableName}' in cache");
+                }
+            });
         }
 
         private bool ShouldPersistCachedData(bool doPersistEverything, DatabaseState state)
         {
             var totalRecords = state.DatabaseCache.TableTransactionLogsMap.Values
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
+            var totalUserRecords = state.DatabaseCache.TableTransactionLogsMap
+                .Where(p => _userTableMap.Keys.Contains(p.Key))
+                .Select(p => p.Value)
+                .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
+            var metaDataTableOver = state.DatabaseCache.TableTransactionLogsMap
+                .Where(p => _tableToMetaDataTableMap.Keys.Contains(p.Key))
+                .Select(p => p.Value)
+                .Select(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount))
+                .Where(sum => sum > DatabaseSettings.MaxMetaDataCachedRecordsPerTable);
 
-            return totalRecords > DatabaseSettings.MaxCachedRecords
-                || (doPersistEverything && totalRecords > 0);
+            return totalRecords > DatabaseSettings.MaxCachedRecordsPerDb
+                || metaDataTableOver.Any()
+                || (doPersistEverything && totalUserRecords > 0);
         }
 
         private string GetOldestTable(DatabaseState state)

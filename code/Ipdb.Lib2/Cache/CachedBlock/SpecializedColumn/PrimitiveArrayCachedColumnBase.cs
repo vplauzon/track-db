@@ -119,7 +119,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             int offset = 0;
             var recordIndexStack = new Stack<int>(recordIndexes.Order());
 
-            for (short i = 0; i != _itemCount; ++i)
+            for (var i = 0; i != _itemCount; ++i)
             {
                 if (recordIndexStack.Any() && recordIndexStack.Peek() == i)
                 {
@@ -143,6 +143,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
         SerializedColumn IDataColumn.Serialize()
         {
+            if (_itemCount == 0)
+            {
+                throw new InvalidOperationException(
+                    "Can't serialize as there are no items in data column");
+            }
+
             return Serialize(new ReadOnlyMemory<T>(_array, 0, _itemCount));
         }
         #endregion

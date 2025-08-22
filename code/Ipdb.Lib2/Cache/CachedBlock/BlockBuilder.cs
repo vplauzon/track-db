@@ -41,6 +41,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             builder.Add(typeof(long), capacity => new ArrayLongColumn(false, capacity));
             builder.Add(typeof(long?), capacity => new ArrayLongColumn(true, capacity));
             builder.Add(typeof(string), capacity => new ArrayStringColumn(true, capacity));
+            builder.Add(typeof(bool), capacity => new ArrayBoolColumn(false, capacity));
+            builder.Add(typeof(bool?), capacity => new ArrayBoolColumn(true, capacity));
 
             return builder.ToImmutableDictionary();
         }
@@ -194,39 +196,8 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             var serializedColumns = DataColumns
                 .Select(c => c.Serialize())
                 .ToImmutableArray();
-            var columnMinima = serializedColumns
-                .Select(c => c.ColumnMinimum)
-                .ToImmutableArray();
-            var columnMaxima = serializedColumns
-                .Select(c => c.ColumnMaximum)
-                .ToImmutableArray();
-            var payloadSizes = serializedColumns
-                .Select(c => (short)c.Payload.Length)
-                .ToImmutableArray();
-            var payloadSizesSize = sizeof(short) * payloadSizes.Length;
-            var blockPayload = new byte[
-                payloadSizesSize
-                + payloadSizes.Select(i => (int)i).Sum()];
-            var sizeSpan = blockPayload.AsSpan().Slice(0, payloadSizesSize);
 
-            for (int i = 0; i != payloadSizes.Length; ++i)
-            {
-                //  Write column payload size to the block header
-                BinaryPrimitives.WriteUInt16LittleEndian(
-                    sizeSpan.Slice(sizeof(short) * i, sizeof(short)),
-                    (UInt16)payloadSizes[i]);
-                //  Write column payload within block payload
-                serializedColumns[i].Payload.CopyTo(
-                    blockPayload.AsMemory().Slice(
-                        payloadSizesSize + serializedColumns.Take(i).Select(c => c.Payload.Length).Sum(),
-                        serializedColumns[i].Payload.Length));
-            }
-
-            return new SerializedBlock(
-                serializedColumns.First().ItemCount,
-                columnMinima,
-                columnMaxima,
-                blockPayload);
+            return new SerializedBlock(serializedColumns);
         }
 
         /// <summary>
@@ -297,12 +268,12 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             //  y = m.x + b (y = size, x = record count)
             //  => y2-y1 = m.(x2-x1) => m = (y2-y1)/(x2-x1) => b = y2-m.x2
             //  x3 = (y3-b)/m (interpolated record count)
-            var slope = (upperTruncationBound.Size - lowerTruncationBound.Size)
+            var slope = (float)(upperTruncationBound.Size - lowerTruncationBound.Size)
                 / (upperTruncationBound.RecordCount - lowerTruncationBound.RecordCount);
             var bias = upperTruncationBound.Size - slope * upperTruncationBound.RecordCount;
             var interpolatedCount = Math.Min(
                 short.MaxValue,
-                Math.Min(block.RecordCount, (maxSize - bias) / slope));
+                Math.Min(block.RecordCount, (int)Math.Ceiling((maxSize - bias) / slope)));
             var newBlock = CreateTruncatedBlock(interpolatedCount);
             var size = newBlock.Serialize().Payload.Length;
 
@@ -312,7 +283,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 throw new InvalidOperationException("Interpolation failed");
             }
             if (interpolatedCount < upperTruncationBound.RecordCount
-                && size >= upperTruncationBound.Size)
+                && size > upperTruncationBound.Size)
             {
                 throw new InvalidOperationException("Interpolation failed");
             }
