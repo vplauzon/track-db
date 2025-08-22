@@ -204,7 +204,7 @@ namespace Ipdb.Lib2
 
                 foreach(var metaDataRow in metaDataQuery)
                 {
-                    var blockId = ((long?)metaDataRow.Span[0])!.Value;
+                    var blockId = ((int?)metaDataRow.Span[0])!.Value;
 
                     yield return _table.Database.GetOrLoadBlock(blockId, _table.Schema);
                 }

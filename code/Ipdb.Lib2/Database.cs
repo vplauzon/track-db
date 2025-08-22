@@ -223,7 +223,7 @@ namespace Ipdb.Lib2
                 .Append(new[]
                 {
                     new ColumnSchema("$itemCount", typeof(int)),
-                    new ColumnSchema("$blockId", typeof(long))
+                    new ColumnSchema("$blockId", typeof(int))
                 })
                 //  We fan out the columns
                 .SelectMany(c => c);
@@ -439,8 +439,10 @@ namespace Ipdb.Lib2
         #endregion
 
         #region Block load
-        internal IBlock GetOrLoadBlock(long blockId, TableSchema schema)
+        internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
         {
+            var payload = _storageManager.Value.ReadBlock(blockId);
+
             throw new NotImplementedException();
         }
         #endregion

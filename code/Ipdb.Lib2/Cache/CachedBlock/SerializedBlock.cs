@@ -59,7 +59,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
         #endregion
 
-        public ReadOnlySpan<object?> GetMetaDataRecord(long blockId)
+        public ReadOnlySpan<object?> GetMetaDataRecord(int blockId)
         {
             var metaData = ColumnHasNulls
                 .Zip(ColumnMinima, ColumnMaxima)
