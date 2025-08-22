@@ -166,10 +166,18 @@ namespace Ipdb.Lib2
         }
 
         #region Meta data tables
-        public Table GetMetaDataTable(TableSchema schema)
+        internal bool IsMetaDataTable(string tableName)
         {
             var existingMap = _tableToMetaDataTableMap;
-            var metaDataTableName = $"$meta-{schema.TableName}";
+            var metaDataTableName = GetMetadataTableName(tableName);
+
+            return existingMap.ContainsKey(metaDataTableName);
+        }
+
+        internal Table GetMetaDataTable(TableSchema schema)
+        {
+            var existingMap = _tableToMetaDataTableMap;
+            var metaDataTableName = GetMetadataTableName(schema.TableName);
 
             if (existingMap.TryGetValue(metaDataTableName, out var metaDataTable))
             {
@@ -187,6 +195,11 @@ namespace Ipdb.Lib2
                 //  Go back to the map in case another thread created the table and won
                 return GetMetaDataTable(schema);
             }
+        }
+
+        private string GetMetadataTableName(string tableName)
+        {
+            return $"$meta-{tableName}";
         }
 
         private TableSchema CreateMetaDataSchema(string metaDataTableName, TableSchema schema)
@@ -422,6 +435,13 @@ namespace Ipdb.Lib2
                 .Where(ts => ts.TableName == tableName)
                 .Select(ts => ts.RecordId)
                 : Array.Empty<long>();
+        }
+        #endregion
+
+        #region Block load
+        internal IBlock GetOrLoadBlock(long blockId, TableSchema schema)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 

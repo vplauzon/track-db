@@ -130,14 +130,13 @@ namespace Ipdb.Lib2
             IEnumerable<int> projectionColumnIndexes,
             Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
         {
-            var transactionCache = transactionContext.TransactionState;
             var takeCount = _takeCount ?? int.MaxValue;
             var deletedRecordIds = _table.Database.GetDeletedRecordIds(
                 _table.Schema.TableName,
                 transactionContext)
                 .ToImmutableHashSet();
 
-            foreach (var block in ListBlocks(transactionCache))
+            foreach (var block in ListBlocks(transactionContext))
             {
                 var results = block.Query(
                     _predicate,
@@ -172,11 +171,43 @@ namespace Ipdb.Lib2
             }
         }
 
-        private IEnumerable<IBlock> ListBlocks(TransactionState transactionCache)
+        private IEnumerable<IBlock> ListBlocks(TransactionContext transactionContext)
         {
-            foreach (var block in transactionCache.ListTransactionLogBlocks(_table.Schema.TableName))
+            return ListUnpersistedBlocks(transactionContext)
+                .Concat(ListPersistedBlocks(transactionContext));
+        }
+
+        private IEnumerable<IBlock> ListUnpersistedBlocks(TransactionContext transactionContext)
+        {
+            var transactionState = transactionContext.TransactionState;
+
+            foreach (var block in
+                transactionState.ListTransactionLogBlocks(_table.Schema.TableName))
             {
                 yield return block;
+            }
+        }
+
+        private IEnumerable<IBlock> ListPersistedBlocks(TransactionContext transactionContext)
+        {
+            if (_table.Database.IsMetaDataTable(_table.Schema.TableName))
+            {
+                var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema);
+                var metaDataQuery = new TableQuery(
+                    metaDataTable,
+                    transactionContext,
+                    //  Must be optimize to filter only blocks with relevant data
+                    AllInPredicate.Instance,
+                    //  Project only the block ID, i.e. the last column
+                    new[] { metaDataTable.Schema.Columns.Count - 1 },
+                    null);
+
+                foreach(var metaDataRow in metaDataQuery)
+                {
+                    var blockId = ((long?)metaDataRow.Span[0])!.Value;
+
+                    yield return _table.Database.GetOrLoadBlock(blockId, _table.Schema);
+                }
             }
         }
         #endregion

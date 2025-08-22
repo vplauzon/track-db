@@ -42,6 +42,11 @@ namespace Ipdb.Lib2
         #region Query alteration
         public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
         {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("Where clause can't be added after a take");
+            }
+
             var queryPredicate = QueryPredicateFactory.Create(predicate, _table.Schema);
             var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
 
@@ -50,16 +55,31 @@ namespace Ipdb.Lib2
 
         public TypedTableQuery<T> Take(int count)
         {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("Take clause can't be added after another take clause");
+            }
+
             throw new NotImplementedException();
         }
 
         public TypedTableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("OrderBy clause can't be added after a take");
+            }
+
             throw new NotImplementedException();
         }
 
         public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("OrderByDesc clause can't be added after a take");
+            }
+
             throw new NotImplementedException();
         }
         #endregion
@@ -98,7 +118,7 @@ namespace Ipdb.Lib2
             foreach (var result in tableQuery)
             {
                 result.CopyTo(_rowBuffer);
-                
+
                 var objectRow = (T)_table.Schema.FromColumnsToObject(_rowBuffer);
 
                 yield return objectRow;
