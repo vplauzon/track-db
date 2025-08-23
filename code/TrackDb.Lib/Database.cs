@@ -783,15 +783,18 @@ namespace TrackDb.Lib
                 {
                     foreach (var block in logs.InMemoryBlocks)
                     {
-                        var blockOldestRecordId = block
-                            .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
-                            .Select(r => ((long?)r.Span[0])!.Value)
-                            .Min();
-
-                        if (blockOldestRecordId < oldestRecordId)
+                        if (block.RecordCount > 0)
                         {
-                            oldestRecordId = blockOldestRecordId;
-                            oldestTableName = tableName;
+                            var blockOldestRecordId = block
+                                .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
+                                .Select(r => ((long?)r.Span[0])!.Value)
+                                .Min();
+
+                            if (blockOldestRecordId < oldestRecordId)
+                            {
+                                oldestRecordId = blockOldestRecordId;
+                                oldestTableName = tableName;
+                            }
                         }
                     }
                 }

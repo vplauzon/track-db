@@ -39,6 +39,8 @@ namespace TrackDb.Lib
                 using (transactionContext = Database.CreateTransaction())
                 {
                     AppendRecordInternal(record, transactionContext);
+
+                    transactionContext.Complete();
                 }
             }
         }
