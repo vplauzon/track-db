@@ -20,5 +20,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         void DeleteRecords(IEnumerable<int> recordIndexes);
         
         SerializedColumn Serialize();
+
+        /// <summary>Deserialize the payload and insert records in the column.</summary>
+        /// <param name="serializedColumn"></param>
+        void Deserialize(SerializedColumn serializedColumn);
     }
 }

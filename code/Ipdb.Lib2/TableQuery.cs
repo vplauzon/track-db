@@ -1,5 +1,4 @@
-﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.Cache.CachedBlock;
+﻿using Ipdb.Lib2.Cache.CachedBlock;
 using Ipdb.Lib2.Query;
 using System;
 using System.Collections;
@@ -9,6 +8,12 @@ using System.Linq;
 
 namespace Ipdb.Lib2
 {
+    /// <summary>
+    /// Query on a table.  The first N columns are the table's schema.
+    /// Column N+1 is the record ID (long).
+    /// Column N+2 is the row index within the block.
+    /// Column N+3 is the block ID.
+    /// </summary>
     public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
         private readonly Table _table;
@@ -198,15 +203,19 @@ namespace Ipdb.Lib2
                     transactionContext,
                     //  Must be optimize to filter only blocks with relevant data
                     AllInPredicate.Instance,
-                    //  Project only the block ID, i.e. the last column
-                    new[] { metaDataTable.Schema.Columns.Count - 1 },
+                    null,
                     null);
 
-                foreach(var metaDataRow in metaDataQuery)
+                foreach (var metaDataRow in metaDataQuery)
                 {
-                    var blockId = ((int?)metaDataRow.Span[0])!.Value;
+                    var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
+                        metaDataRow,
+                        out var blockId);
 
-                    yield return _table.Database.GetOrLoadBlock(blockId, _table.Schema);
+                    yield return _table.Database.GetOrLoadBlock(
+                        blockId,
+                        _table.Schema,
+                        serializedBlockMetaData);
                 }
             }
         }

@@ -117,7 +117,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         void IDataColumn.DeleteRecords(IEnumerable<int> recordIndexes)
         {
             int offset = 0;
-            var recordIndexStack = new Stack<int>(recordIndexes.Order());
+            var recordIndexStack = new Stack<int>(recordIndexes.OrderDescending());
 
             for (var i = 0; i != _itemCount; ++i)
             {
@@ -151,6 +151,17 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
 
             return Serialize(new ReadOnlyMemory<T>(_array, 0, _itemCount));
         }
+
+        void IDataColumn.Deserialize(SerializedColumn serializedColumn)
+        {
+            IDataColumn dataColumn = this;
+            var newValues = Deserialize(serializedColumn);
+
+            foreach (var value in newValues)
+            {
+                dataColumn.AppendValue(value);
+            }
+        }
         #endregion
 
         protected bool AllowNull { get; }
@@ -166,5 +177,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             ImmutableArray<int>.Builder matchBuilder);
 
         protected abstract SerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
+
+        protected abstract IEnumerable<object?> Deserialize(SerializedColumn serializedColumn);
     }
 }

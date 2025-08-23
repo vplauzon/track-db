@@ -24,6 +24,16 @@ namespace Ipdb.Lib2.Cache.CachedBlock
 
         int IReadOnlyDataColumn.RecordCount => _innerColumn.RecordCount;
 
+        object? IReadOnlyDataColumn.GetValue(int index)
+        {
+            return InToOutValue(_innerColumn.GetValue(index));
+        }
+
+        IEnumerable<int> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
+        {
+            return _innerColumn.Filter(binaryOperator, OutToInValue(value));
+        }
+
         void IDataColumn.AppendValue(object? value)
         {
             _innerColumn.AppendValue(OutToInValue(value));
@@ -51,14 +61,16 @@ namespace Ipdb.Lib2.Cache.CachedBlock
                 innerColumn.Payload);
         }
 
-        object? IReadOnlyDataColumn.GetValue(int index)
+        void IDataColumn.Deserialize(SerializedColumn serializedColumn)
         {
-            return InToOutValue(_innerColumn.GetValue(index));
-        }
+            var innerSerializedColumn = new SerializedColumn(
+                serializedColumn.ItemCount,
+                serializedColumn.HasNulls,
+                OutToInValue(serializedColumn.ColumnMinimum),
+                OutToInValue(serializedColumn.ColumnMaximum),
+                serializedColumn.Payload);
 
-        IEnumerable<int> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
-        {
-            return _innerColumn.Filter(binaryOperator, OutToInValue(value));
+            _innerColumn.Deserialize(innerSerializedColumn);
         }
     }
 }

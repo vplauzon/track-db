@@ -1,4 +1,5 @@
-﻿using Ipdb.Lib2.Query;
+﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
+using Ipdb.Lib2.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -12,6 +13,14 @@ namespace Ipdb.Lib2.Cache.CachedBlock
     {
         private readonly object?[] _projectionBuffer;
 
+        #region Constructors
+        static ReadOnlyBlockBase()
+        {
+            DataColumnFactories = CreateDataColumnFactories();
+            SupportedDataColumnTypes = DataColumnFactories.Keys
+                .ToImmutableHashSet();
+        }
+
         protected ReadOnlyBlockBase(
             TableSchema schema,
             IEnumerable<IReadOnlyDataColumn> dataColumns)
@@ -21,6 +30,26 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             //  Reserve space for record ID + row index
             _projectionBuffer = new object?[Schema.Columns.Count + 2];
         }
+
+        private static IImmutableDictionary<Type, Func<int, IDataColumn>> CreateDataColumnFactories()
+        {
+            var builder = ImmutableDictionary<Type, Func<int, IDataColumn>>.Empty.ToBuilder();
+
+            builder.Add(typeof(int), capacity => new ArrayIntColumn(false, capacity));
+            builder.Add(typeof(int?), capacity => new ArrayIntColumn(true, capacity));
+            builder.Add(typeof(long), capacity => new ArrayLongColumn(false, capacity));
+            builder.Add(typeof(long?), capacity => new ArrayLongColumn(true, capacity));
+            builder.Add(typeof(string), capacity => new ArrayStringColumn(true, capacity));
+            builder.Add(typeof(bool), capacity => new ArrayBoolColumn(false, capacity));
+            builder.Add(typeof(bool?), capacity => new ArrayBoolColumn(true, capacity));
+
+            return builder.ToImmutableDictionary();
+        }
+        #endregion
+
+        public static IImmutableSet<Type> SupportedDataColumnTypes { get; }
+
+        protected static IImmutableDictionary<Type, Func<int, IDataColumn>> DataColumnFactories { get; }
 
         protected TableSchema Schema { get; }
 

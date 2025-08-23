@@ -11,8 +11,8 @@ namespace Ipdb.Tests2.DbTests
         [Theory]
         [InlineData(false, false)]
         [InlineData(true, false)]
-        //[InlineData(false, true)]
-        //[InlineData(true, true)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
         public async Task IntOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var testTable = DbTestTables.CreateIntOnly())

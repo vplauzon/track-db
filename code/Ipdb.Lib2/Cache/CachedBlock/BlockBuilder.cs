@@ -1,12 +1,9 @@
 ﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
 using Ipdb.Lib2.Query;
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Security.Principal;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
@@ -17,8 +14,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         #endregion
 
         private const int MAX_TRUNCATE_OPTIMIZATION_ROUNDS = 5;
-        private static readonly IImmutableDictionary<Type, Func<int, IDataColumn>> _dataColumnFactories =
-            CreateDataColumnFactories();
 
         #region Constructors
         public BlockBuilder(TableSchema schema)
@@ -32,24 +27,9 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             DataColumns = base.DataColumns.Cast<IDataColumn>().ToImmutableArray();
         }
 
-        private static IImmutableDictionary<Type, Func<int, IDataColumn>> CreateDataColumnFactories()
-        {
-            var builder = ImmutableDictionary<Type, Func<int, IDataColumn>>.Empty.ToBuilder();
-
-            builder.Add(typeof(int), capacity => new ArrayIntColumn(false, capacity));
-            builder.Add(typeof(int?), capacity => new ArrayIntColumn(true, capacity));
-            builder.Add(typeof(long), capacity => new ArrayLongColumn(false, capacity));
-            builder.Add(typeof(long?), capacity => new ArrayLongColumn(true, capacity));
-            builder.Add(typeof(string), capacity => new ArrayStringColumn(true, capacity));
-            builder.Add(typeof(bool), capacity => new ArrayBoolColumn(false, capacity));
-            builder.Add(typeof(bool?), capacity => new ArrayBoolColumn(true, capacity));
-
-            return builder.ToImmutableDictionary();
-        }
-
         private static IDataColumn CreateColumn(Type columnType, int capacity)
         {
-            if (_dataColumnFactories.TryGetValue(columnType, out var factory))
+            if (DataColumnFactories.TryGetValue(columnType, out var factory))
             {
                 return factory(capacity);
             }
@@ -59,10 +39,6 @@ namespace Ipdb.Lib2.Cache.CachedBlock
             }
         }
         #endregion
-
-        public static IImmutableSet<Type> SupportedDataColumnTypes { get; } =
-            _dataColumnFactories.Keys
-            .ToImmutableHashSet();
 
         protected new IImmutableList<IDataColumn> DataColumns { get; }
 
@@ -182,7 +158,7 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
         #endregion
 
-        #region Truncation helpers
+        #region Serialization
         /// <summary>
         /// A block is serialized with the following items:
         /// For each column we persist a UInt16 for the column payload size.

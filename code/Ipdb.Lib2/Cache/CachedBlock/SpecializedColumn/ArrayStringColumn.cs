@@ -91,5 +91,10 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
         {
             throw new NotImplementedException();
         }
+
+        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

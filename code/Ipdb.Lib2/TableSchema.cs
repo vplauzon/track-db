@@ -21,7 +21,7 @@ namespace Ipdb.Lib2
         {
             //  Validate column types
             var unsupportedColumns = columns
-                .Where(c => !BlockBuilder.SupportedDataColumnTypes.Contains(c.ColumnType));
+                .Where(c => !ReadOnlyBlockBase.SupportedDataColumnTypes.Contains(c.ColumnType));
 
             if (unsupportedColumns.Any())
             {

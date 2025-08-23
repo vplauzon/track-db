@@ -7,26 +7,22 @@ using System.Linq;
 
 namespace Ipdb.Lib2.Cache.CachedBlock
 {
-    internal record SerializedBlock(
-        int ItemCount,
-        IImmutableList<bool> ColumnHasNulls,
-        IImmutableList<object?> ColumnMinima,
-        IImmutableList<object?> ColumnMaxima,
-        ReadOnlyMemory<byte> Payload)
+    internal record SerializedBlock(SerializedBlockMetaData MetaData, ReadOnlyMemory<byte> Payload)
     {
         #region Constructor
         public SerializedBlock(IImmutableList<SerializedColumn> serializedColumns)
             : this(
-                  serializedColumns.First().ItemCount,
-                  serializedColumns
-                  .Select(c => c.HasNulls)
-                  .ToImmutableArray(),
-                  serializedColumns
-                  .Select(c => c.ColumnMinimum)
-                  .ToImmutableArray(),
-                  serializedColumns
-                  .Select(c => c.ColumnMaximum)
-                  .ToImmutableArray(),
+                  new SerializedBlockMetaData(
+                      serializedColumns.First().ItemCount,
+                      serializedColumns
+                      .Select(c => c.HasNulls)
+                      .ToImmutableArray(),
+                      serializedColumns
+                      .Select(c => c.ColumnMinimum)
+                      .ToImmutableArray(),
+                      serializedColumns
+                      .Select(c => c.ColumnMaximum)
+                      .ToImmutableArray()),
                   CreateBlockPayload(serializedColumns))
         {
         }
@@ -59,25 +55,30 @@ namespace Ipdb.Lib2.Cache.CachedBlock
         }
         #endregion
 
-        public ReadOnlySpan<object?> GetMetaDataRecord(int blockId)
+        public IEnumerable<SerializedColumn> CreateSerializedColumns()
         {
-            var metaData = ColumnHasNulls
-                .Zip(ColumnMinima, ColumnMaxima)
-                .Select(o => new object?[]
-                {
-                    o.First,
-                    o.Second,
-                    o.Third
-                })
-                .Append(new object?[]
-                {
-                    ItemCount,
-                    blockId
-                })
-                .SelectMany(c => c)
-                .ToArray();
+            var columnCount = MetaData.ColumnHasNulls.Count;
+            var payloadSizesSize = sizeof(short) * columnCount;
+            var columnPayloadSizes = Enumerable.Range(0, columnCount)
+                .Select(i => Payload.Slice(i * sizeof(short), sizeof(short)))
+                .Select(memory => BinaryPrimitives.ReadUInt16LittleEndian(memory.Span))
+                .ToImmutableArray();
+            var columnsPayload = Payload.Slice(payloadSizesSize);
+            var serializedColumns = ImmutableArray<SerializedColumn>.Empty.ToBuilder();
 
-            return metaData;
+            for (var i = 0; i != columnCount; i++)
+            {
+                var columnPayload = columnsPayload.Slice(0, columnPayloadSizes[i]);
+
+                serializedColumns.Add(new SerializedColumn(
+                    MetaData.ItemCount,
+                    MetaData.ColumnHasNulls[i],
+                    MetaData.ColumnMinima[i],
+                    MetaData.ColumnMaxima[i],
+                    columnsPayload));
+            }
+
+            return serializedColumns.ToImmutable();
         }
     }
 }

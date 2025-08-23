@@ -106,5 +106,20 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
                 Convert.ToInt32(column.ColumnMaximum),
                 column.Payload);
         }
+
+        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        {
+            //  Convert min and max to int-64 (from int-32)
+            var intSerializedColumn = new SerializedColumn(
+                serializedColumn.ItemCount,
+                serializedColumn.HasNulls,
+                Convert.ToInt64(serializedColumn.ColumnMinimum),
+                Convert.ToInt64(serializedColumn.ColumnMaximum),
+                serializedColumn.Payload);
+
+            return Int64Codec.Decompress(intSerializedColumn)
+                .Select(l => (int?)l)
+                .Cast<object?>();
+        }
     }
 }

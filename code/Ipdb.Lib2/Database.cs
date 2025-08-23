@@ -21,11 +21,9 @@ namespace Ipdb.Lib2
     /// </summary>
     public class Database : IAsyncDisposable
     {
-        #region MyRegion
+        #region Inner types
         private record TombstoneRow(long RecordId, long? BlockId, string TableName);
         #endregion
-
-        private const int MAX_IN_MEMORY_SIZE = 5 * 4 * 1024;
 
         private readonly Lazy<StorageManager> _storageManager;
         private readonly IImmutableDictionary<string, Table> _userTableMap;
@@ -439,11 +437,16 @@ namespace Ipdb.Lib2
         #endregion
 
         #region Block load
-        internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
+        internal IBlock GetOrLoadBlock(
+            int blockId,
+            TableSchema schema,
+            SerializedBlockMetaData serializedBlockMetaData)
         {
             var payload = _storageManager.Value.ReadBlock(blockId);
+            var serializedBlock = new SerializedBlock(serializedBlockMetaData, payload);
+            var block = new ReadOnlyBlock(schema, serializedBlock);
 
-            throw new NotImplementedException();
+            return block;
         }
         #endregion
 
@@ -653,7 +656,7 @@ namespace Ipdb.Lib2
                         blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                         metadataBlockBuilder.AppendRecord(
                             NewRecordId(),
-                            serializedBlock.GetMetaDataRecord(blockId));
+                            serializedBlock.MetaData.CreateMetaDataRecord(blockId));
                         isFirstBlock = false;
                     }
                 }
@@ -751,8 +754,12 @@ namespace Ipdb.Lib2
                 var tableName = pair.Key;
                 var logs = pair.Value;
                 var isMetaData = _tableToMetaDataTableMap.Keys.Contains(tableName);
-                var isTableElligible = !isMetaData
-                    || logs.InMemoryBlocks.Sum(b => b.RecordCount) > DatabaseSettings.MaxMetaDataCachedRecordsPerTable;
+                //  Tombstone table should never be persisted
+                var isTombstoneTable = _tombstoneTable.Schema.TableName == tableName;
+                var isTableElligible = !isTombstoneTable
+                    && (!isMetaData
+                    || logs.InMemoryBlocks.Sum(b => b.RecordCount)
+                    > DatabaseSettings.MaxMetaDataCachedRecordsPerTable);
 
                 if (isTableElligible)
                 {

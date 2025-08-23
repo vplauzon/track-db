@@ -101,5 +101,11 @@ namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
             //  No need to convert min and max
             return column;
         }
+
+        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        {
+            return Int64Codec.Decompress(serializedColumn)
+                .Cast<object?>();
+        }
     }
 }
