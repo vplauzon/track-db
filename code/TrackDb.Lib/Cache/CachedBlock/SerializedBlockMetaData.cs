@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace Ipdb.Lib2.Cache.CachedBlock
+namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal record SerializedBlockMetaData(
         int ItemCount,

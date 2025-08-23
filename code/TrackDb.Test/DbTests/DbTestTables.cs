@@ -1,11 +1,11 @@
-﻿using Ipdb.Lib2;
+﻿using TrackDb.Lib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Tests2.DbTests
+namespace TrackDb.Tests.DbTests
 {
     internal static class DbTestTables
     {

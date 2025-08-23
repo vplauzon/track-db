@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     /// <summary>Schema of a table including data mapping to a .NET type.</summary>
     public class TypedTableSchema<T> : TableSchema

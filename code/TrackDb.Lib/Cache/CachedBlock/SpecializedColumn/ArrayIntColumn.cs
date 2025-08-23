@@ -1,11 +1,11 @@
-using Ipdb.Lib2.Query;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 
-namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
 {
     internal class ArrayIntColumn : PrimitiveArrayCachedColumnBase<int>
     {

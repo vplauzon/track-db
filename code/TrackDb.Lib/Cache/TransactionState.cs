@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib2.Cache.CachedBlock;
+﻿using TrackDb.Lib.Cache.CachedBlock;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Cache
+namespace TrackDb.Lib.Cache
 {
     internal record TransactionState(
         DatabaseCache DatabaseCache,

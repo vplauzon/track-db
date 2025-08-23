@@ -1,4 +1,4 @@
-﻿namespace Ipdb.Lib2
+﻿namespace TrackDb.Lib
 {
     public record DatabaseSettings(
         int MaxCachedRecordsPerDb = 100,

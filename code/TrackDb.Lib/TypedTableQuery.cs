@@ -1,6 +1,6 @@
-﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.Cache.CachedBlock;
-using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Cache;
+using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     public class TypedTableQuery<T> : IEnumerable<T>
         where T : notnull

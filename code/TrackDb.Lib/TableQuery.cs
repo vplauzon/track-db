@@ -1,12 +1,12 @@
-﻿using Ipdb.Lib2.Cache.CachedBlock;
-using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     /// <summary>
     /// Query on a table.  The first N columns are the table's schema.

@@ -1,9 +1,9 @@
-﻿using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace Ipdb.Lib2.Cache.CachedBlock
+namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal interface IBlock
     {

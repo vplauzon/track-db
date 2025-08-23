@@ -1,5 +1,5 @@
-﻿using Ipdb.Lib2;
-using Ipdb.Lib2.Cache.CachedBlock;
+﻿using TrackDb.Lib;
+using TrackDb.Lib.Cache.CachedBlock;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2.PrefixTruncate
+namespace TrackDb.Tests.PrefixTruncate
 {
     public class IntOnlyPrefixTruncateTest
     {

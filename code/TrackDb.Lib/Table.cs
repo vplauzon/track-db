@@ -1,11 +1,11 @@
-﻿using Ipdb.Lib2.Cache;
+﻿using TrackDb.Lib.Cache;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     public class Table
     {

@@ -1,5 +1,5 @@
-﻿using Ipdb.Lib2;
-using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2.QueryPredicateTests
+namespace TrackDb.Tests.QueryPredicateTests
 {
     public class BinaryOperationTest
     {

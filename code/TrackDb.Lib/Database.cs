@@ -1,7 +1,7 @@
-﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.Cache.CachedBlock;
-using Ipdb.Lib2.DbStorage;
-using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Cache;
+using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.DbStorage;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -13,7 +13,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     /// <summary>
     /// Database:  a collection of tables that can share transactions

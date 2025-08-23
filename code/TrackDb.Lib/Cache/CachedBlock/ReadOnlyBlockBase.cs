@@ -1,5 +1,5 @@
-﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
-using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
+using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Cache.CachedBlock
+namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal abstract class ReadOnlyBlockBase : IBlock
     {

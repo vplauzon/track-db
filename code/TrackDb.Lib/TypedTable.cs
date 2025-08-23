@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
     public class TypedTable<T> : Table

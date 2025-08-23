@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     public readonly record struct ColumnSchema(string ColumnName, Type ColumnType);
 }

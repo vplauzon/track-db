@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
 {
     internal static class BitPacker
     {

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Query
+namespace TrackDb.Lib.Query
 {
     internal class ResultPredicate : IQueryPredicate
     {

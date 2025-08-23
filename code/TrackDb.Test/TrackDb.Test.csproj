@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Ipdb.Lib2\Ipdb.Lib2.csproj" />
+    <ProjectReference Include="..\TrackDb.Lib\TrackDb.Lib.csproj" />
   </ItemGroup>
 
 </Project>

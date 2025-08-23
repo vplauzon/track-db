@@ -1,10 +1,10 @@
-﻿using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Ipdb.Lib2.Cache.CachedBlock
+namespace TrackDb.Lib.Cache.CachedBlock
 {
     /// <summary>
     /// Column proxying another column by transforming values.

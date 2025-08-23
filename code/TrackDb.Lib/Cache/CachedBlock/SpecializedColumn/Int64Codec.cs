@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Numerics;
 
-namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
 {
     /// <summary>
     /// Compression of a sequence of nullable 64 bits integers into a byte array.

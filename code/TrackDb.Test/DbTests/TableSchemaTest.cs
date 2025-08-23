@@ -1,8 +1,8 @@
-﻿using Ipdb.Lib2;
+﻿using TrackDb.Lib;
 using System;
 using Xunit;
 
-namespace Ipdb.Tests2.DbTests
+namespace TrackDb.Tests.DbTests
 {
     public class TableSchemaTest
     {

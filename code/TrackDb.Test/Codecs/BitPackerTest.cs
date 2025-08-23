@@ -1,13 +1,13 @@
-﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
 using Xunit;
 
-namespace Ipdb.Tests2.Codecs
+namespace TrackDb.Tests.Codecs
 {
     public class BitPackerTest
     {

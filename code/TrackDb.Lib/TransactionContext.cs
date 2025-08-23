@@ -1,8 +1,8 @@
-﻿using Ipdb.Lib2.Cache;
+﻿using TrackDb.Lib.Cache;
 using System;
 using System.Threading;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     public class TransactionContext : IDisposable
     {

@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
 {
     /// <summary>
     /// Specialized column store to leverage vectorized operation at compilation.

@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib2.Query;
+﻿using TrackDb.Lib.Query;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2.Cache.CachedBlock
+namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal class JitReadOnlyDataColumn : IReadOnlyDataColumn
     {

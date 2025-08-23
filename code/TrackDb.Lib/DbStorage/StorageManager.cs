@@ -4,7 +4,7 @@ using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
 
-namespace Ipdb.Lib2.DbStorage
+namespace TrackDb.Lib.DbStorage
 {
     internal class StorageManager : IDisposable
     {

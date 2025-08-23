@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2.DbTests
+namespace TrackDb.Tests.DbTests
 {
     public class AppendMultipleRecords
     {

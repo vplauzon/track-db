@@ -1,5 +1,5 @@
-﻿using Ipdb.Lib2.Cache;
-using Ipdb.Lib2.DbStorage;
+﻿using TrackDb.Lib.Cache;
+using TrackDb.Lib.DbStorage;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ipdb.Lib2
+namespace TrackDb.Lib
 {
     /// <summary>
     /// Whole state for a database, including all cached data in the "main branch"

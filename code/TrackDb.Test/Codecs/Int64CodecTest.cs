@@ -1,4 +1,4 @@
-﻿using Ipdb.Lib2.Cache.CachedBlock.SpecializedColumn;
+﻿using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace Ipdb.Tests2.Codecs
+namespace TrackDb.Tests.Codecs
 {
     public class Int64CodecTest
     {
