@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ipdb.Lib", "Ipdb.Lib\Ipdb.Lib.csproj", "{C2C3C2B6-0FB6-4641-9919-434031AA3338}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ipdb.Lib2", "Ipdb.Lib2\Ipdb.Lib2.csproj", "{FD8FA9EB-1D44-431B-82E5-05BFCC31BF1A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ipdb.Tests2", "Ipdb.Tests2\Ipdb.Tests2.csproj", "{3F63A1B8-208F-45EE-B334-A7C194FF6DF7}"
@@ -19,18 +17,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|x64.Build.0 = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Debug|x86.Build.0 = Debug|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|x64.ActiveCfg = Release|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|x64.Build.0 = Release|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|x86.ActiveCfg = Release|Any CPU
-		{C2C3C2B6-0FB6-4641-9919-434031AA3338}.Release|x86.Build.0 = Release|Any CPU
 		{FD8FA9EB-1D44-431B-82E5-05BFCC31BF1A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FD8FA9EB-1D44-431B-82E5-05BFCC31BF1A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FD8FA9EB-1D44-431B-82E5-05BFCC31BF1A}.Debug|x64.ActiveCfg = Debug|Any CPU
