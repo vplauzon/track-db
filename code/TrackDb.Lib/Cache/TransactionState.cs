@@ -1,10 +1,10 @@
-﻿using TrackDb.Lib.Cache.CachedBlock;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Cache.CachedBlock;
 
 namespace TrackDb.Lib.Cache
 {
@@ -12,6 +12,11 @@ namespace TrackDb.Lib.Cache
         DatabaseCache DatabaseCache,
         TransactionLog UncommittedTransactionLog)
     {
+        public TransactionState(DatabaseCache databaseCache)
+            : this(databaseCache, new TransactionLog())
+        {
+        }
+
         public IEnumerable<IBlock> ListTransactionLogBlocks(string tableName)
         {
             if (UncommittedTransactionLog

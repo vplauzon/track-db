@@ -285,12 +285,20 @@ namespace TrackDb.Lib
             {
                 var newTransactionMap = currentDbState.TransactionMap.Add(
                     transactionContext.TransactionId,
-                    new TransactionState(
-                        currentDbState.DatabaseCache,
-                        new TransactionLog()));
+                    new TransactionState(currentDbState.DatabaseCache));
 
                 return new DatabaseState(currentDbState.DatabaseCache, newTransactionMap);
             });
+
+            return transactionContext;
+        }
+
+        private TransactionContext CreateDummyTransaction()
+        {
+            var state = _databaseState;
+            var transactionContext = new TransactionContext(
+                this,
+                new TransactionState(state.DatabaseCache));
 
             return transactionContext;
         }
@@ -434,6 +442,34 @@ namespace TrackDb.Lib
                 .Select(ts => ts.RecordId)
                 : Array.Empty<long>();
         }
+
+        internal BlockBuilder RemoveFromTombstone(
+            string tableName,
+            IEnumerable<long> recordIds,
+            TransactionContext transactionContext)
+        {
+            var predicate = _tombstoneTable.Query(transactionContext)
+                .Where(t => t.TableName == tableName && recordIds.Contains(t.RecordId))
+                .Predicate;
+            var query = new TableQuery(
+                _tombstoneTable,
+                transactionContext,
+                predicate,
+                //  Project the row index
+                new[] { _tombstoneTable.Schema.Columns.Count() + 1 },
+                null);
+            var tombstoneRecordIndexes = query
+                .Select(r => ((int?)r.Span[0])!.Value)
+                .ToImmutableArray();
+            var tombstoneTableName = _tombstoneTable.Schema.TableName;
+            var tombstoneLogs =
+                transactionContext.TransactionState.DatabaseCache.TableTransactionLogsMap[tombstoneTableName];
+            var tombstoneBlockBuilder = tombstoneLogs.MergeLogs();
+
+            tombstoneBlockBuilder.DeleteRecordsByRecordIndex(tombstoneRecordIndexes);
+
+            return tombstoneBlockBuilder;
+        }
         #endregion
 
         #region Block load
@@ -506,9 +542,9 @@ namespace TrackDb.Lib
 
                 while (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    var state = MergeTransactionLogsToCanonical();
+                    MergeTransactionLogs();
 
-                    if (!PersistOldRecords(state, doPersistEverything))
+                    if (PersistOldRecords(doPersistEverything))
                     {   //  We're done
                         _persistEverythingSource?.TrySetResult();
 
@@ -523,217 +559,198 @@ namespace TrackDb.Lib
         }
 
         #region Merge Transaction Logs
-        private DatabaseState MergeTransactionLogsToCanonical()
+        private void MergeTransactionLogs()
         {
-            var newState = MergeTransactionLogs();
+            while (true)
+            {
+                var candidateTableName = _databaseState.DatabaseCache.TableTransactionLogsMap
+                    .Where(p => p.Value.InMemoryBlocks.Count > DatabaseSettings.MaxInMemoryBlocksPerTable)
+                    .Select(p => p.Key)
+                    .FirstOrDefault();
 
-            if (newState.DatabaseCache.TableTransactionLogsMap.Values.All(
-                l => l.InMemoryBlocks.Count() == 1))
-            {
-                return newState;
-            }
-            else
-            {
-                return MergeTransactionLogsToCanonical();
-            }
-        }
-
-        private DatabaseState MergeTransactionLogs()
-        {
-            using (var transactionContext = CreateTransaction())
-            {
-                var mergedCache = new DatabaseCache(MergeTransactionLogs(transactionContext));
-                //  Push merges to db state
-                var newState = ChangeDatabaseState(state =>
+                if (candidateTableName == null)
+                {   //  We are done
+                    return;
+                }
+                else
                 {
-                    var currentCache = state.DatabaseCache;
-                    var truncatedCache =
-                        currentCache.RemovePrefixes(transactionContext.TransactionState.DatabaseCache);
-                    var resultingCache = mergedCache.Append(truncatedCache);
-
-                    return new DatabaseState(resultingCache, state.TransactionMap);
-                });
-
-                transactionContext.Complete();
-
-                return newState;
+                    MergeTransactionLogs(candidateTableName);
+                }
             }
         }
 
-        private IImmutableDictionary<string, ImmutableTableTransactionLogs> MergeTransactionLogs(
-            TransactionContext transactionContext)
+        private void MergeTransactionLogs(string tableName)
         {
-            var initialMap = transactionContext.TransactionState.DatabaseCache.TableTransactionLogsMap;
-            var mapBuilder = ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty.ToBuilder();
-            var actuallyDeletedRecordIds = new List<long>();
-
-            //  Merge all tables but delete
-            foreach (var pair in initialMap.Remove(_tombstoneTable.Schema.TableName))
+            (BlockBuilder tableBlock, BlockBuilder? tombstoneBlock) MergeTransactionLogs(
+                string tableName,
+                TransactionContext tc)
             {
-                var tableName = pair.Key;
-                var logs = pair.Value;
-                var deletedRecordIds = GetDeletedRecordIds(tableName, transactionContext)
+                var dbCache = tc.TransactionState.DatabaseCache;
+                var logs = dbCache.TableTransactionLogsMap[tableName];
+                var blockBuilder = logs.MergeLogs();
+                var deletedRecordsIds = GetDeletedRecordIds(tableName, tc);
+                var actuallyDeletedRecordIds = blockBuilder.DeleteRecordsByRecordId(deletedRecordsIds)
                     .ToImmutableArray();
 
-                if (logs.InMemoryBlocks.Count > 1 || deletedRecordIds.Any())
-                {
-                    var blockBuilder = logs.MergeLogs();
+                if (actuallyDeletedRecordIds.Any())
+                {   //  We need to erase the tombstones record that were actually deleted
+                    var tombstoneBlockBuilder =
+                        RemoveFromTombstone(tableName, actuallyDeletedRecordIds, tc);
 
-                    actuallyDeletedRecordIds.AddRange(
-                        blockBuilder.DeleteRecordsByRecordId(deletedRecordIds));
-                    if (((IBlock)blockBuilder).RecordCount > 0)
-                    {
-                        mapBuilder.Add(tableName, new ImmutableTableTransactionLogs(blockBuilder));
-                    }
+                    return (blockBuilder, tombstoneBlockBuilder);
                 }
                 else
                 {
-                    mapBuilder.Add(tableName, logs);
+                    return (blockBuilder, null);
                 }
             }
-            //  Process tombstone table
-            if (transactionContext.TransactionState.DatabaseCache.TableTransactionLogsMap.TryGetValue(
-                _tombstoneTable.Schema.TableName,
-                out var tombstoneLogs))
-            {
-                if (tombstoneLogs.InMemoryBlocks.Count > 1 || actuallyDeletedRecordIds.Any())
-                {
-                    var blockBuilder = tombstoneLogs.MergeLogs();
 
-                    actuallyDeletedRecordIds.AddRange(
-                        blockBuilder.DeleteRecordsByRecordId(actuallyDeletedRecordIds));
-                    if (((IBlock)blockBuilder).RecordCount > 0)
+            ImmutableTableTransactionLogs UpdateLogs(
+                ImmutableTableTransactionLogs oldLogs,
+                ImmutableTableTransactionLogs currentLogs,
+                BlockBuilder block)
+            {
+                return new ImmutableTableTransactionLogs(currentLogs.InMemoryBlocks
+                    .Skip(oldLogs.InMemoryBlocks.Count)
+                    .Prepend(block)
+                    .ToImmutableArray());
+            }
+
+            using (var tc = CreateDummyTransaction())
+            {
+                (var tableBlock, var tombstoneBlock) = MergeTransactionLogs(tableName, tc);
+
+                ChangeDatabaseState(state =>
+                {
+                    var map = state.DatabaseCache.TableTransactionLogsMap;
+
+                    map = map.SetItem(
+                        tableName,
+                        UpdateLogs(
+                            tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tableName],
+                            map[tableName],
+                            tableBlock));
+                    if (tombstoneBlock != null)
                     {
-                        mapBuilder.Add(
-                            _tombstoneTable.Schema.TableName,
-                            new ImmutableTableTransactionLogs(blockBuilder));
-                    }
-                }
-                else
-                {
-                    mapBuilder.Add(_tombstoneTable.Schema.TableName, tombstoneLogs);
-                }
-            }
-            //  Validate no unpersisted delete in tombstone
-            if (_tombstoneTable.Query()
-                .Where(ts => ts.BlockId == null)
-                .Count() > 0)
-            {
-                throw new InvalidOperationException("Tombstone is corrupted after merge");
-            }
+                        var tombstoneTableName = _tombstoneTable.Schema.TableName;
 
-            return mapBuilder.ToImmutableDictionary();
+                        map = map.SetItem(
+                            tombstoneTableName,
+                            UpdateLogs(
+                                tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tombstoneTableName],
+                                map[tombstoneTableName],
+                                tableBlock));
+                    }
+
+                    return new DatabaseState(new DatabaseCache(map), state.TransactionMap);
+                });
+            }
         }
         #endregion
 
         #region Persist old records
-        private bool PersistOldRecords(DatabaseState state, bool doPersistEverything)
+        /// <summary>
+        /// Returns <c>true</c> when everything that should be persisted was persisted.
+        /// </summary>
+        /// <param name="doPersistEverything"></param>
+        /// <returns></returns>
+        private bool PersistOldRecords(bool doPersistEverything)
         {
-            if (ShouldPersistCachedData(doPersistEverything, state))
+            using (var tc = CreateTransaction())
             {
-                var tableName = GetOldestTable(state);
-                var logs = state.DatabaseCache.TableTransactionLogsMap[tableName];
-                var inMemoryBlock = logs.InMemoryBlocks.First();
-                var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
-                var metadataTable = GetMetaDataTable(inMemoryBlock.TableSchema);
-                var metadataBlockBuilder = new BlockBuilder(metadataTable.Schema);
-                var isFirstBlock = true;
-
-                blockBuilder.AppendBlock(inMemoryBlock);
-                blockBuilder.OrderByRecordId();
-
-                while (((IBlock)blockBuilder).RecordCount > 0)
+                if (ShouldPersistCachedData(doPersistEverything, tc))
                 {
-                    var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
-                    var rowCount = ((IBlock)blockToPersist).RecordCount;
+                    var tableName = GetOldestTable(tc);
+                    var logs = tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tableName];
 
-                    //  We stop before persisting the last (typically incomplete) block
-                    if (isFirstBlock || ((IBlock)blockBuilder).RecordCount == rowCount)
+                    if (logs.InMemoryBlocks.Count > 1)
                     {
-                        var serializedBlock = blockToPersist.Serialize();
-                        var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+                        MergeTransactionLogs(tableName);
+                    }
+                    else
+                    {
+                        var inMemoryBlock = logs.InMemoryBlocks.First();
+                        var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
+                        var metadataTable = GetMetaDataTable(inMemoryBlock.TableSchema);
+                        var isFirstBlock = true;
 
-                        blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
-                        metadataBlockBuilder.AppendRecord(
-                            NewRecordId(),
-                            serializedBlock.MetaData.CreateMetaDataRecord(blockId));
-                        isFirstBlock = false;
+                        blockBuilder.AppendBlock(inMemoryBlock);
+                        blockBuilder.OrderByRecordId();
+
+                        while (((IBlock)blockBuilder).RecordCount > 0)
+                        {
+                            var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
+                            var rowCount = ((IBlock)blockToPersist).RecordCount;
+
+                            //  We stop before persisting the last (typically incomplete) block
+                            if (isFirstBlock || ((IBlock)blockBuilder).RecordCount == rowCount)
+                            {
+                                var serializedBlock = blockToPersist.Serialize();
+                                var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+
+                                blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
+                                metadataTable.AppendRecord(
+                                    serializedBlock.MetaData.CreateMetaDataRecord(blockId),
+                                    tc);
+                                isFirstBlock = false;
+                            }
+                        }
+                        CommitPersistance(blockBuilder, metadataTable, tc);
+
+                        return true;
                     }
                 }
 
-                CommitPersistance(blockBuilder, metadataBlockBuilder);
-
-                return true;
+                return false;
             }
-
-            return false;
         }
 
         private void CommitPersistance(
             BlockBuilder blockBuilder,
-            BlockBuilder metadataBlockBuilder)
+            Table metadataTable,
+            TransactionContext tc)
         {
             ChangeDatabaseState(state =>
             {
                 IBlock block = blockBuilder;
                 var tableName = block.TableSchema.TableName;
-                IBlock metaDataBlock = metadataBlockBuilder;
-                var metaDataTableName = metaDataBlock.TableSchema.TableName;
+                var oldCache = tc.TransactionState.DatabaseCache;
+                var metaDataTableName = metadataTable.Schema.TableName;
                 var map = state.DatabaseCache.TableTransactionLogsMap;
+                var metaDataBlock =
+                    tc.TransactionState.UncommittedTransactionLog.TableBlockBuilderMap[metaDataTableName];
+                var metaDataLogs = state.DatabaseCache.TableTransactionLogsMap.ContainsKey(metaDataTableName)
+                    ? new ImmutableTableTransactionLogs(
+                        state.DatabaseCache.TableTransactionLogsMap[metaDataTableName].InMemoryBlocks
+                        .Prepend(metaDataBlock)
+                        .ToImmutableArray())
+                    : new ImmutableTableTransactionLogs(metaDataBlock);
 
-                if (map.TryGetValue(tableName, out var tableLogs))
-                {
-                    var inMemoryBlocks = tableLogs.InMemoryBlocks;
+                //  Remove / update the logs for the table
+                map = map.SetItem(tableName, new ImmutableTableTransactionLogs(
+                    state.DatabaseCache.TableTransactionLogsMap[tableName].InMemoryBlocks
+                    .Skip(oldCache.TableTransactionLogsMap[tableName].InMemoryBlocks.Count)
+                    .Prepend(blockBuilder)
+                    .ToImmutableArray()));
+                //  Add logs for metadata table
+                map = map.SetItem(metaDataTableName, metaDataLogs);
 
-                    if (block.RecordCount > 0)
-                    {
-                        inMemoryBlocks = inMemoryBlocks.SetItem(0, block);
-                    }
-                    else
-                    {
-                        inMemoryBlocks = inMemoryBlocks.RemoveAt(0);
-                    }
-                    if (inMemoryBlocks.Any())
-                    {
-                        map = map.SetItem(tableName, new ImmutableTableTransactionLogs(inMemoryBlocks));
-                    }
-                    else
-                    {
-                        map = map.Remove(tableName);
-                    }
-                    if (map.TryGetValue(metaDataTableName, out var metaDataTableLogs))
-                    {
-                        var metaDataInMemoryBlocks = metaDataTableLogs.InMemoryBlocks.Add(metaDataBlock);
-
-                        map = map.SetItem(
-                            metaDataTableName,
-                            new ImmutableTableTransactionLogs(metaDataInMemoryBlocks));
-                    }
-                    else
-                    {
-                        map = map.SetItem(
-                            metaDataTableName,
-                            new ImmutableTableTransactionLogs(metadataBlockBuilder));
-                    }
-
-                    return new DatabaseState(new DatabaseCache(map), state.TransactionMap);
-                }
-                else
-                {
-                    throw new InvalidOperationException($"Can't find table '{tableName}' in cache");
-                }
+                return new DatabaseState(new DatabaseCache(map), state.TransactionMap);
             });
         }
 
-        private bool ShouldPersistCachedData(bool doPersistEverything, DatabaseState state)
+        private bool ShouldPersistCachedData(
+            bool doPersistEverything,
+            TransactionContext tc)
         {
-            var totalRecords = state.DatabaseCache.TableTransactionLogsMap.Values
+            var cache = tc.TransactionState.DatabaseCache;
+            var totalRecords = cache.TableTransactionLogsMap.Values
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
-            var totalUserRecords = state.DatabaseCache.TableTransactionLogsMap
+            var totalUserRecords = cache.TableTransactionLogsMap
                 .Where(p => _userTableMap.Keys.Contains(p.Key))
                 .Select(p => p.Value)
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
-            var metaDataTableOver = state.DatabaseCache.TableTransactionLogsMap
+            var metaDataTableOver = cache.TableTransactionLogsMap
                 .Where(p => _tableToMetaDataTableMap.Keys.Contains(p.Key))
                 .Select(p => p.Value)
                 .Select(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount))
@@ -744,12 +761,13 @@ namespace TrackDb.Lib
                 || (doPersistEverything && totalUserRecords > 0);
         }
 
-        private string GetOldestTable(DatabaseState state)
+        private string GetOldestTable(TransactionContext tc)
         {
+            var cache = tc.TransactionState.DatabaseCache;
             var oldestRecordId = long.MaxValue;
             var oldestTableName = string.Empty;
 
-            foreach (var pair in state.DatabaseCache.TableTransactionLogsMap)
+            foreach (var pair in cache.TableTransactionLogsMap)
             {
                 var tableName = pair.Key;
                 var logs = pair.Value;

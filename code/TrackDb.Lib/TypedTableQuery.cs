@@ -15,7 +15,6 @@ namespace TrackDb.Lib
     {
         private readonly TypedTable<T> _table;
         private readonly TransactionContext? _transactionContext;
-        private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
         private readonly object?[] _rowBuffer;
 
@@ -33,11 +32,13 @@ namespace TrackDb.Lib
         {
             _table = table;
             _transactionContext = transactionContext;
-            _predicate = predicate;
+            Predicate = predicate;
             _takeCount = takeCount;
             _rowBuffer = new object?[_table.Schema.Columns.Count];
         }
         #endregion
+
+        internal IQueryPredicate Predicate { get; }
 
         #region Query alteration
         public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
@@ -48,7 +49,7 @@ namespace TrackDb.Lib
             }
 
             var queryPredicate = QueryPredicateFactory.Create(predicate, _table.Schema);
-            var newQueryPredicate = new ConjunctionPredicate(_predicate, queryPredicate);
+            var newQueryPredicate = new ConjunctionPredicate(Predicate, queryPredicate);
 
             return new TypedTableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
         }
@@ -98,14 +99,14 @@ namespace TrackDb.Lib
 
         public long Count()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
 
             return tableQuery.Count();
         }
 
         public void Delete()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
 
             tableQuery.Delete();
         }
@@ -113,7 +114,7 @@ namespace TrackDb.Lib
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
 
             foreach (var result in tableQuery)
             {

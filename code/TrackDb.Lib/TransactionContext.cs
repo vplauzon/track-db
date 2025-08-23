@@ -21,14 +21,46 @@ namespace TrackDb.Lib
         private readonly Func<long, TransactionState> _cacheResolutionFunc;
         private TransactionStatus _state = TransactionStatus.Open;
 
+        #region Constructors
+        /// <summary>Creates a transaction.</summary>
+        /// <param name="database"></param>
+        /// <param name="cacheResolutionFunc"></param>
         internal TransactionContext(
             Database database,
             Func<long, TransactionState> cacheResolutionFunc)
+            : this(
+                  database,
+                  cacheResolutionFunc,
+                  Interlocked.Increment(ref _nextTransactionId))
+        {
+        }
+
+        /// <summary>
+        /// Creates a dummy transaction that will not commit.
+        /// </summary>
+        /// <remarks>This is more lightweight to use.</remarks>
+        /// <param name="database"></param>
+        /// <param name="transactionState"></param>
+        internal TransactionContext(
+            Database database,
+            TransactionState transactionState)
+            : this(
+                  database,
+                  txId => transactionState,
+                  0)
+        {
+        }
+
+        private TransactionContext(
+            Database database,
+            Func<long, TransactionState> cacheResolutionFunc,
+            long transactionId)
         {
             _database = database;
             _cacheResolutionFunc = cacheResolutionFunc;
-            TransactionId = Interlocked.Increment(ref _nextTransactionId);
+            TransactionId = transactionId;
         }
+        #endregion
 
         public long TransactionId { get; }
 
@@ -47,7 +79,10 @@ namespace TrackDb.Lib
             if (_state == TransactionStatus.Open)
             {
                 _state = TransactionStatus.Complete;
-                _database.CompleteTransaction(TransactionId);
+                if (TransactionId != 0)
+                {
+                    _database.CompleteTransaction(TransactionId);
+                }
             }
             else
             {
@@ -61,7 +96,10 @@ namespace TrackDb.Lib
             if (_state == TransactionStatus.Open)
             {
                 _state = TransactionStatus.Cancelled;
-                _database.RollbackTransaction(TransactionId);
+                if (TransactionId != 0)
+                {
+                    _database.RollbackTransaction(TransactionId);
+                }
             }
             else
             {

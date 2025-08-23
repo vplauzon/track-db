@@ -20,12 +20,9 @@ namespace TrackDb.Lib
         #region Append
         public void AppendRecord(T record, TransactionContext? transactionContext = null)
         {
-            Database.ExecuteWithinTransactionContext(
-                transactionContext,
-                tc =>
-                {
-                    AppendRecordInternal(record, tc);
-                });
+            var columns = Schema.FromObjectToColumns(record);
+
+            AppendRecord(columns, transactionContext);
         }
 
         public void AppendRecords(
@@ -43,14 +40,11 @@ namespace TrackDb.Lib
                 });
         }
 
-        private void AppendRecordInternal(T record, TransactionContext transactionContext)
+        private void AppendRecordInternal(T record, TransactionContext? transactionContext)
         {
             var columns = Schema.FromObjectToColumns(record);
 
-            transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
-                Database.NewRecordId(),
-                columns,
-                Schema);
+            AppendRecord(columns, transactionContext);
         }
         #endregion
 
