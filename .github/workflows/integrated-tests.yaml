@@ -20,7 +20,7 @@ jobs:
       run: dotnet restore code
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build
     - name: Build
-      run: dotnet build code/Ipdb.Tests2 --configuration Release --no-restore
+      run: dotnet build code/TrackDb.Test --configuration Release --no-restore
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test
     - name: Test
-      run: dotnet test code/Ipdb.Tests2 --configuration Release --no-build --verbosity normal
+      run: dotnet test code/TrackDb.Test --configuration Release --no-build --verbosity normal
