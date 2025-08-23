@@ -696,12 +696,14 @@ namespace TrackDb.Lib
                             }
                         }
                         CommitPersistance(blockBuilder, metadataTable, tc);
-
-                        return true;
                     }
-                }
 
-                return false;
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
             }
         }
 
