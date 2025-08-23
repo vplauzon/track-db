@@ -10,7 +10,7 @@ namespace TrackDb.Tests.DbTests
     {
         [Theory]
         [InlineData(false)]
-        //[InlineData(true)]
+        [InlineData(true)]
         public async Task IntOnly(bool doPushPendingData)
         {
             await using (var testTable = DbTestTables.CreateIntOnly())
