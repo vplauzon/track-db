@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -9,44 +8,115 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal class QueryPredicateFactory
+    public record QueryPredicateFactory<T>(TypedTableSchema<T> Schema)
+        where T : notnull
     {
-        public static IQueryPredicate Create<T>(
-            Expression<Func<T, bool>> predicateExpression,
-            TableSchema schema)
+        #region Factory methods
+        public ITypedQueryPredicate<T> Equal<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
         {
-            if (predicateExpression.Body is BinaryExpression binaryExpression)
-            {
-                var binaryOperator = GetBinaryOperator(binaryExpression.NodeType);
+            return new TypedQueryPredicateAdapter<T>(
+                new BinaryOperatorPredicate(
+                    GetColumnIndex(propertySelection.Body),
+                    value,
+                    BinaryOperator.Equal));
+        }
 
-                if (binaryExpression.Left is MemberExpression leftMemberExpression
-                    && leftMemberExpression.Member is PropertyInfo leftPropertyInfo)
+        public ITypedQueryPredicate<T> NotEqual<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new NegationPredicate(
+                    new BinaryOperatorPredicate(
+                        GetColumnIndex(propertySelection.Body),
+                        value,
+                        BinaryOperator.Equal)));
+        }
+
+        public ITypedQueryPredicate<T> In<U>(
+            Expression<Func<T, U>> propertySelection,
+            IEnumerable<U> values)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ITypedQueryPredicate<T> LessThan<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new BinaryOperatorPredicate(
+                    GetColumnIndex(propertySelection.Body),
+                    value,
+                    BinaryOperator.LessThan));
+        }
+
+        public ITypedQueryPredicate<T> LessThanOrEqual<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new BinaryOperatorPredicate(
+                    GetColumnIndex(propertySelection.Body),
+                    value,
+                    BinaryOperator.LessThanOrEqual));
+        }
+
+        public ITypedQueryPredicate<T> GreaterThan<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new NegationPredicate(
+                    new BinaryOperatorPredicate(
+                        GetColumnIndex(propertySelection.Body),
+                        value,
+                        BinaryOperator.LessThanOrEqual)));
+        }
+
+        public ITypedQueryPredicate<T> GreaterThanOrEqual<U>(
+            Expression<Func<T, U>> propertySelection,
+            U value)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new NegationPredicate(
+                    new BinaryOperatorPredicate(
+                        GetColumnIndex(propertySelection.Body),
+                        value,
+                        BinaryOperator.LessThan)));
+        }
+        #endregion
+
+        #region Propery selection
+        private int GetColumnIndex(Expression expression)
+        {
+            if (expression is MemberExpression me)
+            {
+                if(me.Member is PropertyInfo pi)
                 {
-                    return CreateBinaryExpression(
-                        GetColumnIndex(GetPropertyPath(leftPropertyInfo), schema),
-                        binaryOperator,
-                        binaryExpression.Right);
-                }
-                else if (binaryExpression.Right is MemberExpression rightMemberExpression
-                    && rightMemberExpression.Member is PropertyInfo rightPropertyInfo)
-                {
-                    return CreateBinaryExpression(
-                        GetColumnIndex(GetPropertyPath(rightPropertyInfo), schema),
-                        binaryOperator,
-                        binaryExpression.Left);
+                    return GetColumnIndex(pi);
                 }
                 else
                 {
-                    throw new NotSupportedException($"Unsupported binary expression");
+                    throw new NotSupportedException($"MemberInfo '{me.GetType().Name}'");
                 }
             }
-
-            throw new NotSupportedException($"Unsupported expression");
+            else
+            {
+                throw new NotSupportedException($"Expression '{expression.GetType().Name}'");
+            }
         }
 
-        private static int GetColumnIndex(string columnName, TableSchema schema)
+        private int GetColumnIndex(PropertyInfo propertyInfo)
         {
-            if (schema.TryGetColumnIndex(columnName, out var columnIndex))
+            return GetColumnIndex(GetPropertyPath(propertyInfo));
+        }
+
+        private int GetColumnIndex(string columnName)
+        {
+            if (Schema.TryGetColumnIndex(columnName, out var columnIndex))
             {
                 return columnIndex;
             }
@@ -54,86 +124,14 @@ namespace TrackDb.Lib.Predicate
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(columnName),
-                    $"Column '{columnName}' doesn't exist in table '{schema.TableName}'");
+                    $"Column '{columnName}' doesn't exist in table '{Schema.TableName}'");
             }
         }
 
-        private static BinaryOperator GetBinaryOperator(ExpressionType nodeType)
-        {
-            switch (nodeType)
-            {
-                case ExpressionType.Equal:
-                    return BinaryOperator.Equal;
-                case ExpressionType.NotEqual:
-                    return BinaryOperator.NotEqual;
-                case ExpressionType.LessThan:
-                    return BinaryOperator.LessThan;
-                case ExpressionType.LessThanOrEqual:
-                    return BinaryOperator.LessThanOrEqual;
-                case ExpressionType.GreaterThan:
-                    return BinaryOperator.GreaterThan;
-                case ExpressionType.GreaterThanOrEqual:
-                    return BinaryOperator.GreaterThanOrEqual;
-
-                default:
-                    throw new NotSupportedException($"Binary operator:  '{nodeType}'");
-            }
-            throw new NotImplementedException();
-        }
-
-        private static string GetPropertyPath(PropertyInfo propertyInfo)
+        private string GetPropertyPath(PropertyInfo propertyInfo)
         {
             return propertyInfo.Name;
         }
-
-        private static IQueryPredicate CreateBinaryExpression(
-            int columnIndex,
-            BinaryOperator binaryOperator,
-            Expression valueExpression)
-        {
-            if (valueExpression is ConstantExpression constantExpression)
-            {
-                return new BinaryOperatorPredicate(
-                    columnIndex,
-                    constantExpression.Value,
-                    binaryOperator);
-            }
-            else if (valueExpression is MemberExpression memberExpression)
-            {
-                if (memberExpression.Expression is ConstantExpression innerConstantExpression)
-                {
-                    return new BinaryOperatorPredicate(
-                        columnIndex,
-                        GetConstantValue(innerConstantExpression.Value, memberExpression.Member),
-                        binaryOperator);
-                }
-
-                throw new NotSupportedException("Constant expression");
-            }
-            else
-            {
-                throw new NotSupportedException("Unsupported expression in binary expression");
-            }
-        }
-
-        private static object? GetConstantValue(object? container, MemberInfo member)
-        {
-            if (container == null)
-            {
-                throw new NotSupportedException(
-                    "Can't extract constant value from a null object");
-            }
-
-            switch (member)
-            {
-                case FieldInfo field:
-                    return field.GetValue(container);
-                case PropertyInfo prop:
-                    return prop.GetValue(container);
-
-                default:
-                    throw new NotSupportedException($"Member type:  '{member.GetType().Name}'");
-            }
-        }
+        #endregion
     }
 }

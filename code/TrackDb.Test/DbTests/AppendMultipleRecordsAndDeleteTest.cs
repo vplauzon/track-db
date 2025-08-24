@@ -20,7 +20,7 @@ namespace TrackDb.Tests.DbTests
                 testTable.Table.AppendRecord(record);
                 await testTable.Database.ForceDataManagementAsync(doPushPendingData);
                 testTable.Table.Query()
-                    .Where(r => r.Integer == 1)
+                    .Where(testTable.Table.PredicateFactory.Equal(r => r.Integer, 1))
                     .Delete();
             }
         }

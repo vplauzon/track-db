@@ -40,15 +40,6 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                         }
                     }
                     return;
-                case BinaryOperator.NotEqual:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] != value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
                 case BinaryOperator.LessThan:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
@@ -62,24 +53,6 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i] <= value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.GreaterThan:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] > value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.GreaterThanOrEqual:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] >= value)
                         {
                             matchBuilder.Add(i);
                         }

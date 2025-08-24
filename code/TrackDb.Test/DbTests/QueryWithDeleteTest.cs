@@ -27,7 +27,7 @@ namespace TrackDb.Tests.DbTests
 
                 //  Delete
                 testTable.Table.Query()
-                    .Where(i => i.Integer == 2)
+                    .Where(testTable.Table.PredicateFactory.Equal(r => r.Integer, 2))
                     .Delete();
                 await testTable.Database.ForceDataManagementAsync(doPushPendingData3);
 

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal interface ITypedQueryPredicate<T>
+    public interface ITypedQueryPredicate<T> : IQueryPredicate
         where T : notnull
     {
     }

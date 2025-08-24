@@ -448,9 +448,9 @@ namespace TrackDb.Lib
             IEnumerable<long> recordIds,
             TransactionContext transactionContext)
         {
-            var predicate = _tombstoneTable.Query(transactionContext)
-                .Where(t => t.TableName == tableName && recordIds.Contains(t.RecordId))
-                .Predicate;
+            var predicate = _tombstoneTable.PredicateFactory
+                .Equal(t => t.TableName, tableName)
+                .And(_tombstoneTable.PredicateFactory.In(t => t.RecordId, recordIds));
             var query = new TableQuery(
                 _tombstoneTable,
                 transactionContext,

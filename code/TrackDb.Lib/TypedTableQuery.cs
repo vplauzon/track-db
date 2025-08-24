@@ -15,12 +15,17 @@ namespace TrackDb.Lib
     {
         private readonly TypedTable<T> _table;
         private readonly TransactionContext? _transactionContext;
+        private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
         private readonly object?[] _rowBuffer;
 
         #region Constructors
         internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
-            : this(table, transactionContext, AllInPredicate.Instance, null)
+            : this(
+                  table,
+                  transactionContext,
+                  AllInPredicate.Instance,
+                  null)
         {
         }
 
@@ -32,26 +37,23 @@ namespace TrackDb.Lib
         {
             _table = table;
             _transactionContext = transactionContext;
-            Predicate = predicate;
+            _predicate = predicate;
             _takeCount = takeCount;
             _rowBuffer = new object?[_table.Schema.Columns.Count];
         }
         #endregion
 
-        internal IQueryPredicate Predicate { get; }
-
         #region Query alteration
-        public TypedTableQuery<T> Where(Expression<Func<T, bool>> predicate)
+        public TypedTableQuery<T> Where(ITypedQueryPredicate<T> predicate)
         {
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("Where clause can't be added after a take");
             }
 
-            var queryPredicate = QueryPredicateFactory.Create(predicate, _table.Schema);
-            var newQueryPredicate = new ConjunctionPredicate(Predicate, queryPredicate);
+            var newPredicate = new ConjunctionPredicate(_predicate, predicate);
 
-            return new TypedTableQuery<T>(_table, _transactionContext, newQueryPredicate, _takeCount);
+            return new TypedTableQuery<T>(_table, _transactionContext, newPredicate, _takeCount);
         }
 
         public TypedTableQuery<T> Take(int count)
@@ -99,14 +101,14 @@ namespace TrackDb.Lib
 
         public long Count()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
             return tableQuery.Count();
         }
 
         public void Delete()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
             tableQuery.Delete();
         }
@@ -114,7 +116,7 @@ namespace TrackDb.Lib
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, Predicate, null, _takeCount);
+            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
 
             foreach (var result in tableQuery)
             {

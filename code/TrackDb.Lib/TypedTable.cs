@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
@@ -13,9 +14,12 @@ namespace TrackDb.Lib
         internal TypedTable(Database database, TypedTableSchema<T> schema)
             : base(database, schema)
         {
+            PredicateFactory = new QueryPredicateFactory<T>(Schema);
         }
 
         public new TypedTableSchema<T> Schema => (TypedTableSchema<T>)base.Schema;
+
+        public QueryPredicateFactory<T> PredicateFactory { get; }
 
         #region Append
         public void AppendRecord(T record, TransactionContext? transactionContext = null)

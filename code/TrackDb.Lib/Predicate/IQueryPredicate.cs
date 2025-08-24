@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal interface IQueryPredicate
+    public interface IQueryPredicate
     {
         /// <summary>
         /// <c>true</c> iif this predicate is terminal, i.e. completely simplified.

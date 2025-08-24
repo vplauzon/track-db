@@ -14,115 +14,70 @@ namespace TrackDb.Tests.QueryPredicateTests
         private record IntegerOnly(int Value);
 
         [Fact]
-        public void IntegerConstant()
+        public void Integer()
         {
-            var schema = new TableSchema(
-                "MyTable",
-                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
-                []);
-            var predicateEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5, schema);
-            var predicateNotEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5, schema);
-            var predicateLessThan =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5, schema);
-            var predicateLessThanEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5, schema);
-            var predicateGreaterThan =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5, schema);
-            var predicateGreaterThanEqual =
-                QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5, schema);
-            var testingPairs = new[]
+            var schema = TypedTableSchema<IntegerOnly>.FromConstructor("MyTable");
+            var factory = new QueryPredicateFactory<IntegerOnly>(schema);
+            var predicateEqual = factory.Equal(i => i.Value, 5);
+            var predicateNotEqual = factory.NotEqual(i => i.Value, 5);
+            var predicateLessThan = factory.LessThan(i => i.Value, 5);
+            var predicateLessThanEqual = factory.LessThanOrEqual(i => i.Value, 5);
+            var predicateGreaterThan = factory.GreaterThan(i => i.Value, 5);
+            var predicateGreaterThanEqual = factory.GreaterThanOrEqual(i => i.Value, 5);
+            var testingPrimitivePairs = new[]
             {
                 (predicateEqual, BinaryOperator.Equal),
-                (predicateNotEqual, BinaryOperator.NotEqual),
                 (predicateLessThan, BinaryOperator.LessThan),
                 (predicateLessThanEqual, BinaryOperator.LessThanOrEqual),
-                (predicateGreaterThan, BinaryOperator.GreaterThan),
-                (predicateGreaterThanEqual, BinaryOperator.GreaterThanOrEqual),
+            };
+            var testingNegationPairs = new[]
+            {
+                (predicateNotEqual, BinaryOperator.Equal),
+                (predicateGreaterThan, BinaryOperator.LessThanOrEqual),
+                (predicateGreaterThanEqual, BinaryOperator.LessThan),
             };
 
-            foreach (var testingPair in testingPairs)
+            foreach (var testingPair in testingPrimitivePairs)
             {
                 var predicate = testingPair.Item1;
                 var binaryOperator = testingPair.Item2;
 
-                Assert.IsType<BinaryOperatorPredicate>(predicate);
+                Assert.IsType<TypedQueryPredicateAdapter<IntegerOnly>>(predicate);
 
-                var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
+                var adapter = (TypedQueryPredicateAdapter<IntegerOnly>)predicate;
+                var adaptee = adapter.Adaptee;
+
+                Assert.IsType<BinaryOperatorPredicate>(adaptee);
+
+                var binaryOperatorPredicate = (BinaryOperatorPredicate)adaptee;
 
                 Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
                 Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
                 Assert.Equal(5, binaryOperatorPredicate.Value);
             }
-        }
-
-        [Fact]
-        public void IntegerVariable()
-        {
-            var schema = new TableSchema(
-                "MyTable",
-                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
-                []);
-
-            for (var i = 14; i != 15; ++i)
+            foreach (var testingPair in testingNegationPairs)
             {
-                var predicateEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value == 5, schema);
-                var predicateNotEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value != 5, schema);
-                var predicateLessThan =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value < 5, schema);
-                var predicateLessThanEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value <= 5, schema);
-                var predicateGreaterThan =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value > 5, schema);
-                var predicateGreaterThanEqual =
-                    QueryPredicateFactory.Create((IntegerOnly i) => i.Value >= 5, schema);
-                var testingPairs = new[]
-                {
-                    (predicateEqual, BinaryOperator.Equal),
-                    (predicateNotEqual, BinaryOperator.NotEqual),
-                    (predicateLessThan, BinaryOperator.LessThan),
-                    (predicateLessThanEqual, BinaryOperator.LessThanOrEqual),
-                    (predicateGreaterThan, BinaryOperator.GreaterThan),
-                    (predicateGreaterThanEqual, BinaryOperator.GreaterThanOrEqual),
-                };
+                var predicate = testingPair.Item1;
+                var binaryOperator = testingPair.Item2;
 
-                foreach (var testingPair in testingPairs)
-                {
-                    var predicate = testingPair.Item1;
-                    var binaryOperator = testingPair.Item2;
+                Assert.IsType<TypedQueryPredicateAdapter<IntegerOnly>>(predicate);
 
-                    Assert.IsType<BinaryOperatorPredicate>(predicate);
+                var adapter = (TypedQueryPredicateAdapter<IntegerOnly>)predicate;
+                var adaptee = adapter.Adaptee;
 
-                    var propertyPredicate = (BinaryOperatorPredicate)predicate;
+                Assert.IsType<NegationPredicate>(adaptee);
 
-                    Assert.Equal(0, propertyPredicate.ColumnIndex);
-                    Assert.Equal(binaryOperator, propertyPredicate.BinaryOperator);
-                    Assert.Equal(5, propertyPredicate.Value);
-                }
+                var negationPredicate = (NegationPredicate)adaptee;
+
+                Assert.IsType<BinaryOperatorPredicate>(negationPredicate.InnerPredicate);
+
+                var binaryOperatorPredicate =
+                    (BinaryOperatorPredicate)negationPredicate.InnerPredicate;
+
+                Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
+                Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
+                Assert.Equal(5, binaryOperatorPredicate.Value);
             }
-        }
-
-        [Fact]
-        public void IntegerAnd()
-        {
-            var schema = new TableSchema(
-                "MyTable",
-                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
-                []);
-            var predicate = QueryPredicateFactory.Create(
-                (IntegerOnly i) => (i.Value > 5) && (i.Value < 12),
-                schema);
-
-            Assert.IsType<BinaryOperatorPredicate>(predicate);
-
-            var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
-
-            //Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
-            //Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
-            //Assert.Equal(5, binaryOperatorPredicate.Value);
         }
     }
 }

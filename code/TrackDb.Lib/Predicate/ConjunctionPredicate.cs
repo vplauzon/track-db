@@ -13,7 +13,8 @@ namespace TrackDb.Lib.Predicate
     {
         bool IQueryPredicate.IsTerminal => false;
 
-        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
+        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate =>
+            LeftPredicate.FirstPrimitivePredicate ?? RightPredicate.FirstPrimitivePredicate;
 
         IQueryPredicate? IQueryPredicate.Simplify(
             Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
