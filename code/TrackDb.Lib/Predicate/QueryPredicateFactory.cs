@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Query
+namespace TrackDb.Lib.Predicate
 {
     internal class QueryPredicateFactory
     {

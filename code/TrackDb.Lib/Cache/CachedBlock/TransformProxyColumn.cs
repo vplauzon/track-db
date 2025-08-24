@@ -1,4 +1,4 @@
-﻿using TrackDb.Lib.Query;
+﻿using TrackDb.Lib.Predicate;
 using System;
 using System.Collections.Generic;
 using System.Linq;

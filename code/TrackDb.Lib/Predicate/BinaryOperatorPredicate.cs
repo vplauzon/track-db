@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Query
+namespace TrackDb.Lib.Predicate
 {
     internal record BinaryOperatorPredicate(
         int ColumnIndex,

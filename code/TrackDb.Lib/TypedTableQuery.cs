@@ -1,6 +1,6 @@
 ﻿using TrackDb.Lib.Cache;
 using TrackDb.Lib.Cache.CachedBlock;
-using TrackDb.Lib.Query;
+using TrackDb.Lib.Predicate;
 using System;
 using System.Collections;
 using System.Collections.Generic;
