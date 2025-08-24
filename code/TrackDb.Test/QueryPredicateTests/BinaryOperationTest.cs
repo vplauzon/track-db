@@ -104,5 +104,25 @@ namespace TrackDb.Tests.QueryPredicateTests
                 }
             }
         }
+
+        [Fact]
+        public void IntegerAnd()
+        {
+            var schema = new TableSchema(
+                "MyTable",
+                [new ColumnSchema(nameof(IntegerOnly.Value), typeof(int))],
+                []);
+            var predicate = QueryPredicateFactory.Create(
+                (IntegerOnly i) => (i.Value > 5) && (i.Value < 12),
+                schema);
+
+            Assert.IsType<BinaryOperatorPredicate>(predicate);
+
+            var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
+
+            //Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
+            //Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
+            //Assert.Equal(5, binaryOperatorPredicate.Value);
+        }
     }
 }

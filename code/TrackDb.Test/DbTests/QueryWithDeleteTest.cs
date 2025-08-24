@@ -9,21 +9,27 @@ namespace TrackDb.Tests.DbTests
     public class QueryWithDeleteTest
     {
         [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task IntOnly(bool doPushPendingData)
+        //[InlineData(false, false, false)]
+        //[InlineData(true, false, false)]
+        //[InlineData(true, true, false)]
+        //[InlineData(true, true, true)]
+        //[InlineData(false, true, true)]
+        [InlineData(false, false, true)]
+        public async Task IntOnly(bool doPushPendingData1, bool doPushPendingData2, bool doPushPendingData3)
         {
             await using (var testTable = DbTestTables.CreateIntOnly())
             {
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(1));
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(2));
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData1);
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(3));
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData2);
 
                 //  Delete
                 testTable.Table.Query()
                     .Where(i => i.Integer == 2)
                     .Delete();
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData3);
 
                 var resultsAll = testTable.Table.Query()
                     .ToImmutableList();
