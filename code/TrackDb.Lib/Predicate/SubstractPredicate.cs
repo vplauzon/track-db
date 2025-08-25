@@ -1,26 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    /// <summary>
-    /// Applying an "AND" logic between two predicates
-    /// </summary>
-    /// <param name="LeftPredicate"></param>
-    /// <param name="RightPredicate"></param>
-    internal record ConjunctionPredicate(
+    internal record SubstractPredicate(
         IQueryPredicate LeftPredicate,
-        IQueryPredicate RightPredicate)
-        : IQueryPredicate
+        IQueryPredicate RightPredicate) : IQueryPredicate
     {
         bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
         {
-            return other is ConjunctionPredicate cp
-                && cp.LeftPredicate.Equals(LeftPredicate)
-                && cp.RightPredicate.Equals(RightPredicate);
+            return other is SubstractPredicate sp
+                && sp.LeftPredicate.Equals(LeftPredicate)
+                && sp.RightPredicate.Equals(RightPredicate);
         }
 
         IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates =>
@@ -28,17 +20,10 @@ namespace TrackDb.Lib.Predicate
 
         IQueryPredicate? IQueryPredicate.Simplify()
         {
-            if (LeftPredicate.Equals(AllInPredicate.Instance))
+            if (RightPredicate is ResultPredicate rpr
+                && LeftPredicate is ResultPredicate rpl)
             {
-                return RightPredicate;
-            }
-            else if (RightPredicate.Equals(AllInPredicate.Instance))
-            {
-                return LeftPredicate;
-            }
-            else if (LeftPredicate is ResultPredicate rpl && RightPredicate is ResultPredicate rpr)
-            {
-                return new ResultPredicate(rpl.RecordIndexes.Intersect(rpr.RecordIndexes));
+                return new ResultPredicate(rpl.RecordIndexes.Except(rpr.RecordIndexes));
             }
             else
             {
@@ -65,7 +50,7 @@ namespace TrackDb.Lib.Predicate
             if (sl != null && sr != null)
             {
                 IQueryPredicate simplified =
-                    new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
+                    new SubstractPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
 
                 return simplified.Simplify() ?? simplified;
             }

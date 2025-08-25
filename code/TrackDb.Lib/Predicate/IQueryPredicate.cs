@@ -7,21 +7,24 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    public interface IQueryPredicate
+    public interface IQueryPredicate : IEquatable<IQueryPredicate>
     {
-        /// <summary>
-        /// <c>true</c> iif this predicate is terminal, i.e. completely simplified.
-        /// </summary>
-        bool IsTerminal { get; }
+        /// <summary>Leaf predicates in the chain.</summary>
+        /// <remarks>
+        /// A leaf predicate is a predicate that can be resolved into a
+        /// <see cref="ResultPredicate"/>.
+        /// The main exception is <see cref="AllInPredicate"/>.
+        /// </remarks>
+        IEnumerable<IQueryPredicate> LeafPredicates { get; }
 
-        /// <summary>Returns the first primitive predicate in the chain.</summary>>
-        IQueryPredicate? FirstPrimitivePredicate { get; }
-
-        /// <summary>
-        /// Simplifies the predicate by running a replace function on each node.
-        /// </summary>>
-        /// <param name="replaceFunc">Function replacing a predicate.</param>
+        /// <summary>Applies any simplification rules.</summary>
         /// <returns>Simplified predicate (or <c>null</c> if unchanged).</returns>
-        IQueryPredicate? Simplify(Func<IQueryPredicate, IQueryPredicate?> replaceFunc);
+        IQueryPredicate? Simplify();
+
+        /// <summary>Substitute a predicate for another.</summary>
+        /// <param name="beforePredicate"></param>
+        /// <param name="afterPredicate"></param>
+        /// <returns>Substituted predicate (or <c>null</c> if unchanged).</returns>
+        IQueryPredicate? Substitute(IQueryPredicate beforePredicate, IQueryPredicate afterPredicate);
     }
 }

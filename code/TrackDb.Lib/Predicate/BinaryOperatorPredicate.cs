@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,11 +13,26 @@ namespace TrackDb.Lib.Predicate
         BinaryOperator BinaryOperator)
         : IQueryPredicate
     {
-        bool IQueryPredicate.IsTerminal => false;
+        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        {
+            return other is BinaryOperatorPredicate bop
+                && bop.ColumnIndex == bop.ColumnIndex
+                && bop.Value == bop.Value
+                && bop.BinaryOperator == bop.BinaryOperator;
+        }
 
-        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => this;
+        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates
+        {
+            get
+            {
+                yield return this;
+            }
+        }
 
-        IQueryPredicate? IQueryPredicate.Simplify(
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc) => null;
+        IQueryPredicate? IQueryPredicate.Simplify() => null;
+
+        IQueryPredicate? IQueryPredicate.Substitute(
+            IQueryPredicate beforePredicate,
+            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
     }
 }

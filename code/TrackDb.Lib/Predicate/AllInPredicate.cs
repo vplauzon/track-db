@@ -14,11 +14,17 @@ namespace TrackDb.Lib.Predicate
 
         public static AllInPredicate Instance { get; } = new AllInPredicate();
 
-        bool IQueryPredicate.IsTerminal => true;
+        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        {
+            return other is AllInPredicate;
+        }
 
-        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
+        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates => Array.Empty<IQueryPredicate>();
 
-        IQueryPredicate? IQueryPredicate.Simplify(
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc) => null;
+        IQueryPredicate? IQueryPredicate.Simplify() => null;
+
+        IQueryPredicate? IQueryPredicate.Substitute(
+            IQueryPredicate beforePredicate,
+            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
     }
 }

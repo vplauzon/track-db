@@ -1,11 +1,11 @@
-﻿using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
-using TrackDb.Lib.Predicate;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.Cache.CachedBlock
 {
@@ -73,66 +73,83 @@ namespace TrackDb.Lib.Cache.CachedBlock
                     $"{materializedProjectionColumnIndexes.Count()} columns instead of " +
                     $"maximum {_projectionBuffer.Length}");
             }
-            //  Initial simplification
-            predicate = predicate.Simplify(p => null) ?? predicate;
 
-            while (!predicate.IsTerminal)
+            var results = ResolvePredicate(predicate);
+
+            return CreateResults(results, materializedProjectionColumnIndexes);
+        }
+        #endregion
+
+        private IImmutableSet<int> ResolvePredicate(IQueryPredicate predicate)
+        {
+            predicate = predicate.Simplify() ?? predicate;
+
+            var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
+
+            if (leafPredicate != null)
             {
-                var primitivePredicate = predicate.FirstPrimitivePredicate;
+                var newPredicate =
+                    predicate.Substitute(leafPredicate, ResolveLeafPredicate(leafPredicate));
 
-                if (primitivePredicate == null)
-                {   //  Should be terminal by now
-                    throw new InvalidOperationException("Can't complete query");
+                if (newPredicate == null)
+                {
+                    throw new InvalidOperationException("Predicate substitution failed");
                 }
                 else
                 {
-                    if (primitivePredicate is BinaryOperatorPredicate binaryOperatorPredicate)
-                    {
-                        var column = DataColumns[binaryOperatorPredicate.ColumnIndex];
-                        var resultIndexes = column.Filter(
-                            binaryOperatorPredicate.BinaryOperator,
-                            binaryOperatorPredicate.Value);
-                        var resultPredicate = new ResultPredicate(resultIndexes);
-
-                        predicate = Simplify(
-                            predicate,
-                            p => object.ReferenceEquals(p, primitivePredicate)
-                            ? resultPredicate
-                            : null);
-                    }
-                    else
-                    {
-                        throw new NotSupportedException(
-                            $"Primitive predicate:  '{primitivePredicate.GetType().Name}'");
-                    }
+                    return ResolvePredicate(newPredicate);
                 }
-            }
-            if (predicate is AllInPredicate)
-            {
-                return CreateResults(
-                    Enumerable.Range(
-                        0,
-                        DataColumns.First().RecordCount)
-                    .Select(i => (int)i),
-                    materializedProjectionColumnIndexes);
             }
             else if (predicate is ResultPredicate rp)
             {
-                return CreateResults(rp.RecordIndexes, materializedProjectionColumnIndexes);
+                return rp.RecordIndexes;
+            }
+            else
+            {
+                var finalSubstitution = predicate.Substitute(
+                    AllInPredicate.Instance,
+                    new ResultPredicate(
+                        Enumerable.Range(
+                            0,
+                            DataColumns.First().RecordCount)));
+
+                if (finalSubstitution == null)
+                {
+                    throw new InvalidOperationException("Final substitution failed");
+                }
+                else
+                {
+                    var finalPredicate = finalSubstitution.Simplify() ?? finalSubstitution;
+
+                    if (finalPredicate is ResultPredicate rp2)
+                    {
+                        return rp2.RecordIndexes;
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Can't complete query");
+                    }
+                }
+            }
+        }
+
+        private IQueryPredicate ResolveLeafPredicate(IQueryPredicate leafPredicate)
+        {
+            if (leafPredicate is BinaryOperatorPredicate binaryOperatorPredicate)
+            {
+                var column = DataColumns[binaryOperatorPredicate.ColumnIndex];
+                var resultIndexes = column.Filter(
+                    binaryOperatorPredicate.BinaryOperator,
+                    binaryOperatorPredicate.Value);
+                var resultPredicate = new ResultPredicate(resultIndexes);
+
+                return resultPredicate;
             }
             else
             {
                 throw new NotSupportedException(
-                    $"Terminal predicate:  {predicate.GetType().Name}");
+                    $"Primitive predicate:  '{leafPredicate.GetType().Name}'");
             }
-        }
-        #endregion
-
-        private IQueryPredicate Simplify(
-            IQueryPredicate predicate,
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
-        {
-            return replaceFunc(predicate) ?? (predicate.Simplify(replaceFunc) ?? predicate);
         }
 
         private IEnumerable<ReadOnlyMemory<object?>> CreateResults(

@@ -9,15 +9,45 @@ namespace TrackDb.Lib.Predicate
     internal record NegationPredicate(IQueryPredicate InnerPredicate)
         : IQueryPredicate
     {
-        bool IQueryPredicate.IsTerminal => false;
-
-        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate =>
-            InnerPredicate.FirstPrimitivePredicate;
-
-        IQueryPredicate? IQueryPredicate.Simplify(
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
+        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
         {
-            throw new NotImplementedException();
+            return other is NegationPredicate np
+                && np.InnerPredicate.Equals(InnerPredicate);
+        }
+
+        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates => InnerPredicate.LeafPredicates;
+
+
+        IQueryPredicate? IQueryPredicate.Simplify()
+        {
+            IQueryPredicate sp = new SubstractPredicate(AllInPredicate.Instance, InnerPredicate);
+
+            return sp.Simplify() ?? sp;
+        }
+
+        IQueryPredicate? IQueryPredicate.Substitute(
+            IQueryPredicate beforePredicate,
+            IQueryPredicate afterPredicate)
+        {
+            if (beforePredicate.Equals(this))
+            {
+                return afterPredicate;
+            }
+            else
+            {
+                var si = InnerPredicate.Substitute(beforePredicate, afterPredicate);
+
+                if (si != null)
+                {
+                    IQueryPredicate simplified = new NegationPredicate(si);
+
+                    return simplified.Simplify() ?? simplified;
+                }
+                else
+                {
+                    return null;
+                }
+            }
         }
     }
 }

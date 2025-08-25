@@ -11,19 +11,23 @@ namespace TrackDb.Lib.Predicate
     {
         public ResultPredicate(IEnumerable<int> recordIndexes)
         {
-            RecordIndexes = recordIndexes.ToImmutableArray();
+            RecordIndexes = recordIndexes.ToImmutableHashSet();
         }
 
-        public IImmutableList<int> RecordIndexes { get; }
+        public IImmutableSet<int> RecordIndexes { get; }
 
-        bool IQueryPredicate.IsTerminal => true;
-
-        IQueryPredicate? IQueryPredicate.FirstPrimitivePredicate => null;
-
-        IQueryPredicate? IQueryPredicate.Simplify(
-            Func<IQueryPredicate, IQueryPredicate?> replaceFunc)
+        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
         {
-            return null;
+            return other is ResultPredicate rp
+                && rp.RecordIndexes.SetEquals(RecordIndexes);
         }
+
+        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates => Array.Empty<IQueryPredicate>();
+
+        IQueryPredicate? IQueryPredicate.Simplify() => null;
+
+        IQueryPredicate? IQueryPredicate.Substitute(
+            IQueryPredicate beforePredicate,
+            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
     }
 }
