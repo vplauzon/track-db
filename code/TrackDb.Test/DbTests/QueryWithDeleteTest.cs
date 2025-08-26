@@ -9,11 +9,11 @@ namespace TrackDb.Tests.DbTests
     public class QueryWithDeleteTest
     {
         [Theory]
-        //[InlineData(false, false, false)]
-        //[InlineData(true, false, false)]
-        //[InlineData(true, true, false)]
-        //[InlineData(true, true, true)]
-        //[InlineData(false, true, true)]
+        [InlineData(false, false, false)]
+        [InlineData(true, false, false)]
+        [InlineData(true, true, false)]
+        [InlineData(true, true, true)]
+        [InlineData(false, true, true)]
         [InlineData(false, false, true)]
         public async Task IntOnly(bool doPushPendingData1, bool doPushPendingData2, bool doPushPendingData3)
         {
