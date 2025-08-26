@@ -42,7 +42,20 @@ namespace TrackDb.Lib.Predicate
             }
             else
             {
-                return Recompose(LeftPredicate.Simplify(), RightPredicate.Simplify());
+                var sl = LeftPredicate.Simplify();
+                var sr = RightPredicate.Simplify();
+
+                if (sl != null || sr != null)
+                {
+                    IQueryPredicate simplified =
+                        new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
+
+                    return simplified.Simplify() ?? simplified;
+                }
+                else
+                {
+                    return null;
+                }
             }
         }
 
@@ -56,22 +69,12 @@ namespace TrackDb.Lib.Predicate
             }
             else
             {
-                return Recompose(LeftPredicate.Simplify(), RightPredicate.Simplify());
-            }
-        }
+                var sl = LeftPredicate.Substitute(beforePredicate, afterPredicate);
+                var sr = RightPredicate.Substitute(beforePredicate, afterPredicate);
 
-        private IQueryPredicate? Recompose(IQueryPredicate? sl, IQueryPredicate? sr)
-        {
-            if (sl != null && sr != null)
-            {
-                IQueryPredicate simplified =
-                    new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
-
-                return simplified.Simplify() ?? simplified;
-            }
-            else
-            {
-                return null;
+                return sl != null || sr != null
+                    ? new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
+                    : null;
             }
         }
     }

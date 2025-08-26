@@ -74,7 +74,8 @@ namespace TrackDb.Lib.Cache.CachedBlock
                     $"maximum {_projectionBuffer.Length}");
             }
 
-            var results = ResolvePredicate(predicate);
+            //  Initiate a simplification prior to the resolution process
+            var results = ResolvePredicate(predicate.Simplify() ?? predicate);
 
             return CreateResults(results, materializedProjectionColumnIndexes);
         }
@@ -82,14 +83,12 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         private IImmutableSet<int> ResolvePredicate(IQueryPredicate predicate)
         {
-            predicate = predicate.Simplify() ?? predicate;
-
             var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
 
             if (leafPredicate != null)
             {
-                var newPredicate =
-                    predicate.Substitute(leafPredicate, ResolveLeafPredicate(leafPredicate));
+                var resultPredicate = new ResultPredicate(ResolveLeafPredicate(leafPredicate));
+                var newPredicate = predicate.Substitute(leafPredicate, resultPredicate);
 
                 if (newPredicate == null)
                 {
@@ -97,7 +96,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
                 }
                 else
                 {
-                    return ResolvePredicate(newPredicate);
+                    return ResolvePredicate(newPredicate.Simplify() ?? newPredicate);
                 }
             }
             else if (predicate is ResultPredicate rp)
@@ -133,17 +132,21 @@ namespace TrackDb.Lib.Cache.CachedBlock
             }
         }
 
-        private IQueryPredicate ResolveLeafPredicate(IQueryPredicate leafPredicate)
+        private IEnumerable<int> ResolveLeafPredicate(IQueryPredicate leafPredicate)
         {
-            if (leafPredicate is BinaryOperatorPredicate binaryOperatorPredicate)
+            if (leafPredicate is BinaryOperatorPredicate bop)
             {
-                var column = DataColumns[binaryOperatorPredicate.ColumnIndex];
-                var resultIndexes = column.Filter(
-                    binaryOperatorPredicate.BinaryOperator,
-                    binaryOperatorPredicate.Value);
-                var resultPredicate = new ResultPredicate(resultIndexes);
+                var column = DataColumns[bop.ColumnIndex];
+                var resultIndexes = column.FilterBinary(bop.BinaryOperator, bop.Value);
 
-                return resultPredicate;
+                return resultIndexes;
+            }
+            else if (leafPredicate is InPredicate ip)
+            {
+                var column = DataColumns[ip.ColumnIndex];
+                var resultIndexes = column.FilterIn(ip.Values);
+
+                return resultIndexes;
             }
             else
             {

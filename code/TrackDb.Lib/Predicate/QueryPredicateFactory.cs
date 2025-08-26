@@ -39,7 +39,10 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             IEnumerable<U> values)
         {
-            throw new NotImplementedException();
+            return new TypedQueryPredicateAdapter<T>(
+                new InPredicate(
+                    GetColumnIndex(propertySelection.Body),
+                    values.Cast<object?>()));
         }
 
         public ITypedQueryPredicate<T> LessThan<U>(
@@ -94,7 +97,7 @@ namespace TrackDb.Lib.Predicate
         {
             if (expression is MemberExpression me)
             {
-                if(me.Member is PropertyInfo pi)
+                if (me.Member is PropertyInfo pi)
                 {
                     return GetColumnIndex(pi);
                 }

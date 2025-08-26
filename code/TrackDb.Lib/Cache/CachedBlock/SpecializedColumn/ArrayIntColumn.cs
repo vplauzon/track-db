@@ -23,7 +23,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                 : (object)data;
         }
 
-        protected override void FilterInternal(
+        protected override void FilterBinaryInternal(
             int value,
             ReadOnlySpan<int> storedValues,
             BinaryOperator binaryOperator,

@@ -51,7 +51,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
             return _array[index];
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
+        IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)
         {
             if (value != null && value.GetType() != typeof(T))
             {
@@ -63,13 +63,28 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
             var strongTypeValue = value == null ? NullValue : (T)value;
             var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
 
-            FilterInternal(
+            FilterBinaryInternal(
                 strongTypeValue,
                 new ReadOnlySpan<T>(_array, 0, _itemCount),
                 binaryOperator,
                 matchBuilder);
 
             return matchBuilder;
+        }
+
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+        {
+            var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
+
+            for (var i =0; i != _itemCount;++i)
+            {
+                if (values.Contains(_array[i]))
+                {
+                    matchBuilder.Add(i);
+                }
+            }
+
+            return matchBuilder.ToImmutable();
         }
         #endregion
 
@@ -170,7 +185,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
 
         protected abstract object? GetObjectData(T data);
 
-        protected abstract void FilterInternal(
+        protected abstract void FilterBinaryInternal(
             T value,
             ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,

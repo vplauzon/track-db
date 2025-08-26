@@ -14,6 +14,8 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         object? GetValue(int index);
 
-        IEnumerable<int> Filter(BinaryOperator binaryOperator, object? value);
+        IEnumerable<int> FilterBinary(BinaryOperator binaryOperator, object? value);
+        
+        IEnumerable<int> FilterIn(IImmutableSet<object?> values);
     }
 }

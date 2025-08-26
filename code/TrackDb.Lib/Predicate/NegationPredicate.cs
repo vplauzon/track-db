@@ -20,7 +20,9 @@ namespace TrackDb.Lib.Predicate
 
         IQueryPredicate? IQueryPredicate.Simplify()
         {
-            IQueryPredicate sp = new SubstractPredicate(AllInPredicate.Instance, InnerPredicate);
+            IQueryPredicate sp = new SubstractPredicate(
+                AllInPredicate.Instance,
+                InnerPredicate.Simplify() ?? InnerPredicate);
 
             return sp.Simplify() ?? sp;
         }
@@ -37,16 +39,9 @@ namespace TrackDb.Lib.Predicate
             {
                 var si = InnerPredicate.Substitute(beforePredicate, afterPredicate);
 
-                if (si != null)
-                {
-                    IQueryPredicate simplified = new NegationPredicate(si);
-
-                    return simplified.Simplify() ?? simplified;
-                }
-                else
-                {
-                    return null;
-                }
+                return si != null
+                    ? new NegationPredicate(si)
+                    : null;
             }
         }
     }

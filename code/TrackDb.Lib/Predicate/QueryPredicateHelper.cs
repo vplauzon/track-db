@@ -13,15 +13,16 @@ namespace TrackDb.Lib.Predicate
         public static ITypedQueryPredicate<T> Not<T>(ITypedQueryPredicate<T> predicate)
             where T : notnull
         {
-            throw new NotImplementedException();
+            return new TypedQueryPredicateAdapter<T>(new NegationPredicate(predicate));
         }
 
         public static ITypedQueryPredicate<T> And<T>(
-            this ITypedQueryPredicate<T> predicate1,
-            ITypedQueryPredicate<T> predicate2)
+            this ITypedQueryPredicate<T> leftPredicate,
+            ITypedQueryPredicate<T> rightPredicate)
             where T : notnull
         {
-            throw new NotImplementedException();
+            return new TypedQueryPredicateAdapter<T>(
+                new ConjunctionPredicate(leftPredicate, rightPredicate));
         }
 
         public static ITypedQueryPredicate<T> Or<T>(

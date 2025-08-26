@@ -32,7 +32,7 @@ namespace TrackDb.Lib
         {
             _table = table;
             _transactionContext = transactionContext;
-            _predicate = predicate;
+            _predicate = predicate.Simplify() ?? predicate;
             _projectionColumnIndexes =
                 (projectionColumnIndexes ?? Enumerable.Range(0, _table.Schema.Columns.Count))
                 .ToImmutableArray();

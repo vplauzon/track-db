@@ -639,7 +639,7 @@ namespace TrackDb.Lib
                             UpdateLogs(
                                 tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tombstoneTableName],
                                 map[tombstoneTableName],
-                                tableBlock));
+                                tombstoneBlock));
                     }
 
                     return new DatabaseState(new DatabaseCache(map), state.TransactionMap);

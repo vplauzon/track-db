@@ -1,10 +1,11 @@
-﻿using TrackDb.Lib.Predicate;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.Cache.CachedBlock
 {
@@ -35,9 +36,14 @@ namespace TrackDb.Lib.Cache.CachedBlock
             return _innerColumn.Value.GetValue(index);
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.Filter(BinaryOperator binaryOperator, object? value)
+        IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)
         {
-            return _innerColumn.Value.Filter(binaryOperator, value);
+            return _innerColumn.Value.FilterBinary(binaryOperator, value);
+        }
+
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+        {
+            return _innerColumn.Value.FilterIn(values);
         }
     }
 }
