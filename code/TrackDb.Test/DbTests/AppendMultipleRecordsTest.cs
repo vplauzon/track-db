@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using TrackDb.Lib;
 using Xunit;
 
 namespace TrackDb.Tests.DbTests
@@ -18,7 +19,9 @@ namespace TrackDb.Tests.DbTests
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(1));
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(2));
                 testTable.Table.AppendRecord(new DbTestTables.IntOnly(3));
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
             }
         }
     }

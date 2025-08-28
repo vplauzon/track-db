@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using TrackDb.Lib;
 using Xunit;
 
 namespace TrackDb.Tests.DbTests
@@ -23,7 +24,9 @@ namespace TrackDb.Tests.DbTests
                     testTable.Table.Query(tx).Delete();
                     tx.Complete();
                 }
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData);
+                await testTable.Database.ForceDataManagementAsync(doPushPendingData
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
 
                 var records = testTable.Table.Query()
                     .ToImmutableArray();
