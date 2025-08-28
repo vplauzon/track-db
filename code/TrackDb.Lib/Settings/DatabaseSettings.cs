@@ -1,4 +1,4 @@
-﻿namespace TrackDb.Lib
+﻿namespace TrackDb.Lib.Settings
 {
     public record DatabaseSettings(
         int MaxCachedRecordsPerDb = 100,
