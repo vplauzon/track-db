@@ -33,7 +33,8 @@ namespace TrackDb.Lib
         private readonly TaskCompletionSource _dataMaintenanceStopSource =
             new TaskCompletionSource();
         private TaskCompletionSource _dataMaintenanceTriggerSource = new TaskCompletionSource();
-        private TaskCompletionSource? _persistEverythingSource = null;
+        private DataManagementActivity _dataManagementActivity = DataManagementActivity.None;
+        private TaskCompletionSource? _forceDataManagementSource = null;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState = new();
         private volatile IImmutableDictionary<string, Table> _tableToMetaDataTableMap
@@ -234,13 +235,15 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        internal async Task ForceDataManagementAsync(bool persistAll = false)
+        internal async Task ForceDataManagementAsync(
+            DataManagementActivity dataManagementActivity = DataManagementActivity.None)
         {
-            if (persistAll)
+            if (dataManagementActivity != DataManagementActivity.None)
             {
-                _persistEverythingSource = new TaskCompletionSource();
+                _forceDataManagementSource = new TaskCompletionSource();
+                Interlocked.Exchange(ref _dataManagementActivity, dataManagementActivity);
                 _dataMaintenanceTriggerSource.TrySetResult();
-                await _persistEverythingSource.Task;
+                await _forceDataManagementSource.Task;
             }
         }
 
@@ -498,7 +501,10 @@ namespace TrackDb.Lib
                 //  Reset the trigger source
                 _dataMaintenanceTriggerSource = new TaskCompletionSource();
 
-                var subTask = Task.Run(() => DataMaintanceIteration());
+                var dataManagementActivity = Interlocked.Exchange(
+                    ref _dataManagementActivity,
+                    DataManagementActivity.None);
+                var subTask = Task.Run(() => DataMaintanceIteration(dataManagementActivity));
 
                 //  Queue sub task so it can be observed later
                 _dataMaintenanceSubTasks.Enqueue(subTask);
@@ -534,19 +540,19 @@ namespace TrackDb.Lib
             }
         }
 
-        private void DataMaintanceIteration()
+        private void DataMaintanceIteration(DataManagementActivity dataManagementActivity)
         {
             try
             {
-                var doPersistEverything = _persistEverythingSource != null;
-
                 while (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    MergeTransactionLogs();
+                    MergeTransactionLogs(
+                        (dataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0);
 
-                    if (PersistOldRecords(doPersistEverything))
+                    if (PersistOldRecords(
+                        (dataManagementActivity & DataManagementActivity.PersistAllData) != 0))
                     {   //  We're done
-                        _persistEverythingSource?.TrySetResult();
+                        _forceDataManagementSource?.TrySetResult();
 
                         return;
                     }
@@ -554,28 +560,25 @@ namespace TrackDb.Lib
             }
             catch (Exception ex)
             {
-                _persistEverythingSource?.TrySetException(ex);
+                _forceDataManagementSource?.TrySetException(ex);
             }
         }
 
         #region Merge Transaction Logs
-        private void MergeTransactionLogs()
+        private void MergeTransactionLogs(bool doMergeAll)
         {
-            while (true)
-            {
-                var candidateTableName = _databaseState.DatabaseCache.TableTransactionLogsMap
-                    .Where(p => p.Value.InMemoryBlocks.Count > DatabaseSettings.MaxInMemoryBlocksPerTable)
-                    .Select(p => p.Key)
-                    .FirstOrDefault();
+            var maxInMemoryBlocksPerTable = doMergeAll
+                ? 1
+                : DatabaseSettings.MaxInMemoryBlocksPerTable;
+            var candidateTableName = _databaseState.DatabaseCache.TableTransactionLogsMap
+                .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
+                .Select(p => p.Key)
+                .FirstOrDefault();
 
-                if (candidateTableName == null)
-                {   //  We are done
-                    return;
-                }
-                else
-                {
-                    MergeTransactionLogs(candidateTableName);
-                }
+            if (candidateTableName != null)
+            {
+                MergeTransactionLogs(candidateTableName);
+                MergeTransactionLogs(doMergeAll);
             }
         }
 
