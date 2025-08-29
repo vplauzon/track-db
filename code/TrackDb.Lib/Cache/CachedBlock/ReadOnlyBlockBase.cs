@@ -11,7 +11,47 @@ namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal abstract class ReadOnlyBlockBase : IBlock
     {
-        private readonly object?[] _projectionBuffer;
+        #region Inner types
+        private class RowIndexColumn : IReadOnlyDataColumn
+        {
+            int IReadOnlyDataColumn.RecordCount => throw new NotSupportedException();
+
+            IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)
+            {
+                throw new NotSupportedException();
+            }
+
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+            {
+                throw new NotSupportedException();
+            }
+
+            object? IReadOnlyDataColumn.GetValue(int index)
+            {
+                return index;
+            }
+        }
+
+        private record BlockIdColumn(int BlockId) : IReadOnlyDataColumn
+        {
+            public int RecordCount => throw new NotSupportedException();
+
+            public IEnumerable<int> FilterBinary(BinaryOperator binaryOperator, object? value)
+            {
+                throw new NotSupportedException();
+            }
+
+            public IEnumerable<int> FilterIn(IImmutableSet<object?> values)
+            {
+                throw new NotSupportedException();
+            }
+
+            public object? GetValue(int index)
+            {
+                return BlockId;
+            }
+        }
+        #endregion
 
         #region Constructors
         static ReadOnlyBlockBase()
@@ -21,14 +61,9 @@ namespace TrackDb.Lib.Cache.CachedBlock
                 .ToImmutableHashSet();
         }
 
-        protected ReadOnlyBlockBase(
-            TableSchema schema,
-            IEnumerable<IReadOnlyDataColumn> dataColumns)
+        protected ReadOnlyBlockBase(TableSchema schema)
         {
             Schema = schema;
-            DataColumns = dataColumns.ToImmutableArray();
-            //  Reserve space for record ID + row index
-            _projectionBuffer = new object?[Schema.Columns.Count + 2];
         }
 
         private static IImmutableDictionary<Type, Func<int, IDataColumn>> CreateDataColumnFactories()
@@ -53,34 +88,63 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         protected TableSchema Schema { get; }
 
-        protected IImmutableList<IReadOnlyDataColumn> DataColumns { get; }
+        protected abstract int RecordCount { get; }
+
+        protected abstract IReadOnlyDataColumn GetDataColumn(int columnIndex);
 
         #region IBlock
         TableSchema IBlock.TableSchema => Schema;
 
-        int IBlock.RecordCount => DataColumns.First().RecordCount;
+        int IBlock.RecordCount => RecordCount;
 
-        IEnumerable<ReadOnlyMemory<object?>> IBlock.Query(
-            IQueryPredicate predicate,
-            IEnumerable<int> projectionColumnIndexes)
+        IEnumerable<int> IBlock.Filter(IQueryPredicate predicate)
         {
-            var materializedProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
-
-            if (materializedProjectionColumnIndexes.Count() > _projectionBuffer.Length)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(projectionColumnIndexes),
-                    $"{materializedProjectionColumnIndexes.Count()} columns instead of " +
-                    $"maximum {_projectionBuffer.Length}");
-            }
-
             //  Initiate a simplification prior to the resolution process
             var resultRowIndexes = ResolvePredicate(predicate.Simplify() ?? predicate);
 
-            return CreateResults(resultRowIndexes, materializedProjectionColumnIndexes);
+            return resultRowIndexes;
+        }
+
+        IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
+            Memory<object?> buffer,
+            IEnumerable<int> projectionColumnIndexes,
+            IEnumerable<int> rowIndexes,
+            int blockId)
+        {
+            var materializedProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
+
+            if (materializedProjectionColumnIndexes.Count() != buffer.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(projectionColumnIndexes),
+                    $"Number of projected columns ({materializedProjectionColumnIndexes.Count()}) " +
+                    $"isn't the same as the buffer size ({buffer.Length})");
+            }
+
+            var columns = materializedProjectionColumnIndexes
+                .Select(index => index < 0 || index > Schema.Columns.Count + 2
+                ? throw new ArgumentOutOfRangeException(
+                    nameof(projectionColumnIndexes),
+                    $"Column '{index}' is out-of-range")
+                : index <= Schema.Columns.Count
+                ? GetDataColumn(index)
+                : index == Schema.Columns.Count + 1
+                ? new RowIndexColumn()
+                : new BlockIdColumn(blockId))
+                .ToImmutableArray();
+
+            foreach (var rowIndex in rowIndexes)
+            {
+                for (var i = 0; i != columns.Length; ++i)
+                {
+                    buffer.Span[i] = columns[i].GetValue(rowIndex);
+                }
+                yield return buffer;
+            }
         }
         #endregion
 
+        #region Predicate filtering
         private IImmutableSet<int> ResolvePredicate(IQueryPredicate predicate)
         {
             var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
@@ -107,10 +171,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
             {
                 var finalSubstitution = predicate.Substitute(
                     AllInPredicate.Instance,
-                    new ResultPredicate(
-                        Enumerable.Range(
-                            0,
-                            DataColumns.First().RecordCount)));
+                    new ResultPredicate(Enumerable.Range(0, RecordCount)));
 
                 if (finalSubstitution == null)
                 {
@@ -136,14 +197,14 @@ namespace TrackDb.Lib.Cache.CachedBlock
         {
             if (leafPredicate is BinaryOperatorPredicate bop)
             {
-                var column = DataColumns[bop.ColumnIndex];
+                var column = GetDataColumn(bop.ColumnIndex);
                 var resultIndexes = column.FilterBinary(bop.BinaryOperator, bop.Value);
 
                 return resultIndexes;
             }
             else if (leafPredicate is InPredicate ip)
             {
-                var column = DataColumns[ip.ColumnIndex];
+                var column = GetDataColumn(ip.ColumnIndex);
                 var resultIndexes = column.FilterIn(ip.Values);
 
                 return resultIndexes;
@@ -154,26 +215,6 @@ namespace TrackDb.Lib.Cache.CachedBlock
                     $"Primitive predicate:  '{leafPredicate.GetType().Name}'");
             }
         }
-
-        private IEnumerable<ReadOnlyMemory<object?>> CreateResults(
-            IEnumerable<int> rowIndexes,
-            IImmutableList<int> projectionColumnIndexes)
-        {
-            var memory = new ReadOnlyMemory<object?>(
-                _projectionBuffer,
-                0,
-                projectionColumnIndexes.Count);
-
-            foreach (var rowIndex in rowIndexes)
-            {
-                for (var i = 0; i != projectionColumnIndexes.Count; ++i)
-                {
-                    _projectionBuffer[i] = projectionColumnIndexes[i] < DataColumns.Count
-                        ? DataColumns[projectionColumnIndexes[i]].GetValue(rowIndex)
-                        : rowIndex;
-                }
-                yield return memory;
-            }
-        }
+        #endregion
     }
 }

@@ -665,41 +665,45 @@ namespace TrackDb.Lib
                 if (ShouldPersistCachedData(doPersistEverything, tc))
                 {
                     var tableName = GetOldestTable(tc);
-                    var logs = tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tableName];
 
-                    if (logs.InMemoryBlocks.Count > 1)
+                    if (tableName != null)
                     {
-                        MergeTransactionLogs(tableName);
-                    }
-                    else
-                    {
-                        var inMemoryBlock = logs.InMemoryBlocks.First();
-                        var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
-                        var metadataTable = GetMetaDataTable(inMemoryBlock.TableSchema);
-                        var isFirstBlock = true;
+                        var logs = tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tableName];
 
-                        blockBuilder.AppendBlock(inMemoryBlock);
-                        blockBuilder.OrderByRecordId();
-
-                        while (((IBlock)blockBuilder).RecordCount > 0)
+                        if (logs.InMemoryBlocks.Count > 1)
                         {
-                            var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
-                            var rowCount = ((IBlock)blockToPersist).RecordCount;
-
-                            //  We stop before persisting the last (typically incomplete) block
-                            if (isFirstBlock || ((IBlock)blockBuilder).RecordCount == rowCount)
-                            {
-                                var serializedBlock = blockToPersist.Serialize();
-                                var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
-
-                                blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
-                                metadataTable.AppendRecord(
-                                    serializedBlock.MetaData.CreateMetaDataRecord(blockId),
-                                    tc);
-                                isFirstBlock = false;
-                            }
+                            MergeTransactionLogs(tableName);
                         }
-                        CommitPersistance(blockBuilder, metadataTable, tc);
+                        else
+                        {
+                            var inMemoryBlock = logs.InMemoryBlocks.First();
+                            var blockBuilder = new BlockBuilder(inMemoryBlock.TableSchema);
+                            var metadataTable = GetMetaDataTable(inMemoryBlock.TableSchema);
+                            var isFirstBlock = true;
+
+                            blockBuilder.AppendBlock(inMemoryBlock);
+                            blockBuilder.OrderByRecordId();
+
+                            while (((IBlock)blockBuilder).RecordCount > 0)
+                            {
+                                var blockToPersist = blockBuilder.TruncateBlock(_storageManager.Value.BlockSize);
+                                var rowCount = ((IBlock)blockToPersist).RecordCount;
+
+                                //  We stop before persisting the last (typically incomplete) block
+                                if (isFirstBlock || ((IBlock)blockBuilder).RecordCount == rowCount)
+                                {
+                                    var serializedBlock = blockToPersist.Serialize();
+                                    var blockId = _storageManager.Value.WriteBlock(serializedBlock.Payload.ToArray());
+
+                                    blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
+                                    metadataTable.AppendRecord(
+                                        serializedBlock.MetaData.CreateMetaDataRecord(blockId),
+                                        tc);
+                                    isFirstBlock = false;
+                                }
+                            }
+                            CommitPersistance(blockBuilder, metadataTable, tc);
+                        }
                     }
 
                     return false;
@@ -767,11 +771,14 @@ namespace TrackDb.Lib
                 || (doPersistEverything && totalUserRecords > 0);
         }
 
-        private string GetOldestTable(TransactionContext tc)
+        private string? GetOldestTable(TransactionContext tc)
         {
             var cache = tc.TransactionState.DatabaseCache;
             var oldestRecordId = long.MaxValue;
-            var oldestTableName = string.Empty;
+            var oldestTableName = (string?)null;
+            var buffer = new object?[1].AsMemory();
+            var rowIndexes = new[] { 0 };
+            var projectedColumns = new int[1];
 
             foreach (var pair in cache.TableTransactionLogsMap)
             {
@@ -787,20 +794,22 @@ namespace TrackDb.Lib
 
                 if (isTableElligible)
                 {
-                    foreach (var block in logs.InMemoryBlocks)
-                    {
-                        if (block.RecordCount > 0)
-                        {
-                            var blockOldestRecordId = block
-                                .Query(AllInPredicate.Instance, new[] { block.TableSchema.Columns.Count })
-                                .Select(r => ((long?)r.Span[0])!.Value)
-                                .Min();
+                    var block = logs.InMemoryBlocks
+                        .Where(b => b.RecordCount > 0)
+                        .FirstOrDefault();
 
-                            if (blockOldestRecordId < oldestRecordId)
-                            {
-                                oldestRecordId = blockOldestRecordId;
-                                oldestTableName = tableName;
-                            }
+                    if (block != null)
+                    {   //  Fetch the record ID
+                        projectedColumns[0] = block.TableSchema.Columns.Count;
+
+                        var blockOldestRecordId = block.Project(buffer, projectedColumns, rowIndexes, 0)
+                            .Select(r => ((long?)r.Span[0])!.Value)
+                            .First();
+
+                        if (blockOldestRecordId < oldestRecordId)
+                        {
+                            oldestRecordId = blockOldestRecordId;
+                            oldestTableName = tableName;
                         }
                     }
                 }

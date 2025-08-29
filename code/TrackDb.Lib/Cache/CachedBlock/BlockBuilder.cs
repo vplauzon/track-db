@@ -15,16 +15,29 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         private const int MAX_TRUNCATE_OPTIMIZATION_ROUNDS = 5;
 
+        private readonly IImmutableList<IDataColumn> _dataColumns;
+
+        protected override int RecordCount => _dataColumns.First().RecordCount;
+
+        protected override IReadOnlyDataColumn GetDataColumn(int columnIndex)
+        {
+            if (columnIndex < 0 || columnIndex >= _dataColumns.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(columnIndex), columnIndex.ToString());
+            }
+
+            return _dataColumns[columnIndex];
+        }
+
         #region Constructors
         public BlockBuilder(TableSchema schema)
-            : base(
-                  schema,
-                  schema.Columns
-                  .Select(c => CreateColumn(c.ColumnType, 0))
-                  //  Record ID column
-                  .Append(new ArrayLongColumn(false, 0)))
+            : base(schema)
         {
-            DataColumns = base.DataColumns.Cast<IDataColumn>().ToImmutableArray();
+            _dataColumns = schema.Columns
+                .Select(c => CreateColumn(c.ColumnType, 0))
+                //  Record ID column
+                .Append(new ArrayLongColumn(false, 0))
+                .ToImmutableArray();
         }
 
         private static IDataColumn CreateColumn(Type columnType, int capacity)
@@ -40,8 +53,6 @@ namespace TrackDb.Lib.Cache.CachedBlock
         }
         #endregion
 
-        protected new IImmutableList<IDataColumn> DataColumns { get; }
-
         #region Writable block methods
         public void AppendBlock(IBlock block)
         {
@@ -50,17 +61,19 @@ namespace TrackDb.Lib.Cache.CachedBlock
                 throw new ArgumentException("Columns are incompatible", nameof(block));
             }
 
-            var data = block.Query(
-                AllInPredicate.Instance,
-                //  Include record ID
-                Enumerable.Range(0, Schema.Columns.Count + 1));
+            //  Include record ID
+            var data = block.Project(
+                new object?[Schema.Columns.Count + 1].AsMemory(),
+                Enumerable.Range(0, Schema.Columns.Count + 1),
+                Enumerable.Range(0, block.RecordCount),
+                0);
 
             //  Copy data
             foreach (var row in data)
             {
                 for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
                 {
-                    DataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                    _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
                 }
             }
         }
@@ -71,7 +84,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
             if (block.RecordCount > 1)
             {
-                var recordIdColumn = DataColumns.Last();
+                var recordIdColumn = _dataColumns.Last();
                 var recordIds = Enumerable.Range(0, block.RecordCount)
                     .Select(i => ((long?)recordIdColumn.GetValue(i))!.Value)
                     .ToImmutableArray();
@@ -87,7 +100,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
                         .Select(p => p.Second)
                         .ToImmutableArray();
 
-                    foreach (var column in DataColumns)
+                    foreach (var column in _dataColumns)
                     {
                         column.Reorder(orderIndexes);
                     }
@@ -97,17 +110,17 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
-            if (record.Length != DataColumns.Count - 1)
+            if (record.Length != _dataColumns.Count - 1)
             {
                 throw new ArgumentException(
-                    $"Expected {DataColumns.Count - 1} columns but is {record.Length}",
+                    $"Expected {_dataColumns.Count - 1} columns but is {record.Length}",
                     nameof(record));
             }
             for (int i = 0; i != record.Length; ++i)
             {
-                DataColumns[i].AppendValue(record[i]);
+                _dataColumns[i].AppendValue(record[i]);
             }
-            DataColumns[record.Length].AppendValue(recordId);
+            _dataColumns[record.Length].AppendValue(recordId);
         }
 
         /// <summary>Tries to delete records passed in.</summary>
@@ -117,11 +130,11 @@ namespace TrackDb.Lib.Cache.CachedBlock
         {
             var recordIdSet = recordIds.ToImmutableHashSet();
 
-            if (recordIdSet.Any() && DataColumns.First().RecordCount > 0)
+            if (recordIdSet.Any() && _dataColumns.First().RecordCount > 0)
             {
                 var columns = new object?[Schema.Columns.Count];
-                var recordIdColumn = (ArrayLongColumn)DataColumns.Last();
-                var deletedRecordPairs = Enumerable.Range(0, DataColumns.First().RecordCount)
+                var recordIdColumn = (ArrayLongColumn)_dataColumns.Last();
+                var deletedRecordPairs = Enumerable.Range(0, _dataColumns.First().RecordCount)
                     .Select(recordIndex => new
                     {
                         RecordId = recordIdColumn.RawData[recordIndex],
@@ -151,7 +164,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
         /// <param name="recordIndexes"></param>
         public void DeleteRecordsByRecordIndex(IEnumerable<int> recordIndexes)
         {
-            foreach (var dataColumn in DataColumns)
+            foreach (var dataColumn in _dataColumns)
             {
                 dataColumn.DeleteRecords(recordIndexes);
             }
@@ -169,7 +182,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
         /// <returns></returns>
         public SerializedBlock Serialize()
         {
-            var serializedColumns = DataColumns
+            var serializedColumns = _dataColumns
                 .Select(c => c.Serialize())
                 .ToImmutableArray();
 
@@ -218,10 +231,12 @@ namespace TrackDb.Lib.Cache.CachedBlock
             var block = (IBlock)this;
             var columnCount = block.TableSchema.Columns.Count;
             var newBlock = new BlockBuilder(block.TableSchema);
-            var records = block.Query(
-                AllInPredicate.Instance,
-                Enumerable.Range(0, columnCount + 1))
-                .Take(rowCount);
+            //  Include record ID
+            var records = block.Project(
+                new object?[columnCount + 1].AsMemory(),
+                Enumerable.Range(0, columnCount + 1),
+                Enumerable.Range(0, Math.Min(block.RecordCount, rowCount)),
+                0);
 
             foreach (var record in records)
             {

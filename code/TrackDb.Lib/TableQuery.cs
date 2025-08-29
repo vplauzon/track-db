@@ -16,6 +16,10 @@ namespace TrackDb.Lib
     /// </summary>
     public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
+        #region Inner types
+        private record IdentifiedBlock(int BlockId, IBlock Block);
+        #endregion
+
         private readonly Table _table;
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
@@ -140,18 +144,25 @@ namespace TrackDb.Lib
                 _table.Schema.TableName,
                 transactionContext)
                 .ToImmutableHashSet();
+            var materializedProjectionColumnIndexes = projectionColumnIndexes
+                //  Add Record ID at the end, so we can use it to detect deleted rows
+                .Append(_table.Schema.Columns.Count)
+                .ToImmutableArray();
+            var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
             foreach (var block in ListBlocks(transactionContext))
             {
-                var results = block.Query(
-                    _predicate,
-                    //  Add Record ID at the end, so we can use it to detect deleted rows
-                    projectionColumnIndexes.Append(_table.Schema.Columns.Count));
+                var rowIndexes = block.Block.Filter(_predicate);
+                var results = block.Block.Project(
+                    buffer,
+                    materializedProjectionColumnIndexes,
+                    rowIndexes,
+                    block.BlockId);
 
                 foreach (var result in RemoveDeleted(deletedRecordIds, results))
                 {
                     //  Remove last column (record ID)
-                    yield return extractResultFunc(block, result.Slice(0, result.Length - 1));
+                    yield return extractResultFunc(block.Block, result.Slice(0, result.Length - 1));
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -176,24 +187,25 @@ namespace TrackDb.Lib
             }
         }
 
-        private IEnumerable<IBlock> ListBlocks(TransactionContext transactionContext)
+        private IEnumerable<IdentifiedBlock> ListBlocks(TransactionContext transactionContext)
         {
             return ListUnpersistedBlocks(transactionContext)
                 .Concat(ListPersistedBlocks(transactionContext));
         }
 
-        private IEnumerable<IBlock> ListUnpersistedBlocks(TransactionContext transactionContext)
+        private IEnumerable<IdentifiedBlock> ListUnpersistedBlocks(TransactionContext transactionContext)
         {
             var transactionState = transactionContext.TransactionState;
+            var blockId = 0;
 
             foreach (var block in
                 transactionState.ListTransactionLogBlocks(_table.Schema.TableName))
             {
-                yield return block;
+                yield return new IdentifiedBlock(blockId--, block);
             }
         }
 
-        private IEnumerable<IBlock> ListPersistedBlocks(TransactionContext transactionContext)
+        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext transactionContext)
         {
             if (_table.Database.IsMetaDataTable(_table.Schema.TableName))
             {
@@ -212,10 +224,12 @@ namespace TrackDb.Lib
                         metaDataRow,
                         out var blockId);
 
-                    yield return _table.Database.GetOrLoadBlock(
+                    yield return new IdentifiedBlock(
                         blockId,
-                        _table.Schema,
-                        serializedBlockMetaData);
+                        _table.Database.GetOrLoadBlock(
+                            blockId,
+                            _table.Schema,
+                            serializedBlockMetaData));
                 }
             }
         }

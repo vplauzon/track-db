@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,18 +9,16 @@ namespace TrackDb.Lib.Cache.CachedBlock
 {
     internal class ReadOnlyBlock : ReadOnlyBlockBase
     {
+        private readonly IImmutableList<Lazy<IReadOnlyDataColumn>> _dataColumns;
+        private readonly int _recordCount;
+
         #region Constructors
         public ReadOnlyBlock(TableSchema schema, SerializedBlock serializedBlock)
-            : base(schema, CreateColumns(schema, serializedBlock))
-        {
-        }
-
-        private static IEnumerable<IReadOnlyDataColumn> CreateColumns(
-            TableSchema schema,
-            SerializedBlock serializedBlock)
+            : base(schema)
         {
             var serializedColumns = serializedBlock.CreateSerializedColumns();
-            var columns = schema.Columns
+
+            _dataColumns = schema.Columns
                 .Select(c => c.ColumnType)
                 //  Append the Record ID column
                 .Append(typeof(long))
@@ -28,18 +27,25 @@ namespace TrackDb.Lib.Cache.CachedBlock
                     ColumnType,
                     SerializedColumn
                 })
-                .Select(o => CreateColumn(o.ColumnType, o.SerializedColumn));
-
-            return columns;
+                .Select(o => CreateColumn(o.ColumnType, o.SerializedColumn))
+                .ToImmutableArray();
+            _recordCount = serializedBlock.MetaData.ItemCount;
         }
 
-        private static IReadOnlyDataColumn CreateColumn(
+        private static Lazy<IReadOnlyDataColumn> CreateColumn(
             Type columnType,
             SerializedColumn serializedColumn)
         {
             if (DataColumnFactories.TryGetValue(columnType, out var columnFactory))
             {
-                return new JitReadOnlyDataColumn(columnFactory, serializedColumn);
+                return new Lazy<IReadOnlyDataColumn>(() =>
+                {
+                    var column = columnFactory(serializedColumn.ItemCount);
+
+                    column.Deserialize(serializedColumn);
+
+                    return column;
+                });
             }
             else
             {
@@ -49,5 +55,17 @@ namespace TrackDb.Lib.Cache.CachedBlock
             }
         }
         #endregion
+
+        protected override int RecordCount => _recordCount;
+
+        protected override IReadOnlyDataColumn GetDataColumn(int columnIndex)
+        {
+            if (columnIndex < 0 || columnIndex >= _dataColumns.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(columnIndex), columnIndex.ToString());
+            }
+
+            return _dataColumns[columnIndex].Value;
+        }
     }
 }

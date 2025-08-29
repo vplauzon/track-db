@@ -11,12 +11,23 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         int RecordCount { get; }
 
-        /// <summary>Performs a query within the block's data.</summary>
+        /// <summary>Filters the rows given a predicate.</summary>
         /// <param name="predicate"></param>
-        /// <param name="projectionColumnIndexes"></param>
-        /// <returns>Projected columns of rows matching query.</returns>
-        IEnumerable<ReadOnlyMemory<object?>> Query(
-            IQueryPredicate predicate,
-            IEnumerable<int> projectionColumnIndexes);
+        /// <returns>Filtered row indexes.</returns>
+        IEnumerable<int> Filter(IQueryPredicate predicate);
+
+        /// <summary>
+        /// Project columns of given row indexes.  See <see cref="TableQuery"/> for column indexes.
+        /// </summary>
+        /// <param name="buffer">Buffer used to carry column values.</param>
+        /// <param name="projectionColumnIndexes">Column index to project.</param>
+        /// <param name="rowIndexes">Row index to project.</param>
+        /// <param name="blockId">Block ID to return if virtual column is projected.</param>
+        /// <returns></returns>
+        IEnumerable<ReadOnlyMemory<object?>> Project(
+            Memory<object?> buffer,
+            IEnumerable<int> projectionColumnIndexes,
+            IEnumerable<int> rowIndexes,
+            int blockId);
     }
 }
