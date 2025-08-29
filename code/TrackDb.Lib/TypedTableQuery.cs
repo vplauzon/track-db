@@ -16,6 +16,7 @@ namespace TrackDb.Lib
         private readonly TypedTable<T> _table;
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
+        private readonly IImmutableList<int> _sortColumns;
         private readonly int? _takeCount;
 
         #region Constructors
@@ -24,6 +25,7 @@ namespace TrackDb.Lib
                   table,
                   transactionContext,
                   AllInPredicate.Instance,
+                  ImmutableArray<int>.Empty,
                   null)
         {
         }
@@ -32,11 +34,13 @@ namespace TrackDb.Lib
             TypedTable<T> table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
+            IEnumerable<int> sortColumns,
             int? takeCount)
         {
             _table = table;
             _transactionContext = transactionContext;
             _predicate = predicate;
+            _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
         }
         #endregion
@@ -44,6 +48,10 @@ namespace TrackDb.Lib
         #region Query alteration
         public TypedTableQuery<T> Where(ITypedQueryPredicate<T> predicate)
         {
+            if (_sortColumns.Any())
+            {
+                throw new InvalidOperationException("Where clause can't be added after an orderby");
+            }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("Where clause can't be added after a take");
@@ -51,7 +59,12 @@ namespace TrackDb.Lib
 
             var newPredicate = new ConjunctionPredicate(_predicate, predicate);
 
-            return new TypedTableQuery<T>(_table, _transactionContext, newPredicate, _takeCount);
+            return new TypedTableQuery<T>(
+                _table,
+                _transactionContext,
+                newPredicate,
+                ImmutableArray<int>.Empty,
+                _takeCount);
         }
 
         public TypedTableQuery<T> Take(int count)
@@ -67,6 +80,11 @@ namespace TrackDb.Lib
         #region Order By
         public TypedTableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_sortColumns.Any())
+            {
+                throw new InvalidOperationException(
+                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+            }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
@@ -77,6 +95,11 @@ namespace TrackDb.Lib
 
         public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_sortColumns.Any())
+            {
+                throw new InvalidOperationException(
+                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+            }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("OrderByDesc clause can't be added after a take");
