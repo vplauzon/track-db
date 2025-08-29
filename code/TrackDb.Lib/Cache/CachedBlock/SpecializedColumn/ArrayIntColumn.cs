@@ -75,20 +75,20 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
             return new SerializedColumn(
                 column.ItemCount,
                 column.HasNulls,
-                Convert.ToInt32(column.ColumnMinimum),
-                Convert.ToInt32(column.ColumnMaximum),
+                column.ColumnMinimum == null ? null : Convert.ToInt32(column.ColumnMinimum),
+                column.ColumnMaximum == null ? null : Convert.ToInt32(column.ColumnMaximum),
                 column.Payload);
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
             //  Convert min and max to int-64 (from int-32)
             var intSerializedColumn = new SerializedColumn(
-                serializedColumn.ItemCount,
-                serializedColumn.HasNulls,
-                Convert.ToInt64(serializedColumn.ColumnMinimum),
-                Convert.ToInt64(serializedColumn.ColumnMaximum),
-                serializedColumn.Payload);
+                column.ItemCount,
+                column.HasNulls,
+                column.ColumnMinimum == null ? null : Convert.ToInt64(column.ColumnMinimum),
+                column.ColumnMaximum == null ? null : Convert.ToInt64(column.ColumnMaximum),
+                column.Payload);
 
             return Int64Codec.Decompress(intSerializedColumn)
                 .Select(l => (int?)l)

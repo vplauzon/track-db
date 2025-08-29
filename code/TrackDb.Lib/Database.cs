@@ -61,8 +61,8 @@ namespace TrackDb.Lib
             var invalidColumnName = _userTableMap.Values
                 .Select(t => t.Schema.Columns.Select(c => new
                 {
-                    TableName = t.Schema.TableName,
-                    ColumnName = c.ColumnName
+                    t.Schema.TableName,
+                    c.ColumnName
                 }))
                 .SelectMany(c => c)
                 .FirstOrDefault(o => o.ColumnName.Contains("$"));

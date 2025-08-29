@@ -14,7 +14,7 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = new TestDatabase())
             {
-                var resultsAll = db.IntOnlyTable.Query()
+                var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();
             }
         }

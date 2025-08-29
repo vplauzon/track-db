@@ -75,9 +75,9 @@ namespace TrackDb.Lib.Cache.CachedBlock
             }
 
             //  Initiate a simplification prior to the resolution process
-            var results = ResolvePredicate(predicate.Simplify() ?? predicate);
+            var resultRowIndexes = ResolvePredicate(predicate.Simplify() ?? predicate);
 
-            return CreateResults(results, materializedProjectionColumnIndexes);
+            return CreateResults(resultRowIndexes, materializedProjectionColumnIndexes);
         }
         #endregion
 
@@ -160,9 +160,9 @@ namespace TrackDb.Lib.Cache.CachedBlock
             IImmutableList<int> projectionColumnIndexes)
         {
             var memory = new ReadOnlyMemory<object?>(
-                    _projectionBuffer,
-                    0,
-                    projectionColumnIndexes.Count);
+                _projectionBuffer,
+                0,
+                projectionColumnIndexes.Count);
 
             foreach (var rowIndex in rowIndexes)
             {

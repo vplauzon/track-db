@@ -48,7 +48,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            return _array[index];
+            return GetObjectData(_array[index]);
         }
 
         IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)

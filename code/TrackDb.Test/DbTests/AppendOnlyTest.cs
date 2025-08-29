@@ -16,9 +16,9 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = new TestDatabase())
             {
-                var record = new TestDatabase.IntOnly(1);
+                var record = new TestDatabase.Primitives(1);
 
-                db.IntOnlyTable.AppendRecord(record);
+                db.PrimitiveTable.AppendRecord(record);
                 await db.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
@@ -32,9 +32,9 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = new TestDatabase())
             {
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(1));
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(2));
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(3));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 await db.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);

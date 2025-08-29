@@ -10,20 +10,20 @@ namespace TrackDb.Lib.Cache.CachedBlock
     internal record SerializedBlock(SerializedBlockMetaData MetaData, ReadOnlyMemory<byte> Payload)
     {
         #region Constructor
-        public SerializedBlock(IImmutableList<SerializedColumn> serializedColumns)
+        public SerializedBlock(IImmutableList<SerializedColumn> columns)
             : this(
                   new SerializedBlockMetaData(
-                      serializedColumns.First().ItemCount,
-                      serializedColumns
+                      columns.First().ItemCount,
+                      columns
                       .Select(c => c.HasNulls)
                       .ToImmutableArray(),
-                      serializedColumns
+                      columns
                       .Select(c => c.ColumnMinimum)
                       .ToImmutableArray(),
-                      serializedColumns
+                      columns
                       .Select(c => c.ColumnMaximum)
                       .ToImmutableArray()),
-                  CreateBlockPayload(serializedColumns))
+                  CreateBlockPayload(columns))
         {
         }
 
@@ -70,12 +70,13 @@ namespace TrackDb.Lib.Cache.CachedBlock
             {
                 var columnPayload = columnsPayload.Slice(0, columnPayloadSizes[i]);
 
+                columnsPayload = columnsPayload.Slice(columnPayloadSizes[i]);
                 serializedColumns.Add(new SerializedColumn(
                     MetaData.ItemCount,
                     MetaData.ColumnHasNulls[i],
                     MetaData.ColumnMinima[i],
                     MetaData.ColumnMaxima[i],
-                    columnsPayload));
+                    columnPayload));
             }
 
             return serializedColumns.ToImmutable();

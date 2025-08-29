@@ -24,6 +24,12 @@ namespace TrackDb.Test.Codecs
         }
 
         [Fact]
+        public void IdenticalWithOneNonNull()
+        {
+            TestScenario(new long?[] { null, null, 43 }, true);
+        }
+
+        [Fact]
         public void OnlyNulls()
         {
             TestScenario(new long?[] { null, null, null, null }, false);

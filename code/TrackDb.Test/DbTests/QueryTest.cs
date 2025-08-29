@@ -18,17 +18,17 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = new TestDatabase())
             {
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(1));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(2));
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(3));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
 
-                var resultsAll = db.IntOnlyTable.Query()
+                var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();
 
                 Assert.Equal(3, resultsAll.Count);
@@ -36,14 +36,15 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(2, resultsAll.Select(r => r.Integer));
                 Assert.Contains(3, resultsAll.Select(r => r.Integer));
 
-                var resultsEqual = db.IntOnlyTable.Query()
+                var resultsEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer == 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsEqual);
                 Assert.Equal(2, resultsEqual[0].Integer);
+                Assert.Null(resultsEqual[0].NullableInteger);
 
-                var resultsNotEqual = db.IntOnlyTable.Query()
+                var resultsNotEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer != 2)
                     .ToImmutableList();
 
@@ -51,14 +52,14 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(1, resultsNotEqual.Select(r => r.Integer));
                 Assert.Contains(3, resultsNotEqual.Select(r => r.Integer));
 
-                var resultsLessThan = db.IntOnlyTable.Query()
+                var resultsLessThan = db.PrimitiveTable.Query()
                     .Where(i => i.Integer < 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsLessThan);
                 Assert.Equal(1, resultsLessThan[0].Integer);
 
-                var resultsLessThanOrEqual = db.IntOnlyTable.Query()
+                var resultsLessThanOrEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer <= 2)
                     .ToImmutableList();
 
@@ -66,14 +67,15 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(1, resultsLessThanOrEqual.Select(r => r.Integer));
                 Assert.Contains(2, resultsLessThanOrEqual.Select(r => r.Integer));
 
-                var resultsGreaterThan = db.IntOnlyTable.Query()
+                var resultsGreaterThan = db.PrimitiveTable.Query()
                     .Where(i => i.Integer > 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsGreaterThan);
                 Assert.Equal(3, resultsGreaterThan[0].Integer);
+                Assert.Equal(43, resultsGreaterThan[0].NullableInteger);
 
-                var resultsGreaterThanOrEqual = db.IntOnlyTable.Query()
+                var resultsGreaterThanOrEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer >= 2)
                     .ToImmutableList();
 
@@ -94,38 +96,38 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = new TestDatabase())
             {
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(1));
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 await db.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
-                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(3));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 await db.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
 
                 //  Delete
-                db.IntOnlyTable.Query()
-                    .Where(db.IntOnlyTable.PredicateFactory.Equal(r => r.Integer, 2))
+                db.PrimitiveTable.Query()
+                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 2))
                     .Delete();
                 await db.ForceDataManagementAsync(doPushPendingData3
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
 
-                var resultsAll = db.IntOnlyTable.Query()
+                var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsAll.Count);
                 Assert.Contains(1, resultsAll.Select(r => r.Integer));
                 Assert.Contains(3, resultsAll.Select(r => r.Integer));
 
-                var resultsEqual = db.IntOnlyTable.Query()
+                var resultsEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer == 2)
                     .ToImmutableList();
 
                 Assert.Empty(resultsEqual);
 
-                var resultsNotEqual = db.IntOnlyTable.Query()
+                var resultsNotEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer != 2)
                     .ToImmutableList();
 
@@ -133,28 +135,28 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(1, resultsNotEqual.Select(r => r.Integer));
                 Assert.Contains(3, resultsNotEqual.Select(r => r.Integer));
 
-                var resultsLessThan = db.IntOnlyTable.Query()
+                var resultsLessThan = db.PrimitiveTable.Query()
                     .Where(i => i.Integer < 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsLessThan);
                 Assert.Equal(1, resultsLessThan[0].Integer);
 
-                var resultsLessThanOrEqual = db.IntOnlyTable.Query()
+                var resultsLessThanOrEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer <= 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsLessThanOrEqual);
                 Assert.Contains(1, resultsLessThanOrEqual.Select(r => r.Integer));
 
-                var resultsGreaterThan = db.IntOnlyTable.Query()
+                var resultsGreaterThan = db.PrimitiveTable.Query()
                     .Where(i => i.Integer > 2)
                     .ToImmutableList();
 
                 Assert.Single(resultsGreaterThan);
                 Assert.Equal(3, resultsGreaterThan[0].Integer);
 
-                var resultsGreaterThanOrEqual = db.IntOnlyTable.Query()
+                var resultsGreaterThanOrEqual = db.PrimitiveTable.Query()
                     .Where(i => i.Integer >= 2)
                     .ToImmutableList();
 

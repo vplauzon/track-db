@@ -11,18 +11,18 @@ namespace TrackDb.Test.DbTests
     internal class TestDatabase : Database
     {
         #region Entity types
-        public record IntOnly(int Integer);
+        public record Primitives(int Integer, int? NullableInteger = null);
         #endregion
 
-        private const string INT_ONLY_TABLE = "IntOnly";
+        private const string PRIMITIVES_TABLE = "Primitives";
 
         public TestDatabase()
             : base(
                  new DatabaseSettings(),
-                 TypedTableSchema<IntOnly>.FromConstructor(INT_ONLY_TABLE))
+                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE))
         {
         }
 
-        public TypedTable<IntOnly> IntOnlyTable => GetTypedTable<IntOnly>(INT_ONLY_TABLE);
+        public TypedTable<Primitives> PrimitiveTable => GetTypedTable<Primitives>(PRIMITIVES_TABLE);
     }
 }
