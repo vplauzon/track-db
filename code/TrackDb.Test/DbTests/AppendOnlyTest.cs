@@ -7,12 +7,12 @@ using Xunit;
 
 namespace TrackDb.Test.DbTests
 {
-    public class AppendOneRecordTest
+    public class AppendOnlyTest
     {
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public async Task IntOnly(bool doPushPendingData)
+        public async Task OneRecord(bool doPushPendingData)
         {
             await using (var db = new TestDatabase())
             {
