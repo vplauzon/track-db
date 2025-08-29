@@ -2,7 +2,7 @@
 using System;
 using Xunit;
 
-namespace TrackDb.Tests.DbTests
+namespace TrackDb.Test
 {
     public class TableSchemaTest
     {

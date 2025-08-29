@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.Tests.DbTests
+namespace TrackDb.Test.DbTests
 {
     public class AppendMultipleRecords
     {
@@ -14,12 +14,12 @@ namespace TrackDb.Tests.DbTests
         [InlineData(true)]
         public async Task IntOnly(bool doPushPendingData)
         {
-            await using (var testTable = DbTestTables.CreateIntOnly())
+            await using (var db = new TestDatabase())
             {
-                testTable.Table.AppendRecord(new DbTestTables.IntOnly(1));
-                testTable.Table.AppendRecord(new DbTestTables.IntOnly(2));
-                testTable.Table.AppendRecord(new DbTestTables.IntOnly(3));
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData
+                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(1));
+                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(2));
+                db.IntOnlyTable.AppendRecord(new TestDatabase.IntOnly(3));
+                await db.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
             }

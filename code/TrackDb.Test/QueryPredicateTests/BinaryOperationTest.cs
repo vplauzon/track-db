@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.Tests.QueryPredicateTests
+namespace TrackDb.Test.QueryPredicateTests
 {
     public class BinaryOperationTest
     {

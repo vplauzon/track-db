@@ -2,18 +2,19 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using TrackDb.Test.DbTests;
 using Xunit;
 
-namespace TrackDb.Tests.DbTests
+namespace TrackDb.Test.DbTests
 {
     public class NoDataQueryTest
     {
         [Fact]
         public async Task IntOnly()
         {
-            await using (var testTable = DbTestTables.CreateIntOnly())
+            await using (var db = new TestDatabase())
             {
-                var resultsAll = testTable.Table.Query()
+                var resultsAll = db.IntOnlyTable.Query()
                     .ToImmutableList();
             }
         }

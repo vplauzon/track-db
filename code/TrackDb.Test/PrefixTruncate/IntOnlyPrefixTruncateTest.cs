@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.Tests.PrefixTruncate
+namespace TrackDb.Test.PrefixTruncate
 {
     public class IntOnlyPrefixTruncateTest
     {

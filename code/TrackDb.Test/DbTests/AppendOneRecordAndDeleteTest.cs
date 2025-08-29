@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.Tests.DbTests
+namespace TrackDb.Test.DbTests
 {
     public class AppendOneRecordAndDeleteTest
     {
@@ -15,18 +15,18 @@ namespace TrackDb.Tests.DbTests
         [InlineData(true, true)]
         public async Task IntOnly(bool doPushPendingData, bool doHardDelete)
         {
-            await using (var testTable = DbTestTables.CreateIntOnly())
+            await using (var db = new TestDatabase())
             {
-                var record = new DbTestTables.IntOnly(1);
+                var record = new TestDatabase.IntOnly(1);
 
-                testTable.Table.AppendRecord(record);
-                await testTable.Database.ForceDataManagementAsync(doPushPendingData
+                db.IntOnlyTable.AppendRecord(record);
+                await db.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
-                testTable.Table.Query()
-                    .Where(testTable.Table.PredicateFactory.Equal(r => r.Integer, 1))
+                db.IntOnlyTable.Query()
+                    .Where(db.IntOnlyTable.PredicateFactory.Equal(r => r.Integer, 1))
                     .Delete();
-                await testTable.Database.ForceDataManagementAsync(doHardDelete
+                await db.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
                     : DataManagementActivity.None);
             }
