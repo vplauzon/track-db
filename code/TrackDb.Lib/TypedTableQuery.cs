@@ -17,7 +17,6 @@ namespace TrackDb.Lib
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly int? _takeCount;
-        private readonly object?[] _rowBuffer;
 
         #region Constructors
         internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
@@ -39,7 +38,6 @@ namespace TrackDb.Lib
             _transactionContext = transactionContext;
             _predicate = predicate;
             _takeCount = takeCount;
-            _rowBuffer = new object?[_table.Schema.Columns.Count];
         }
         #endregion
 
@@ -66,6 +64,7 @@ namespace TrackDb.Lib
             throw new NotImplementedException();
         }
 
+        #region Order By
         public TypedTableQuery<T> OrderBy<U>(Expression<Func<T, U>> propertySelector)
         {
             if (_takeCount != null)
@@ -85,6 +84,27 @@ namespace TrackDb.Lib
 
             throw new NotImplementedException();
         }
+
+        public TypedTableQuery<T> ThenBy<U>(Expression<Func<T, U>> propertySelector)
+        {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("OrderBy clause can't be added after a take");
+            }
+
+            throw new NotImplementedException();
+        }
+
+        public TypedTableQuery<T> ThenByDesc<U>(Expression<Func<T, U>> propertySelector)
+        {
+            if (_takeCount != null)
+            {
+                throw new InvalidOperationException("OrderByDesc clause can't be added after a take");
+            }
+
+            throw new NotImplementedException();
+        }
+        #endregion
         #endregion
 
         #region IEnumerator<T>
@@ -101,14 +121,25 @@ namespace TrackDb.Lib
 
         public long Count()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var tableQuery = new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                //  We are not bringing back any column
+                Enumerable.Range(0, 0),
+                _takeCount);
 
             return tableQuery.Count();
         }
 
         public void Delete()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var tableQuery = new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                Enumerable.Range(0, _table.Schema.Columns.Count),
+                _takeCount);
 
             tableQuery.Delete();
         }
@@ -116,13 +147,20 @@ namespace TrackDb.Lib
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var tableQuery = new TableQuery(_table, _transactionContext, _predicate, null, _takeCount);
+            var columnCount = _table.Schema.Columns.Count;
+            var tableQuery = new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                Enumerable.Range(0, columnCount),
+                _takeCount);
+            var rowBuffer = new object?[columnCount];
 
             foreach (var result in tableQuery)
             {
-                result.CopyTo(_rowBuffer);
+                result.CopyTo(rowBuffer);
 
-                var objectRow = (T)_table.Schema.FromColumnsToObject(_rowBuffer);
+                var objectRow = (T)_table.Schema.FromColumnsToObject(rowBuffer);
 
                 yield return objectRow;
             }

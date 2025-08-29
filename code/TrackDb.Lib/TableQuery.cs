@@ -31,14 +31,13 @@ namespace TrackDb.Lib
             Table table,
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
-            IEnumerable<int>? projectionColumnIndexes,
+            IEnumerable<int> projectionColumnIndexes,
             int? takeCount)
         {
             _table = table;
             _transactionContext = transactionContext;
             _predicate = predicate.Simplify() ?? predicate;
-            _projectionColumnIndexes =
-                (projectionColumnIndexes ?? Enumerable.Range(0, _table.Schema.Columns.Count))
+            _projectionColumnIndexes = projectionColumnIndexes
                 .ToImmutableArray();
             _takeCount = takeCount;
         }
@@ -215,7 +214,7 @@ namespace TrackDb.Lib
                     transactionContext,
                     //  Must be optimize to filter only blocks with relevant data
                     AllInPredicate.Instance,
-                    null,
+                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
                     null);
 
                 foreach (var metaDataRow in metaDataQuery)
