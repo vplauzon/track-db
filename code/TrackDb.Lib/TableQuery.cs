@@ -10,9 +10,9 @@ namespace TrackDb.Lib
 {
     /// <summary>
     /// Query on a table.  The first N columns are the table's schema.
-    /// Column N+1 is the record ID (long).
-    /// Column N+2 is the row index within the block.
-    /// Column N+3 is the block ID.
+    /// Column N is the record ID (long).
+    /// Column N+1 is the row index within the block.
+    /// Column N+2 is the block ID.
     /// </summary>
     public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
@@ -287,8 +287,16 @@ namespace TrackDb.Lib
                 transactionContext)
                 .ToImmutableHashSet();
             var materializedSortColumns = sortColumns.ToImmutableArray();
-            //  We are going to query for the block ID + row index too
-            var buffer = new object?[materializedSortColumns.Length + 2].AsMemory();
+            var projectionColumnIndexes = materializedSortColumns
+                .Select(s => s.ColumnIndex)
+                //  Row index
+                .Append(_table.Schema.Columns.Count + 1)
+                //  Block ID
+                .Append(_table.Schema.Columns.Count + 2)
+                //  Record ID at the end
+                .Append(_table.Schema.Columns.Count)
+                .ToImmutableArray();
+            var buffer = new object?[projectionColumnIndexes.Length].AsMemory();
             var accumulatedSortValues = ImmutableArray<object?[]>.Empty;
             var areSortValuesSorted = false;
 
@@ -297,7 +305,7 @@ namespace TrackDb.Lib
                 var rowIndexes = block.Block.Filter(_predicate);
                 var results = block.Block.Project(
                     buffer,
-                    materializedSortColumns.Select(s => s.ColumnIndex),
+                    projectionColumnIndexes,
                     rowIndexes,
                     block.BlockId);
                 var newSortValues = RemoveDeleted(deletedRecordIds, results)
@@ -306,9 +314,10 @@ namespace TrackDb.Lib
 
                 if (accumulatedSortValues.Length + accumulatedSortValues.Length > _takeCount)
                 {
-                    accumulatedSortValues = OrderSortValues(
+                    accumulatedSortValues = OrderAndTruncateSortValues(
                         accumulatedSortValues.Concat(newSortValues),
-                        sortColumns);
+                        sortColumns,
+                        takeCount);
                     areSortValuesSorted = true;
                 }
                 else
@@ -321,14 +330,48 @@ namespace TrackDb.Lib
 
             return areSortValuesSorted
                 ? accumulatedSortValues
-                : OrderSortValues(accumulatedSortValues, sortColumns);
+                : OrderAndTruncateSortValues(accumulatedSortValues, sortColumns, takeCount);
         }
 
-        private ImmutableArray<object?[]> OrderSortValues(
+        private ImmutableArray<object?[]> OrderAndTruncateSortValues(
             IEnumerable<object?[]> sortValues,
-            IEnumerable<SortColumn> sortColumns)
+            IEnumerable<SortColumn> sortColumns,
+            int takeCount)
         {
-            throw new NotImplementedException();
+            IOrderedEnumerable<object?[]>? sortedSortValues = null;
+
+            foreach (var sortColumn in sortColumns)
+            {
+                if (sortedSortValues == null)
+                {
+                    if (sortColumn.IsAscending)
+                    {
+                        sortedSortValues = sortValues.OrderBy(v => v[sortColumn.ColumnIndex]);
+                    }
+                    else
+                    {
+                        sortedSortValues = sortValues.OrderByDescending(
+                            v => v[sortColumn.ColumnIndex]);
+                    }
+                }
+                else
+                {
+                    if (sortColumn.IsAscending)
+                    {
+                        sortedSortValues = sortedSortValues.ThenBy(
+                            v => v[sortColumn.ColumnIndex]);
+                    }
+                    else
+                    {
+                        sortedSortValues = sortedSortValues.ThenByDescending(
+                            v => v[sortColumn.ColumnIndex]);
+                    }
+                }
+            }
+
+            return sortedSortValues!
+                .Take(takeCount)
+                .ToImmutableArray();
         }
         #endregion
         #endregion

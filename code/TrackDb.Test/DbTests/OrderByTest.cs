@@ -24,8 +24,8 @@ namespace TrackDb.Test.DbTests
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 1, 1, 1));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(5, 1, 1, 1));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(3, 1, 1, 1));
-                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(4, 1, 1, 1));
                 await db.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
