@@ -28,12 +28,6 @@ namespace TrackDb.Test.DbTests
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
 
-                var resultsOnly2 = db.PrimitiveTable.Query()
-                    .Take(2)
-                    .ToImmutableList();
-
-                Assert.Equal(2, resultsOnly2.Count);
-
                 var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();
 
@@ -168,6 +162,33 @@ namespace TrackDb.Test.DbTests
 
                 Assert.Single(resultsGreaterThanOrEqual);
                 Assert.Contains(3, resultsGreaterThanOrEqual.Select(r => r.Integer));
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task QueryWithTake(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = new TestDatabase())
+            {
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
+                await db.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
+                await db.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+
+                var resultsOnly2 = db.PrimitiveTable.Query()
+                    .Take(2)
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsOnly2.Count);
             }
         }
     }
