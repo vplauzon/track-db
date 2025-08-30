@@ -98,7 +98,7 @@ namespace TrackDb.Lib
             }
             else
             {
-                throw new NotSupportedException($"Expression '{expression.GetType().Name}'");
+                throw new NotSupportedException($"Expression '{expression}'");
             }
         }
 

@@ -74,7 +74,12 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("Take clause can't be added after another take clause");
             }
 
-            throw new NotImplementedException();
+            return new TypedTableQuery<T>(
+                _table,
+                _transactionContext,
+                _predicate,
+                _sortColumns,
+                count);
         }
 
         #region Order By
@@ -90,7 +95,7 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            if (_table.Schema.TryGetColumnIndex(propertySelector.Body, out var columnIndex))
             {
                 return new TypedTableQuery<T>(
                     _table,
@@ -119,7 +124,7 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            if (_table.Schema.TryGetColumnIndex(propertySelector.Body, out var columnIndex))
             {
                 return new TypedTableQuery<T>(
                     _table,
@@ -138,17 +143,16 @@ namespace TrackDb.Lib
 
         public TypedTableQuery<T> ThenBy<U>(Expression<Func<T, U>> propertySelector)
         {
-            if (_sortColumns.Any())
+            if (!_sortColumns.Any())
             {
-                throw new InvalidOperationException(
-                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+                throw new InvalidOperationException("ThenBy must come after an orderby");
             }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            if (_table.Schema.TryGetColumnIndex(propertySelector.Body, out var columnIndex))
             {
                 if (_sortColumns.Contains(columnIndex) || _sortColumns.Contains(-columnIndex))
                 {
@@ -177,17 +181,16 @@ namespace TrackDb.Lib
 
         public TypedTableQuery<T> ThenByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
-            if (_sortColumns.Any())
+            if (!_sortColumns.Any())
             {
-                throw new InvalidOperationException(
-                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+                throw new InvalidOperationException("ThenBy must come after an orderby");
             }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            if (_table.Schema.TryGetColumnIndex(propertySelector.Body, out var columnIndex))
             {
                 if (_sortColumns.Contains(columnIndex) || _sortColumns.Contains(-columnIndex))
                 {

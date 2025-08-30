@@ -28,6 +28,12 @@ namespace TrackDb.Test.DbTests
                     ? DataManagementActivity.PersistAllData
                     : DataManagementActivity.None);
 
+                var resultsOnly2 = db.PrimitiveTable.Query()
+                    .Take(2)
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsOnly2.Count);
+
                 var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();
 
