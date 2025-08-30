@@ -24,7 +24,7 @@ namespace TrackDb.Lib
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
-        private readonly IImmutableList<int> _sortColumns;
+        private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
 
         #region Constructors
@@ -33,7 +33,7 @@ namespace TrackDb.Lib
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
-            IEnumerable<int> sortColumns,
+            IEnumerable<SortColumn> sortColumns,
             int? takeCount)
         {
             _table = table;
@@ -48,19 +48,33 @@ namespace TrackDb.Lib
         #region IEnumerator<T>
         IEnumerator<ReadOnlyMemory<object?>> IEnumerable<ReadOnlyMemory<object?>>.GetEnumerator()
         {
-            return ExecuteQuery(_projectionColumnIndexes).GetEnumerator();
+            if (_projectionColumnIndexes.Any())
+            {
+                return ExecuteQuery(_projectionColumnIndexes, _sortColumns).GetEnumerator();
+            }
+            else
+            {
+                throw new InvalidOperationException("No columns would be projected.");
+            }
         }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ExecuteQuery(_projectionColumnIndexes).GetEnumerator();
+            if (_projectionColumnIndexes.Any())
+            {
+                return ExecuteQuery(_projectionColumnIndexes, _sortColumns).GetEnumerator();
+            }
+            else
+            {
+                throw new InvalidOperationException("No columns would be projected.");
+            }
         }
         #endregion
 
         public long Count()
         {
-            //  Project no columns
-            var items = ExecuteQuery(Array.Empty<int>());
+            //  Project no columns & sort no columns
+            var items = ExecuteQuery(Array.Empty<int>(), Array.Empty<SortColumn>());
             var count = (long)0;
 
             foreach (var item in items)
@@ -110,7 +124,8 @@ namespace TrackDb.Lib
 
         #region Query internals
         private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
-            IEnumerable<int> projectionColumnIndexes)
+            IEnumerable<int> projectionColumnIndexes,
+            IEnumerable<SortColumn> sortColumns)
         {
             var results = _table.Database.EnumeratesWithinTransactionContext(
                 _transactionContext,
@@ -119,6 +134,17 @@ namespace TrackDb.Lib
                     if (_takeCount == 0)
                     {
                         return Array.Empty<ReadOnlyMemory<object?>>();
+                    }
+                    else if (sortColumns.Any())
+                    {
+                        return ExecuteQueryWithSort(
+                            tc,
+                            projectionColumnIndexes,
+                            sortColumns,
+                            (block, result) =>
+                            {
+                                return result;
+                            });
                     }
                     else
                     {
@@ -135,6 +161,7 @@ namespace TrackDb.Lib
             return results;
         }
 
+        #region Query without sort
         private IEnumerable<U> ExecuteQuery<U>(
             TransactionContext transactionContext,
             IEnumerable<int> projectionColumnIndexes,
@@ -217,7 +244,7 @@ namespace TrackDb.Lib
                     //  Must be optimize to filter only blocks with relevant data
                     AllInPredicate.Instance,
                     Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
-                    Array.Empty<int>(),
+                    Array.Empty<SortColumn>(),
                     null);
 
                 foreach (var metaDataRow in metaDataQuery)
@@ -235,6 +262,20 @@ namespace TrackDb.Lib
                 }
             }
         }
+        #endregion
+
+        #region Query with sort
+        private IEnumerable<U> ExecuteQueryWithSort<U>(
+            TransactionContext transactionContext,
+            IEnumerable<int> projectionColumnIndexes,
+            IEnumerable<SortColumn> sortColumns,
+            Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
+        {
+            //var q = SortAndTruncateSortColumns();
+
+            throw new NotImplementedException();
+        }
+        #endregion
         #endregion
     }
 }

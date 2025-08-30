@@ -461,7 +461,7 @@ namespace TrackDb.Lib
                 predicate,
                 //  Project the row index
                 new[] { _tombstoneTable.Schema.Columns.Count() + 1 },
-                Array.Empty<int>(),
+                Array.Empty<SortColumn>(),
                 null);
             var tombstoneRecordIndexes = query
                 .Select(r => ((int?)r.Span[0])!.Value)
