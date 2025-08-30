@@ -1,9 +1,11 @@
-﻿using TrackDb.Lib.Cache.CachedBlock;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
+using TrackDb.Lib.Cache.CachedBlock;
 
 namespace TrackDb.Lib
 {
@@ -79,6 +81,30 @@ namespace TrackDb.Lib
             return otherColumns.Count == Columns.Count
                 && Columns.Zip(otherColumns)
                 .All(b => b.First.ColumnType == b.Second.ColumnType);
+        }
+
+        internal bool TryGetColumnIndex(Expression expression, out int columnIndex)
+        {
+            if (expression is MemberExpression me)
+            {
+                if (me.Member is PropertyInfo pi)
+                {
+                    return TryGetColumnIndex(pi, out columnIndex);
+                }
+                else
+                {
+                    throw new NotSupportedException($"MemberInfo '{me.GetType().Name}'");
+                }
+            }
+            else
+            {
+                throw new NotSupportedException($"Expression '{expression.GetType().Name}'");
+            }
+        }
+
+        internal bool TryGetColumnIndex(PropertyInfo property, out int columnIndex)
+        {
+            return TryGetColumnIndex(property.Name, out columnIndex);
         }
 
         internal bool TryGetColumnIndex(string columnName, out int columnIndex)

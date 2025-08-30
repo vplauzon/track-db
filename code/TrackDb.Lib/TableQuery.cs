@@ -24,6 +24,7 @@ namespace TrackDb.Lib
         private readonly TransactionContext? _transactionContext;
         private readonly IQueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
+        private readonly IImmutableList<int> _sortColumns;
         private readonly int? _takeCount;
 
         #region Constructors
@@ -32,13 +33,14 @@ namespace TrackDb.Lib
             TransactionContext? transactionContext,
             IQueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
+            IEnumerable<int> sortColumns,
             int? takeCount)
         {
             _table = table;
             _transactionContext = transactionContext;
             _predicate = predicate.Simplify() ?? predicate;
-            _projectionColumnIndexes = projectionColumnIndexes
-                .ToImmutableArray();
+            _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
+            _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
         }
         #endregion
@@ -215,6 +217,7 @@ namespace TrackDb.Lib
                     //  Must be optimize to filter only blocks with relevant data
                     AllInPredicate.Instance,
                     Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
+                    Array.Empty<int>(),
                     null);
 
                 foreach (var metaDataRow in metaDataQuery)

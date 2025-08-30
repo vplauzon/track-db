@@ -90,7 +90,21 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            throw new NotImplementedException();
+            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            {
+                return new TypedTableQuery<T>(
+                    _table,
+                    _transactionContext,
+                    _predicate,
+                    ImmutableArray<int>.Empty.Add(columnIndex),
+                    _takeCount);
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(propertySelector),
+                    $"Expression '{propertySelector}' isn't mapped to a column");
+            }
         }
 
         public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
@@ -102,30 +116,102 @@ namespace TrackDb.Lib
             }
             if (_takeCount != null)
             {
-                throw new InvalidOperationException("OrderByDesc clause can't be added after a take");
+                throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            throw new NotImplementedException();
+            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            {
+                return new TypedTableQuery<T>(
+                    _table,
+                    _transactionContext,
+                    _predicate,
+                    ImmutableArray<int>.Empty.Add(-columnIndex),
+                    _takeCount);
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(propertySelector),
+                    $"Expression '{propertySelector}' isn't mapped to a column");
+            }
         }
 
         public TypedTableQuery<T> ThenBy<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_sortColumns.Any())
+            {
+                throw new InvalidOperationException(
+                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+            }
             if (_takeCount != null)
             {
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            throw new NotImplementedException();
+            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            {
+                if (_sortColumns.Contains(columnIndex) || _sortColumns.Contains(-columnIndex))
+                {
+                    throw new ArgumentException(
+                        nameof(propertySelector),
+                        $"Expression '{propertySelector}' maps a column " +
+                        $"that is already used is sorting");
+                }
+                else
+                {
+                    return new TypedTableQuery<T>(
+                        _table,
+                        _transactionContext,
+                        _predicate,
+                        _sortColumns.Add(columnIndex),
+                        _takeCount);
+                }
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(propertySelector),
+                    $"Expression '{propertySelector}' isn't mapped to a column");
+            }
         }
 
         public TypedTableQuery<T> ThenByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
+            if (_sortColumns.Any())
+            {
+                throw new InvalidOperationException(
+                    "Order by clause can't be added after an orderby, use 'ThenBy' instead");
+            }
             if (_takeCount != null)
             {
-                throw new InvalidOperationException("OrderByDesc clause can't be added after a take");
+                throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
 
-            throw new NotImplementedException();
+            if (_table.Schema.TryGetColumnIndex(propertySelector, out var columnIndex))
+            {
+                if (_sortColumns.Contains(columnIndex) || _sortColumns.Contains(-columnIndex))
+                {
+                    throw new ArgumentException(
+                        nameof(propertySelector),
+                        $"Expression '{propertySelector}' maps a column " +
+                        $"that is already used is sorting");
+                }
+                else
+                {
+                    return new TypedTableQuery<T>(
+                        _table,
+                        _transactionContext,
+                        _predicate,
+                        _sortColumns.Add(-columnIndex),
+                        _takeCount);
+                }
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(propertySelector),
+                    $"Expression '{propertySelector}' isn't mapped to a column");
+            }
         }
         #endregion
         #endregion
@@ -150,6 +236,7 @@ namespace TrackDb.Lib
                 _predicate,
                 //  We are not bringing back any column
                 Enumerable.Range(0, 0),
+                Array.Empty<int>(),
                 _takeCount);
 
             return tableQuery.Count();
@@ -162,6 +249,7 @@ namespace TrackDb.Lib
                 _transactionContext,
                 _predicate,
                 Enumerable.Range(0, _table.Schema.Columns.Count),
+                Array.Empty<int>(),
                 _takeCount);
 
             tableQuery.Delete();
@@ -176,6 +264,7 @@ namespace TrackDb.Lib
                 _transactionContext,
                 _predicate,
                 Enumerable.Range(0, columnCount),
+                Array.Empty<int>(),
                 _takeCount);
             var rowBuffer = new object?[columnCount];
 

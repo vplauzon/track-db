@@ -92,49 +92,18 @@ namespace TrackDb.Lib.Predicate
         }
         #endregion
 
-        #region Propery selection
         private int GetColumnIndex(Expression expression)
         {
-            if (expression is MemberExpression me)
-            {
-                if (me.Member is PropertyInfo pi)
-                {
-                    return GetColumnIndex(pi);
-                }
-                else
-                {
-                    throw new NotSupportedException($"MemberInfo '{me.GetType().Name}'");
-                }
-            }
-            else
-            {
-                throw new NotSupportedException($"Expression '{expression.GetType().Name}'");
-            }
-        }
-
-        private int GetColumnIndex(PropertyInfo propertyInfo)
-        {
-            return GetColumnIndex(GetPropertyPath(propertyInfo));
-        }
-
-        private int GetColumnIndex(string columnName)
-        {
-            if (Schema.TryGetColumnIndex(columnName, out var columnIndex))
+            if (Schema.TryGetColumnIndex(expression, out var columnIndex))
             {
                 return columnIndex;
             }
             else
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(columnName),
-                    $"Column '{columnName}' doesn't exist in table '{Schema.TableName}'");
+                    nameof(expression),
+                    $"Expression '{expression}' isn't mapped to a column");
             }
         }
-
-        private string GetPropertyPath(PropertyInfo propertyInfo)
-        {
-            return propertyInfo.Name;
-        }
-        #endregion
     }
 }
