@@ -271,8 +271,16 @@ namespace TrackDb.Lib
             IEnumerable<SortColumn> sortColumns,
             Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
         {
-            //var q = SortAndTruncateSortColumns();
+            //  First phase sort + truncate sort columns
+            var q = SortAndTruncateSortColumns(transactionContext, sortColumns);
 
+            throw new NotImplementedException();
+        }
+
+        private object SortAndTruncateSortColumns(
+            TransactionContext transactionContext,
+            IEnumerable<SortColumn> sortColumns)
+        {
             throw new NotImplementedException();
         }
         #endregion
