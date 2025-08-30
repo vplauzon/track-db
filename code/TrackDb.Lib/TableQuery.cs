@@ -277,8 +277,55 @@ namespace TrackDb.Lib
             throw new NotImplementedException();
         }
 
-        private object SortAndTruncateSortColumns(
+        private IEnumerable<object?[]> SortAndTruncateSortColumns(
             TransactionContext transactionContext,
+            IEnumerable<SortColumn> sortColumns)
+        {
+            var takeCount = _takeCount ?? int.MaxValue;
+            var deletedRecordIds = _table.Database.GetDeletedRecordIds(
+                _table.Schema.TableName,
+                transactionContext)
+                .ToImmutableHashSet();
+            var materializedSortColumns = sortColumns.ToImmutableArray();
+            //  We are going to query for the block ID + row index too
+            var buffer = new object?[materializedSortColumns.Length + 2].AsMemory();
+            var accumulatedSortValues = ImmutableArray<object?[]>.Empty;
+            var areSortValuesSorted = false;
+
+            foreach (var block in ListBlocks(transactionContext))
+            {
+                var rowIndexes = block.Block.Filter(_predicate);
+                var results = block.Block.Project(
+                    buffer,
+                    materializedSortColumns.Select(s => s.ColumnIndex),
+                    rowIndexes,
+                    block.BlockId);
+                var newSortValues = RemoveDeleted(deletedRecordIds, results)
+                    .Select(r => r.ToArray())
+                    .ToImmutableArray();
+
+                if (accumulatedSortValues.Length + accumulatedSortValues.Length > _takeCount)
+                {
+                    accumulatedSortValues = OrderSortValues(
+                        accumulatedSortValues.Concat(newSortValues),
+                        sortColumns);
+                    areSortValuesSorted = true;
+                }
+                else
+                {
+                    accumulatedSortValues = accumulatedSortValues
+                        .Concat(newSortValues)
+                        .ToImmutableArray();
+                }
+            }
+
+            return areSortValuesSorted
+                ? accumulatedSortValues
+                : OrderSortValues(accumulatedSortValues, sortColumns);
+        }
+
+        private ImmutableArray<object?[]> OrderSortValues(
+            IEnumerable<object?[]> sortValues,
             IEnumerable<SortColumn> sortColumns)
         {
             throw new NotImplementedException();

@@ -14,6 +14,37 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
+        public async Task TopOne(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = new TestDatabase())
+            {
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(4, 1, 1, 1));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(2, 1, 1, 1));
+                await db.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 1, 1, 1));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(3, 1, 1, 1));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(4, 1, 1, 1));
+                await db.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+
+                var results = db.MultiIntegerTable.Query()
+                    .OrderBy(m => m.Integer1)
+                    .Take(1)
+                    .ToImmutableList();
+
+                Assert.Single(results);
+                Assert.Equal(1, results[0].Integer1);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
         public async Task QueryOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var db = new TestDatabase())
@@ -37,7 +68,7 @@ namespace TrackDb.Test.DbTests
                     .ToImmutableList();
 
                 Assert.Equal(3, results.Count);
-                
+
                 Assert.Equal(11, results[0].Integer1);
                 Assert.Equal(11, results[1].Integer1);
                 Assert.Equal(11, results[2].Integer1);
