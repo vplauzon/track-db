@@ -170,6 +170,32 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
+        public async Task QueryCount(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = new TestDatabase())
+            {
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
+                await db.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
+                await db.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+
+                var count = db.PrimitiveTable.Query()
+                    .Count();
+
+                Assert.Equal(3, count);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
         public async Task QueryWithTake(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var db = new TestDatabase())
