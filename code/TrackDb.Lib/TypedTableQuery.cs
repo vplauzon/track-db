@@ -90,12 +90,12 @@ namespace TrackDb.Lib
 
         public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
         {
-            return AlterOrderBy(propertySelector, true, false);
+            return AlterOrderBy(propertySelector, false, true);
         }
 
         public TypedTableQuery<T> ThenBy<U>(Expression<Func<T, U>> propertySelector)
         {
-            return AlterOrderBy(propertySelector, false, true);
+            return AlterOrderBy(propertySelector, true, false);
         }
 
         public TypedTableQuery<T> ThenByDesc<U>(Expression<Func<T, U>> propertySelector)

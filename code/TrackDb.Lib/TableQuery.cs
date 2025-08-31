@@ -18,6 +18,10 @@ namespace TrackDb.Lib
     {
         #region Inner types
         private record IdentifiedBlock(int BlockId, IBlock Block);
+
+        private record BlockRowIndex(int BlockId, int RowIndex);
+
+        private record SortedResult(BlockRowIndex BlockRowIndex, ReadOnlyMemory<object?>? Result);
         #endregion
 
         private readonly Table _table;
@@ -100,11 +104,8 @@ namespace TrackDb.Lib
                         var deletedRecordIds = ExecuteQuery(
                             tc,
                             //  Fetch only the record ID
-                            [_table.Schema.Columns.Count],
-                            (block, result) =>
-                            {
-                                return (long)result.Span[0]!;
-                            })
+                            [_table.Schema.Columns.Count])
+                        .Select(r => (long)r.Span[0]!)
                         .ToImmutableList();
                         var uncommittedDeletedRecordIds = blockBuilder
                         ?.DeleteRecordsByRecordId(deletedRecordIds)
@@ -135,37 +136,37 @@ namespace TrackDb.Lib
                     {
                         return Array.Empty<ReadOnlyMemory<object?>>();
                     }
-                    else if (sortColumns.Any())
-                    {
-                        return ExecuteQueryWithSort(
-                            tc,
-                            projectionColumnIndexes,
-                            sortColumns,
-                            (block, result) =>
-                            {
-                                return result;
-                            });
-                    }
                     else
                     {
-                        return ExecuteQuery(
-                            tc,
-                            projectionColumnIndexes,
-                            (block, result) =>
-                            {
-                                return result;
-                            });
+                        return ExecuteQuery(tc, projectionColumnIndexes);
                     }
                 });
 
             return results;
         }
 
-        #region Query without sort
-        private IEnumerable<U> ExecuteQuery<U>(
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
             TransactionContext transactionContext,
-            IEnumerable<int> projectionColumnIndexes,
-            Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
+            IEnumerable<int> projectionColumnIndexes)
+        {
+            if (_sortColumns.Any())
+            {
+                return ExecuteQueryWithSort(
+                    transactionContext,
+                    projectionColumnIndexes);
+            }
+            else
+            {
+                return ExecuteQueryWithoutSort(
+                    transactionContext,
+                    projectionColumnIndexes);
+            }
+        }
+
+        #region Query without sort
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithoutSort(
+            TransactionContext transactionContext,
+            IEnumerable<int> projectionColumnIndexes)
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var deletedRecordIds = _table.Database.GetDeletedRecordIds(
@@ -190,7 +191,7 @@ namespace TrackDb.Lib
                 foreach (var result in RemoveDeleted(deletedRecordIds, results))
                 {
                     //  Remove last column (record ID)
-                    yield return extractResultFunc(block.Block, result.Slice(0, result.Length - 1));
+                    yield return result.Slice(0, result.Length - 1);
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -262,32 +263,101 @@ namespace TrackDb.Lib
                 }
             }
         }
+
+        private IBlock GetBlock(TransactionContext transactionContext, int blockId)
+        {
+            if (blockId <= 0)
+            {
+                return ListUnpersistedBlocks(transactionContext)
+                    .Where(i => i.BlockId == blockId)
+                    .Select(i => i.Block)
+                    .First();
+            }
+            else
+            {
+                var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema);
+                var metaDataQuery = new TableQuery(
+                    metaDataTable,
+                    transactionContext,
+                    new BinaryOperatorPredicate(
+                        //  Block ID
+                        metaDataTable.Schema.Columns.Count - 1,
+                        blockId,
+                        BinaryOperator.Equal),
+                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
+                    Array.Empty<SortColumn>(),
+                    null);
+                var metaDataRow = metaDataQuery.First();
+                var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
+                    metaDataRow,
+                    out var _);
+
+                return _table.Database.GetOrLoadBlock(
+                    blockId,
+                    _table.Schema,
+                    serializedBlockMetaData);
+            }
+        }
         #endregion
 
         #region Query with sort
-        private IEnumerable<U> ExecuteQueryWithSort<U>(
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithSort(
             TransactionContext transactionContext,
-            IEnumerable<int> projectionColumnIndexes,
-            IEnumerable<SortColumn> sortColumns,
-            Func<IBlock, ReadOnlyMemory<object?>, U> extractResultFunc)
+            IEnumerable<int> projectionColumnIndexes)
         {
             //  First phase sort + truncate sort columns
-            var q = SortAndTruncateSortColumns(transactionContext, sortColumns);
+            var sortedResults = SortAndTruncateSortColumns(transactionContext)
+                .Select(i => new SortedResult(i, null))
+                .ToImmutableArray();
+            //  Second phase:  re-query blocks to project results
+            var materializedProjectionColumnIndexes = projectionColumnIndexes
+                .Append(_table.Schema.Columns.Count + 1)
+                .ToImmutableArray();
+            var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
-            throw new NotImplementedException();
+            while (sortedResults.Any())
+            {
+                var firstBlockId = sortedResults.First().BlockRowIndex.BlockId;
+                var rowIndexes = sortedResults
+                    .Where(r => r.BlockRowIndex.BlockId == firstBlockId)
+                    .Select(r => r.BlockRowIndex.RowIndex);
+                var block = GetBlock(transactionContext, firstBlockId);
+                var resultMap = block.Project(
+                    buffer,
+                    materializedProjectionColumnIndexes,
+                    rowIndexes,
+                    firstBlockId)
+                    .ToImmutableDictionary(
+                    r => ((int?)r.Span[materializedProjectionColumnIndexes.Length - 1])!.Value,
+                    r => r.Slice(0, materializedProjectionColumnIndexes.Length - 1).ToArray());
+                //  Resolve result and store them in reverse order for optimal deletion
+                var newSortedResults = sortedResults
+                    .Select(r => r.BlockRowIndex.BlockId == firstBlockId
+                    ? new SortedResult(r.BlockRowIndex, resultMap[r.BlockRowIndex.RowIndex])
+                    : r)
+                    .Reverse()
+                    .ToList();
+
+                //  Return available results
+                while (newSortedResults.Any() && newSortedResults.Last().Result != null)
+                {
+                    yield return newSortedResults.Last().Result!.Value;
+                    newSortedResults.RemoveAt(newSortedResults.Count() - 1);
+                }
+                //  Put the sequence in correct order
+                sortedResults = newSortedResults.AsEnumerable().Reverse().ToImmutableArray();
+            }
         }
 
-        private IEnumerable<object?[]> SortAndTruncateSortColumns(
-            TransactionContext transactionContext,
-            IEnumerable<SortColumn> sortColumns)
+        private IEnumerable<BlockRowIndex> SortAndTruncateSortColumns(
+            TransactionContext transactionContext)
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var deletedRecordIds = _table.Database.GetDeletedRecordIds(
                 _table.Schema.TableName,
                 transactionContext)
                 .ToImmutableHashSet();
-            var materializedSortColumns = sortColumns.ToImmutableArray();
-            var projectionColumnIndexes = materializedSortColumns
+            var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
                 //  Row index
                 .Append(_table.Schema.Columns.Count + 1)
@@ -312,12 +382,13 @@ namespace TrackDb.Lib
                     .Select(r => r.ToArray())
                     .ToImmutableArray();
 
-                if (accumulatedSortValues.Length + accumulatedSortValues.Length > _takeCount)
+                if (accumulatedSortValues.Length + newSortValues.Length > _takeCount)
                 {
-                    accumulatedSortValues = OrderAndTruncateSortValues(
-                        accumulatedSortValues.Concat(newSortValues),
-                        sortColumns,
-                        takeCount);
+                    var allSortValues = accumulatedSortValues.Concat(newSortValues);
+
+                    accumulatedSortValues = OrderSortValues(allSortValues)
+                        .Take(takeCount)
+                        .ToImmutableArray();
                     areSortValuesSorted = true;
                 }
                 else
@@ -327,51 +398,53 @@ namespace TrackDb.Lib
                         .ToImmutableArray();
                 }
             }
+            if (!areSortValuesSorted)
+            {
+                accumulatedSortValues = OrderSortValues(accumulatedSortValues)
+                    .Take(takeCount)
+                    .ToImmutableArray();
+            }
 
-            return areSortValuesSorted
-                ? accumulatedSortValues
-                : OrderAndTruncateSortValues(accumulatedSortValues, sortColumns, takeCount);
+            return accumulatedSortValues
+                .Select(a => a.TakeLast(3).Take(2))
+                .Select(a => new BlockRowIndex(
+                    ((int?)a.Last()!).Value,
+                    ((int?)a.First()!).Value));
         }
 
-        private ImmutableArray<object?[]> OrderAndTruncateSortValues(
-            IEnumerable<object?[]> sortValues,
-            IEnumerable<SortColumn> sortColumns,
-            int takeCount)
+        private IEnumerable<object?[]> OrderSortValues(IEnumerable<object?[]> sortValues)
         {
             IOrderedEnumerable<object?[]>? sortedSortValues = null;
 
-            foreach (var sortColumn in sortColumns)
-            {
+            for (var i = 0; i != _sortColumns.Count; ++i)
+            {   //  Materialize value 'i' in the for loop
+                var j = i;
+
                 if (sortedSortValues == null)
                 {
-                    if (sortColumn.IsAscending)
+                    if (_sortColumns[i].IsAscending)
                     {
-                        sortedSortValues = sortValues.OrderBy(v => v[sortColumn.ColumnIndex]);
+                        sortedSortValues = sortValues.OrderBy(v => v[j]);
                     }
                     else
                     {
-                        sortedSortValues = sortValues.OrderByDescending(
-                            v => v[sortColumn.ColumnIndex]);
+                        sortedSortValues = sortValues.OrderByDescending(v => v[j]);
                     }
                 }
                 else
                 {
-                    if (sortColumn.IsAscending)
+                    if (_sortColumns[i].IsAscending)
                     {
-                        sortedSortValues = sortedSortValues.ThenBy(
-                            v => v[sortColumn.ColumnIndex]);
+                        sortedSortValues = sortedSortValues.ThenBy(v => v[j]);
                     }
                     else
                     {
-                        sortedSortValues = sortedSortValues.ThenByDescending(
-                            v => v[sortColumn.ColumnIndex]);
+                        sortedSortValues = sortedSortValues.ThenByDescending(v => v[j]);
                     }
                 }
             }
 
-            return sortedSortValues!
-                .Take(takeCount)
-                .ToImmutableArray();
+            return sortedSortValues!;
         }
         #endregion
         #endregion

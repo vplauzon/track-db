@@ -45,6 +45,36 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
+        public async Task WithNulls(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = new TestDatabase())
+            {
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1, null));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2, 5));
+                await db.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, null));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(4, 6));
+                await db.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllData
+                    : DataManagementActivity.None);
+
+                var results = db.PrimitiveTable.Query()
+                    .OrderBy(m => m.NullableInteger)
+                    .Take(3)
+                    .ToImmutableList();
+
+                Assert.Equal(3, results.Count);
+                Assert.Equal(1, results[0].NullableInteger);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
         public async Task QueryOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var db = new TestDatabase())
@@ -66,24 +96,28 @@ namespace TrackDb.Test.DbTests
                     .ThenByDesc(m => m.Integer4)
                     .Take(3)
                     .ToImmutableList();
+                //  We should get:
+                //  (11, 22, -89, 44)
+                //  (11, 22, 14, -4)
+                //  (11, 222, 205, 98)
+                //  (1, 2222, 74, 4) <-- This one taken out
 
                 Assert.Equal(3, results.Count);
 
                 Assert.Equal(11, results[0].Integer1);
-                Assert.Equal(11, results[1].Integer1);
-                Assert.Equal(11, results[2].Integer1);
-
                 Assert.Equal(22, results[0].Integer2);
-                Assert.Equal(22, results[1].Integer2);
-                Assert.Equal(222, results[2].Integer2);
-
-                Assert.Equal(44, results[0].Integer4);
-                Assert.Equal(-4, results[1].Integer4);
-                Assert.Equal(98, results[2].Integer4);
-
                 Assert.Equal(-89, results[0].Integer3);
+                Assert.Equal(44, results[0].Integer4);
+
+                Assert.Equal(11, results[1].Integer1);
+                Assert.Equal(22, results[1].Integer2);
                 Assert.Equal(14, results[1].Integer3);
+                Assert.Equal(-4, results[1].Integer4);
+
+                Assert.Equal(11, results[2].Integer1);
+                Assert.Equal(222, results[2].Integer2);
                 Assert.Equal(205, results[2].Integer3);
+                Assert.Equal(98, results[2].Integer4);
             }
         }
     }

@@ -18,6 +18,9 @@ namespace TrackDb.Lib.Cache.CachedBlock
 
         /// <summary>
         /// Project columns of given row indexes.  See <see cref="TableQuery"/> for column indexes.
+        /// The order of rows is guaranteed to be the same as <paramref name="rowIndexes"/>.
+        /// The order of columns is guaranteed to be the same as
+        /// <paramref name="projectionColumnIndexes"/>.
         /// </summary>
         /// <param name="buffer">Buffer used to carry column values.</param>
         /// <param name="projectionColumnIndexes">Column index to project.</param>
