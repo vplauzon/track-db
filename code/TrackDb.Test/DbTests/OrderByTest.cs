@@ -66,7 +66,9 @@ namespace TrackDb.Test.DbTests
                     .ToImmutableList();
 
                 Assert.Equal(3, results.Count);
-                Assert.Equal(1, results[0].NullableInteger);
+                Assert.Null(results[0].NullableInteger);
+                Assert.Null(results[1].NullableInteger);
+                Assert.Equal(5, results[2].NullableInteger);
             }
         }
 
