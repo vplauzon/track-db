@@ -37,7 +37,7 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(3, resultsAll.Select(r => r.Integer));
 
                 var resultsEqual = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer == 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.Equal(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsEqual);
@@ -45,7 +45,7 @@ namespace TrackDb.Test.DbTests
                 Assert.Null(resultsEqual[0].NullableInteger);
 
                 var resultsNotEqual = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer != 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.NotEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsNotEqual.Count);
@@ -53,14 +53,14 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(3, resultsNotEqual.Select(r => r.Integer));
 
                 var resultsLessThan = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer < 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.LessThan(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsLessThan);
                 Assert.Equal(1, resultsLessThan[0].Integer);
 
                 var resultsLessThanOrEqual = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer <= 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.LessThanOrEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsLessThanOrEqual.Count);
@@ -68,7 +68,7 @@ namespace TrackDb.Test.DbTests
                 Assert.Contains(2, resultsLessThanOrEqual.Select(r => r.Integer));
 
                 var resultsGreaterThan = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer > 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.GreaterThan(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsGreaterThan);
@@ -76,7 +76,7 @@ namespace TrackDb.Test.DbTests
                 Assert.Equal(43, resultsGreaterThan[0].NullableInteger);
 
                 var resultsGreaterThanOrEqual = db.PrimitiveTable.Query()
-                    .Where(i => i.Integer >= 2)
+                    .Where(db.PrimitiveTable.PredicateFactory.GreaterThanOrEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsGreaterThanOrEqual.Count);
