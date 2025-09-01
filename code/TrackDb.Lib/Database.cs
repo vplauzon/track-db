@@ -559,7 +559,7 @@ namespace TrackDb.Lib
                     {
                         if (PersistOldRecords(doPersistAll))
                         {
-                            if(HardDelete(doHardDeleteAll))
+                            if (HardDelete(doHardDeleteAll))
                             {   //  We're done
                                 _forceDataManagementSource?.TrySetResult();
 
@@ -676,7 +676,7 @@ namespace TrackDb.Lib
         /// <returns></returns>
         private bool PersistOldRecords(bool doPersistEverything)
         {
-            using (var tc = CreateTransaction())
+            using (var tc = CreateDummyTransaction())
             {
                 if (ShouldPersistCachedData(doPersistEverything, tc))
                 {
@@ -838,7 +838,10 @@ namespace TrackDb.Lib
         #region Hard Delete
         private bool HardDelete(bool doHardDeleteAll)
         {
-            return true;
+            using (var tc = CreateDummyTransaction())
+            {
+                return true;
+            }
         }
         #endregion
     }
