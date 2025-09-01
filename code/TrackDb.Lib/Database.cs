@@ -548,15 +548,24 @@ namespace TrackDb.Lib
             {
                 while (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    MergeTransactionLogs(
-                        (dataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0);
+                    var doMergeAll =
+                        (dataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0;
+                    var doPersistAll =
+                        (dataManagementActivity & DataManagementActivity.PersistAllData) != 0;
+                    var doHardDeleteAll =
+                        (dataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
 
-                    if (PersistOldRecords(
-                        (dataManagementActivity & DataManagementActivity.PersistAllData) != 0))
-                    {   //  We're done
-                        _forceDataManagementSource?.TrySetResult();
+                    if (MergeTransactionLogs(doMergeAll))
+                    {
+                        if (PersistOldRecords(doPersistAll))
+                        {
+                            if(HardDelete(doHardDeleteAll))
+                            {   //  We're done
+                                _forceDataManagementSource?.TrySetResult();
 
-                        return;
+                                return;
+                            }
+                        }
                     }
                 }
             }
@@ -567,7 +576,7 @@ namespace TrackDb.Lib
         }
 
         #region Merge Transaction Logs
-        private void MergeTransactionLogs(bool doMergeAll)
+        private bool MergeTransactionLogs(bool doMergeAll)
         {
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
@@ -581,6 +590,12 @@ namespace TrackDb.Lib
             {
                 MergeTransactionLogs(candidateTableName);
                 MergeTransactionLogs(doMergeAll);
+
+                return false;
+            }
+            else
+            {
+                return true;
             }
         }
 
@@ -817,6 +832,13 @@ namespace TrackDb.Lib
             }
 
             return oldestTableName;
+        }
+        #endregion
+
+        #region Hard Delete
+        private bool HardDelete(bool doHardDeleteAll)
+        {
+            return true;
         }
         #endregion
     }

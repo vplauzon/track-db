@@ -135,7 +135,7 @@ namespace TrackDb.Test.DbTests
         public async Task WithDeletes(
             bool doPushPendingData1,
             bool doPushPendingData2,
-            bool doPushPendingData3)
+            bool doHardDelete)
         {
             await using (var db = new TestDatabase())
             {
@@ -157,7 +157,7 @@ namespace TrackDb.Test.DbTests
                 db.MultiIntegerTable.Query()
                     .Where(db.MultiIntegerTable.PredicateFactory.GreaterThan(m => m.Integer1, 90))
                     .Delete();
-                await db.ForceDataManagementAsync(doPushPendingData3
+                await db.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
                     : DataManagementActivity.None);
 
