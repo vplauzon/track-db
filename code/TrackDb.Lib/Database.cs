@@ -12,7 +12,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using TrackDb.Lib.Settings;
+using TrackDb.Lib.Policies;
 
 namespace TrackDb.Lib
 {
@@ -43,7 +43,7 @@ namespace TrackDb.Lib
 
         #region Constructors
         public Database(
-            DatabaseSettings databaseSettings,
+            DatabasePolicies databasePolicies,
             params IEnumerable<TableSchema> schemas)
         {
             _storageManager = new Lazy<StorageManager>(
@@ -84,7 +84,7 @@ namespace TrackDb.Lib
                 this,
                 TypedTableSchema<TombstoneRow>.FromConstructor("$tombstone"));
             _dataMaintenanceTask = DataMaintanceAsync();
-            DatabaseSettings = databaseSettings;
+            DatabasePolicies = databasePolicies;
         }
 
         private Table CreateTable(TableSchema schema)
@@ -112,7 +112,7 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public DatabaseSettings DatabaseSettings { get; }
+        public DatabasePolicies DatabasePolicies { get; }
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
@@ -580,7 +580,7 @@ namespace TrackDb.Lib
         {
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
-                : DatabaseSettings.MaxUnpersistedBlocksPerTable;
+                : DatabasePolicies.MaxUnpersistedBlocksPerTable;
             var candidateTableName = _databaseState.DatabaseCache.TableTransactionLogsMap
                 .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
                 .Select(p => p.Key)
@@ -780,9 +780,9 @@ namespace TrackDb.Lib
                 .Where(p => _tableToMetaDataTableMap.Keys.Contains(p.Key))
                 .Select(p => p.Value)
                 .Select(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount))
-                .Where(sum => sum > DatabaseSettings.MaxUnpersistedMetaDataRecordsPerTable);
+                .Where(sum => sum > DatabasePolicies.MaxUnpersistedMetaDataRecordsPerTable);
 
-            return totalRecords > DatabaseSettings.MaxUnpersistedRecordsPerDb
+            return totalRecords > DatabasePolicies.MaxUnpersistedRecordsPerDb
                 || metaDataTableOver.Any()
                 || (doPersistEverything && totalUserRecords > 0);
         }
@@ -806,7 +806,7 @@ namespace TrackDb.Lib
                 var isTableElligible = !isTombstoneTable
                     && (!isMetaData
                     || logs.InMemoryBlocks.Sum(b => b.RecordCount)
-                    > DatabaseSettings.MaxUnpersistedMetaDataRecordsPerTable);
+                    > DatabasePolicies.MaxUnpersistedMetaDataRecordsPerTable);
 
                 if (isTableElligible)
                 {

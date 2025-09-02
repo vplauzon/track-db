@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace TrackDb.Lib.Settings
+namespace TrackDb.Lib.Policies
 {
-    public record DatabaseSettings(
+    public record DatabasePolicies(
         int MaxUnpersistedBlocksPerTable = 5,
         int MaxUnpersistedRecordsPerDb = 100,
         int MaxUnpersistedMetaDataRecordsPerTable = 50,

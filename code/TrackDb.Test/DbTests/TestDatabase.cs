@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib;
-using TrackDb.Lib.Settings;
+using TrackDb.Lib.Policies;
 
 namespace TrackDb.Test.DbTests
 {
@@ -21,7 +21,7 @@ namespace TrackDb.Test.DbTests
 
         public TestDatabase()
             : base(
-                 new DatabaseSettings(),
+                 new DatabasePolicies(),
                  TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
                  TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE))
         {
