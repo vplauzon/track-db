@@ -589,9 +589,8 @@ namespace TrackDb.Lib
             if (candidateTableName != null)
             {
                 MergeTransactionLogs(candidateTableName);
-                MergeTransactionLogs(doMergeAll);
-
-                return false;
+             
+                return MergeTransactionLogs(doMergeAll);
             }
             else
             {
