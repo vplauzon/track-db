@@ -266,7 +266,9 @@ namespace TrackDb.Lib.Cache.CachedBlock
                 short.MaxValue,
                 Math.Min(block.RecordCount, (int)Math.Ceiling((maxSize - bias) / slope)));
             var newBlock = CreateTruncatedBlock(interpolatedCount);
-            var size = newBlock.Serialize().Payload.Length;
+            var size = ((IBlock)newBlock).RecordCount > 0
+                ? newBlock.Serialize().Payload.Length
+                : 0;
 
             if (interpolatedCount > upperTruncationBound.RecordCount
                 && size <= upperTruncationBound.Size)
@@ -290,7 +292,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
                     //  We have y1, y3, y2
                     ? lowerTruncationBound
                     //  We have y1, y2, y3
-                    : upperTruncationBound;
+                    : new TruncationBound(interpolatedCount, size);
                 var newUpperTruncationBound = upperTruncationBound.Size <= size
                     ? new TruncationBound(interpolatedCount, size)
                     : upperTruncationBound;
