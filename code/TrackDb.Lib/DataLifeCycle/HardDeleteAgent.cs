@@ -9,7 +9,6 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class HardDeleteAgent : DataLifeCycleAgentBase
     {
-
         public HardDeleteAgent(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
@@ -33,6 +32,5 @@ namespace TrackDb.Lib.DataLifeCycle
                 return true;
             }
         }
-
     }
 }
