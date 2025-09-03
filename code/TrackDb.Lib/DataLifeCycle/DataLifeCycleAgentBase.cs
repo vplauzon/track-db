@@ -74,7 +74,8 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         protected void CommitAlteredLogs(
-            IImmutableDictionary<string, BlockBuilder> tableToNewLogsMap,
+            IImmutableDictionary<string, BlockBuilder> tableToReplacedLogsMap,
+            IImmutableDictionary<string, BlockBuilder> tableToAddedLogsMap,
             TransactionContext tc)
         {
             IImmutableDictionary<string, ImmutableTableTransactionLogs> UpdateLogs(
@@ -108,16 +109,61 @@ namespace TrackDb.Lib.DataLifeCycle
                         : newMap.Remove(tableName);
                 }
             }
+            IImmutableDictionary<string, ImmutableTableTransactionLogs> AddLogs(
+                IImmutableDictionary<string, ImmutableTableTransactionLogs> oldMap,
+                IImmutableDictionary<string, ImmutableTableTransactionLogs> newMap,
+                string tableName,
+                BlockBuilder newBlock)
+            {
+                if (((IBlock)newBlock).RecordCount > 0)
+                {
+                    oldMap.TryGetValue(tableName, out var oldLogs);
+                    newMap.TryGetValue(tableName, out var newLogs);
+
+                    var resultingBlocks =
+                        (newLogs?.InMemoryBlocks ?? (IEnumerable<IBlock>)Array.Empty<IBlock>())
+                        .Append(newBlock);
+
+                    if (resultingBlocks.Any())
+                    {
+                        return newMap.SetItem(
+                            tableName,
+                            new ImmutableTableTransactionLogs(resultingBlocks.ToImmutableArray()));
+                    }
+                    else
+                    {
+                        return newLogs == null
+                            ? newMap
+                            : newMap.Remove(tableName);
+                    }
+                }
+                else
+                {
+                    return newMap;
+                }
+            }
+
             Database.ChangeDatabaseState(state =>
             {
                 var stateCurrentMap = state.DatabaseCache.TableTransactionLogsMap;
 
-                foreach (var pair in tableToNewLogsMap)
+                foreach (var pair in tableToReplacedLogsMap)
                 {
                     var tableName = pair.Key;
                     var newBlock = pair.Value;
 
                     stateCurrentMap = UpdateLogs(
+                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap,
+                        stateCurrentMap,
+                        tableName,
+                        newBlock);
+                }
+                foreach (var pair in tableToAddedLogsMap)
+                {
+                    var tableName = pair.Key;
+                    var newBlock = pair.Value;
+
+                    stateCurrentMap = AddLogs(
                         tc.TransactionState.DatabaseCache.TableTransactionLogsMap,
                         stateCurrentMap,
                         tableName,

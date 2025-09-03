@@ -98,13 +98,24 @@ namespace TrackDb.Test.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                
+                Assert.Equal(2, db.PrimitiveTable.Query().Count());
+                
                 await db.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
+
+                Assert.Equal(2, db.PrimitiveTable.Query().Count());
+
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
+
+                Assert.Equal(3, db.PrimitiveTable.Query().Count());
+
                 await db.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
+
+                Assert.Equal(3, db.PrimitiveTable.Query().Count());
 
                 //  Delete
                 db.PrimitiveTable.Query()

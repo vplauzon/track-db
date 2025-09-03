@@ -81,16 +81,22 @@ namespace TrackDb.Lib.DataLifeCycle
             BlockBuilder? tombstoneBlock,
             TransactionContext tc)
         {
-            var mapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
+            var replaceMapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
+            var addMapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
 
-            mapBuilder.Add(((IBlock)tableBlock).TableSchema.TableName, tableBlock);
-            mapBuilder.Add(((IBlock)metadataBlock).TableSchema.TableName, metadataBlock);
+            replaceMapBuilder.Add(((IBlock)tableBlock).TableSchema.TableName, tableBlock);
             if (tombstoneBlock != null)
             {
-                mapBuilder.Add(((IBlock)tombstoneBlock).TableSchema.TableName, tombstoneBlock);
+                replaceMapBuilder.Add(
+                    ((IBlock)tombstoneBlock).TableSchema.TableName,
+                    tombstoneBlock);
             }
+            addMapBuilder.Add(((IBlock)metadataBlock).TableSchema.TableName, metadataBlock);
 
-            CommitAlteredLogs(mapBuilder.ToImmutable(), tc);
+            CommitAlteredLogs(
+                replaceMapBuilder.ToImmutable(),
+                addMapBuilder.ToImmutable(),
+                tc);
         }
 
         private bool ShouldPersistUserData(bool doPersistEverything, TransactionContext tc)

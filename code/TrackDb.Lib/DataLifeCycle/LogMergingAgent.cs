@@ -53,7 +53,10 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         mapBuilder.Add(TombstoneTable.Schema.TableName, tombstoneBlock);
                     }
-                    CommitAlteredLogs(mapBuilder.ToImmutable(), tc);
+                    CommitAlteredLogs(
+                        mapBuilder.ToImmutable(),
+                        ImmutableDictionary<string, BlockBuilder>.Empty,
+                        tc);
                 }
 
                 return MergeTransactionLogs(doMergeAll);
