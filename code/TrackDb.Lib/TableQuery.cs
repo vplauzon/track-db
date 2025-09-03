@@ -236,7 +236,7 @@ namespace TrackDb.Lib
 
         private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext transactionContext)
         {
-            if (_table.Database.IsPersisted(_table.Schema.TableName))
+            if (_table.Database.HasMetaDataTable(_table.Schema.TableName))
             {
                 var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
                 var metaDataQuery = new TableQuery(

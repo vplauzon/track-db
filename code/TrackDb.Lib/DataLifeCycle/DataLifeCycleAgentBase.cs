@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.Cache;
@@ -76,20 +77,36 @@ namespace TrackDb.Lib.DataLifeCycle
             IImmutableDictionary<string, BlockBuilder> tableToNewLogsMap,
             TransactionContext tc)
         {
-            ImmutableTableTransactionLogs UpdateLogs(
-                ImmutableTableTransactionLogs oldLogs,
-                ImmutableTableTransactionLogs currentStateLogs,
+            IImmutableDictionary<string, ImmutableTableTransactionLogs> UpdateLogs(
+                IImmutableDictionary<string, ImmutableTableTransactionLogs> oldMap,
+                IImmutableDictionary<string, ImmutableTableTransactionLogs> newMap,
+                string tableName,
                 BlockBuilder newBlock)
             {
-                var resultingBlocks = currentStateLogs.InMemoryBlocks
-                    .Skip(oldLogs.InMemoryBlocks.Count);
+                oldMap.TryGetValue(tableName, out var oldLogs);
+                newMap.TryGetValue(tableName, out var newLogs);
+
+                var resultingBlocks =
+                    (newLogs?.InMemoryBlocks ?? (IEnumerable<IBlock>)Array.Empty<IBlock>())
+                    .Skip(oldLogs?.InMemoryBlocks.Count ?? 0);
 
                 if (((IBlock)newBlock).RecordCount > 0)
                 {
-                    resultingBlocks = resultingBlocks.Prepend(newBlock);
+                    resultingBlocks = resultingBlocks
+                        .Prepend(newBlock);
                 }
-
-                return new ImmutableTableTransactionLogs(resultingBlocks.ToImmutableArray());
+                if (resultingBlocks.Any())
+                {
+                    return newMap.SetItem(
+                        tableName,
+                        new ImmutableTableTransactionLogs(resultingBlocks.ToImmutableArray()));
+                }
+                else
+                {
+                    return newLogs == null
+                        ? newMap
+                        : newMap.Remove(tableName);
+                }
             }
             Database.ChangeDatabaseState(state =>
             {
@@ -100,12 +117,11 @@ namespace TrackDb.Lib.DataLifeCycle
                     var tableName = pair.Key;
                     var newBlock = pair.Value;
 
-                    stateCurrentMap = stateCurrentMap.SetItem(
+                    stateCurrentMap = UpdateLogs(
+                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap,
+                        stateCurrentMap,
                         tableName,
-                        UpdateLogs(
-                            tc.TransactionState.DatabaseCache.TableTransactionLogsMap[tableName],
-                            stateCurrentMap[tableName],
-                            newBlock));
+                        newBlock);
                 }
 
                 return state with { DatabaseCache = new DatabaseCache(stateCurrentMap) };

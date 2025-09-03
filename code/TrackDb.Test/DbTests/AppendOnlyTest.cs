@@ -20,7 +20,7 @@ namespace TrackDb.Test.DbTests
 
                 db.PrimitiveTable.AppendRecord(record);
                 await db.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }
         }
@@ -36,7 +36,7 @@ namespace TrackDb.Test.DbTests
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 await db.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }
         }

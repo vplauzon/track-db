@@ -22,17 +22,19 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
-            var doPersistAll =
-                (forcedDataManagementActivity & DataManagementActivity.PersistAllData) != 0;
+            var doPersistAllUserData =
+                (forcedDataManagementActivity & DataManagementActivity.PersistAllUserData) != 0;
+            var doPersistAllMetaData =
+                (forcedDataManagementActivity & DataManagementActivity.PersistAllMetaData) != 0;
 
-            return PersistOldRecords(doPersistAll);
+            return PersistOldRecords(doPersistAllUserData, doPersistAllMetaData);
         }
 
-        private bool PersistOldRecords(bool doPersistEverything)
+        private bool PersistOldRecords(bool doPersistAllUserData, bool doPersistAllMetaData)
         {
             using (var tc = Database.CreateDummyTransaction())
             {
-                var tableName = GetOldestTable(doPersistEverything, tc);
+                var tableName = GetOldestTable(doPersistAllUserData, doPersistAllMetaData, tc);
 
                 if (tableName != null)
                 {
@@ -50,8 +52,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         var rowCount = ((IBlock)blockToPersist).RecordCount;
 
                         //  We stop before persisting the last (typically incomplete) block
-                        if (isFirstBlockToPersist
-                            || ((IBlock)tableBlock).RecordCount == rowCount)
+                        if (isFirstBlockToPersist || ((IBlock)tableBlock).RecordCount == rowCount)
                         {
                             var serializedBlock = blockToPersist.Serialize();
                             var blockId = StorageManager.WriteBlock(serializedBlock.Payload.ToArray());
@@ -62,11 +63,15 @@ namespace TrackDb.Lib.DataLifeCycle
                                 serializedBlock.MetaData.CreateMetaDataRecord(blockId));
                             isFirstBlockToPersist = false;
                         }
+                        else
+                        {   //  We're done
+                            break;
+                        }
                     }
                     CommitPersistance(tableBlock, metadataBlock, tombstoneBlock, tc);
                 }
 
-                return tableName != null;
+                return tableName == null;
             }
         }
 
@@ -114,13 +119,16 @@ namespace TrackDb.Lib.DataLifeCycle
                 || totalMetaDataRecords > Database.DatabasePolicies.MaxUnpersistedMetaDataRecords;
         }
 
-        private string? GetOldestTable(bool doPersistEverything, TransactionContext tc)
+        private string? GetOldestTable(
+            bool doPersistAllUserData,
+            bool doPersistAllMetaData,
+            TransactionContext tc)
         {
             var cache = tc.TransactionState.DatabaseCache;
-            var doMetaData = ShouldPersistMetaData(doPersistEverything, tc);
-            var doUserData = ShouldPersistUserData(doPersistEverything, tc);
+            var doUserData = ShouldPersistUserData(doPersistAllUserData, tc);
+            var doMetaData = ShouldPersistMetaData(doPersistAllMetaData, tc);
 
-            if (doMetaData || doUserData)
+            if (doUserData || doMetaData)
             {
                 var oldestRecordId = long.MaxValue;
                 var oldestTableName = (string?)null;
@@ -133,7 +141,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var tableName = pair.Key;
                     var logs = pair.Value;
-                    var table = Database.GetTable(tableName);
+                    var table = Database.GetAnyTable(tableName);
                     var isTableElligible = (doMetaData && tableMap[tableName].IsMetaDataTable)
                         || (doUserData && tableMap[tableName].IsUserTable);
 

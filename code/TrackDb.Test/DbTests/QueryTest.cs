@@ -20,12 +20,12 @@ namespace TrackDb.Test.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.PrimitiveTable.Query()
@@ -99,11 +99,11 @@ namespace TrackDb.Test.DbTests
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 await db.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 await db.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
                 //  Delete
@@ -111,7 +111,7 @@ namespace TrackDb.Test.DbTests
                     .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 2))
                     .Delete();
                 await db.ForceDataManagementAsync(doPushPendingData3
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.PrimitiveTable.Query()
@@ -176,12 +176,12 @@ namespace TrackDb.Test.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
                 var count = db.PrimitiveTable.Query()
@@ -202,12 +202,12 @@ namespace TrackDb.Test.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllData
+                    ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
                 var resultsOnly2 = db.PrimitiveTable.Query()

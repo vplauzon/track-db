@@ -252,7 +252,7 @@ namespace TrackDb.Lib.Cache.CachedBlock
             TruncationBound lowerTruncationBound,
             TruncationBound upperTruncationBound,
             int maxSize,
-            int round)
+            int iteration)
         {
             IBlock block = this;
             //  Assume lower & upper bound are on a line
@@ -280,27 +280,33 @@ namespace TrackDb.Lib.Cache.CachedBlock
             }
             if (size <= maxSize
                 && (Math.Abs(size - maxSize) / ((double)maxSize) < 0.05
-                || round >= MAX_TRUNCATE_OPTIMIZATION_ROUNDS))
+                || iteration >= MAX_TRUNCATE_OPTIMIZATION_ROUNDS))
             {
                 return newBlock;
             }
             else
             {
-                if (upperTruncationBound.Size <= size)
-                {   //  We have y1, y3, y2
+                var newLowerTruncationBound = upperTruncationBound.Size <= size
+                    //  We have y1, y3, y2
+                    ? lowerTruncationBound
+                    //  We have y1, y2, y3
+                    : upperTruncationBound;
+                var newUpperTruncationBound = upperTruncationBound.Size <= size
+                    ? new TruncationBound(interpolatedCount, size)
+                    : upperTruncationBound;
+
+                if (newLowerTruncationBound != lowerTruncationBound
+                    || newUpperTruncationBound != upperTruncationBound)
+                {
                     return OptimizePrefixTruncation(
-                        lowerTruncationBound,
-                        new TruncationBound(interpolatedCount, size),
+                        newLowerTruncationBound,
+                        newUpperTruncationBound,
                         maxSize,
-                        round + 1);
+                        iteration + 1);
                 }
                 else
-                {   //  We have y1, y2, y3
-                    return OptimizePrefixTruncation(
-                        upperTruncationBound,
-                        new TruncationBound(interpolatedCount, size),
-                        maxSize,
-                        round + 1);
+                {
+                    throw new NotSupportedException();
                 }
             }
         }

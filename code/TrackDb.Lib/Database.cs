@@ -155,16 +155,28 @@ namespace TrackDb.Lib
                     $"it has document type '{docType.Name}'");
             }
         }
+
+        internal Table GetAnyTable(string tableName)
+        {
+            if (_databaseState.TableMap.TryGetValue(tableName, out var table))
+            {
+                return table.Table;
+            }
+            else
+            {
+                throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
+            }
+        }
         #endregion
 
         #region Meta data tables
-        internal bool IsPersisted(string tableName)
+        internal bool HasMetaDataTable(string tableName)
         {
             var existingMap = _databaseState.TableMap;
 
             if (existingMap.TryGetValue(tableName, out var table))
             {
-                return table.IsPersisted;
+                return table.MetaDataTableName != null;
             }
             else
             {
@@ -212,11 +224,16 @@ namespace TrackDb.Lib
                         }
                         else
                         {
+                            var tableMap = state.TableMap.Add(
+                                metaDataTableName,
+                                new TableProperties(metaDataTable, null, false, true, false))
+                            .SetItem(tableName, state.TableMap[tableName] with
+                            {
+                                MetaDataTableName = metaDataTableName
+                            });
                             var newState = state with
                             {
-                                TableMap = state.TableMap.Add(
-                                    metaDataTableName,
-                                    new TableProperties(metaDataTable, null, false, true, false))
+                                TableMap = tableMap
                             };
 
                             return newState;

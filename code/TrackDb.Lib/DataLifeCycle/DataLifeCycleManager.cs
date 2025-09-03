@@ -82,12 +82,17 @@ namespace TrackDb.Lib.DataLifeCycle
                 var forcedDataManagementActivity = Interlocked.Exchange(
                     ref _forcedDataManagementActivity,
                     DataManagementActivity.None);
+                var iterationCount = 0;
 
-                DataMaintanceIteration(forcedDataManagementActivity);
+                while (!DataMaintanceIteration(forcedDataManagementActivity))
+                {
+                    ++iterationCount;
+                }
+                _forceDataManagementSource?.TrySetResult();
             }
         }
 
-        private void DataMaintanceIteration(DataManagementActivity forcedDataManagementActivity)
+        private bool DataMaintanceIteration(DataManagementActivity forcedDataManagementActivity)
         {
             try
             {
@@ -98,20 +103,18 @@ namespace TrackDb.Lib.DataLifeCycle
                         break;
                     }
                     else if (!agent.Run(forcedDataManagementActivity))
-                    {   //  Agent isn't complete, so we rerun everything
-                        DataMaintanceIteration(forcedDataManagementActivity);
-
-                        return;
+                    {
+                        return false;
                     }
                 }
                 //  We're done
-                _forceDataManagementSource?.TrySetResult();
 
-                return;
+                return true;
             }
             catch (Exception ex)
             {
                 _forceDataManagementSource?.TrySetException(ex);
+                throw;
             }
         }
     }
