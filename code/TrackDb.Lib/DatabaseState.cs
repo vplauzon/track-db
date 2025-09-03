@@ -15,14 +15,17 @@ namespace TrackDb.Lib
     /// </summary>
     /// <param name="DatabaseCache"></param>
     /// <param name="TransactionMap"></param>
+    /// <param name="TableMap"></param>
     internal record DatabaseState(
         DatabaseCache DatabaseCache,
-        IImmutableDictionary<long, TransactionState> TransactionMap)
+        IImmutableDictionary<long, TransactionState> TransactionMap,
+        IImmutableDictionary<string, TableProperties> TableMap)
     {
-        public DatabaseState()
+        public DatabaseState(IImmutableDictionary<string, TableProperties> tableMap)
             : this(
                   new DatabaseCache(),
-                  ImmutableDictionary<long, TransactionState>.Empty)
+                  ImmutableDictionary<long, TransactionState>.Empty,
+                  tableMap)
         {
         }
     }
