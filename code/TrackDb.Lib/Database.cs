@@ -19,7 +19,7 @@ namespace TrackDb.Lib
     /// Database:  a collection of tables that can share transactions
     /// and are persisted in the same file.
     /// </summary>
-    public partial class Database : IAsyncDisposable
+    public class Database : IAsyncDisposable
     {
         private readonly Lazy<StorageManager> _storageManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
@@ -275,8 +275,8 @@ namespace TrackDb.Lib
                 //  We add the itemCount & block-id columns
                 .Append(new[]
                 {
-                    new ColumnSchema("$itemCount", typeof(int)),
-                    new ColumnSchema("$blockId", typeof(int))
+                    new ColumnSchema(MetadataColumns.ITEM_COUNT, typeof(int)),
+                    new ColumnSchema(MetadataColumns.BLOCK_ID, typeof(int))
                 })
                 //  We fan out the columns
                 .SelectMany(c => c);
@@ -482,16 +482,15 @@ namespace TrackDb.Lib
         #endregion
 
         #region Tombstone
-        internal void DeleteRecords(
-            IEnumerable<long> recordIds,
-            long? blockId,
+        internal void DeleteRecord(
+            long recordId,
+            int? blockId,
             string tableName,
-            TransactionContext transactionContext)
+            TransactionContext tc)
         {
-            var tombstoneRows = recordIds
-                .Select(id => new TombstoneRecord(id, blockId, tableName));
-
-            _tombstoneTable.AppendRecords(tombstoneRows, transactionContext);
+            _tombstoneTable.AppendRecord(
+                new TombstoneRecord(recordId, blockId, tableName, DateTime.Now),
+                tc);
         }
 
         internal IEnumerable<long> GetDeletedRecordIds(

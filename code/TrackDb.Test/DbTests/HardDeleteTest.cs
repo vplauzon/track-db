@@ -1,0 +1,91 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Threading.Tasks;
+using TrackDb.Lib;
+using Xunit;
+
+namespace TrackDb.Test.DbTests
+{
+    public class HardDeleteTest
+    {
+        [Fact]
+        public async Task OneRecord()
+        {
+            await using (var db = new TestDatabase())
+            {
+                var record = new TestDatabase.Primitives(1);
+
+                db.PrimitiveTable.AppendRecord(record);
+                await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+
+                Assert.True(db.PrimitiveTable.Query().Count() == 1);
+
+                db.PrimitiveTable.Query()
+                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Delete();
+
+                Assert.True(db.PrimitiveTable.Query().Count() == 0);
+                using (var tc = db.CreateTransaction())
+                {
+                    Assert.True(
+                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap.Any());
+                }
+
+                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+
+                Assert.True(db.PrimitiveTable.Query().Count() == 0);
+                using (var tc = db.CreateTransaction())
+                {
+                    Assert.False(
+                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap.Any());
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Parallel()
+        {
+            await using (var db = new TestDatabase())
+            {
+                var record1 = new TestDatabase.Primitives(1);
+                var record2 = new TestDatabase.Primitives(2);
+
+                db.PrimitiveTable.AppendRecord(record1);
+                db.PrimitiveTable.AppendRecord(record2);
+                await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+
+                Assert.True(db.PrimitiveTable.Query().Count() == 2);
+
+                var tc1 = db.CreateTransaction();
+                var tc2 = db.CreateTransaction();
+
+                //  In tc1, we delete first one, in tc2, we delete both
+                db.PrimitiveTable.Query(tc1)
+                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Delete();
+                db.PrimitiveTable.Query(tc2)
+                    .Delete();
+
+                tc1.Complete();
+
+                Assert.Equal(1, db.PrimitiveTable.Query().Count());
+
+                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+
+                Assert.Equal(1, db.PrimitiveTable.Query().Count());
+
+                tc2.Complete();
+                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+
+                Assert.Equal(0, db.PrimitiveTable.Query().Count());
+                using (var tc = db.CreateTransaction())
+                {
+                    Assert.False(
+                        tc.TransactionState.ListTransactionLogBlocks(
+                            db.PrimitiveTable.Schema.TableName).Any());
+                }
+            }
+        }
+    }
+}

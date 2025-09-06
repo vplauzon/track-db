@@ -1,4 +1,10 @@
-﻿namespace TrackDb.Lib
+﻿using System;
+
+namespace TrackDb.Lib
 {
-    internal record TombstoneRecord(long RecordId, long? BlockId, string TableName);
+    internal record TombstoneRecord(
+        long RecordId,
+        int? BlockId,
+        string TableName,
+        DateTime Timestamp);
 }

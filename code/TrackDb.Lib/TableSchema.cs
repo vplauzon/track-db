@@ -76,6 +76,19 @@ namespace TrackDb.Lib
 
         public IImmutableList<int> PartitionKeyColumnIndexes { get; }
 
+        public int FindColumnIndex(string columnName)
+        {
+            var index = Columns
+                .Index()
+                .Where(b => b.Item.ColumnName == columnName)
+                .Select(b => (int?)b.Index)
+                .FirstOrDefault();
+
+            return index ?? throw new ArgumentOutOfRangeException(
+                nameof(columnName),
+                $"Column '{columnName}' not found");
+        }
+
         internal bool AreColumnsCompatible(IImmutableList<ColumnSchema> otherColumns)
         {
             return otherColumns.Count == Columns.Count

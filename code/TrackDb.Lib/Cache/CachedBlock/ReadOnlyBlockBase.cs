@@ -77,6 +77,8 @@ namespace TrackDb.Lib.Cache.CachedBlock
             builder.Add(typeof(string), capacity => new ArrayStringColumn(true, capacity));
             builder.Add(typeof(bool), capacity => new ArrayBoolColumn(false, capacity));
             builder.Add(typeof(bool?), capacity => new ArrayBoolColumn(true, capacity));
+            builder.Add(typeof(DateTime), capacity => new ArrayDateTimeColumn(false, capacity));
+            builder.Add(typeof(DateTime?), capacity => new ArrayDateTimeColumn(true, capacity));
 
             return builder.ToImmutableDictionary();
         }

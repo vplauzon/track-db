@@ -27,44 +27,31 @@ namespace TrackDb.Lib.DataLifeCycle
             var doMergeAll =
                 (forcedDataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0;
 
-            return MergeTransactionLogs(doMergeAll);
+            MergeTransactionLogs(doMergeAll);
+
+            return true;
         }
 
-        private bool MergeTransactionLogs(bool doMergeAll)
+        private void MergeTransactionLogs(bool doMergeAll)
+        {
+            for (var candidateTable = FindMergeCandidate(doMergeAll);
+                 candidateTable != null;
+                 candidateTable = FindMergeCandidate(doMergeAll))
+            {
+                MergeTableTransactionLogs(candidateTable);
+            }
+        }
+
+        private string? FindMergeCandidate(bool doMergeAll)
         {
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
                 : Database.DatabasePolicies.MaxUnpersistedBlocksPerTable;
-            var candidateTableName = Database.GetDatabaseStateSnapshot().DatabaseCache.TableTransactionLogsMap
+
+            return Database.GetDatabaseStateSnapshot().DatabaseCache.TableTransactionLogsMap
                 .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
                 .Select(p => p.Key)
                 .FirstOrDefault();
-
-            if (candidateTableName != null)
-            {
-                using (var tc = Database.CreateDummyTransaction())
-                {
-                    (var tableBlock, var tombstoneBlock) =
-                        MergeTableTransactionLogs(candidateTableName, tc);
-                    var mapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
-
-                    mapBuilder.Add(candidateTableName, tableBlock);
-                    if (tombstoneBlock != null)
-                    {
-                        mapBuilder.Add(TombstoneTable.Schema.TableName, tombstoneBlock);
-                    }
-                    CommitAlteredLogs(
-                        mapBuilder.ToImmutable(),
-                        ImmutableDictionary<string, BlockBuilder>.Empty,
-                        tc);
-                }
-
-                return MergeTransactionLogs(doMergeAll);
-            }
-            else
-            {
-                return true;
-            }
         }
     }
 }

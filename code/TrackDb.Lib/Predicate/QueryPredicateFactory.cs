@@ -45,6 +45,17 @@ namespace TrackDb.Lib.Predicate
                     values.Cast<object?>()));
         }
 
+        public ITypedQueryPredicate<T> NotIn<U>(
+            Expression<Func<T, U>> propertySelection,
+            IEnumerable<U> values)
+        {
+            return new TypedQueryPredicateAdapter<T>(
+                new NegationPredicate(
+                    new InPredicate(
+                        GetColumnIndex(propertySelection.Body),
+                        values.Cast<object?>())));
+        }
+
         public ITypedQueryPredicate<T> LessThan<U>(
             Expression<Func<T, U>> propertySelection,
             U value)

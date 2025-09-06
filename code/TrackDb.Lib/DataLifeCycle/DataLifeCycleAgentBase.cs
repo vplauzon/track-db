@@ -37,6 +37,26 @@ namespace TrackDb.Lib.DataLifeCycle
 
         protected StorageManager StorageManager => _storageManager.Value;
 
+        protected void MergeTableTransactionLogs(string tableName)
+        {
+            using (var tc = Database.CreateDummyTransaction())
+            {
+                (var tableBlock, var tombstoneBlock) =
+                    MergeTableTransactionLogs(tableName, tc);
+                var mapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
+
+                mapBuilder.Add(tableName, tableBlock);
+                if (tombstoneBlock != null)
+                {
+                    mapBuilder.Add(TombstoneTable.Schema.TableName, tombstoneBlock);
+                }
+                CommitAlteredLogs(
+                    mapBuilder.ToImmutable(),
+                    ImmutableDictionary<string, BlockBuilder>.Empty,
+                    tc);
+            }
+        }
+
         protected (BlockBuilder tableBlock, BlockBuilder? tombstoneBlock) MergeTableTransactionLogs(
             string tableName,
             TransactionContext tc)

@@ -103,22 +103,29 @@ namespace TrackDb.Lib
 
                         var deletedRecordIds = ExecuteQuery(
                             tc,
-                            //  Fetch only the record ID
-                            [_table.Schema.Columns.Count])
-                        .Select(r => (long)r.Span[0]!)
+                            //  Fetch record ID & block ID
+                            [_table.Schema.Columns.Count, _table.Schema.Columns.Count + 2])
+                        .Select(r => new
+                        {
+                            RecordId = (long)r.Span[0]!,
+                            BlockId = (int)r.Span[1]!
+                        })
                         .ToImmutableList();
                         var uncommittedDeletedRecordIds = blockBuilder
-                        ?.DeleteRecordsByRecordId(deletedRecordIds)
+                        ?.DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
                         .ToImmutableHashSet();
                         var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
                         ? deletedRecordIds
-                        : deletedRecordIds.Where(id => !uncommittedDeletedRecordIds.Contains(id));
+                        : deletedRecordIds.Where(r => !uncommittedDeletedRecordIds.Contains(r.RecordId));
 
-                        _table.Database.DeleteRecords(
-                            committedDeletedRecordIds,
-                            null,
-                            _table.Schema.TableName,
-                            tc);
+                        foreach (var r in committedDeletedRecordIds)
+                        {
+                            _table.Database.DeleteRecord(
+                                r.RecordId,
+                                r.BlockId <= 0 ? null : r.BlockId,
+                                _table.Schema.TableName,
+                                tc);
+                        }
                     }
                 });
         }
