@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.Cache.CachedBlock;
@@ -161,9 +160,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     metaDataTable.Schema.FindColumnIndex(MetadataColumns.BLOCK_ID),
                     blockId,
                     BinaryOperator.Equal),
-                Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
-                Array.Empty<SortColumn>(),
-                1);
+                Enumerable.Range(0, metaDataTable.Schema.Columns.Count))
+                .WithTake(1);
             var metaDataRecords = metaDataRecordsQuery.ToImmutableArray();
 
             if (metaDataRecords.Any())
@@ -253,9 +251,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 tc,
                 TombstoneTable.PredicateFactory.NotIn(t => t.RecordId, tombstoneRecordIds),
                 //  Include record ID
-                Enumerable.Range(0, tombstoneColumnCount + 1),
-                Array.Empty<SortColumn>(),
-                null);
+                Enumerable.Range(0, tombstoneColumnCount + 1));
 
             foreach (var tombstoneRecord in remainingTombstoneRecords)
             {
@@ -277,12 +273,16 @@ namespace TrackDb.Lib.DataLifeCycle
                 tc,
                 new InPredicate(table.Schema.Columns.Count, tombstoneRecordIds.Cast<object?>()),
                 //  Project Record ID + Block ID
-                new[] { table.Schema.Columns.Count, table.Schema.Columns.Count + 2 },
-                Array.Empty<SortColumn>(),
-                null)
+                new[] { table.Schema.Columns.Count, table.Schema.Columns.Count + 2 })
+                .WithIgnoreDeleted()
+                .Select(r => new
+                {
+                    RecordId = ((long?)r.Span[0])!.Value,
+                    BlockId = (int?)r.Span[1]
+                })
                 .Select(r => new TombstoneRecord(
-                    ((long?)r.Span[0])!.Value,
-                    (int?)r.Span[2],
+                    r.RecordId,
+                    r.BlockId > 0 ? r.BlockId : null,
                     table.Schema.TableName,
                     DateTime.Now))
                 .ToImmutableArray();

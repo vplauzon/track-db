@@ -159,9 +159,8 @@ namespace TrackDb.Lib
                 _transactionContext,
                 _predicate,
                 //  We are not bringing back any column
-                Enumerable.Range(0, 0),
-                Array.Empty<SortColumn>(),
-                _takeCount);
+                Enumerable.Range(0, 0))
+                .WithTake(_takeCount);
 
             return tableQuery.Count();
         }
@@ -172,9 +171,9 @@ namespace TrackDb.Lib
                 _table,
                 _transactionContext,
                 _predicate,
-                Enumerable.Range(0, _table.Schema.Columns.Count),
-                _sortColumns,
-                _takeCount);
+                Enumerable.Range(0, _table.Schema.Columns.Count))
+                .WithSortColumns(_sortColumns)
+                .WithTake(_takeCount);
 
             tableQuery.Delete();
         }
@@ -187,9 +186,9 @@ namespace TrackDb.Lib
                 _table,
                 _transactionContext,
                 _predicate,
-                Enumerable.Range(0, columnCount),
-                _sortColumns,
-                _takeCount);
+                Enumerable.Range(0, columnCount))
+                .WithSortColumns(_sortColumns)
+                .WithTake(_takeCount);
             var rowBuffer = new object?[columnCount];
 
             foreach (var result in tableQuery)

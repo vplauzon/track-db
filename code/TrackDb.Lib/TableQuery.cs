@@ -30,22 +30,79 @@ namespace TrackDb.Lib
         private readonly IImmutableList<int> _projectionColumnIndexes;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
+        private readonly bool _ignoreDeleted;
 
         #region Constructors
-        internal TableQuery(
+        public TableQuery(
             Table table,
-            TransactionContext? transactionContext,
+            TransactionContext? tc,
+            IQueryPredicate predicate,
+            IEnumerable<int> projectionColumnIndexes)
+            : this(
+                  table,
+                  tc,
+                  predicate,
+                  projectionColumnIndexes,
+                  Array.Empty<SortColumn>(),
+                  null,
+                  false)
+        {
+        }
+
+        private TableQuery(
+            Table table,
+            TransactionContext? tc,
             IQueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
             IEnumerable<SortColumn> sortColumns,
-            int? takeCount)
+            int? takeCount,
+            bool ignoreDeleted)
         {
             _table = table;
-            _transactionContext = transactionContext;
+            _transactionContext = tc;
             _predicate = predicate.Simplify() ?? predicate;
             _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
             _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
+            _ignoreDeleted = ignoreDeleted;
+        }
+        #endregion
+
+        #region Alterations
+        public TableQuery WithSortColumns(IEnumerable<SortColumn> sortColumns)
+        {
+            return new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                _projectionColumnIndexes,
+                sortColumns,
+                _takeCount,
+                _ignoreDeleted);
+        }
+
+        public TableQuery WithTake(int? takeCount)
+        {
+            return new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                takeCount,
+                _ignoreDeleted);
+        }
+
+        internal TableQuery WithIgnoreDeleted()
+        {
+            return new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                _takeCount,
+                true);
         }
         #endregion
 
@@ -176,10 +233,12 @@ namespace TrackDb.Lib
             IEnumerable<int> projectionColumnIndexes)
         {
             var takeCount = _takeCount ?? int.MaxValue;
-            var deletedRecordIds = _table.Database.GetDeletedRecordIds(
-                _table.Schema.TableName,
-                transactionContext)
-                .ToImmutableHashSet();
+            var deletedRecordIds = !_ignoreDeleted
+                ? _table.Database.GetDeletedRecordIds(
+                    _table.Schema.TableName,
+                    transactionContext)
+                .ToImmutableHashSet()
+                : ImmutableHashSet<long>.Empty;
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 //  Add Record ID at the end, so we can use it to detect deleted rows
                 .Append(_table.Schema.Columns.Count)
@@ -251,9 +310,7 @@ namespace TrackDb.Lib
                     transactionContext,
                     //  Must be optimize to filter only blocks with relevant data
                     AllInPredicate.Instance,
-                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
-                    Array.Empty<SortColumn>(),
-                    null);
+                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count));
 
                 foreach (var metaDataRow in metaDataQuery)
                 {
@@ -291,9 +348,7 @@ namespace TrackDb.Lib
                         metaDataTable.Schema.Columns.Count - 1,
                         blockId,
                         BinaryOperator.Equal),
-                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count),
-                    Array.Empty<SortColumn>(),
-                    null);
+                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count));
                 var metaDataRow = metaDataQuery.First();
                 var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
                     metaDataRow,
@@ -360,10 +415,12 @@ namespace TrackDb.Lib
             TransactionContext transactionContext)
         {
             var takeCount = _takeCount ?? int.MaxValue;
-            var deletedRecordIds = _table.Database.GetDeletedRecordIds(
-                _table.Schema.TableName,
-                transactionContext)
-                .ToImmutableHashSet();
+            var deletedRecordIds = !_ignoreDeleted
+                ? _table.Database.GetDeletedRecordIds(
+                    _table.Schema.TableName,
+                    transactionContext)
+                .ToImmutableHashSet()
+                : ImmutableHashSet<long>.Empty;
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
                 //  Row index

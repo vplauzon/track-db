@@ -43,8 +43,10 @@ namespace TrackDb.Test.DbTests
             }
         }
 
-        [Fact]
-        public async Task Parallel()
+        [Theory]
+        [InlineData(false)]
+        //[InlineData(true)]
+        public async Task Parallel(bool doPushPendingData)
         {
             await using (var db = new TestDatabase())
             {
@@ -72,6 +74,10 @@ namespace TrackDb.Test.DbTests
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
                 await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+                if (doPushPendingData)
+                {
+                    await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                }
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
