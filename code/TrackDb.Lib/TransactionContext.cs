@@ -19,7 +19,7 @@ namespace TrackDb.Lib
 
         private readonly Database _database;
         private readonly Func<long, TransactionState> _stateResolutionFunc;
-        private TransactionStatus _state = TransactionStatus.Open;
+        private TransactionStatus _status = TransactionStatus.Open;
 
         #region Constructors
         /// <summary>Creates a transaction.</summary>
@@ -68,7 +68,7 @@ namespace TrackDb.Lib
 
         void IDisposable.Dispose()
         {
-            if (_state == TransactionStatus.Open)
+            if (_status == TransactionStatus.Open)
             {
                 Rollback();
             }
@@ -76,9 +76,9 @@ namespace TrackDb.Lib
 
         public void Complete()
         {
-            if (_state == TransactionStatus.Open)
+            if (_status == TransactionStatus.Open)
             {
-                _state = TransactionStatus.Complete;
+                _status = TransactionStatus.Complete;
                 if (TransactionId != 0)
                 {
                     _database.CompleteTransaction(TransactionId);
@@ -87,15 +87,15 @@ namespace TrackDb.Lib
             else
             {
                 throw new InvalidOperationException(
-                    $"Transaction context is in terminal state of '{_state}'");
+                    $"Transaction context is in terminal state of '{_status}'");
             }
         }
 
         public void Rollback()
         {
-            if (_state == TransactionStatus.Open)
+            if (_status == TransactionStatus.Open)
             {
-                _state = TransactionStatus.Cancelled;
+                _status = TransactionStatus.Cancelled;
                 if (TransactionId != 0)
                 {
                     _database.RollbackTransaction(TransactionId);
@@ -104,7 +104,7 @@ namespace TrackDb.Lib
             else
             {
                 throw new InvalidOperationException(
-                    $"Transaction context is in terminal state of '{_state}'");
+                    $"Transaction context is in terminal state of '{_status}'");
             }
         }
     }
