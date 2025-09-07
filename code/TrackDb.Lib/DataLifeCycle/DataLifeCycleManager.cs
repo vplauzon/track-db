@@ -33,7 +33,8 @@ namespace TrackDb.Lib.DataLifeCycle
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new LogMergingAgent(database, tombstoneTable, storageManager),
                 new RecordPersistanceAgent(database, tombstoneTable, storageManager),
-                new HardDeleteAgent(database, tombstoneTable, storageManager));
+                new HardDeleteAgent(database, tombstoneTable, storageManager),
+                new ReleaseBlockAgent(database, tombstoneTable, storageManager));
         }
 
         async ValueTask IAsyncDisposable.DisposeAsync()

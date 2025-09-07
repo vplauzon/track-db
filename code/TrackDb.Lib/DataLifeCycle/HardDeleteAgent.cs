@@ -138,6 +138,10 @@ namespace TrackDb.Lib.DataLifeCycle
                     tc,
                     Database.GetAnyTable(oldestTombstone.TableName),
                     blockId.Value);
+                Database.ChangeDatabaseState(state => state with
+                {
+                    DiscardedBlockIds = state.DiscardedBlockIds.Add(blockId.Value)
+                });
 
                 return;
             }
