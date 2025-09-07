@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 using TrackDb.Lib.Predicate;
 

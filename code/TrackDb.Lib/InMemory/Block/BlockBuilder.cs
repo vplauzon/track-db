@@ -1,11 +1,10 @@
-﻿using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
-using TrackDb.Lib.Predicate;
+﻿using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace TrackDb.Lib.Cache.CachedBlock
+namespace TrackDb.Lib.InMemory.Block
 {
     internal class BlockBuilder : ReadOnlyBlockBase
     {

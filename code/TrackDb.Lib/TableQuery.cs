@@ -1,4 +1,4 @@
-﻿using TrackDb.Lib.Cache.CachedBlock;
+﻿using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using System;
 using System.Collections;

@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace TrackDb.Lib.Cache.CachedBlock
+namespace TrackDb.Lib.InMemory.Block
 {
     internal interface IBlock
     {

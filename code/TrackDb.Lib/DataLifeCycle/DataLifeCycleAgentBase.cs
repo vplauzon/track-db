@@ -4,8 +4,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 using TrackDb.Lib.Predicate;
 
@@ -60,8 +60,8 @@ namespace TrackDb.Lib.DataLifeCycle
             string tableName,
             TransactionContext tc)
         {
-            var dbCache = tc.TransactionState.DatabaseCache;
-            var logs = dbCache.TableTransactionLogsMap[tableName];
+            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
+            var logs = inMemoryDb.TableTransactionLogsMap[tableName];
             var blockBuilder = logs.MergeLogs();
             var deletedRecordsIds = Database.GetDeletedRecordIds(tableName, tc);
             var actuallyDeletedRecordIds = blockBuilder.DeleteRecordsByRecordId(deletedRecordsIds)
@@ -164,7 +164,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             Database.ChangeDatabaseState(state =>
             {
-                var stateCurrentMap = state.DatabaseCache.TableTransactionLogsMap;
+                var stateCurrentMap = state.InMemoryDatabase.TableTransactionLogsMap;
 
                 foreach (var pair in tableToReplacedLogsMap)
                 {
@@ -172,7 +172,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var newBlock = pair.Value;
 
                     stateCurrentMap = UpdateLogs(
-                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap,
+                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap,
                         stateCurrentMap,
                         tableName,
                         newBlock);
@@ -183,13 +183,13 @@ namespace TrackDb.Lib.DataLifeCycle
                     var newBlock = pair.Value;
 
                     stateCurrentMap = AddLogs(
-                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap,
+                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap,
                         stateCurrentMap,
                         tableName,
                         newBlock);
                 }
 
-                return state with { DatabaseCache = new DatabaseCache(stateCurrentMap) };
+                return state with { InMemoryDatabase = new InMemoryDatabase(stateCurrentMap) };
             });
         }
     }

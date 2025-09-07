@@ -1,5 +1,5 @@
 ﻿using TrackDb.Lib;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory.Block;
 using System;
 using System.Collections.Generic;
 using System.Linq;

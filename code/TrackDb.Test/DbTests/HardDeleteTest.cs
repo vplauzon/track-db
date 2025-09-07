@@ -29,7 +29,7 @@ namespace TrackDb.Test.DbTests
                 using (var tc = db.CreateTransaction())
                 {
                     Assert.True(
-                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap.Any());
+                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
                 }
 
                 await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
@@ -38,7 +38,7 @@ namespace TrackDb.Test.DbTests
                 using (var tc = db.CreateTransaction())
                 {
                     Assert.False(
-                        tc.TransactionState.DatabaseCache.TableTransactionLogsMap.Any());
+                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
                 }
             }
         }

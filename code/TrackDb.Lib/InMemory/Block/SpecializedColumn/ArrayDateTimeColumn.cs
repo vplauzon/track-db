@@ -3,25 +3,25 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayStringColumn : PrimitiveArrayCachedColumnBase<string?>
+    internal class ArrayDateTimeColumn : PrimitiveArrayCachedColumnBase<DateTime?>
     {
-        public ArrayStringColumn(bool allowNull, int capacity)
+        public ArrayDateTimeColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)
         {
         }
 
-        protected override string? NullValue => null;
+        protected override DateTime? NullValue => null;
 
-        protected override object? GetObjectData(string? data)
+        protected override object? GetObjectData(DateTime? data)
         {
             return data;
         }
 
         protected override void FilterBinaryInternal(
-            string? value,
-            ReadOnlySpan<string?> storedValues,
+            DateTime? value,
+            ReadOnlySpan<DateTime?> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder)
         {
@@ -39,7 +39,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.LessThan:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i]?.CompareTo(value) < 0)
+                        if (storedValues[i] < value)
                         {
                             matchBuilder.Add(i);
                         }
@@ -48,7 +48,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
                 case BinaryOperator.LessThanOrEqual:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i]?.CompareTo(value) <= 0)
+                        if (storedValues[i] <= value)
                         {
                             matchBuilder.Add(i);
                         }
@@ -60,7 +60,7 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
+        protected override SerializedColumn Serialize(ReadOnlyMemory<DateTime?> storedValues)
         {
             throw new NotImplementedException();
         }

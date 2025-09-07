@@ -4,10 +4,10 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
+using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Predicate;
 
-namespace TrackDb.Lib.Cache.CachedBlock
+namespace TrackDb.Lib.InMemory.Block
 {
     internal abstract class ReadOnlyBlockBase : IBlock
     {

@@ -1,4 +1,4 @@
-﻿using TrackDb.Lib.Cache.CachedBlock;
+﻿using TrackDb.Lib.InMemory.Block;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -7,17 +7,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Cache
+namespace TrackDb.Lib.InMemory
 {
-    internal record DatabaseCache(
+    internal record InMemoryDatabase(
         IImmutableDictionary<string, ImmutableTableTransactionLogs> TableTransactionLogsMap)
     {
-        public DatabaseCache()
+        public InMemoryDatabase()
             : this(ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
         {
         }
 
-        public DatabaseCache CommitLog(TransactionLog transactionLog)
+        public InMemoryDatabase CommitLog(TransactionLog transactionLog)
         {
             var logs = ImmutableDictionary<string, ImmutableTableTransactionLogs>
                 .Empty
@@ -41,10 +41,10 @@ namespace TrackDb.Lib.Cache
                 }
             }
 
-            return new DatabaseCache(logs.ToImmutableDictionary());
+            return new InMemoryDatabase(logs.ToImmutableDictionary());
         }
 
-        public DatabaseCache RemovePrefixes(DatabaseCache other)
+        public InMemoryDatabase RemovePrefixes(InMemoryDatabase other)
         {
             var extraTableNames =
                 other.TableTransactionLogsMap.Keys.Except(TableTransactionLogsMap.Keys);
@@ -76,10 +76,10 @@ namespace TrackDb.Lib.Cache
                 }
             }
 
-            return new DatabaseCache(mapBuilder.ToImmutableDictionary());
+            return new InMemoryDatabase(mapBuilder.ToImmutableDictionary());
         }
 
-        public DatabaseCache Append(DatabaseCache other)
+        public InMemoryDatabase Append(InMemoryDatabase other)
         {
             var mapBuilder =
                ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty.ToBuilder();
@@ -103,7 +103,7 @@ namespace TrackDb.Lib.Cache
                 }
             }
 
-            return new DatabaseCache(mapBuilder.ToImmutableDictionary());
+            return new InMemoryDatabase(mapBuilder.ToImmutableDictionary());
         }
     }
 }

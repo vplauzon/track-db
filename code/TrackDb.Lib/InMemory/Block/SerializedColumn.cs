@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TrackDb.Lib.Cache.CachedBlock
+namespace TrackDb.Lib.InMemory.Block
 {
     internal record SerializedColumn(
         int ItemCount,

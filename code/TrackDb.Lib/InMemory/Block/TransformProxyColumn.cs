@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.Predicate;
 
-namespace TrackDb.Lib.Cache.CachedBlock
+namespace TrackDb.Lib.InMemory.Block
 {
     /// <summary>
     /// Column proxying another column by transforming values.

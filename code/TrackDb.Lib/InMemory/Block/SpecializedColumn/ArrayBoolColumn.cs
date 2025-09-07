@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 
-namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
     internal class ArrayBoolColumn : TransformProxyColumn
     {

@@ -1,10 +1,10 @@
-﻿using TrackDb.Lib.Cache.CachedBlock;
+﻿using TrackDb.Lib.InMemory.Block;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace TrackDb.Lib.Cache
+namespace TrackDb.Lib.InMemory
 {
     internal record TransactionLog(
         ImmutableDictionary<string, BlockBuilder>.Builder TableBlockBuilderMap)

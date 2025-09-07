@@ -4,8 +4,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 
 namespace TrackDb.Lib.DataLifeCycle
@@ -102,8 +102,8 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool ShouldPersistUserData(bool doPersistEverything, TransactionContext tc)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var cache = tc.TransactionState.DatabaseCache;
-            var totalUserRecords = cache.TableTransactionLogsMap
+            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
+            var totalUserRecords = inMemoryDb.TableTransactionLogsMap
                 .Where(p => tableMap[p.Key].IsUserTable)
                 .Select(p => p.Value)
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
@@ -115,8 +115,8 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool ShouldPersistMetaData(bool doPersistEverything, TransactionContext tc)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var cache = tc.TransactionState.DatabaseCache;
-            var totalMetaDataRecords = cache.TableTransactionLogsMap
+            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
+            var totalMetaDataRecords = inMemoryDb.TableTransactionLogsMap
                 .Where(p => tableMap[p.Key].IsMetaDataTable)
                 .Select(p => p.Value)
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
@@ -130,7 +130,7 @@ namespace TrackDb.Lib.DataLifeCycle
             bool doPersistAllMetaData,
             TransactionContext tc)
         {
-            var cache = tc.TransactionState.DatabaseCache;
+            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
             var doUserData = ShouldPersistUserData(doPersistAllUserData, tc);
             var doMetaData = ShouldPersistMetaData(doPersistAllMetaData, tc);
 
@@ -143,7 +143,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 var projectedColumns = new int[1];
                 var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
-                foreach (var pair in cache.TableTransactionLogsMap)
+                foreach (var pair in inMemoryDb.TableTransactionLogsMap)
                 {
                     var tableName = pair.Key;
                     var logs = pair.Value;

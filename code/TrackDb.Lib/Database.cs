@@ -1,5 +1,5 @@
-﻿using TrackDb.Lib.Cache;
-using TrackDb.Lib.Cache.CachedBlock;
+﻿using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 using System;
 using System.Collections.Generic;
@@ -358,7 +358,7 @@ namespace TrackDb.Lib
             {
                 var newTransactionMap = currentDbState.TransactionMap.Add(
                     transactionContext.TransactionId,
-                    new TransactionState(currentDbState.DatabaseCache));
+                    new TransactionState(currentDbState.InMemoryDatabase));
 
                 return currentDbState with { TransactionMap = newTransactionMap };
             });
@@ -371,7 +371,7 @@ namespace TrackDb.Lib
             var state = _databaseState;
             var transactionContext = new TransactionContext(
                 this,
-                new TransactionState(state.DatabaseCache));
+                new TransactionState(state.InMemoryDatabase));
 
             return transactionContext;
         }
@@ -440,14 +440,14 @@ namespace TrackDb.Lib
 
         internal void CompleteTransaction(long transactionId)
         {
-            //  Fetch transaction cache
-            var transactionCache = _databaseState.TransactionMap[transactionId];
+            //  Fetch transaction state
+            var transactionState = _databaseState.TransactionMap[transactionId];
 
             ChangeDatabaseState(currentDbState =>
             {   //  Remove it from map
                 var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
 
-                if (transactionCache.UncommittedTransactionLog.IsEmpty)
+                if (transactionState.UncommittedTransactionLog.IsEmpty)
                 {
                     return currentDbState with { TransactionMap = newTransactionMap };
                 }
@@ -455,8 +455,8 @@ namespace TrackDb.Lib
                 {
                     return currentDbState with
                     {
-                        DatabaseCache = currentDbState.DatabaseCache.CommitLog(
-                            transactionCache.UncommittedTransactionLog),
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(
+                            transactionState.UncommittedTransactionLog),
                         TransactionMap = newTransactionMap
                     };
                 }

@@ -2,26 +2,30 @@ using TrackDb.Lib.Predicate;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
+using System.Linq;
 
-namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
+namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayDateTimeColumn : PrimitiveArrayCachedColumnBase<DateTime?>
+    internal class ArrayLongColumn : PrimitiveArrayCachedColumnBase<long>
     {
-        public ArrayDateTimeColumn(bool allowNull, int capacity)
+        public ArrayLongColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)
         {
         }
 
-        protected override DateTime? NullValue => null;
+        protected override long NullValue => long.MinValue;
 
-        protected override object? GetObjectData(DateTime? data)
+        protected override object? GetObjectData(long data)
         {
-            return data;
+            return data == int.MinValue
+                ? null
+                : (object)data;
         }
 
         protected override void FilterBinaryInternal(
-            DateTime? value,
-            ReadOnlySpan<DateTime?> storedValues,
+            long value,
+            ReadOnlySpan<long> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder)
         {
@@ -60,14 +64,21 @@ namespace TrackDb.Lib.Cache.CachedBlock.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<DateTime?> storedValues)
+        protected override SerializedColumn Serialize(ReadOnlyMemory<long> storedValues)
         {
-            throw new NotImplementedException();
+            var values = Enumerable.Range(0, storedValues.Length)
+                .Select(i => storedValues.Span[i])
+                .Select(v => v == NullValue ? null : (long?)v);
+            var column = Int64Codec.Compress(values);
+
+            //  No need to convert min and max
+            return column;
         }
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
         {
-            throw new NotImplementedException();
+            return Int64Codec.Decompress(serializedColumn)
+                .Cast<object?>();
         }
     }
 }

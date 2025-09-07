@@ -4,8 +4,8 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 using TrackDb.Lib.Policies;
 
@@ -48,7 +48,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 ? 1
                 : Database.DatabasePolicies.MaxUnpersistedBlocksPerTable;
 
-            return Database.GetDatabaseStateSnapshot().DatabaseCache.TableTransactionLogsMap
+            return Database.GetDatabaseStateSnapshot().InMemoryDatabase.TableTransactionLogsMap
                 .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
                 .Select(p => p.Key)
                 .FirstOrDefault();

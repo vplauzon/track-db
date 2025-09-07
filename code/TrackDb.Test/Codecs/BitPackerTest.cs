@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache.CachedBlock.SpecializedColumn;
+using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using Xunit;
 
 namespace TrackDb.Test.Codecs

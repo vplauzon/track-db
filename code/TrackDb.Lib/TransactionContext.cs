@@ -1,4 +1,4 @@
-﻿using TrackDb.Lib.Cache;
+﻿using TrackDb.Lib.InMemory;
 using System;
 using System.Threading;
 
@@ -18,19 +18,19 @@ namespace TrackDb.Lib
         private static long _nextTransactionId = 0;
 
         private readonly Database _database;
-        private readonly Func<long, TransactionState> _cacheResolutionFunc;
+        private readonly Func<long, TransactionState> _stateResolutionFunc;
         private TransactionStatus _state = TransactionStatus.Open;
 
         #region Constructors
         /// <summary>Creates a transaction.</summary>
         /// <param name="database"></param>
-        /// <param name="cacheResolutionFunc"></param>
+        /// <param name="stateResolutionFunc"></param>
         internal TransactionContext(
             Database database,
-            Func<long, TransactionState> cacheResolutionFunc)
+            Func<long, TransactionState> stateResolutionFunc)
             : this(
                   database,
-                  cacheResolutionFunc,
+                  stateResolutionFunc,
                   Interlocked.Increment(ref _nextTransactionId))
         {
         }
@@ -57,14 +57,14 @@ namespace TrackDb.Lib
             long transactionId)
         {
             _database = database;
-            _cacheResolutionFunc = cacheResolutionFunc;
+            _stateResolutionFunc = cacheResolutionFunc;
             TransactionId = transactionId;
         }
         #endregion
 
         public long TransactionId { get; }
 
-        internal TransactionState TransactionState => _cacheResolutionFunc(TransactionId);
+        internal TransactionState TransactionState => _stateResolutionFunc(TransactionId);
 
         void IDisposable.Dispose()
         {

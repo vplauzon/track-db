@@ -1,5 +1,5 @@
-﻿using TrackDb.Lib.Cache;
-using TrackDb.Lib.Cache.CachedBlock;
+﻿using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.DbStorage;
 using System;
 using System.Collections.Generic;

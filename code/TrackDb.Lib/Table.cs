@@ -1,4 +1,4 @@
-﻿using TrackDb.Lib.Cache;
+﻿using TrackDb.Lib.InMemory;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;

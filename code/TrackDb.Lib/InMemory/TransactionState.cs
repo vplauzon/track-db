@@ -4,16 +4,16 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Cache.CachedBlock;
+using TrackDb.Lib.InMemory.Block;
 
-namespace TrackDb.Lib.Cache
+namespace TrackDb.Lib.InMemory
 {
     internal record TransactionState(
-        DatabaseCache DatabaseCache,
+        InMemoryDatabase InMemoryDatabase,
         TransactionLog UncommittedTransactionLog)
     {
-        public TransactionState(DatabaseCache databaseCache)
-            : this(databaseCache, new TransactionLog())
+        public TransactionState(InMemoryDatabase inMemoryDatabase)
+            : this(inMemoryDatabase, new TransactionLog())
         {
         }
 
@@ -24,7 +24,7 @@ namespace TrackDb.Lib.Cache
             {
                 yield return ubb;
             }
-            if (DatabaseCache.TableTransactionLogsMap.TryGetValue(tableName, out var logs))
+            if (InMemoryDatabase.TableTransactionLogsMap.TryGetValue(tableName, out var logs))
             {
                 foreach (var block in logs.InMemoryBlocks)
                 {
