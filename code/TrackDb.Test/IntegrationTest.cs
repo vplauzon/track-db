@@ -60,6 +60,17 @@ namespace TrackDb.Test
             Assert.Equal(entity1.Step, result1[0].Step);
             Assert.Equal(entity4.Name, result1[1].Name);
             Assert.Equal(entity4.Step, result1[1].Step);
+
+            var result2 = table.Query()
+                .Where(table.PredicateFactory.LessThanOrEqual(e => e.Step, entity1.Step))
+                .OrderBy(e => e.Name)
+                .ToImmutableArray();
+
+            Assert.Equal(2, result2.Count());
+            Assert.Equal(entity1.Name, result2[0].Name);
+            Assert.Equal(entity1.Step, result2[0].Step);
+            Assert.Equal(entity2.Name, result2[1].Name);
+            Assert.Equal(entity2.Step, result2[1].Step);
         }
     }
 }
