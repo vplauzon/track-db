@@ -28,6 +28,11 @@ namespace TrackDb.Lib
         private volatile DatabaseState _databaseState;
 
         #region Constructors
+        public Database(params IEnumerable<TableSchema> schemas)
+            : this(new DatabasePolicies(), schemas)
+        {
+        }
+
         public Database(DatabasePolicies databasePolicies, params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
