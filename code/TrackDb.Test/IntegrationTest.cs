@@ -14,7 +14,8 @@ namespace TrackDb.Test
         #region Inner types
         private record Entity(
             string Name,
-            int Step);
+            int Step,
+            long Ticks);
         #endregion
 
         [Theory]
@@ -31,11 +32,11 @@ namespace TrackDb.Test
             var tableName = "MyTable";
             var db = new Database(TypedTableSchema<Entity>.FromConstructor(tableName));
             var table = db.GetTypedTable<Entity>(tableName);
-            var entity1 = new Entity("Alice", 25);
-            var entity2 = new Entity("Bob", 13);
+            var entity1 = new Entity("Alice", 25, 450000000);
+            var entity2 = new Entity("Bob", 13, 320000000);
             //  Added but deleted
-            var entity3 = new Entity("Carl", 89);
-            var entity4 = new Entity("Diana", 65);
+            var entity3 = new Entity("Carl", 89, 720000000);
+            var entity4 = new Entity("Diana", 65, 540000000);
 
             table.AppendRecords([entity1, entity3]);
             table.AppendRecord(entity2);
@@ -62,7 +63,7 @@ namespace TrackDb.Test
             Assert.Equal(entity4.Step, result1[1].Step);
 
             var result2 = table.Query()
-                .Where(table.PredicateFactory.LessThanOrEqual(e => e.Step, entity1.Step))
+                .Where(table.PredicateFactory.LessThanOrEqual(e => e.Ticks, entity1.Ticks))
                 .OrderBy(e => e.Name)
                 .ToImmutableArray();
 
