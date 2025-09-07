@@ -15,7 +15,8 @@ namespace TrackDb.Test
         private record Entity(
             string Name,
             int Step,
-            long Ticks);
+            long Ticks,
+            short LegacyId);
         #endregion
 
         [Theory]
@@ -32,11 +33,11 @@ namespace TrackDb.Test
             var tableName = "MyTable";
             var db = new Database(TypedTableSchema<Entity>.FromConstructor(tableName));
             var table = db.GetTypedTable<Entity>(tableName);
-            var entity1 = new Entity("Alice", 25, 450000000);
-            var entity2 = new Entity("Bob", 13, 320000000);
+            var entity1 = new Entity("Alice", 25, 450000000, 657);
+            var entity2 = new Entity("Bob", 13, 320000000, 892);
             //  Added but deleted
-            var entity3 = new Entity("Carl", 89, 720000000);
-            var entity4 = new Entity("Diana", 65, 540000000);
+            var entity3 = new Entity("Carl", 89, 720000000, 123);
+            var entity4 = new Entity("Diana", 65, 540000000, 785);
 
             table.AppendRecords([entity1, entity3]);
             table.AppendRecord(entity2);
@@ -74,14 +75,14 @@ namespace TrackDb.Test
             Assert.Equal(entity2.Step, result2[1].Step);
 
             var result3 = table.Query()
-                .Where(table.PredicateFactory.LessThan(e => e.Step, entity4.Step))
+                .Where(table.PredicateFactory.LessThan(e => e.LegacyId, entity2.LegacyId))
                 .OrderByDesc(e => e.Step)
                 .Take(1)
                 .ToImmutableArray();
 
             Assert.Single(result3);
-            Assert.Equal(entity1.Name, result3[0].Name);
-            Assert.Equal(entity1.Step, result3[0].Step);
+            Assert.Equal(entity4.Name, result3[0].Name);
+            Assert.Equal(entity4.Step, result3[0].Step);
         }
     }
 }

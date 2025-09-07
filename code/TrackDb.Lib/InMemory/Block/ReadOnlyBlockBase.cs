@@ -70,6 +70,8 @@ namespace TrackDb.Lib.InMemory.Block
         {
             var builder = ImmutableDictionary<Type, Func<int, IDataColumn>>.Empty.ToBuilder();
 
+            builder.Add(typeof(short), capacity => new ArrayShortColumn(false, capacity));
+            builder.Add(typeof(short?), capacity => new ArrayShortColumn(true, capacity));
             builder.Add(typeof(int), capacity => new ArrayIntColumn(false, capacity));
             builder.Add(typeof(int?), capacity => new ArrayIntColumn(true, capacity));
             builder.Add(typeof(long), capacity => new ArrayLongColumn(false, capacity));
