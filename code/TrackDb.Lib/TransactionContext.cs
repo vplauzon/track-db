@@ -53,11 +53,11 @@ namespace TrackDb.Lib
 
         private TransactionContext(
             Database database,
-            Func<long, TransactionState> cacheResolutionFunc,
+            Func<long, TransactionState> stateResolutionFunc,
             long transactionId)
         {
             _database = database;
-            _stateResolutionFunc = cacheResolutionFunc;
+            _stateResolutionFunc = stateResolutionFunc;
             TransactionId = transactionId;
         }
         #endregion

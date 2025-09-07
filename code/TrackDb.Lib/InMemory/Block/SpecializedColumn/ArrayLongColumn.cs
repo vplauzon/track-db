@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayLongColumn : PrimitiveArrayCachedColumnBase<long>
+    internal class ArrayLongColumn : PrimitiveArrayColumnBase<long>
     {
         public ArrayLongColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)

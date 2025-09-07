@@ -12,14 +12,14 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
     /// Specialized column store to leverage vectorized operation at compilation.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal abstract class PrimitiveArrayCachedColumnBase<T> : IDataColumn
+    internal abstract class PrimitiveArrayColumnBase<T> : IDataColumn
     {
         private readonly int MIN_CAPACITY = 10;
 
         private T[] _array;
         private int _itemCount = 0;
 
-        protected PrimitiveArrayCachedColumnBase(bool allowNull, int capacity)
+        protected PrimitiveArrayColumnBase(bool allowNull, int capacity)
         {
             AllowNull = allowNull;
             _array = new T[Math.Min(MIN_CAPACITY, capacity)];

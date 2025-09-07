@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayDateTimeColumn : PrimitiveArrayCachedColumnBase<DateTime?>
+    internal class ArrayDateTimeColumn : PrimitiveArrayColumnBase<DateTime?>
     {
         public ArrayDateTimeColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)

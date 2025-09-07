@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayStringColumn : PrimitiveArrayCachedColumnBase<string?>
+    internal class ArrayStringColumn : PrimitiveArrayColumnBase<string?>
     {
         public ArrayStringColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)
