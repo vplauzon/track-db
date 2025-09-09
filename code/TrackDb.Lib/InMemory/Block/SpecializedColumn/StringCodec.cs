@@ -97,7 +97,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         .SelectMany(s => s);
                     var valuesSequenceColumn = Int64Codec.Compress(valuesSequence);
                     var encodingMemory = EncodingMemory.FromValues(
-                        uniqueValues.Length,
+                        (short)uniqueValues.Length,
                         (short)((long)valuesSequenceColumn.ColumnMinimum!),
                         (short)((long)valuesSequenceColumn.ColumnMaximum!),
                         (short)(valuesSequenceColumn.Payload.Length * sizeof(byte)),
@@ -116,7 +116,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 else if (uniqueValues.Length == 2 || hasNulls)
                 {   //  2 unique values, can be deduced from column, but still need to serialize indexes
                     var encodingMemory = EncodingMemory.FromValues(
-                        uniqueValues.Length,
+                        (short)uniqueValues.Length,
                         (short)(indexColumn.Payload.Length * sizeof(byte)),
                         indexColumn.Payload);
 
@@ -214,8 +214,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var indexes = Int64Codec.Decompress(new SerializedColumn(
                             column.ItemCount,
                             false,
-                            -1,
-                            column.ItemCount - 1,
+                            (long)-1,
+                            (long)(uniqueValuesCount - 1),
                             indexColumnPayload));
                         var values = indexes
                             .Select(i => (short)i!)
@@ -231,7 +231,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                             column.ItemCount,
                             false,
                             (long)-1,
-                            (long)(column.ItemCount - 1),
+                            (long)(uniqueValuesCount - 1),
                             indexColumnPayload));
                         var uniqueValues = new[] { minValue, maxValue };
                         var values = indexes
