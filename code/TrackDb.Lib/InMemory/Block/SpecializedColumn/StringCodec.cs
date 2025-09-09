@@ -61,6 +61,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         /// <exception cref="ArgumentNullException"></exception>
         public static SerializedColumn Compress(IEnumerable<string?> values)
         {
+            if (values == null || !values.Any())
+            {
+                throw new ArgumentNullException(nameof(values));
+            }
+
             var uniqueValues = values
                 .Where(v => v != null)
                 .Select(v => v!)
@@ -197,8 +202,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var valuesSequence = Int64Codec.Decompress(new SerializedColumn(
                             valuesSequenceLength,
                             true,
-                            valuesSequenceMinimum,
-                            valuesSequenceMaximum,
+                            (long)valuesSequenceMinimum,
+                            (long)valuesSequenceMaximum,
                             valuesSequencePayload));
                         var uniqueValues = BreakStrings(valuesSequence.Select(c => (char?)((short?)c)))
                             .Prepend(minValue)
