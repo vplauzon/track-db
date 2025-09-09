@@ -214,7 +214,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var indexes = Int64Codec.Decompress(new SerializedColumn(
                             column.ItemCount,
                             false,
-                            (long)-1,
+                            (long)(column.HasNulls ? -1 : 0),
                             (long)(uniqueValuesCount - 1),
                             indexColumnPayload));
                         var values = indexes
@@ -230,7 +230,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var indexes = Int64Codec.Decompress(new SerializedColumn(
                             column.ItemCount,
                             false,
-                            (long)-1,
+                            (long)(column.HasNulls ? -1 : 0),
                             (long)(uniqueValuesCount - 1),
                             indexColumnPayload));
                         var uniqueValues = new[] { minValue, maxValue };

@@ -107,11 +107,11 @@ namespace TrackDb.Test.Codecs
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var bundle = StringCodec.Compress(data);
-            var decodedArray = StringCodec.Decompress(bundle)
+            var column = StringCodec.Compress(data);
+            var decodedArray = StringCodec.Decompress(column)
                 .ToImmutableArray();
 
-            Assert.Equal(doExpectPayload, bundle.Payload.Length != 0);
+            Assert.Equal(doExpectPayload, column.Payload.Length != 0);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());
