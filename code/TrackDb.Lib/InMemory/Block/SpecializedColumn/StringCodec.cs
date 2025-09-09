@@ -96,36 +96,38 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
                         .SelectMany(s => s);
                     var valuesSequenceColumn = Int64Codec.Compress(valuesSequence);
-                    var encodingMemory = EncodingMemory.FromValues(
-                        (short)uniqueValues.Length,
-                        (short)((long)valuesSequenceColumn.ColumnMinimum!),
-                        (short)((long)valuesSequenceColumn.ColumnMaximum!),
-                        (short)(valuesSequenceColumn.Payload.Length * sizeof(byte)),
-                        (short)(valuesSequence.Count()),
-                        valuesSequenceColumn.Payload,
-                        (short)(indexColumn.Payload.Length * sizeof(byte)),
-                        indexColumn.Payload);
+                    var encodingMemory = new EncodingMemory();
+
+                    encodingMemory.Write((short)uniqueValues.Length);
+                    encodingMemory.Write((short)((long)valuesSequenceColumn.ColumnMinimum!));
+                    encodingMemory.Write((short)((long)valuesSequenceColumn.ColumnMaximum!));
+                    encodingMemory.Write((short)(valuesSequenceColumn.Payload.Length * sizeof(byte)));
+                    encodingMemory.Write((short)(valuesSequence.Count()));
+                    encodingMemory.Write(valuesSequenceColumn.Payload);
+                    encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
+                    encodingMemory.Write(indexColumn.Payload);
 
                     return new SerializedColumn(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
                         uniqueValues.Last(),
-                        encodingMemory.Memory);
+                        encodingMemory.Compile());
                 }
                 else if (uniqueValues.Length == 2 || hasNulls)
                 {   //  2 unique values, can be deduced from column, but still need to serialize indexes
-                    var encodingMemory = EncodingMemory.FromValues(
-                        (short)uniqueValues.Length,
-                        (short)(indexColumn.Payload.Length * sizeof(byte)),
-                        indexColumn.Payload);
+                    var encodingMemory = new EncodingMemory();
+
+                    encodingMemory.Write((short)uniqueValues.Length);
+                    encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
+                    encodingMemory.Write(indexColumn.Payload);
 
                     return new SerializedColumn(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
                         uniqueValues.Last(),
-                        encodingMemory.Memory);
+                        encodingMemory.Compile());
                 }
                 else
                 {   //  Unique repeated value
@@ -189,16 +191,16 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 }
                 else
                 {
-                    var encodingMemory = EncodingMemory.FromMemory(column.Payload);
-                    var uniqueValuesCount = encodingMemory.ReadShort();
+                    var decodingMemory = new DecodingMemory(column.Payload);
+                    var uniqueValuesCount = decodingMemory.ReadShort();
 
                     if (uniqueValuesCount > 2)
                     {   //  General case
-                        var valuesSequenceMinimum = encodingMemory.ReadShort();
-                        var valuesSequenceMaximum = encodingMemory.ReadShort();
-                        var valuesSequencePayloadLength = encodingMemory.ReadShort();
-                        var valuesSequenceLength = encodingMemory.ReadShort();
-                        var valuesSequencePayload = encodingMemory.ReadArray(valuesSequencePayloadLength);
+                        var valuesSequenceMinimum = decodingMemory.ReadShort();
+                        var valuesSequenceMaximum = decodingMemory.ReadShort();
+                        var valuesSequencePayloadLength = decodingMemory.ReadShort();
+                        var valuesSequenceLength = decodingMemory.ReadShort();
+                        var valuesSequencePayload = decodingMemory.ReadArray(valuesSequencePayloadLength);
                         var valuesSequence = Int64Codec.Decompress(new SerializedColumn(
                             valuesSequenceLength,
                             true,
@@ -209,8 +211,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                             .Prepend(minValue)
                             .Append(maxValue)
                             .ToImmutableArray();
-                        var indexColumnPayloadLength = encodingMemory.ReadShort();
-                        var indexColumnPayload = encodingMemory.ReadArray(indexColumnPayloadLength);
+                        var indexColumnPayloadLength = decodingMemory.ReadShort();
+                        var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
                         var indexes = Int64Codec.Decompress(new SerializedColumn(
                             column.ItemCount,
                             false,
@@ -225,8 +227,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     }
                     else
                     {   //  2 or 1 unique values, can be deduced from column, but still need to serialize indexes
-                        var indexColumnPayloadLength = encodingMemory.ReadShort();
-                        var indexColumnPayload = encodingMemory.ReadArray(indexColumnPayloadLength);
+                        var indexColumnPayloadLength = decodingMemory.ReadShort();
+                        var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
                         var indexes = Int64Codec.Decompress(new SerializedColumn(
                             column.ItemCount,
                             false,

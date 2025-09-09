@@ -10,38 +10,33 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
     internal class EncodingMemory
     {
-        private ReadOnlyMemory<byte> _remainingMemory;
+        private readonly List<object> _values = new(20);
 
-        #region Constructors
-        private EncodingMemory(ReadOnlyMemory<byte> memory)
+        public void Write(object value)
         {
-            Memory = memory;
-            _remainingMemory = memory;
+            _values.Add(value);
         }
 
-        public static EncodingMemory FromMemory(ReadOnlyMemory<byte> memory)
+        public Memory<byte> Compile()
         {
-            return new EncodingMemory(memory);
-        }
+            var size = _values.Sum(v => GetEncodingSize(v));
+            var memory = new Memory<byte>(new byte[size]);
+            var remainingMemory = memory;
 
-        public static EncodingMemory FromValues(params object[] values)
-        {
-            var size = values.Sum(v => GetEncodingSize(v));
-            var payload = new byte[size];
-            var remainingPayload = payload.AsMemory();
-
-            foreach (var value in values)
+            foreach (var value in _values)
             {
-                remainingPayload = EncodeValue(value, remainingPayload);
+                remainingMemory = EncodeValue(value, remainingMemory);
+            }
+            if (remainingMemory.Length != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Remaing memory should be empty but still have " +
+                    $"'{remainingMemory.Length}' bytes left");
             }
 
-            return new EncodingMemory(payload);
+            return memory;
         }
-        #endregion
 
-        public ReadOnlyMemory<byte> Memory { get; }
-
-        #region Encoding
         private static Memory<byte> EncodeValue(object value, Memory<byte> payload)
         {
             var size = GetEncodingSize(value);
@@ -100,45 +95,5 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         + $"not supported for parameter '{nameof(value)}'");
             }
         }
-        #endregion
-
-        #region Decoding
-        public short ReadShort()
-        {
-            return Read(
-                sizeof(short),
-                payload => BinaryPrimitives.ReadInt16LittleEndian(payload.Span));
-        }
-
-        public int ReadInt()
-        {
-            return Read(
-                sizeof(int),
-                payload => BinaryPrimitives.ReadInt32LittleEndian(payload.Span));
-        }
-
-        public long ReadLong()
-        {
-            return Read(
-                sizeof(long),
-                payload => BinaryPrimitives.ReadInt64LittleEndian(payload.Span));
-        }
-
-        public ReadOnlyMemory<byte> ReadArray(int size)
-        {
-            return Read(
-                size * sizeof(byte),
-                payload => payload);
-        }
-
-        private T Read<T>(int size, Func<ReadOnlyMemory<byte>, T> valueExtract)
-        {
-            var activePayload = _remainingMemory.Slice(0, size);
-
-            _remainingMemory = _remainingMemory.Slice(size);
-
-            return valueExtract(activePayload);
-        }
-        #endregion
     }
 }
