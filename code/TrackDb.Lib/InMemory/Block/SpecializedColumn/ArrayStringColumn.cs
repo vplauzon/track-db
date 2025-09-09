@@ -1,7 +1,8 @@
-using TrackDb.Lib.Predicate;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -62,12 +63,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override SerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
         {
-            throw new NotImplementedException();
+            var values = Enumerable.Range(0, storedValues.Length)
+                .Select(i => storedValues.Span[i]);
+
+            return StringCodec.Compress(values);
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            throw new NotImplementedException();
+            return StringCodec.Decompress(column);
         }
     }
 }

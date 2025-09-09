@@ -91,7 +91,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 column.Payload);
 
             return Int64Codec.Decompress(intSerializedColumn)
-                .Select(l => (int?)l)
+                .Select(l => (short?)l)
                 .Cast<object?>();
         }
     }
