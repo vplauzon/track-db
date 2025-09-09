@@ -19,7 +19,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
     /// 
     /// Deltas are present only when the min and max are different.
     /// </summary>
-    internal static partial class Int64Codec
+    internal static class Int64Codec
     {
         /// <summary>
         /// <paramref name="values"/> is enumerated into three times.
