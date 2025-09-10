@@ -19,7 +19,9 @@ namespace TrackDb.Lib
             Action<T, Span<object?>> ObjectToColumnsAction,
             Func<object?[], object> ColumnsToObjectFunc);
 
-        private record ColumnMapping(ColumnSchema ColumnSchema, PropertyInfo Property);
+        private record ColumnMapping(
+            ColumnSchema ColumnSchema,
+            Func<object, object?> ColumnValueFunc);
         #endregion
 
         private readonly Action<T, Span<object?>> _objectToColumnsAction;
@@ -49,28 +51,28 @@ namespace TrackDb.Lib
 
         private static EntityMapping GetMappingFromConstructor(Type type)
         {
-            var maxConstructorParams = typeof(T).GetConstructors()
+            var maxConstructorParams = type.GetConstructors()
                 .Max(c => c.GetParameters().Count());
-            var argMaxConstructor = typeof(T).GetConstructors()
+            var argMaxConstructor = type.GetConstructors()
                 .First(c => c.GetParameters().Count() == maxConstructorParams);
             var columnMappings = argMaxConstructor.GetParameters()
                 .Select(param =>
                 {
-                    var matchingProp = ValidateConstructorParameter(param);
+                    var matchingProp = ValidateConstructorParameter(type, param);
 
                     if (ReadOnlyBlockBase.IsSupportedDataColumnType(param.ParameterType))
                     {
                         return new[]
                         {
                             new ColumnMapping(
-                                new ColumnSchema(
-                                    ColumnName: param.Name!,
-                                    ColumnType: param.ParameterType),
-                                matchingProp)
+                                new ColumnSchema(param.Name!, param.ParameterType),
+                                (record) => matchingProp.GetGetMethod()!.Invoke(record, null))
                         };
                     }
                     else
                     {
+                        var entityMapping = GetMappingFromConstructor(param.ParameterType);
+
                         throw new NotSupportedException(
                             $"Column type '{param.ParameterType}' on column '{param.Name}'");
                     }
@@ -90,7 +92,7 @@ namespace TrackDb.Lib
                     }
                     for (var i = 0; i != columns.Length; i++)
                     {
-                        columns[i] = columnMappings[i].Property.GetGetMethod()!.Invoke(record, null);
+                        columns[i] = columnMappings[i].ColumnValueFunc(record!);
                     }
                 },
                 (input) =>
@@ -106,7 +108,7 @@ namespace TrackDb.Lib
                 });
         }
 
-        private static PropertyInfo ValidateConstructorParameter(ParameterInfo param)
+        private static PropertyInfo ValidateConstructorParameter(Type type, ParameterInfo param)
         {
             if (string.IsNullOrWhiteSpace(param.Name))
             {
@@ -114,7 +116,7 @@ namespace TrackDb.Lib
                     "Record constructor parameter must have a name");
             }
 
-            var matchingProp = typeof(T).GetProperty(param.Name);
+            var matchingProp = type.GetProperty(param.Name);
 
             if (matchingProp == null)
             {
