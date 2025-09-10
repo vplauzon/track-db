@@ -28,6 +28,24 @@ namespace TrackDb.Test.DbTests
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
+        public async Task OneCompoundKeyRecord(bool doPushPendingData)
+        {
+            await using (var db = new TestDatabase())
+            {
+                var record = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedId("Bob", 3),
+                    1);
+
+                db.CompoundKeyTable.AppendRecord(record);
+                await db.ForceDataManagementAsync(doPushPendingData
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public async Task MultipleRecords(bool doPushPendingData)
         {
             await using (var db = new TestDatabase())

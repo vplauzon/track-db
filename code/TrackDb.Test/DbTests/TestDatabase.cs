@@ -14,16 +14,22 @@ namespace TrackDb.Test.DbTests
         public record Primitives(int Integer, int? NullableInteger = null);
         
         public record MultiIntegers(int Integer1, int Integer2, int Integer3, int Integer4);
+        
+        public record VersionedId(string Id, int Version);
+        
+        public record CompoundKeys(VersionedId VersionedId, short Value);
         #endregion
 
         private const string PRIMITIVES_TABLE = "Primitives";
         private const string MULTI_INTEGERS_TABLE = "MultiIntegers";
+        private const string COMPOUND_KEYS_TABLE = "CompoundKeys";
 
         public TestDatabase()
             : base(
                  new DatabasePolicies(),
                  TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
-                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE))
+                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE),
+                 TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE))
         {
         }
 
@@ -32,5 +38,8 @@ namespace TrackDb.Test.DbTests
 
         public TypedTable<MultiIntegers> MultiIntegerTable
             => GetTypedTable<MultiIntegers>(MULTI_INTEGERS_TABLE);
+
+        public TypedTable<CompoundKeys> CompoundKeyTable
+            => GetTypedTable<CompoundKeys>(COMPOUND_KEYS_TABLE);
     }
 }

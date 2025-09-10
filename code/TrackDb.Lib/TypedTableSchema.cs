@@ -6,14 +6,24 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
     /// <summary>Schema of a table including data mapping to a .NET type.</summary>
     public class TypedTableSchema<T> : TableSchema
     {
+        #region Inner Types
+        private record EntityMapping(
+            IEnumerable<ColumnSchema> ColumnSchemas,
+            Action<T, Span<object?>> ObjectToColumnsAction,
+            Func<object?[], object> ColumnsToObjectFunc);
+
+        private record ColumnMapping(ColumnSchema ColumnSchema, PropertyInfo Property);
+        #endregion
+
         private readonly Action<T, Span<object?>> _objectToColumnsAction;
-        private readonly Func<object?[], T> _columnsToObjectFunc;
+        private readonly Func<object?[], object> _columnsToObjectFunc;
         private readonly object?[] _columnDataBuffer;
 
         #region Constructor
@@ -27,88 +37,112 @@ namespace TrackDb.Lib
         /// <exception cref="ArgumentException"></exception>
         public static TypedTableSchema<T> FromConstructor(string tableName)
         {
+            var entityMapping = GetMappingFromConstructor(typeof(T));
+
+            return new TypedTableSchema<T>(
+                tableName,
+                Array.Empty<int>(),
+                entityMapping.ColumnSchemas,
+                entityMapping.ObjectToColumnsAction,
+                entityMapping.ColumnsToObjectFunc);
+        }
+
+        private static EntityMapping GetMappingFromConstructor(Type type)
+        {
             var maxConstructorParams = typeof(T).GetConstructors()
                 .Max(c => c.GetParameters().Count());
             var argMaxConstructor = typeof(T).GetConstructors()
                 .First(c => c.GetParameters().Count() == maxConstructorParams);
-            var parameters = argMaxConstructor.GetParameters().Select(param =>
-            {
-                if (param.Name == null)
+            var columnMappings = argMaxConstructor.GetParameters()
+                .Select(param =>
                 {
-                    throw new InvalidOperationException(
-                        "Record constructor parameter must have a name");
-                }
+                    var matchingProp = ValidateConstructorParameter(param);
 
-                var matchingProp = typeof(T).GetProperty(param.Name);
-
-                if (matchingProp == null)
-                {
-                    throw new InvalidOperationException(
-                        $"Constructor parameter '{param.Name}' does not have a matching property");
-                }
-                if (matchingProp.PropertyType != param.ParameterType)
-                {
-                    throw new InvalidOperationException(
-                        $"Constructor parameter '{param.Name}' is type '{param.ParameterType}' " +
-                        $"while matching property is type '{matchingProp.PropertyType}'");
-                }
-                if (matchingProp.GetGetMethod() == null)
-                {
-                    throw new InvalidOperationException(
-                        $"Constructor parameter '{param.Name}' matching property can't be read");
-                }
-
-                return new
-                {
-                    Schema = new ColumnSchema(
-                        ColumnName: param.Name,
-                        ColumnType: param.ParameterType),
-                    Property = matchingProp
-                };
-            })
+                    if (ReadOnlyBlockBase.IsSupportedDataColumnType(param.ParameterType))
+                    {
+                        return new[]
+                        {
+                            new ColumnMapping(
+                                new ColumnSchema(
+                                    ColumnName: param.Name!,
+                                    ColumnType: param.ParameterType),
+                                matchingProp)
+                        };
+                    }
+                    else
+                    {
+                        throw new NotSupportedException(
+                            $"Column type '{param.ParameterType}' on column '{param.Name}'");
+                    }
+                })
+                .SelectMany(a => a)
                 .ToImmutableArray();
-            var columns = parameters
-                .Select(c => c.Schema);
-            Action<T, Span<object?>> objectToColumnsAction = (record, columns) =>
-            {
-                if (columns.Length != parameters.Length)
-                {
-                    throw new ArgumentException(
-                        $"'{nameof(columns)}' has length {columns.Length} while the expected" +
-                        $" number of columns is {parameters.Length}");
-                }
-                for (var i = 0; i != parameters.Length; i++)
-                {
-                    columns[i] = parameters[i].Property.GetGetMethod()!.Invoke(record, null);
-                }
-            };
-            Func<object?[], T> columnsToObjectFunc = (columns) =>
-            {
-                if (columns.Length != parameters.Length)
-                {
-                    throw new ArgumentException(
-                        $"'{nameof(columns)}' has length {columns.Length} while the expected" +
-                        $" number of columns is {parameters.Length}");
-                }
 
-                return (T)argMaxConstructor.Invoke(columns);
-            };
+            return new EntityMapping(
+                columnMappings.Select(m => m.ColumnSchema),
+                (record, columns) =>
+                {
+                    if (columns.Length != columnMappings.Length)
+                    {
+                        throw new ArgumentException(
+                            $"'{nameof(columns)}' has length {columns.Length} while the expected" +
+                            $" number of columns is {columnMappings.Length}");
+                    }
+                    for (var i = 0; i != columns.Length; i++)
+                    {
+                        columns[i] = columnMappings[i].Property.GetGetMethod()!.Invoke(record, null);
+                    }
+                },
+                (input) =>
+                {
+                    if (input.Length != columnMappings.Length)
+                    {
+                        throw new ArgumentException(
+                            $"'{nameof(input)}' has length {input.Length} while the expected" +
+                            $" number of columns is {columnMappings.Length}");
+                    }
 
-            return new TypedTableSchema<T>(
-                tableName,
-                columns,
-                Array.Empty<int>(),
-                objectToColumnsAction,
-                columnsToObjectFunc);
+                    return (T)argMaxConstructor.Invoke(input);
+                });
+        }
+
+        private static PropertyInfo ValidateConstructorParameter(ParameterInfo param)
+        {
+            if (string.IsNullOrWhiteSpace(param.Name))
+            {
+                throw new InvalidOperationException(
+                    "Record constructor parameter must have a name");
+            }
+
+            var matchingProp = typeof(T).GetProperty(param.Name);
+
+            if (matchingProp == null)
+            {
+                throw new InvalidOperationException(
+                    $"Constructor parameter '{param.Name}' does not have a matching property");
+            }
+            if (matchingProp.PropertyType != param.ParameterType)
+            {
+                throw new InvalidOperationException(
+                    $"Constructor parameter '{param.Name}' is type '{param.ParameterType}' " +
+                    $"while matching property is type '{matchingProp.PropertyType}'");
+            }
+            if (matchingProp.GetGetMethod() == null)
+            {
+                throw new InvalidOperationException(
+                    $"Constructor parameter '{param.Name}' matching property can't be read");
+            }
+
+            return matchingProp;
         }
 
         private TypedTableSchema(
             string tableName,
-            IEnumerable<ColumnSchema> columns,
             IEnumerable<int> partitionKeyColumnIndexes,
+            IEnumerable<ColumnSchema> columnSchemas,
             Action<T, Span<object?>> objectToColumnsAction,
-            Func<object?[], T> columnsToObjectFunc)
-            : base(tableName, columns, partitionKeyColumnIndexes)
+            Func<object?[], object> columnsToObjectFunc)
+            : base(tableName, columnSchemas, partitionKeyColumnIndexes)
         {
             _objectToColumnsAction = objectToColumnsAction;
             _columnsToObjectFunc = columnsToObjectFunc;
@@ -141,8 +175,8 @@ namespace TrackDb.Lib
 
                     return new TypedTableSchema<T>(
                         TableName,
-                        Columns,
                         PartitionKeyColumnIndexes.Append(columnIndex),
+                        Columns,
                         _objectToColumnsAction,
                         _columnsToObjectFunc);
                 }
@@ -168,7 +202,7 @@ namespace TrackDb.Lib
 
         internal T FromColumnsToObject(object?[] columns)
         {
-            return _columnsToObjectFunc(columns);
+            return (T)_columnsToObjectFunc(columns);
         }
     }
 }
