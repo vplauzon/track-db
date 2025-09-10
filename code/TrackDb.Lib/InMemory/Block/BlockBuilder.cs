@@ -33,22 +33,10 @@ namespace TrackDb.Lib.InMemory.Block
             : base(schema)
         {
             _dataColumns = schema.Columns
-                .Select(c => CreateColumn(c.ColumnType, 0))
+                .Select(c => CreateDataColumn(c.ColumnType, 0))
                 //  Record ID column
                 .Append(new ArrayLongColumn(false, 0))
                 .ToImmutableArray();
-        }
-
-        private static IDataColumn CreateColumn(Type columnType, int capacity)
-        {
-            if (DataColumnFactories.TryGetValue(columnType, out var factory))
-            {
-                return factory(capacity);
-            }
-            else
-            {
-                throw new NotSupportedException($"Column type:  '{columnType}'");
-            }
         }
         #endregion
 

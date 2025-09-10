@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
@@ -53,20 +55,10 @@ namespace TrackDb.Lib.InMemory.Block
         }
         #endregion
 
+        private static readonly IImmutableDictionary<Type, Func<int, IDataColumn>> _dataFactoryMap;
+
         #region Constructors
         static ReadOnlyBlockBase()
-        {
-            DataColumnFactories = CreateDataColumnFactories();
-            SupportedDataColumnTypes = DataColumnFactories.Keys
-                .ToImmutableHashSet();
-        }
-
-        protected ReadOnlyBlockBase(TableSchema schema)
-        {
-            Schema = schema;
-        }
-
-        private static IImmutableDictionary<Type, Func<int, IDataColumn>> CreateDataColumnFactories()
         {
             var builder = ImmutableDictionary<Type, Func<int, IDataColumn>>.Empty.ToBuilder();
 
@@ -82,13 +74,65 @@ namespace TrackDb.Lib.InMemory.Block
             builder.Add(typeof(DateTime), capacity => new ArrayDateTimeColumn(false, capacity));
             builder.Add(typeof(DateTime?), capacity => new ArrayDateTimeColumn(true, capacity));
 
-            return builder.ToImmutableDictionary();
+            _dataFactoryMap = builder.ToImmutable();
+        }
+
+        protected ReadOnlyBlockBase(TableSchema schema)
+        {
+            Schema = schema;
         }
         #endregion
 
-        public static IImmutableSet<Type> SupportedDataColumnTypes { get; }
+        public static bool IsSupportedDataColumnType(Type type)
+        {
+            return _dataFactoryMap.ContainsKey(type)
+                || (type.IsEnum && type.GetEnumUnderlyingType() == typeof(int))
+                || (type.IsGenericType
+                && type.GetGenericTypeDefinition() == typeof(Nullable<>)
+                && type.GenericTypeArguments.Length == 1
+                && type.GenericTypeArguments[0].IsEnum
+                && type.GenericTypeArguments[0].GetEnumUnderlyingType() == typeof(int));
+        }
 
-        protected static IImmutableDictionary<Type, Func<int, IDataColumn>> DataColumnFactories { get; }
+        protected static IDataColumn CreateDataColumn(Type columnType, int capacity)
+        {
+            IDataColumn CreateEnumDataColumn(
+                Type columnType,
+                bool allowNulls,
+                int capacity)
+            {
+                var dataColumnType = typeof(ArrayEnumColumn<>).MakeGenericType(columnType);
+                var dataColumn = Activator.CreateInstance(
+                    dataColumnType,
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    [allowNulls, capacity],
+                    null);
+
+                return (IDataColumn)dataColumn!;
+            }
+
+            if (_dataFactoryMap.TryGetValue(columnType, out var factory))
+            {
+                return factory(capacity);
+            }
+            else if (columnType.IsEnum && columnType.GetEnumUnderlyingType() == typeof(int))
+            {
+                return CreateEnumDataColumn(columnType, false, capacity);
+            }
+            else if (columnType.IsGenericType
+                && columnType.GetGenericTypeDefinition() == typeof(Nullable<>)
+                && columnType.GenericTypeArguments.Length == 1
+                && columnType.GenericTypeArguments[0].IsEnum
+                && columnType.GenericTypeArguments[0].GetEnumUnderlyingType() == typeof(int))
+            {
+                return CreateEnumDataColumn(columnType.GenericTypeArguments[0], true, capacity);
+            }
+            else
+            {
+                throw new NotSupportedException($"Column type:  '{columnType}'");
+            }
+        }
 
         protected TableSchema Schema { get; }
 

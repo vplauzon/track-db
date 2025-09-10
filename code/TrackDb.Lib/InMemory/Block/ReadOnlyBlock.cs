@@ -36,23 +36,14 @@ namespace TrackDb.Lib.InMemory.Block
             Type columnType,
             SerializedColumn serializedColumn)
         {
-            if (DataColumnFactories.TryGetValue(columnType, out var columnFactory))
+            return new Lazy<IReadOnlyDataColumn>(() =>
             {
-                return new Lazy<IReadOnlyDataColumn>(() =>
-                {
-                    var column = columnFactory(serializedColumn.ItemCount);
+                var column = CreateDataColumn(columnType, serializedColumn.ItemCount);
 
-                    column.Deserialize(serializedColumn);
+                column.Deserialize(serializedColumn);
 
-                    return column;
-                });
-            }
-            else
-            {
-                throw new ArgumentException(
-                    $"Column type '{columnType.Name}' isn't supported",
-                    nameof(columnType));
-            }
+                return column;
+            });
         }
         #endregion
 

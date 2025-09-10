@@ -3,28 +3,32 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using TrackDb.Lib.Predicate;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayDateTimeColumn : PrimitiveArrayColumnBase<DateTime>
+    internal class ArrayEnumColumn<T> : PrimitiveArrayColumnBase<T>
+        where T : struct, Enum
     {
-        public ArrayDateTimeColumn(bool allowNull, int capacity)
+        private readonly T _nullValue = (T)Enum.ToObject(typeof(T), -1);
+
+        public ArrayEnumColumn(bool allowNull, int capacity)
             : base(allowNull, capacity)
         {
         }
 
-        protected override DateTime NullValue => DateTime.MinValue;
+        protected override T NullValue => _nullValue;
 
-        protected override object? GetObjectData(DateTime data)
+        protected override object? GetObjectData(T data)
         {
-            return data == NullValue
+            return EqualityComparer<T>.Default.Equals(data, _nullValue)
                 ? null
                 : (object)data;
         }
 
         protected override void FilterBinaryInternal(
-            DateTime value,
-            ReadOnlySpan<DateTime> storedValues,
+            T value,
+            ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder)
         {
@@ -33,7 +37,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 case BinaryOperator.Equal:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] == value)
+                        if (EqualityComparer<T>.Default.Equals(storedValues[i], value))
                         {
                             matchBuilder.Add(i);
                         }
@@ -42,7 +46,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 case BinaryOperator.LessThan:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] < value)
+                        if (Convert.ToInt64(storedValues[i]) < Convert.ToInt64(value))
                         {
                             matchBuilder.Add(i);
                         }
@@ -51,7 +55,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 case BinaryOperator.LessThanOrEqual:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
-                        if (storedValues[i] <= value)
+                        if (Convert.ToInt64(storedValues[i]) <= Convert.ToInt64(value))
                         {
                             matchBuilder.Add(i);
                         }
@@ -63,43 +67,44 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<DateTime> storedValues)
+        protected override SerializedColumn Serialize(ReadOnlyMemory<T> storedValues)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
-                .Select(v => v == NullValue ? null : (long?)v.Ticks);
+                .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
+                ? (long?)null
+                : Convert.ToInt64(v));
             var column = Int64Codec.Compress(values);
 
-            //  Convert min and max to DateTime (from int-64)
+            //  Convert min and max to T (from int-64)
             return new SerializedColumn(
                 column.ItemCount,
                 column.HasNulls,
                 column.ColumnMinimum == null
                 ? null
-                : new DateTime(((long?)column.ColumnMinimum)!.Value),
+                : Enum.ToObject(typeof(T), (long)column.ColumnMinimum!),
                 column.ColumnMaximum == null
                 ? null
-                : new DateTime(((long?)column.ColumnMaximum)!.Value),
+                : Enum.ToObject(typeof(T), (long)column.ColumnMaximum!),
                 column.Payload);
         }
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            //  Convert min and max to int-64 (from DateTime)
+            //  Convert min and max to int-64 (from T)
             var intSerializedColumn = new SerializedColumn(
                 column.ItemCount,
                 column.HasNulls,
                 column.ColumnMinimum == null
                 ? null
-                : ((DateTime?)column.ColumnMinimum)!.Value.Ticks,
+                : Convert.ToInt64(column.ColumnMinimum!),
                 column.ColumnMaximum == null
                 ? null
-                : ((DateTime?)column.ColumnMaximum)!.Value.Ticks,
+                : Convert.ToInt64(column.ColumnMaximum!),
                 column.Payload);
 
             return Int64Codec.Decompress(intSerializedColumn)
-                .Select(l => l == null ? (DateTime?)null : new DateTime(l.Value))
-                .Cast<object?>();
+                .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
         }
     }
 }

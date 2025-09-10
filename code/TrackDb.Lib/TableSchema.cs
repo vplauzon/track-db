@@ -23,7 +23,7 @@ namespace TrackDb.Lib
         {
             //  Validate column types
             var unsupportedColumns = columns
-                .Where(c => !ReadOnlyBlockBase.SupportedDataColumnTypes.Contains(c.ColumnType));
+                .Where(c => !ReadOnlyBlockBase.IsSupportedDataColumnType(c.ColumnType));
 
             if (unsupportedColumns.Any())
             {
