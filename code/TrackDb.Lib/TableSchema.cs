@@ -20,6 +20,17 @@ namespace TrackDb.Lib
             string tableName,
             IEnumerable<ColumnSchema> columns,
             IEnumerable<int> partitionKeyColumnIndexes)
+            : this(
+                  tableName,
+                  columns.ToImmutableArray(),
+                  partitionKeyColumnIndexes.ToImmutableArray())
+        {
+        }
+
+        public TableSchema(
+            string tableName,
+            IImmutableList<ColumnSchema> columns,
+            IImmutableList<int> partitionKeyColumnIndexes)
         {
             //  Validate column types
             var unsupportedColumns = columns

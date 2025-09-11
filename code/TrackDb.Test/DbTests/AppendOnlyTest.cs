@@ -33,7 +33,7 @@ namespace TrackDb.Test.DbTests
             await using (var db = new TestDatabase())
             {
                 var record = new TestDatabase.CompoundKeys(
-                    new TestDatabase.VersionedId("Bob", 3),
+                    new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
                     1);
 
                 db.CompoundKeyTable.AppendRecord(record);
@@ -53,6 +53,32 @@ namespace TrackDb.Test.DbTests
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
+                await db.ForceDataManagementAsync(doPushPendingData
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task MultipleCompoundKeyRecords(bool doPushPendingData)
+        {
+            await using (var db = new TestDatabase())
+            {
+                var record1 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
+                    1);
+                var record2 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(new TestDatabase.FullName("Mick", "Terrible"), 47),
+                    1);
+                var record3 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(new TestDatabase.FullName("Zela", "Fantastic"), -23),
+                    1);
+
+                db.CompoundKeyTable.AppendRecord(record1);
+                db.CompoundKeyTable.AppendRecord(record2);
+                db.CompoundKeyTable.AppendRecord(record3);
                 await db.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);

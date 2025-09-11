@@ -15,9 +15,11 @@ namespace TrackDb.Test.DbTests
         
         public record MultiIntegers(int Integer1, int Integer2, int Integer3, int Integer4);
         
-        public record VersionedId(string Id, int Version);
+        public record FullName(string FirstName, string LastName);
         
-        public record CompoundKeys(VersionedId VersionedId, short Value);
+        public record VersionedName(FullName FullName, int Version);
+
+        public record CompoundKeys(VersionedName VersionedId, short Value);
         #endregion
 
         private const string PRIMITIVES_TABLE = "Primitives";

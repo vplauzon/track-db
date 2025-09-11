@@ -1,6 +1,4 @@
-﻿using TrackDb.Lib.InMemory;
-using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
+﻿using TrackDb.Lib.Predicate;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -189,13 +187,10 @@ namespace TrackDb.Lib
                 Enumerable.Range(0, columnCount))
                 .WithSortColumns(_sortColumns)
                 .WithTake(_takeCount);
-            var rowBuffer = new object?[columnCount];
 
             foreach (var result in tableQuery)
             {
-                result.CopyTo(rowBuffer);
-
-                var objectRow = (T)_table.Schema.FromColumnsToObject(rowBuffer);
+                var objectRow = (T)_table.Schema.FromColumnsToObject(result.Span);
 
                 yield return objectRow;
             }
