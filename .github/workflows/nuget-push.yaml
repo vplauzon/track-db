@@ -1,12 +1,15 @@
-name:  Continuous Build / Test
+name:  Package Nuget
 
 on:
-  push:
-    paths-ignore:
-    - documentation/**
+  workflow_dispatch:
+    inputs:
+      alpha:
+        required:  true
+        default:  true
+        description:  'Publish alpha version'
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,6 +24,6 @@ jobs:
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build
     - name: Build
       run: dotnet build code/ --configuration Release --no-restore
-    # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test
-    - name: Test
-      run: dotnet test code/TrackDb.Test --configuration Release --no-build --verbosity normal
+    # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push
+    - name: Publish Nuget
+      run:  dotnet nuget push code/TrackDb.Lib/bin/Release/*.nupkg -k ${{ secrets.nuget }} -s https://api.nuget.org/v3/index.json

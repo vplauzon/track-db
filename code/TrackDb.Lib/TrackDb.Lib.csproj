@@ -9,6 +9,19 @@
     <Version>0.0.1.0</Version>
   </PropertyGroup>
 
+  <PropertyGroup Label="NuGet">
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Authors>Vincent-Philippe Lauzon</Authors>
+    <PackageProjectUrl>https://github.com/vplauzon/track-db</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/vplauzon/track-db</RepositoryUrl>
+    <Title>Track-DB</Title>
+    <PackageId>track-db</PackageId>
+    <Product>Track-DB</Product>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>Track-DB</Description>
+    <Copyright />
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Remove="Settings\**" />
     <EmbeddedResource Remove="Settings\**" />
