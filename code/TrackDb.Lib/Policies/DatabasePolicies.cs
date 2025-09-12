@@ -3,9 +3,9 @@
 namespace TrackDb.Lib.Policies
 {
     public record DatabasePolicies(
-        int MaxUnpersistedBlocksPerTable = 5,
-        int MaxUnpersistedUserDataRecords = 100,
-        int MaxUnpersistedMetaDataRecords = 100,
+        int MaxInMemoryBlocksPerTable = 5,
+        int MaxInMemoryUserDataRecords = 100,
+        int MaxInMemoryMetaDataRecords = 100,
         int MaxTombstonedRecords = 100,
         TimeSpan? MaxTombstonePeriod = null)
     {

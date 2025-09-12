@@ -108,7 +108,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
 
             return (doPersistEverything && totalUserRecords > 0)
-                || totalUserRecords > Database.DatabasePolicies.MaxUnpersistedUserDataRecords;
+                || totalUserRecords > Database.DatabasePolicies.MaxInMemoryUserDataRecords;
         }
 
         private bool ShouldPersistMetaData(bool doPersistEverything, TransactionContext tc)
@@ -121,7 +121,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
 
             return (doPersistEverything && totalMetaDataRecords > 0)
-                || totalMetaDataRecords > Database.DatabasePolicies.MaxUnpersistedMetaDataRecords;
+                || totalMetaDataRecords > Database.DatabasePolicies.MaxInMemoryMetaDataRecords;
         }
 
         private string? GetOldestTable(

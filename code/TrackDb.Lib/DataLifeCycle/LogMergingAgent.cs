@@ -43,7 +43,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
-                : Database.DatabasePolicies.MaxUnpersistedBlocksPerTable;
+                : Database.DatabasePolicies.MaxInMemoryBlocksPerTable;
 
             return Database.GetDatabaseStateSnapshot().InMemoryDatabase.TableTransactionLogsMap
                 .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
