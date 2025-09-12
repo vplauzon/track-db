@@ -1,5 +1,6 @@
-﻿using TrackDb.Lib;
-using System;
+﻿using System;
+using System.Linq.Expressions;
+using TrackDb.Lib;
 using Xunit;
 
 namespace TrackDb.Test
@@ -8,6 +9,12 @@ namespace TrackDb.Test
     {
         #region Inner types
         private record IntOnly(int Integer);
+
+        private record NestedProperties(InnerClass Inner);
+
+        private record InnerClass(string Name, MoreInnerClass More);
+
+        private record MoreInnerClass(int Value);
         #endregion
 
         [Fact]
@@ -27,6 +34,29 @@ namespace TrackDb.Test
             Assert.Single(schema.Columns);
             Assert.Equal("Integer", schema.Columns[0].ColumnName);
             Assert.Equal(typeof(int), schema.Columns[0].ColumnType);
+        }
+
+        [Fact]
+        public void TestNestedPropertyAccess()
+        {
+            const string TABLE_NAME = "NestedTable";
+            
+            var schema = TypedTableSchema<NestedProperties>.FromConstructor(TABLE_NAME);
+
+            // Verify schema creation with nested properties
+            Assert.Equal(TABLE_NAME, schema.TableName);
+            Assert.Contains(schema.Columns, c => c.ColumnName == "Inner.Name");
+            Assert.Contains(schema.Columns, c => c.ColumnName == "Inner.More.Value");
+
+            // Test single-level property access
+            Expression<Func<NestedProperties, string>> expression1 = p => p.Inner.Name;
+            Assert.True(schema.TryGetColumnIndex(expression1, out var columnIndex1));
+            Assert.Equal(0, columnIndex1);
+
+            // Test multi-level property access
+            Expression<Func<NestedProperties, int>> expression2 = p => p.Inner.More.Value;
+            Assert.True(schema.TryGetColumnIndex(expression2, out var columnIndex2));
+            Assert.Equal(1, columnIndex2);
         }
     }
 }
