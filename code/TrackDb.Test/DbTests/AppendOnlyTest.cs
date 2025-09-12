@@ -14,12 +14,12 @@ namespace TrackDb.Test.DbTests
         [InlineData(true)]
         public async Task OneRecord(bool doPushPendingData)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record = new TestDatabase.Primitives(1);
 
                 db.PrimitiveTable.AppendRecord(record);
-                await db.ForceDataManagementAsync(doPushPendingData
+                await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }
@@ -30,14 +30,14 @@ namespace TrackDb.Test.DbTests
         [InlineData(true)]
         public async Task OneCompoundKeyRecord(bool doPushPendingData)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
                     1);
 
                 db.CompoundKeyTable.AppendRecord(record);
-                await db.ForceDataManagementAsync(doPushPendingData
+                await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }
@@ -48,12 +48,12 @@ namespace TrackDb.Test.DbTests
         [InlineData(true)]
         public async Task MultipleRecords(bool doPushPendingData)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
-                await db.ForceDataManagementAsync(doPushPendingData
+                await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }
@@ -64,7 +64,7 @@ namespace TrackDb.Test.DbTests
         [InlineData(true)]
         public async Task MultipleCompoundKeyRecords(bool doPushPendingData)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record1 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
@@ -79,7 +79,7 @@ namespace TrackDb.Test.DbTests
                 db.CompoundKeyTable.AppendRecord(record1);
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
-                await db.ForceDataManagementAsync(doPushPendingData
+                await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
             }

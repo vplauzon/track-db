@@ -12,12 +12,12 @@ namespace TrackDb.Test.DbTests
         [Fact]
         public async Task OneRecord()
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record = new TestDatabase.Primitives(1);
 
                 db.PrimitiveTable.AppendRecord(record);
-                await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 1);
 
@@ -26,16 +26,16 @@ namespace TrackDb.Test.DbTests
                     .Delete();
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.CreateTransaction())
+                using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.True(
                         tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
                 }
 
-                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.CreateTransaction())
+                using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.False(
                         tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
@@ -48,19 +48,19 @@ namespace TrackDb.Test.DbTests
         //[InlineData(true)]
         public async Task Parallel(bool doPushPendingData)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record1 = new TestDatabase.Primitives(1);
                 var record2 = new TestDatabase.Primitives(2);
 
                 db.PrimitiveTable.AppendRecord(record1);
                 db.PrimitiveTable.AppendRecord(record2);
-                await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 2);
 
-                var tc1 = db.CreateTransaction();
-                var tc2 = db.CreateTransaction();
+                var tc1 = db.Database.CreateTransaction();
+                var tc2 = db.Database.CreateTransaction();
 
                 //  In tc1, we delete first one, in tc2, we delete both
                 db.PrimitiveTable.Query(tc1)
@@ -73,19 +73,19 @@ namespace TrackDb.Test.DbTests
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
-                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
                 if (doPushPendingData)
                 {
-                    await db.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                    await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
                 }
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
                 tc2.Complete();
-                await db.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(0, db.PrimitiveTable.Query().Count());
-                using (var tc = db.CreateTransaction())
+                using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.False(
                         tc.TransactionState.ListTransactionLogBlocks(

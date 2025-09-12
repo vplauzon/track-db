@@ -16,15 +16,15 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task QueryOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -92,7 +92,7 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task QueryOnlyCompoundKey(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var record1 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(
@@ -111,12 +111,12 @@ namespace TrackDb.Test.DbTests
                     1562);
 
                 db.CompoundKeyTable.AppendRecord(record1);
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -166,14 +166,14 @@ namespace TrackDb.Test.DbTests
         [InlineData(false, false, true)]
         public async Task IntOnly(bool doPushPendingData1, bool doPushPendingData2, bool doPushPendingData3)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 
                 Assert.Equal(2, db.PrimitiveTable.Query().Count());
                 
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -183,7 +183,7 @@ namespace TrackDb.Test.DbTests
 
                 Assert.Equal(3, db.PrimitiveTable.Query().Count());
 
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -193,7 +193,7 @@ namespace TrackDb.Test.DbTests
                 db.PrimitiveTable.Query()
                     .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 2))
                     .Delete();
-                await db.ForceDataManagementAsync(doPushPendingData3
+                await db.Database.ForceDataManagementAsync(doPushPendingData3
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -255,15 +255,15 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task QueryCount(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -281,15 +281,15 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task QueryWithTake(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 

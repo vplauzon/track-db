@@ -28,12 +28,16 @@ namespace TrackDb.Lib
         private volatile DatabaseState _databaseState;
 
         #region Constructors
-        public Database(params IEnumerable<TableSchema> schemas)
-            : this(new DatabasePolicies(), schemas)
+        public async static Task<Database> CreateAsync(
+            DatabasePolicies databasePolicies,
+            params IEnumerable<TableSchema> schemas)
         {
+            await Task.CompletedTask;
+
+            return new Database(databasePolicies, schemas);
         }
 
-        public Database(DatabasePolicies databasePolicies, params IEnumerable<TableSchema> schemas)
+        private Database(DatabasePolicies databasePolicies, params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))

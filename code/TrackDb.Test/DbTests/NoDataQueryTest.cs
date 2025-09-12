@@ -12,7 +12,7 @@ namespace TrackDb.Test.DbTests
         [Fact]
         public async Task IntOnly()
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 var resultsAll = db.PrimitiveTable.Query()
                     .ToImmutableList();

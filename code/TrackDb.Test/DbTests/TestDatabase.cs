@@ -8,15 +8,15 @@ using TrackDb.Lib.Policies;
 
 namespace TrackDb.Test.DbTests
 {
-    internal class TestDatabase : Database
+    internal class TestDatabase : IAsyncDisposable
     {
         #region Entity types
         public record Primitives(int Integer, int? NullableInteger = null);
-        
+
         public record MultiIntegers(int Integer1, int Integer2, int Integer3, int Integer4);
-        
+
         public record FullName(string FirstName, string LastName);
-        
+
         public record VersionedName(FullName FullName, int Version);
 
         public record CompoundKeys(VersionedName VersionedName, short Value);
@@ -26,22 +26,38 @@ namespace TrackDb.Test.DbTests
         private const string MULTI_INTEGERS_TABLE = "MultiIntegers";
         private const string COMPOUND_KEYS_TABLE = "CompoundKeys";
 
-        public TestDatabase()
-            : base(
-                 new DatabasePolicies(),
-                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
-                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE),
-                 TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE))
+        #region Constructor
+        public static async Task<TestDatabase> CreateAsync()
         {
+            var db = await Database.CreateAsync(
+                new DatabasePolicies(),
+                TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
+                TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE),
+                TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE));
+
+            return new TestDatabase(db);
         }
 
+        private TestDatabase(Database database)
+        {
+            Database = database;
+        }
+        #endregion
+
+        async ValueTask IAsyncDisposable.DisposeAsync()
+        {
+            await ((IAsyncDisposable)Database).DisposeAsync();
+        }
+
+        public Database Database { get; }
+
         public TypedTable<Primitives> PrimitiveTable
-            => GetTypedTable<Primitives>(PRIMITIVES_TABLE);
+            => Database.GetTypedTable<Primitives>(PRIMITIVES_TABLE);
 
         public TypedTable<MultiIntegers> MultiIntegerTable
-            => GetTypedTable<MultiIntegers>(MULTI_INTEGERS_TABLE);
+            => Database.GetTypedTable<MultiIntegers>(MULTI_INTEGERS_TABLE);
 
         public TypedTable<CompoundKeys> CompoundKeyTable
-            => GetTypedTable<CompoundKeys>(COMPOUND_KEYS_TABLE);
+            => Database.GetTypedTable<CompoundKeys>(COMPOUND_KEYS_TABLE);
     }
 }

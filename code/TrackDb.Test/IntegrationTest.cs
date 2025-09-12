@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib;
+using TrackDb.Lib.Policies;
 using Xunit;
 
 namespace TrackDb.Test
@@ -40,7 +41,9 @@ namespace TrackDb.Test
                 |
                 (doHardDeleteAll ? DataManagementActivity.HardDeleteAll : DataManagementActivity.None);
             var tableName = "MyTable";
-            var db = new Database(TypedTableSchema<Entity>.FromConstructor(tableName));
+            var db = await Database.CreateAsync(
+                new DatabasePolicies(),
+                TypedTableSchema<Entity>.FromConstructor(tableName));
             var table = db.GetTypedTable<Entity>(tableName);
             var entity1 = new Entity("Alice", Status.InProgress, 25, 450000000, 657, DateTime.Now);
             var entity2 = new Entity("Bob", Status.Starting, 13, 320000000, 892, DateTime.Now);

@@ -16,17 +16,17 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task TopOne(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(4, 1, 1, 1));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(2, 1, 1, 1));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 1, 1, 1));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(5, 1, 1, 1));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(3, 1, 1, 1));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -47,16 +47,16 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task WithNulls(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1, null));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2, 5));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, null));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(4, 6));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -79,16 +79,16 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, true)]
         public async Task QueryOnly(bool doPushPendingData1, bool doPushPendingData2)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2222, 74, 4));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 222, 205, 98));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 22, 14, -4));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 22, -89, 44));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -137,19 +137,19 @@ namespace TrackDb.Test.DbTests
             bool doPushPendingData2,
             bool doHardDelete)
         {
-            await using (var db = new TestDatabase())
+            await using (var db = await TestDatabase.CreateAsync())
             {
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2222, 74, 4));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 222, 205, 98));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(95, 1, 2, 3));
-                await db.ForceDataManagementAsync(doPushPendingData1
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(98, 1, 2, 3));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 22, 14, -4));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(11, 22, -89, 44));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(99, 1, 2, 3));
-                await db.ForceDataManagementAsync(doPushPendingData2
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
@@ -157,7 +157,7 @@ namespace TrackDb.Test.DbTests
                 db.MultiIntegerTable.Query()
                     .Where(db.MultiIntegerTable.PredicateFactory.GreaterThan(m => m.Integer1, 90))
                     .Delete();
-                await db.ForceDataManagementAsync(doHardDelete
+                await db.Database.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
                     : DataManagementActivity.None);
 
