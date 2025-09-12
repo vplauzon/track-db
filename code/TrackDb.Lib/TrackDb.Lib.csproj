@@ -9,7 +9,8 @@
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
   </PropertyGroup>
 
-  <PropertyGroup Label="NuGet">
+  <!--NuGet settings-->
+  <PropertyGroup>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <Authors>Vincent-Philippe Lauzon</Authors>
     <PackageProjectUrl>https://github.com/vplauzon/track-db</PackageProjectUrl>
