@@ -19,7 +19,7 @@ namespace TrackDb.Test.DbTests
         
         public record VersionedName(FullName FullName, int Version);
 
-        public record CompoundKeys(VersionedName VersionedId, short Value);
+        public record CompoundKeys(VersionedName VersionedName, short Value);
         #endregion
 
         private const string PRIMITIVES_TABLE = "Primitives";

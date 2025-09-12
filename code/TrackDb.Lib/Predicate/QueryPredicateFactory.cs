@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,11 +15,18 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
-                new BinaryOperatorPredicate(
-                    GetColumnIndex(propertySelection.Body),
-                    value,
-                    BinaryOperator.Equal));
+            if (Schema.TryGetColumnIndex(propertySelection, out var columnIndex))
+            {
+                return new TypedQueryPredicateAdapter<T>(
+                    new BinaryOperatorPredicate(
+                        GetColumnIndexes(propertySelection.Body),
+                        value,
+                        BinaryOperator.Equal));
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
 
         public ITypedQueryPredicate<T> NotEqual<U>(
@@ -30,7 +36,7 @@ namespace TrackDb.Lib.Predicate
             return new TypedQueryPredicateAdapter<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
-                        GetColumnIndex(propertySelection.Body),
+                        GetColumnIndexes(propertySelection.Body),
                         value,
                         BinaryOperator.Equal)));
         }
@@ -41,7 +47,7 @@ namespace TrackDb.Lib.Predicate
         {
             return new TypedQueryPredicateAdapter<T>(
                 new InPredicate(
-                    GetColumnIndex(propertySelection.Body),
+                    GetColumnIndexes(propertySelection.Body),
                     values.Cast<object?>()));
         }
 
@@ -52,7 +58,7 @@ namespace TrackDb.Lib.Predicate
             return new TypedQueryPredicateAdapter<T>(
                 new NegationPredicate(
                     new InPredicate(
-                        GetColumnIndex(propertySelection.Body),
+                        GetColumnIndexes(propertySelection.Body),
                         values.Cast<object?>())));
         }
 
@@ -62,7 +68,7 @@ namespace TrackDb.Lib.Predicate
         {
             return new TypedQueryPredicateAdapter<T>(
                 new BinaryOperatorPredicate(
-                    GetColumnIndex(propertySelection.Body),
+                    GetColumnIndexes(propertySelection.Body),
                     value,
                     BinaryOperator.LessThan));
         }
@@ -73,7 +79,7 @@ namespace TrackDb.Lib.Predicate
         {
             return new TypedQueryPredicateAdapter<T>(
                 new BinaryOperatorPredicate(
-                    GetColumnIndex(propertySelection.Body),
+                    GetColumnIndexes(propertySelection.Body),
                     value,
                     BinaryOperator.LessThanOrEqual));
         }
@@ -85,7 +91,7 @@ namespace TrackDb.Lib.Predicate
             return new TypedQueryPredicateAdapter<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
-                        GetColumnIndex(propertySelection.Body),
+                        GetColumnIndexes(propertySelection.Body),
                         value,
                         BinaryOperator.LessThanOrEqual)));
         }
@@ -97,13 +103,13 @@ namespace TrackDb.Lib.Predicate
             return new TypedQueryPredicateAdapter<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
-                        GetColumnIndex(propertySelection.Body),
+                        GetColumnIndexes(propertySelection.Body),
                         value,
                         BinaryOperator.LessThan)));
         }
         #endregion
 
-        private int GetColumnIndex(Expression expression)
+        private int GetColumnIndexes(Expression expression)
         {
             if (Schema.TryGetColumnIndex(expression, out var columnIndex))
             {

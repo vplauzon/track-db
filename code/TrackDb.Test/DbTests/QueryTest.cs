@@ -86,6 +86,78 @@ namespace TrackDb.Test.DbTests
         }
 
         [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task QueryOnlyCompoundKey(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = new TestDatabase())
+            {
+                var record1 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        new TestDatabase.FullName("Albain", "Forn"),
+                        78),
+                    12);
+                var record2 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        new TestDatabase.FullName("Sylverter", "Magnus"),
+                        15),
+                    25);
+                var record3 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        new TestDatabase.FullName("Yulnick", "Barn"),
+                        897),
+                    1562);
+
+                db.CompoundKeyTable.AppendRecord(record1);
+                await db.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.CompoundKeyTable.AppendRecord(record2);
+                db.CompoundKeyTable.AppendRecord(record3);
+                await db.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var resultsAll = db.CompoundKeyTable.Query()
+                    .ToImmutableList();
+
+                Assert.Equal(3, resultsAll.Count);
+                Assert.Contains(
+                    record1.VersionedName.FullName.FirstName,
+                    resultsAll.Select(r => r.VersionedName.FullName.FirstName));
+                Assert.Contains(
+                    record2.VersionedName.FullName.FirstName,
+                    resultsAll.Select(r => r.VersionedName.FullName.FirstName));
+                Assert.Contains(
+                    record3.VersionedName.FullName.FirstName,
+                    resultsAll.Select(r => r.VersionedName.FullName.FirstName));
+
+                var resultsEqualLeaf = db.CompoundKeyTable.Query()
+                    .Where(db.CompoundKeyTable.PredicateFactory.Equal(
+                        r => r.VersionedName.FullName.FirstName,
+                        record2.VersionedName.FullName.FirstName))
+                    .ToImmutableList();
+
+                Assert.Single(resultsEqualLeaf);
+                Assert.Equal(
+                    record2.VersionedName.FullName.LastName,
+                    resultsEqualLeaf[0].VersionedName.FullName.LastName);
+
+                var resultsNotEqualLeaf = db.CompoundKeyTable.Query()
+                    .Where(db.CompoundKeyTable.PredicateFactory.NotEqual(
+                        r => r.VersionedName.FullName.FirstName,
+                        record2.VersionedName.FullName.FirstName))
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsNotEqualLeaf.Count);
+                Assert.Contains(record1.Value, resultsNotEqualLeaf.Select(r => r.Value));
+                Assert.Contains(record3.Value, resultsNotEqualLeaf.Select(r => r.Value));
+            }
+        }
+
+        [Theory]
         [InlineData(false, false, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, false)]
