@@ -42,7 +42,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var tombstoneRecordCount = TombstoneTable.Query(tc).Count();
 
-                if (tombstoneRecordCount > Database.DatabasePolicies.MaxTombstonedRecords)
+                if (tombstoneRecordCount > Database.DatabasePolicies.InMemoryPolicies.MaxTombstonedRecords)
                 {
                     HardDeleteOldest(tc);
 
@@ -61,7 +61,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var tombstoneRecordCount = TombstoneTable.Query(tc).Count();
 
-                if (tombstoneRecordCount > Database.DatabasePolicies.MaxTombstonedRecords)
+                if (tombstoneRecordCount > Database.DatabasePolicies.InMemoryPolicies.MaxTombstonedRecords)
                 {
                     var tableGroups = TombstoneTable.Query(tc)
                         .Where(TombstoneTable.PredicateFactory.Equal(t => t.BlockId, null))
@@ -105,7 +105,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var delta = DateTime.Now.Subtract(oldestTombstone.Timestamp);
 
-                    if (delta > Database.DatabasePolicies.MaxTombstonePeriod
+                    if (delta > Database.DatabasePolicies.InMemoryPolicies.MaxTombstonePeriod
                         || doHardDeleteAll)
                     {
                         HardDeleteOldest(tc);
