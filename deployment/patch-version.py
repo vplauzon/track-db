@@ -33,7 +33,7 @@ else:
 
     #   Add patch to the version
     version=document.getElementsByTagName('Version')[0]
-    version.firstChild.nodeValue += "." + patchNumber + suffix
+    version.firstChild.nodeValue += "." + patchNumber
     fullVersion = version.firstChild.nodeValue
 
     #   Output project
