@@ -1,12 +1,7 @@
 name:  Package Nuget
 
 on:
-  workflow_dispatch:
-    inputs:
-      alpha:
-        required:  true
-        default:  true
-        description:  'Publish alpha version'
+  workflow_dispatch
 
 jobs:
   publish:
@@ -23,7 +18,7 @@ jobs:
       run: dotnet restore code
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-build
     - name: Patch version
-      run: python3 deployment/patch-version.py code/TrackDb.Lib/TrackDb.Lib.csproj ${{ github.run_number }} ${{ github.event.inputs.alpha }}
+      run: python3 deployment/patch-version.py code/TrackDb.Lib/TrackDb.Lib.csproj ${{ github.run_number }}
     - name: Build
       run: dotnet build code/ --configuration Release --no-restore
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-nuget-push
