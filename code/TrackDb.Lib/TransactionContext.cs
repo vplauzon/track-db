@@ -1,6 +1,7 @@
 ﻿using TrackDb.Lib.InMemory;
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
@@ -89,6 +90,12 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException(
                     $"Transaction context is in terminal state of '{_status}'");
             }
+        }
+
+        public async Task CompleteAndLogAsync()
+        {
+            await Task.CompletedTask;
+            Complete();
         }
 
         public void Rollback()
