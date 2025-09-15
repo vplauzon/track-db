@@ -26,5 +26,10 @@ namespace TrackDb.Lib.Predicate
         IQueryPredicate? IQueryPredicate.Substitute(
             IQueryPredicate beforePredicate,
             IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        public override string ToString()
+        {
+            return "All";
+        }
     }
 }

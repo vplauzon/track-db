@@ -20,8 +20,7 @@ namespace TrackDb.Lib.Predicate
 
         IQueryPredicate? IQueryPredicate.Simplify()
         {
-            if (RightPredicate is ResultPredicate rpr
-                && LeftPredicate is ResultPredicate rpl)
+            if (LeftPredicate is ResultPredicate rpl && RightPredicate is ResultPredicate rpr)
             {
                 return new ResultPredicate(rpl.RecordIndexes.Except(rpr.RecordIndexes));
             }
@@ -48,6 +47,11 @@ namespace TrackDb.Lib.Predicate
                     ? new SubstractPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
                     : null;
             }
+        }
+
+        public override string ToString()
+        {
+            return $"({LeftPredicate}) \\ ({RightPredicate})";
         }
     }
 }

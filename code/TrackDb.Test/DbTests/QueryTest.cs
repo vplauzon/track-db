@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using TrackDb.Lib;
+using TrackDb.Lib.Predicate;
 using Xunit;
 
 namespace TrackDb.Test.DbTests
@@ -14,7 +15,7 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
-        public async Task QueryOnly(bool doPushPendingData1, bool doPushPendingData2)
+        public async Task AllOperators(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
@@ -82,6 +83,76 @@ namespace TrackDb.Test.DbTests
                 Assert.Equal(2, resultsGreaterThanOrEqual.Count);
                 Assert.Contains(2, resultsGreaterThanOrEqual.Select(r => r.Integer));
                 Assert.Contains(3, resultsGreaterThanOrEqual.Select(r => r.Integer));
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task Conjunction(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2, 3, 4));
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(10, 20, 30, 40));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(100, 200, 300, 400));
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var results = db.MultiIntegerTable.Query()
+                    .Where(db.MultiIntegerTable.PredicateFactory.LessThanOrEqual(i => i.Integer1, 10))
+                    .Where(db.MultiIntegerTable.PredicateFactory.GreaterThanOrEqual(i => i.Integer2, 20))
+                    .ToImmutableList();
+
+                Assert.Single(results);
+                Assert.Equal(10, results[0].Integer1);
+                Assert.Equal(20, results[0].Integer2);
+                Assert.Equal(30, results[0].Integer3);
+                Assert.Equal(40, results[0].Integer4);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task Disjunction(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2, 3, 4));
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(10, 20, 30, 40));
+                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(100, 200, 300, 400));
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var results = db.MultiIntegerTable.Query()
+                    .Where(db.MultiIntegerTable.PredicateFactory.LessThan(i => i.Integer1, 10).Or(
+                        db.MultiIntegerTable.PredicateFactory.GreaterThan(i => i.Integer2, 20)))
+                    .AsEnumerable()
+                    .OrderBy(i => i.Integer1)
+                    .ToImmutableList();
+
+                Assert.Equal(2, results.Count);
+                Assert.Equal(1, results[0].Integer1);
+                Assert.Equal(2, results[0].Integer2);
+                Assert.Equal(3, results[0].Integer3);
+                Assert.Equal(4, results[0].Integer4);
+                Assert.Equal(100, results[1].Integer1);
+                Assert.Equal(200, results[1].Integer2);
+                Assert.Equal(300, results[1].Integer3);
+                Assert.Equal(400, results[1].Integer4);
             }
         }
 
@@ -170,9 +241,9 @@ namespace TrackDb.Test.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
-                
+
                 Assert.Equal(2, db.PrimitiveTable.Query().Count());
-                
+
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);

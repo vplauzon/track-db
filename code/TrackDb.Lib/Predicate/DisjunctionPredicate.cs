@@ -7,18 +7,18 @@ using System.Threading.Tasks;
 namespace TrackDb.Lib.Predicate
 {
     /// <summary>
-    /// Applying an "AND" logic between two predicates
+    /// Applying an "OR" logic between two predicates
     /// </summary>
     /// <param name="LeftPredicate"></param>
     /// <param name="RightPredicate"></param>
-    internal record ConjunctionPredicate(
+    internal record DisjunctionPredicate(
         IQueryPredicate LeftPredicate,
         IQueryPredicate RightPredicate)
         : IQueryPredicate
     {
         bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
         {
-            return other is ConjunctionPredicate cp
+            return other is DisjunctionPredicate cp
                 && cp.LeftPredicate.Equals(LeftPredicate)
                 && cp.RightPredicate.Equals(RightPredicate);
         }
@@ -28,17 +28,14 @@ namespace TrackDb.Lib.Predicate
 
         IQueryPredicate? IQueryPredicate.Simplify()
         {
-            if (LeftPredicate.Equals(AllInPredicate.Instance))
+            if (LeftPredicate.Equals(AllInPredicate.Instance)
+                || RightPredicate.Equals(AllInPredicate.Instance))
             {
-                return RightPredicate;
-            }
-            else if (RightPredicate.Equals(AllInPredicate.Instance))
-            {
-                return LeftPredicate;
+                return AllInPredicate.Instance;
             }
             else if (LeftPredicate is ResultPredicate rpl && RightPredicate is ResultPredicate rpr)
             {
-                return new ResultPredicate(rpl.RecordIndexes.Intersect(rpr.RecordIndexes));
+                return new ResultPredicate(rpl.RecordIndexes.Union(rpr.RecordIndexes));
             }
             else
             {
@@ -48,7 +45,7 @@ namespace TrackDb.Lib.Predicate
                 if (sl != null || sr != null)
                 {
                     IQueryPredicate simplified =
-                        new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
+                        new DisjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
 
                     return simplified.Simplify() ?? simplified;
                 }
@@ -73,14 +70,14 @@ namespace TrackDb.Lib.Predicate
                 var sr = RightPredicate.Substitute(beforePredicate, afterPredicate);
 
                 return sl != null || sr != null
-                    ? new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
+                    ? new DisjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
                     : null;
             }
         }
 
         public override string ToString()
         {
-            return $"({LeftPredicate}) && ({RightPredicate})";
+            return $"({LeftPredicate}) || ({RightPredicate})";
         }
     }
 }

@@ -10,7 +10,7 @@ namespace TrackDb.Lib.Predicate
 {
     public static class QueryPredicateHelper
     {
-        public static ITypedQueryPredicate<T> Not<T>(ITypedQueryPredicate<T> predicate)
+        public static ITypedQueryPredicate<T> Not<T>(this ITypedQueryPredicate<T> predicate)
             where T : notnull
         {
             return new TypedQueryPredicateAdapter<T>(new NegationPredicate(predicate));
@@ -26,11 +26,12 @@ namespace TrackDb.Lib.Predicate
         }
 
         public static ITypedQueryPredicate<T> Or<T>(
-            this ITypedQueryPredicate<T> predicate1,
-            ITypedQueryPredicate<T> predicate2)
+            this ITypedQueryPredicate<T> leftPredicate,
+            ITypedQueryPredicate<T> rightPredicate)
             where T : notnull
         {
-            throw new NotImplementedException();
+            return new TypedQueryPredicateAdapter<T>(
+                new DisjunctionPredicate(leftPredicate, rightPredicate));
         }
     }
 }

@@ -44,5 +44,10 @@ namespace TrackDb.Lib.Predicate
                     : null;
             }
         }
+
+        public override string ToString()
+        {
+            return $"!({InnerPredicate})";
+        }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
@@ -32,5 +33,12 @@ namespace TrackDb.Lib.Predicate
         IQueryPredicate? IQueryPredicate.Substitute(
             IQueryPredicate beforePredicate,
             IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        public override string ToString()
+        {
+            var set = string.Join(", ", Values.OrderBy(v => v));
+                
+            return $"v[{ColumnIndex}] in {{{set}}}";
+        }
     }
 }

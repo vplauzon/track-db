@@ -33,5 +33,10 @@ namespace TrackDb.Lib.Predicate
                 ? new TypedQueryPredicateAdapter<T>(ads)
                 : null;
         }
+
+        public override string ToString()
+        {
+            return Adaptee.ToString()!;
+        }
     }
 }

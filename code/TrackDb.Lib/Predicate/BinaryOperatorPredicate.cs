@@ -15,9 +15,9 @@ namespace TrackDb.Lib.Predicate
         bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
         {
             return other is BinaryOperatorPredicate bop
-                && bop.ColumnIndex == bop.ColumnIndex
-                && bop.Value == bop.Value
-                && bop.BinaryOperator == bop.BinaryOperator;
+                && ColumnIndex == bop.ColumnIndex
+                && Value == bop.Value
+                && BinaryOperator == bop.BinaryOperator;
         }
 
         IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates
@@ -33,5 +33,18 @@ namespace TrackDb.Lib.Predicate
         IQueryPredicate? IQueryPredicate.Substitute(
             IQueryPredicate beforePredicate,
             IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        public override string ToString()
+        {
+            var operatorText = BinaryOperator switch
+            {
+                BinaryOperator.Equal => "==",
+                BinaryOperator.LessThan => "<",
+                BinaryOperator.LessThanOrEqual => "<=",
+                _ => throw new NotSupportedException(BinaryOperator.ToString())
+            };
+
+            return $"v[{ColumnIndex}] {operatorText} {Value}";
+        }
     }
 }
