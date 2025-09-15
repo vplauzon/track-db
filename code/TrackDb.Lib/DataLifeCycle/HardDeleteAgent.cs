@@ -64,7 +64,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 if (tombstoneRecordCount > Database.DatabasePolicies.InMemoryPolicies.MaxTombstonedRecords)
                 {
                     var tableGroups = TombstoneTable.Query(tc)
-                        .Where(TombstoneTable.PredicateFactory.Equal(t => t.BlockId, null))
+                        .Where(pf => pf.Equal(t => t.BlockId, null))
                         .GroupBy(t => t.TableName);
                     string? largestTable = null;
                     int maxRecordCount = 0;
@@ -150,7 +150,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private void HardDeleteBlock(TransactionContext tc, Table table, int blockId)
         {
             var tombstoneRecordIds = TombstoneTable.Query(tc)
-                .Where(TombstoneTable.PredicateFactory.Equal(t => t.BlockId, blockId))
+                .Where(pf => pf.Equal(t => t.BlockId, blockId))
                 .Select(t => t.RecordId)
                 //  In case a record got deleted twice (in 2 parallel transactions)
                 .Distinct()

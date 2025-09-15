@@ -44,7 +44,8 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query alteration
-        public TypedTableQuery<T> Where(ITypedQueryPredicate<T> predicate)
+        public TypedTableQuery<T> Where(
+            Func<QueryPredicateFactory<T>, ITypedQueryPredicate<T>> predicateFunc)
         {
             if (_sortColumns.Any())
             {
@@ -55,6 +56,7 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("Where clause can't be added after a take");
             }
 
+            var predicate = predicateFunc(_table.PredicateFactory);
             var newPredicate = new ConjunctionPredicate(_predicate, predicate);
 
             return new TypedTableQuery<T>(

@@ -24,7 +24,7 @@ namespace TrackDb.Test.DbTests
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.Query()
-                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
                 await db.Database.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
@@ -48,7 +48,7 @@ namespace TrackDb.Test.DbTests
                     : DataManagementActivity.None);
 
                 db.PrimitiveTable.Query()
-                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
             }
         }

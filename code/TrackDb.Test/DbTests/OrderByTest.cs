@@ -155,7 +155,7 @@ namespace TrackDb.Test.DbTests
 
                 //  Delete bunch of records
                 db.MultiIntegerTable.Query()
-                    .Where(db.MultiIntegerTable.PredicateFactory.GreaterThan(m => m.Integer1, 90))
+                    .Where(pf => pf.GreaterThan(m => m.Integer1, 90))
                     .Delete();
                 await db.Database.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
