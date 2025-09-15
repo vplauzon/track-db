@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal class AllInPredicate : IQueryPredicate
+    public sealed record AllInPredicate : QueryPredicate
     {
         private AllInPredicate()
         {
@@ -14,18 +14,20 @@ namespace TrackDb.Lib.Predicate
 
         public static AllInPredicate Instance { get; } = new AllInPredicate();
 
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is AllInPredicate;
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates => Array.Empty<IQueryPredicate>();
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => Array.Empty<QueryPredicate>();
 
-        IQueryPredicate? IQueryPredicate.Simplify() => null;
+        internal override QueryPredicate? Simplify() => null;
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
+            => beforePredicate.Equals(this) ? afterPredicate : null;
 
         public override string ToString()
         {

@@ -6,30 +6,30 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal record NegationPredicate(IQueryPredicate InnerPredicate)
-        : IQueryPredicate
+    public sealed record NegationPredicate(QueryPredicate InnerPredicate)
+        : QueryPredicate
     {
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is NegationPredicate np
                 && np.InnerPredicate.Equals(InnerPredicate);
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates => InnerPredicate.LeafPredicates;
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => InnerPredicate.LeafPredicates;
 
-
-        IQueryPredicate? IQueryPredicate.Simplify()
+        internal override QueryPredicate? Simplify()
         {
-            IQueryPredicate sp = new SubstractPredicate(
+            QueryPredicate sp = new SubstractPredicate(
                 AllInPredicate.Instance,
                 InnerPredicate.Simplify() ?? InnerPredicate);
 
             return sp.Simplify() ?? sp;
         }
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate)
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
         {
             if (beforePredicate.Equals(this))
             {

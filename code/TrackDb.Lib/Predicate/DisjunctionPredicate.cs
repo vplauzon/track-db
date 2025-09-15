@@ -11,22 +11,22 @@ namespace TrackDb.Lib.Predicate
     /// </summary>
     /// <param name="LeftPredicate"></param>
     /// <param name="RightPredicate"></param>
-    internal record DisjunctionPredicate(
-        IQueryPredicate LeftPredicate,
-        IQueryPredicate RightPredicate)
-        : IQueryPredicate
+    public sealed record DisjunctionPredicate(
+        QueryPredicate LeftPredicate,
+        QueryPredicate RightPredicate)
+        : QueryPredicate
     {
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is DisjunctionPredicate cp
                 && cp.LeftPredicate.Equals(LeftPredicate)
                 && cp.RightPredicate.Equals(RightPredicate);
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates =>
-            LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
-        IQueryPredicate? IQueryPredicate.Simplify()
+        internal override QueryPredicate? Simplify()
         {
             if (LeftPredicate.Equals(AllInPredicate.Instance)
                 || RightPredicate.Equals(AllInPredicate.Instance))
@@ -44,7 +44,7 @@ namespace TrackDb.Lib.Predicate
 
                 if (sl != null || sr != null)
                 {
-                    IQueryPredicate simplified =
+                    QueryPredicate simplified =
                         new DisjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
 
                     return simplified.Simplify() ?? simplified;
@@ -56,9 +56,9 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate)
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
         {
             if (beforePredicate.Equals(this))
             {

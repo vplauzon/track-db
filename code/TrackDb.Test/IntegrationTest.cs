@@ -57,14 +57,14 @@ namespace TrackDb.Test
             await db.ForceDataManagementAsync(dataManagementActivity);
 
             table.Query()
-                .Where(table.PredicateFactory.Equal(e => e.Name, entity3.Name))
+                .Where(pf => pf.Equal(e => e.Name, entity3.Name))
                 .Delete();
             table.AppendRecord(entity4);
 
             await db.ForceDataManagementAsync(dataManagementActivity);
 
             var result1 = table.Query()
-                .Where(table.PredicateFactory.GreaterThan(e => e.Step, 20))
+                .Where(pf => pf.GreaterThan(e => e.Step, 20))
                 .ToImmutableArray()
                 .OrderBy(e => e.Name)
                 .ToImmutableArray();
@@ -84,7 +84,7 @@ namespace TrackDb.Test
             Assert.Equal(entity4.Timestamp, result1[1].Timestamp);
 
             var result2 = table.Query()
-                .Where(table.PredicateFactory.LessThanOrEqual(e => e.Ticks, entity1.Ticks))
+                .Where(pf => pf.LessThanOrEqual(e => e.Ticks, entity1.Ticks))
                 .OrderBy(e => e.Name)
                 .ToImmutableArray();
 
@@ -103,7 +103,7 @@ namespace TrackDb.Test
             Assert.Equal(entity2.Timestamp, result2[1].Timestamp);
 
             var result3 = table.Query()
-                .Where(table.PredicateFactory.LessThan(e => e.LegacyId, entity2.LegacyId))
+                .Where(pf => pf.LessThan(e => e.LegacyId, entity2.LegacyId))
                 .OrderByDesc(e => e.Step)
                 .Take(1)
                 .ToImmutableArray();
@@ -117,7 +117,7 @@ namespace TrackDb.Test
             Assert.Equal(entity4.Timestamp, result3[0].Timestamp);
 
             var result4 = table.Query()
-                .Where(table.PredicateFactory.LessThan(e => e.Timestamp, entity3.Timestamp))
+                .Where(pf => pf.LessThan(e => e.Timestamp, entity3.Timestamp))
                 .OrderByDesc(e => e.Timestamp)
                 .Take(1)
                 .ToImmutableArray();
@@ -131,7 +131,7 @@ namespace TrackDb.Test
             Assert.Equal(entity2.Timestamp, result4[0].Timestamp);
 
             var result5 = table.Query()
-                .Where(table.PredicateFactory.NotEqual(e => e.Status, Status.Completed))
+                .Where(pf => pf.NotEqual(e => e.Status, Status.Completed))
                 .OrderByDesc(e => e.Status)
                 .ToImmutableArray();
 

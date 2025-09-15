@@ -22,7 +22,7 @@ namespace TrackDb.Test.DbTests
                 Assert.True(db.PrimitiveTable.Query().Count() == 1);
 
                 db.PrimitiveTable.Query()
-                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
@@ -64,7 +64,7 @@ namespace TrackDb.Test.DbTests
 
                 //  In tc1, we delete first one, in tc2, we delete both
                 db.PrimitiveTable.Query(tc1)
-                    .Where(db.PrimitiveTable.PredicateFactory.Equal(r => r.Integer, 1))
+                    .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
                 db.PrimitiveTable.Query(tc2)
                     .Delete();

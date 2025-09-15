@@ -4,21 +4,21 @@ using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal record SubstractPredicate(
-        IQueryPredicate LeftPredicate,
-        IQueryPredicate RightPredicate) : IQueryPredicate
+    internal sealed record SubstractPredicate(
+        QueryPredicate LeftPredicate,
+        QueryPredicate RightPredicate) : QueryPredicate
     {
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is SubstractPredicate sp
                 && sp.LeftPredicate.Equals(LeftPredicate)
                 && sp.RightPredicate.Equals(RightPredicate);
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates =>
-            LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
-        IQueryPredicate? IQueryPredicate.Simplify()
+        internal override QueryPredicate? Simplify()
         {
             if (LeftPredicate is ResultPredicate rpl && RightPredicate is ResultPredicate rpr)
             {
@@ -30,9 +30,9 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate)
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
         {
             if (beforePredicate.Equals(this))
             {

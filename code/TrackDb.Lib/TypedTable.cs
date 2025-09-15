@@ -17,9 +17,9 @@ namespace TrackDb.Lib
             PredicateFactory = new QueryPredicateFactory<T>(Schema);
         }
 
-        public new TypedTableSchema<T> Schema => (TypedTableSchema<T>)base.Schema;
+        internal QueryPredicateFactory<T> PredicateFactory { get; }
 
-        public QueryPredicateFactory<T> PredicateFactory { get; }
+        public new TypedTableSchema<T> Schema => (TypedTableSchema<T>)base.Schema;
 
         #region Append
         public void AppendRecord(T record, TransactionContext? transactionContext = null)

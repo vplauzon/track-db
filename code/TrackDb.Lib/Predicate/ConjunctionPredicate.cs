@@ -11,22 +11,22 @@ namespace TrackDb.Lib.Predicate
     /// </summary>
     /// <param name="LeftPredicate"></param>
     /// <param name="RightPredicate"></param>
-    internal record ConjunctionPredicate(
-        IQueryPredicate LeftPredicate,
-        IQueryPredicate RightPredicate)
-        : IQueryPredicate
+    public sealed record ConjunctionPredicate(
+        QueryPredicate LeftPredicate,
+        QueryPredicate RightPredicate)
+        : QueryPredicate
     {
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is ConjunctionPredicate cp
                 && cp.LeftPredicate.Equals(LeftPredicate)
                 && cp.RightPredicate.Equals(RightPredicate);
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates =>
-            LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
-        IQueryPredicate? IQueryPredicate.Simplify()
+        internal override QueryPredicate? Simplify()
         {
             if (LeftPredicate.Equals(AllInPredicate.Instance))
             {
@@ -47,7 +47,7 @@ namespace TrackDb.Lib.Predicate
 
                 if (sl != null || sr != null)
                 {
-                    IQueryPredicate simplified =
+                    QueryPredicate simplified =
                         new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
 
                     return simplified.Simplify() ?? simplified;
@@ -59,9 +59,9 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate)
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
         {
             if (beforePredicate.Equals(this))
             {

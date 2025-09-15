@@ -7,24 +7,36 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    public interface IQueryPredicate : IEquatable<IQueryPredicate>
+    public abstract record QueryPredicate : IEquatable<QueryPredicate>
     {
+        bool IEquatable<QueryPredicate>.Equals(QueryPredicate? other)
+        {
+            return PredicateEquals(other);
+        }
+
+        /// <summary>Compares two predicates.</summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        internal abstract bool PredicateEquals(QueryPredicate? other);
+
         /// <summary>Leaf predicates in the chain.</summary>
         /// <remarks>
         /// A leaf predicate is a predicate that can be resolved into a
         /// <see cref="ResultPredicate"/>.
         /// The main exception is <see cref="AllInPredicate"/>.
         /// </remarks>
-        IEnumerable<IQueryPredicate> LeafPredicates { get; }
+        internal abstract IEnumerable<QueryPredicate> LeafPredicates { get; }
 
         /// <summary>Applies any simplification rules.</summary>
         /// <returns>Simplified predicate (or <c>null</c> if unchanged).</returns>
-        IQueryPredicate? Simplify();
+        internal abstract QueryPredicate? Simplify();
 
         /// <summary>Substitute a predicate for another.</summary>
         /// <param name="beforePredicate"></param>
         /// <param name="afterPredicate"></param>
         /// <returns>Substituted predicate (or <c>null</c> if unchanged).</returns>
-        IQueryPredicate? Substitute(IQueryPredicate beforePredicate, IQueryPredicate afterPredicate);
+        internal abstract QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate);
     }
 }
