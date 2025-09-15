@@ -1,6 +1,6 @@
 # Overview
 
-Ipdb targets small, in-process databases that change frequently. Typical size is a few MBs — small enough to fit on disk, but large enough to create memory pressure if kept entirely in RAM.
+TrackDb targets small, in-process databases that change frequently. Typical size is a few MBs — small enough to fit on disk, but large enough to create memory pressure if kept entirely in RAM.
 
 A good example for a use case is workflow states:  this can be arbitrarily large but not huge and also have its records being updated all the time.
 
