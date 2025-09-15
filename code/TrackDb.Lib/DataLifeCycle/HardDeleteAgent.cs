@@ -253,7 +253,10 @@ namespace TrackDb.Lib.DataLifeCycle
             var remainingTombstoneRecords = new TableQuery(
                 TombstoneTable,
                 tc,
-                TombstoneTable.PredicateFactory.NotIn(t => t.RecordId, tombstoneRecordIds),
+                TombstoneTable
+                .PredicateFactory
+                .NotIn(t => t.RecordId, tombstoneRecordIds)
+                .QueryPredicate,
                 //  Include record ID
                 Enumerable.Range(0, tombstoneColumnCount + 1));
 

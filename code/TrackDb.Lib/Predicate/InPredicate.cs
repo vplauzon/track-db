@@ -5,22 +5,22 @@ using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal record InPredicate(int ColumnIndex, IImmutableSet<object?> Values)
-        : IQueryPredicate
+    public sealed record InPredicate(int ColumnIndex, IImmutableSet<object?> Values)
+        : QueryPredicate
     {
         public InPredicate(int ColumnIndex, IEnumerable<object?> Values)
             : this(ColumnIndex, Values.ToImmutableHashSet())
         {
         }
 
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is InPredicate ip
                 && ip.ColumnIndex == ColumnIndex
                 && ip.Values == Values;
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates
+        internal override IEnumerable<QueryPredicate> LeafPredicates
         {
             get
             {
@@ -28,16 +28,17 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        IQueryPredicate? IQueryPredicate.Simplify() => null;
+        internal override QueryPredicate? Simplify() => null;
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
+            => beforePredicate.Equals(this) ? afterPredicate : null;
 
         public override string ToString()
         {
             var set = string.Join(", ", Values.OrderBy(v => v));
-                
+
             return $"v[{ColumnIndex}] in {{{set}}}";
         }
     }

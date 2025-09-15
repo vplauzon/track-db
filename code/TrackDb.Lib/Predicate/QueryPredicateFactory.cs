@@ -11,17 +11,18 @@ namespace TrackDb.Lib.Predicate
         where T : notnull
     {
         #region Factory methods
-        public ITypedQueryPredicate<T> Equal<U>(
+        public TypedQueryPredicate<T> Equal<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
             if (Schema.TryGetColumnIndex(propertySelection, out var columnIndex))
             {
-                return new TypedQueryPredicateAdapter<T>(
+                return new TypedQueryPredicate<T>(
                     new BinaryOperatorPredicate(
                         GetColumnIndexes(propertySelection.Body),
                         value,
-                        BinaryOperator.Equal));
+                        BinaryOperator.Equal),
+                    Schema);
             }
             else
             {
@@ -29,83 +30,90 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        public ITypedQueryPredicate<T> NotEqual<U>(
+        public TypedQueryPredicate<T> NotEqual<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
                         GetColumnIndexes(propertySelection.Body),
                         value,
-                        BinaryOperator.Equal)));
+                        BinaryOperator.Equal)),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> In<U>(
+        public TypedQueryPredicate<T> In<U>(
             Expression<Func<T, U>> propertySelection,
             IEnumerable<U> values)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new InPredicate(
                     GetColumnIndexes(propertySelection.Body),
-                    values.Cast<object?>()));
+                    values.Cast<object?>()),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> NotIn<U>(
+        public TypedQueryPredicate<T> NotIn<U>(
             Expression<Func<T, U>> propertySelection,
             IEnumerable<U> values)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new NegationPredicate(
                     new InPredicate(
                         GetColumnIndexes(propertySelection.Body),
-                        values.Cast<object?>())));
+                        values.Cast<object?>())),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> LessThan<U>(
+        public TypedQueryPredicate<T> LessThan<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new BinaryOperatorPredicate(
                     GetColumnIndexes(propertySelection.Body),
                     value,
-                    BinaryOperator.LessThan));
+                    BinaryOperator.LessThan),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> LessThanOrEqual<U>(
+        public TypedQueryPredicate<T> LessThanOrEqual<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new BinaryOperatorPredicate(
                     GetColumnIndexes(propertySelection.Body),
                     value,
-                    BinaryOperator.LessThanOrEqual));
+                    BinaryOperator.LessThanOrEqual),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> GreaterThan<U>(
+        public TypedQueryPredicate<T> GreaterThan<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
                         GetColumnIndexes(propertySelection.Body),
                         value,
-                        BinaryOperator.LessThanOrEqual)));
+                        BinaryOperator.LessThanOrEqual)),
+                Schema);
         }
 
-        public ITypedQueryPredicate<T> GreaterThanOrEqual<U>(
+        public TypedQueryPredicate<T> GreaterThanOrEqual<U>(
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicateAdapter<T>(
+            return new TypedQueryPredicate<T>(
                 new NegationPredicate(
                     new BinaryOperatorPredicate(
                         GetColumnIndexes(propertySelection.Body),
                         value,
-                        BinaryOperator.LessThan)));
+                        BinaryOperator.LessThan)),
+                Schema);
         }
         #endregion
 

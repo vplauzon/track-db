@@ -145,7 +145,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         int IBlock.RecordCount => RecordCount;
 
-        IEnumerable<int> IBlock.Filter(IQueryPredicate predicate)
+        IEnumerable<int> IBlock.Filter(QueryPredicate predicate)
         {
             //  Initiate a simplification prior to the resolution process
             var resultRowIndexes = ResolvePredicate(predicate.Simplify() ?? predicate);
@@ -193,7 +193,7 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Predicate filtering
-        private IImmutableSet<int> ResolvePredicate(IQueryPredicate predicate)
+        private IImmutableSet<int> ResolvePredicate(QueryPredicate predicate)
         {
             var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
 
@@ -241,7 +241,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        private IEnumerable<int> ResolveLeafPredicate(IQueryPredicate leafPredicate)
+        private IEnumerable<int> ResolveLeafPredicate(QueryPredicate leafPredicate)
         {
             if (leafPredicate is BinaryOperatorPredicate bop)
             {

@@ -11,7 +11,7 @@ namespace TrackDb.Lib.Predicate
     /// For example NotEqual = Not(Equal), GreaterThan=Not(LessThanOrEqual)
     /// & GreaterThanOrEqual = Not(LesserThan)
     /// </summary>
-    internal enum BinaryOperator
+    public enum BinaryOperator
     {
         Equal,
         //NotEqual,

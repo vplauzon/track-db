@@ -13,7 +13,7 @@ namespace TrackDb.Lib
     {
         private readonly TypedTable<T> _table;
         private readonly TransactionContext? _transactionContext;
-        private readonly IQueryPredicate _predicate;
+        private readonly QueryPredicate _predicate;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
 
@@ -31,7 +31,7 @@ namespace TrackDb.Lib
         internal TypedTableQuery(
             TypedTable<T> table,
             TransactionContext? transactionContext,
-            IQueryPredicate predicate,
+            QueryPredicate predicate,
             IEnumerable<SortColumn> sortColumns,
             int? takeCount)
         {
@@ -45,7 +45,7 @@ namespace TrackDb.Lib
 
         #region Query alteration
         public TypedTableQuery<T> Where(
-            Func<QueryPredicateFactory<T>, ITypedQueryPredicate<T>> predicateFunc)
+            Func<QueryPredicateFactory<T>, TypedQueryPredicate<T>> predicateFunc)
         {
             if (_sortColumns.Any())
             {
@@ -57,7 +57,7 @@ namespace TrackDb.Lib
             }
 
             var predicate = predicateFunc(_table.PredicateFactory);
-            var newPredicate = new ConjunctionPredicate(_predicate, predicate);
+            var newPredicate = new ConjunctionPredicate(_predicate, predicate.QueryPredicate);
 
             return new TypedTableQuery<T>(
                 _table,

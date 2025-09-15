@@ -1,18 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    internal record BinaryOperatorPredicate(
+    public sealed record BinaryOperatorPredicate(
         int ColumnIndex,
         object? Value,
         BinaryOperator BinaryOperator)
-        : IQueryPredicate
+        : QueryPredicate
     {
-        bool IEquatable<IQueryPredicate>.Equals(IQueryPredicate? other)
+        internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is BinaryOperatorPredicate bop
                 && ColumnIndex == bop.ColumnIndex
@@ -20,7 +21,7 @@ namespace TrackDb.Lib.Predicate
                 && BinaryOperator == bop.BinaryOperator;
         }
 
-        IEnumerable<IQueryPredicate> IQueryPredicate.LeafPredicates
+        internal override IEnumerable<QueryPredicate> LeafPredicates
         {
             get
             {
@@ -28,11 +29,12 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        IQueryPredicate? IQueryPredicate.Simplify() => null;
+        internal override QueryPredicate? Simplify()=> null;
 
-        IQueryPredicate? IQueryPredicate.Substitute(
-            IQueryPredicate beforePredicate,
-            IQueryPredicate afterPredicate) => beforePredicate.Equals(this) ? afterPredicate : null;
+        internal override QueryPredicate? Substitute(
+            QueryPredicate beforePredicate,
+            QueryPredicate afterPredicate)
+            => beforePredicate.Equals(this) ? afterPredicate : null;
 
         public override string ToString()
         {

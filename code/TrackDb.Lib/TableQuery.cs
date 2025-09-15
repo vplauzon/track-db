@@ -26,7 +26,7 @@ namespace TrackDb.Lib
 
         private readonly Table _table;
         private readonly TransactionContext? _transactionContext;
-        private readonly IQueryPredicate _predicate;
+        private readonly QueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
@@ -36,7 +36,7 @@ namespace TrackDb.Lib
         public TableQuery(
             Table table,
             TransactionContext? tc,
-            IQueryPredicate predicate,
+            QueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes)
             : this(
                   table,
@@ -52,7 +52,7 @@ namespace TrackDb.Lib
         private TableQuery(
             Table table,
             TransactionContext? tc,
-            IQueryPredicate predicate,
+            QueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
             IEnumerable<SortColumn> sortColumns,
             int? takeCount,
