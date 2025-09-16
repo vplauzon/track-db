@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using TrackDb.Lib;
-using TrackDb.Lib.Predicate;
 using Xunit;
 
 namespace TrackDb.Test.DbTests
@@ -95,26 +94,33 @@ namespace TrackDb.Test.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
+                var record = new TestDatabase.MultiIntegers(10, 20, 30, 40);
+
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2, 3, 4));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
-                db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(10, 20, 30, 40));
+                db.MultiIntegerTable.AppendRecord(record);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(100, 200, 300, 400));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
 
-                var results = db.MultiIntegerTable.Query()
+                var results1 = db.MultiIntegerTable.Query()
                     .Where(pf => pf.LessThanOrEqual(i => i.Integer1, 10))
                     .Where(pf => pf.GreaterThanOrEqual(i => i.Integer2, 20))
                     .ToImmutableList();
 
-                Assert.Single(results);
-                Assert.Equal(10, results[0].Integer1);
-                Assert.Equal(20, results[0].Integer2);
-                Assert.Equal(30, results[0].Integer3);
-                Assert.Equal(40, results[0].Integer4);
+                Assert.Single(results1);
+                Assert.Equal(record, results1[0]);
+
+                var results2 = db.MultiIntegerTable.Query()
+                    .Where(pf => pf.LessThanOrEqual(i => i.Integer1, 10).And(
+                        pf.GreaterThanOrEqual(i => i.Integer2, 20)))
+                    .ToImmutableList();
+
+                Assert.Single(results2);
+                Assert.Equal(record, results2[0]);
             }
         }
 

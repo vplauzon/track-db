@@ -110,9 +110,9 @@ namespace TrackDb.Lib.Predicate
         }
 
         #region MatchKeys
-        public TypedQueryPredicate<T> MatchKeys<U>(
+        public TypedQueryPredicate<T> MatchKeys<U1>(
             T record,
-            Expression<Func<T, U>> propertySelection1)
+            Expression<Func<T, U1>> propertySelection1)
         {
             var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
             var columns = Schema.FromObjectToColumns(record);
@@ -125,10 +125,10 @@ namespace TrackDb.Lib.Predicate
                 Schema);
         }
 
-        public TypedQueryPredicate<T> MatchKeys<U>(
+        public TypedQueryPredicate<T> MatchKeys<U1, U2>(
             T record,
-            Expression<Func<T, U>> propertySelection1,
-            Expression<Func<T, U>> propertySelection2)
+            Expression<Func<T, U1>> propertySelection1,
+            Expression<Func<T, U2>> propertySelection2)
         {
             var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
             var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
@@ -147,11 +147,11 @@ namespace TrackDb.Lib.Predicate
                 Schema);
         }
 
-        public TypedQueryPredicate<T> MatchKeys<U>(
+        public TypedQueryPredicate<T> MatchKeys<U1, U2, U3>(
             T record,
-            Expression<Func<T, U>> propertySelection1,
-            Expression<Func<T, U>> propertySelection2,
-            Expression<Func<T, U>> propertySelection3)
+            Expression<Func<T, U1>> propertySelection1,
+            Expression<Func<T, U2>> propertySelection2,
+            Expression<Func<T, U3>> propertySelection3)
         {
             var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
             var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
@@ -176,12 +176,12 @@ namespace TrackDb.Lib.Predicate
                 Schema);
         }
 
-        public TypedQueryPredicate<T> MatchKeys<U>(
+        public TypedQueryPredicate<T> MatchKeys<U1, U2, U3, U4>(
             T record,
-            Expression<Func<T, U>> propertySelection1,
-            Expression<Func<T, U>> propertySelection2,
-            Expression<Func<T, U>> propertySelection3,
-            Expression<Func<T, U>> propertySelection4)
+            Expression<Func<T, U1>> propertySelection1,
+            Expression<Func<T, U2>> propertySelection2,
+            Expression<Func<T, U3>> propertySelection3,
+            Expression<Func<T, U4>> propertySelection4)
         {
             var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
             var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
