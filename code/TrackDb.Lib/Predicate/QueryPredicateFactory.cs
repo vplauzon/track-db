@@ -15,19 +15,12 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            if (Schema.TryGetColumnIndex(propertySelection, out var columnIndex))
-            {
-                return new TypedQueryPredicate<T>(
-                    new BinaryOperatorPredicate(
-                        GetColumnIndexes(propertySelection.Body),
-                        value,
-                        BinaryOperator.Equal),
-                    Schema);
-            }
-            else
-            {
-                throw new NotImplementedException();
-            }
+            return new TypedQueryPredicate<T>(
+                new BinaryOperatorPredicate(
+                    GetColumnIndexes(propertySelection.Body),
+                    value,
+                    BinaryOperator.Equal),
+                Schema);
         }
 
         public TypedQueryPredicate<T> NotEqual<U>(
@@ -115,6 +108,110 @@ namespace TrackDb.Lib.Predicate
                         BinaryOperator.LessThan)),
                 Schema);
         }
+
+        #region MatchKeys
+        public TypedQueryPredicate<T> MatchKeys<U>(
+            T record,
+            Expression<Func<T, U>> propertySelection1)
+        {
+            var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
+            var columns = Schema.FromObjectToColumns(record);
+
+            return new TypedQueryPredicate<T>(
+                new BinaryOperatorPredicate(
+                    columnIndex1,
+                    columns[columnIndex1],
+                    BinaryOperator.Equal),
+                Schema);
+        }
+
+        public TypedQueryPredicate<T> MatchKeys<U>(
+            T record,
+            Expression<Func<T, U>> propertySelection1,
+            Expression<Func<T, U>> propertySelection2)
+        {
+            var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
+            var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
+            var columns = Schema.FromObjectToColumns(record);
+
+            return new TypedQueryPredicate<T>(
+                new ConjunctionPredicate(
+                    new BinaryOperatorPredicate(
+                        columnIndex1,
+                        columns[columnIndex1],
+                        BinaryOperator.Equal),
+                    new BinaryOperatorPredicate(
+                        columnIndex2,
+                        columns[columnIndex2],
+                        BinaryOperator.Equal)),
+                Schema);
+        }
+
+        public TypedQueryPredicate<T> MatchKeys<U>(
+            T record,
+            Expression<Func<T, U>> propertySelection1,
+            Expression<Func<T, U>> propertySelection2,
+            Expression<Func<T, U>> propertySelection3)
+        {
+            var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
+            var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
+            var columnIndex3 = GetColumnIndexes(propertySelection3.Body);
+            var columns = Schema.FromObjectToColumns(record);
+
+            return new TypedQueryPredicate<T>(
+                new ConjunctionPredicate(
+                    new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            columnIndex1,
+                            columns[columnIndex1],
+                            BinaryOperator.Equal),
+                        new BinaryOperatorPredicate(
+                            columnIndex2,
+                            columns[columnIndex2],
+                            BinaryOperator.Equal)),
+                    new BinaryOperatorPredicate(
+                        columnIndex3,
+                        columns[columnIndex3],
+                        BinaryOperator.Equal)),
+                Schema);
+        }
+
+        public TypedQueryPredicate<T> MatchKeys<U>(
+            T record,
+            Expression<Func<T, U>> propertySelection1,
+            Expression<Func<T, U>> propertySelection2,
+            Expression<Func<T, U>> propertySelection3,
+            Expression<Func<T, U>> propertySelection4)
+        {
+            var columnIndex1 = GetColumnIndexes(propertySelection1.Body);
+            var columnIndex2 = GetColumnIndexes(propertySelection2.Body);
+            var columnIndex3 = GetColumnIndexes(propertySelection3.Body);
+            var columnIndex4 = GetColumnIndexes(propertySelection4.Body);
+            var columns = Schema.FromObjectToColumns(record);
+
+            return new TypedQueryPredicate<T>(
+                new ConjunctionPredicate(
+                    new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            columnIndex1,
+                            columns[columnIndex1],
+                            BinaryOperator.Equal),
+                        new BinaryOperatorPredicate(
+                            columnIndex2,
+                            columns[columnIndex2],
+                            BinaryOperator.Equal)),
+                    new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            columnIndex3,
+                            columns[columnIndex3],
+                            BinaryOperator.Equal),
+                        new BinaryOperatorPredicate(
+                            columnIndex4,
+                            columns[columnIndex4],
+                            BinaryOperator.Equal))),
+                Schema);
+        }
+        #endregion
         #endregion
 
         private int GetColumnIndexes(Expression expression)
