@@ -92,7 +92,7 @@ namespace TrackDb.Lib
             }
         }
 
-        public async Task CompleteAndLogAsync()
+        public async Task LogAndCompleteAsync()
         {
             await Task.CompletedTask;
             Complete();
