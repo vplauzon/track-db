@@ -33,7 +33,7 @@ namespace TrackDb.Test.DbTests
             await using (var db = await TestDatabase.CreateAsync())
             {
                 var record = new TestDatabase.CompoundKeys(
-                    new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
+                    new TestDatabase.VersionedName(3, new TestDatabase.FullName("Bob", "Saint-Clar")),
                     1);
 
                 db.CompoundKeyTable.AppendRecord(record);
@@ -83,13 +83,13 @@ namespace TrackDb.Test.DbTests
             await using (var db = await TestDatabase.CreateAsync())
             {
                 var record1 = new TestDatabase.CompoundKeys(
-                    new TestDatabase.VersionedName(new TestDatabase.FullName("Bob", "Saint-Clar"), 3),
+                    new TestDatabase.VersionedName(3, new TestDatabase.FullName("Bob", "Saint-Clar")),
                     1);
                 var record2 = new TestDatabase.CompoundKeys(
-                    new TestDatabase.VersionedName(new TestDatabase.FullName("Mick", "Terrible"), 47),
+                    new TestDatabase.VersionedName(47, new TestDatabase.FullName("Mick", "Terrible")),
                     1);
                 var record3 = new TestDatabase.CompoundKeys(
-                    new TestDatabase.VersionedName(new TestDatabase.FullName("Zela", "Fantastic"), -23),
+                    new TestDatabase.VersionedName(-23, new TestDatabase.FullName("Zela", "Fantastic")),
                     1);
 
                 db.CompoundKeyTable.AppendRecord(record1);

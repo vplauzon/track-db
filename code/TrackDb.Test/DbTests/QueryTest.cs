@@ -173,18 +173,18 @@ namespace TrackDb.Test.DbTests
             {
                 var record1 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(
-                        new TestDatabase.FullName("Albain", "Forn"),
-                        78),
+                        78,
+                        new TestDatabase.FullName("Albain", "Forn")),
                     12);
                 var record2 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(
-                        new TestDatabase.FullName("Sylverter", "Magnus"),
-                        15),
+                        15,
+                        new TestDatabase.FullName("Sylverter", "Magnus")),
                     25);
                 var record3 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(
-                        new TestDatabase.FullName("Yulnick", "Barn"),
-                        897),
+                        897,
+                        new TestDatabase.FullName("Yulnick", "Barn")),
                     1562);
 
                 db.CompoundKeyTable.AppendRecord(record1);

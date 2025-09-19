@@ -120,7 +120,7 @@ namespace TrackDb.Lib
 
                             parameterMapping.ConstructorMapping.ObjectToColumns(
                                 propertyValue,
-                                columns.Slice(0, columnCount));
+                                remainingColumns.Slice(0, columnCount));
                             remainingColumns = remainingColumns.Slice(columnCount);
                         }
                     }

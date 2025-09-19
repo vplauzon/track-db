@@ -17,7 +17,7 @@ namespace TrackDb.Test.DbTests
 
         public record FullName(string FirstName, string LastName);
 
-        public record VersionedName(FullName FullName, int Version);
+        public record VersionedName(int Version, FullName FullName);
 
         public record CompoundKeys(VersionedName VersionedName, short Value);
         
