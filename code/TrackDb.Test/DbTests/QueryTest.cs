@@ -235,6 +235,46 @@ namespace TrackDb.Test.DbTests
         }
 
         [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task QueryOnlyOtherTypes(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                var record1 = new TestDatabase.OtherTypes(new Uri("https://mine.org"));
+                var record2 = new TestDatabase.OtherTypes(new Uri("https://yours.org"));
+                var record3 = new TestDatabase.OtherTypes(new Uri("https://theirs.org"));
+
+                db.OtherTypesTable.AppendRecord(record1);
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.OtherTypesTable.AppendRecord(record2);
+                db.OtherTypesTable.AppendRecord(record3);
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var resultsAll = db.OtherTypesTable.Query()
+                    .ToImmutableList();
+
+                Assert.Equal(3, resultsAll.Count);
+                Assert.Contains(record1, resultsAll);
+                Assert.Contains(record2, resultsAll);
+                Assert.Contains(record3, resultsAll);
+
+                var results2 = db.OtherTypesTable.Query()
+                    .Where(pf => pf.Equal(r => r.Uri, record2.Uri))
+                    .ToImmutableList();
+
+                Assert.Single(results2);
+                Assert.Equal(record2, results2.First());
+            }
+        }
+
+        [Theory]
         [InlineData(false, false, false)]
         [InlineData(true, false, false)]
         [InlineData(true, true, false)]

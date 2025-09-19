@@ -46,6 +46,22 @@ namespace TrackDb.Test.DbTests
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
+        public async Task OneOtherTypesRecord(bool doPushPendingData)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                var record = new TestDatabase.OtherTypes(new Uri("https://mine.org"));
+
+                db.OtherTypesTable.AppendRecord(record);
+                await db.Database.ForceDataManagementAsync(doPushPendingData
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public async Task MultipleRecords(bool doPushPendingData)
         {
             await using (var db = await TestDatabase.CreateAsync())

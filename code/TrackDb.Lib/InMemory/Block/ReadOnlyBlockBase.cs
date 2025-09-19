@@ -73,6 +73,7 @@ namespace TrackDb.Lib.InMemory.Block
             builder.Add(typeof(bool?), capacity => new ArrayBoolColumn(true, capacity));
             builder.Add(typeof(DateTime), capacity => new ArrayDateTimeColumn(false, capacity));
             builder.Add(typeof(DateTime?), capacity => new ArrayDateTimeColumn(true, capacity));
+            builder.Add(typeof(Uri), capacity => new ArrayUriColumn(true, capacity));
 
             _dataFactoryMap = builder.ToImmutable();
         }

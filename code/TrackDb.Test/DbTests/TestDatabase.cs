@@ -20,11 +20,14 @@ namespace TrackDb.Test.DbTests
         public record VersionedName(FullName FullName, int Version);
 
         public record CompoundKeys(VersionedName VersionedName, short Value);
+        
+        public record OtherTypes(Uri Uri);
         #endregion
 
         private const string PRIMITIVES_TABLE = "Primitives";
         private const string MULTI_INTEGERS_TABLE = "MultiIntegers";
         private const string COMPOUND_KEYS_TABLE = "CompoundKeys";
+        private const string OTHER_TYPES_TABLE = "OtherTypes";
 
         #region Constructor
         public static async Task<TestDatabase> CreateAsync()
@@ -33,7 +36,8 @@ namespace TrackDb.Test.DbTests
                 new DatabasePolicies(),
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE),
-                TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE));
+                TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE),
+                TypedTableSchema<OtherTypes>.FromConstructor(OTHER_TYPES_TABLE));
 
             return new TestDatabase(db);
         }
@@ -59,5 +63,8 @@ namespace TrackDb.Test.DbTests
 
         public TypedTable<CompoundKeys> CompoundKeyTable
             => Database.GetTypedTable<CompoundKeys>(COMPOUND_KEYS_TABLE);
+
+        public TypedTable<OtherTypes> OtherTypesTable
+            => Database.GetTypedTable<OtherTypes>(OTHER_TYPES_TABLE);
     }
 }
