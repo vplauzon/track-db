@@ -14,6 +14,33 @@ namespace TrackDb.Test.DbTests
         [InlineData(true, false)]
         [InlineData(false, true)]
         [InlineData(true, true)]
+        public async Task Take0(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
+                db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var resultsAll = db.PrimitiveTable.Query()
+                    .Take(0)
+                    .ToImmutableList();
+
+                Assert.Empty(resultsAll);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
         public async Task AllOperators(bool doPushPendingData1, bool doPushPendingData2)
         {
             await using (var db = await TestDatabase.CreateAsync())
