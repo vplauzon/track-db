@@ -292,5 +292,41 @@ namespace TrackDb.Lib
         {
             return (T)_columnsToObjectFunc(columns);
         }
+
+        internal bool TryGetColumnIndex(Expression expression, out int columnIndex)
+        {
+            string GetPropertyPath(Expression expression, string? suffix)
+            {
+                if (expression is LambdaExpression le)
+                {
+                    expression = le.Body;
+                }
+                if (expression is ParameterExpression)
+                {
+                    return suffix ?? string.Empty;
+                }
+                else if (expression is MemberExpression me)
+                {
+                    if (me.Member is PropertyInfo pi)
+                    {
+                        var newSuffix = suffix == null ? pi.Name : $"{pi.Name}.{suffix}";
+
+                        return GetPropertyPath(me.Expression!, newSuffix);
+                    }
+                    else
+                    {
+                        throw new NotSupportedException($"MemberInfo '{me.GetType().Name}'");
+                    }
+                }
+                else
+                {
+                    throw new NotSupportedException($"Expression '{expression}'");
+                }
+            }
+
+            var path = GetPropertyPath(expression, null);
+
+            return TryGetColumnIndex(path, out columnIndex);
+        }
     }
 }

@@ -261,6 +261,63 @@ namespace TrackDb.Test.DbTests
             }
         }
 
+
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task QueryOnlyCompoundKeyNode(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                var record1 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        78,
+                        new TestDatabase.FullName("Albain", "Forn")),
+                    12);
+                var record2 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        15,
+                        new TestDatabase.FullName("Albain", "Forn")),
+                    25);
+                var record3 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        897,
+                        new TestDatabase.FullName("Yulnick", "Barn")),
+                    1562);
+
+                db.CompoundKeyTable.AppendRecord(record1);
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.CompoundKeyTable.AppendRecord(record2);
+                db.CompoundKeyTable.AppendRecord(record3);
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var resultsNotEqualVersionedName = db.CompoundKeyTable.Query()
+                    .Where(pf => pf.NotEqual(r => r.VersionedName, record2.VersionedName))
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsNotEqualVersionedName.Count);
+                Assert.Contains(record1, resultsNotEqualVersionedName);
+                Assert.Contains(record3, resultsNotEqualVersionedName);
+
+                var resultsEqualFullName = db.CompoundKeyTable.Query()
+                    .Where(pf => pf.Equal(
+                        r => r.VersionedName.FullName,
+                        record2.VersionedName.FullName))
+                    .ToImmutableList();
+
+                Assert.Equal(2, resultsEqualFullName.Count);
+                Assert.Contains(record1, resultsNotEqualVersionedName);
+                Assert.Contains(record2, resultsNotEqualVersionedName);
+            }
+        }
+
         [Theory]
         [InlineData(false, false)]
         [InlineData(true, false)]

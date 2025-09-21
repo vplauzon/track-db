@@ -27,13 +27,20 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicate<T>(
-                new NegationPredicate(
-                    new BinaryOperatorPredicate(
-                        GetColumnIndexes(propertySelection.Body),
-                        value,
-                        BinaryOperator.Equal)),
-                Schema);
+            if (Schema.TryGetColumnIndex(propertySelection.Body, out var columnIndex))
+            {
+                return new TypedQueryPredicate<T>(
+                    new NegationPredicate(
+                        new BinaryOperatorPredicate(
+                            GetColumnIndexes(propertySelection.Body),
+                            value,
+                            BinaryOperator.Equal)),
+                    Schema);
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
         }
 
         public TypedQueryPredicate<T> In<U>(
