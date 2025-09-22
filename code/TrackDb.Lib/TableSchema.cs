@@ -17,10 +17,12 @@ namespace TrackDb.Lib
         public TableSchema(
             string tableName,
             IEnumerable<ColumnSchema> columns,
+            IEnumerable<int> primaryKeyColumnIndexes,
             IEnumerable<int> partitionKeyColumnIndexes)
             : this(
                   tableName,
                   columns.ToImmutableArray(),
+                  primaryKeyColumnIndexes.ToImmutableArray(),
                   partitionKeyColumnIndexes.ToImmutableArray())
         {
         }
@@ -28,6 +30,7 @@ namespace TrackDb.Lib
         public TableSchema(
             string tableName,
             IImmutableList<ColumnSchema> columns,
+            IImmutableList<int> primaryKeyColumnIndexes,
             IImmutableList<int> partitionKeyColumnIndexes)
         {
             //  Validate column types
@@ -73,6 +76,7 @@ namespace TrackDb.Lib
 
             TableName = tableName;
             Columns = columns.ToImmutableList();
+            PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();
             _columnNameToColumnIndexMap = Columns
                 .Index()
@@ -83,6 +87,13 @@ namespace TrackDb.Lib
 
         public IImmutableList<ColumnSchema> Columns { get; }
 
+        /// <summary>
+        /// Primary keys are used in
+        /// <see cref="Table.UpdateRecord(ReadOnlySpan{object?}, ReadOnlySpan{object?}, TransactionContext?)"/>.
+        /// It is used to delete an old record by doing a where-clause on its primary key.
+        /// </summary>
+        public IImmutableList<int> PrimaryKeyColumnIndexes { get; }
+        
         public IImmutableList<int> PartitionKeyColumnIndexes { get; }
 
         public int FindColumnIndex(string columnName)

@@ -19,6 +19,7 @@ namespace TrackDb.Lib
 
         public TableSchema Schema { get; }
 
+        #region Append
         public void AppendRecord(
             ReadOnlySpan<object?> record,
             TransactionContext? transactionContext = null)
@@ -69,5 +70,16 @@ namespace TrackDb.Lib
                 record,
                 Schema);
         }
+        #endregion
+
+        #region Update
+        public void UpdateRecord(
+            ReadOnlySpan<object?> oldVersionRecord,
+            ReadOnlySpan<object?> newVersionRecord,
+            TransactionContext? tx = null)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
     }
 }

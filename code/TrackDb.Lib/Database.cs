@@ -292,6 +292,7 @@ namespace TrackDb.Lib
             var metaDataSchema = new TableSchema(
                 metaDataTableName,
                 metaDataColumns,
+                Array.Empty<int>(),
                 Array.Empty<int>());
 
             return metaDataSchema;

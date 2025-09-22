@@ -293,6 +293,7 @@ namespace TrackDb.Lib
             return new TypedTableSchema<T>(
                 tableName,
                 ImmutableArray<int>.Empty,
+                ImmutableArray<int>.Empty,
                 constructorMapping,
                 constructorMapping.GetIndexedMappings(),
                 constructorMapping.GetPropertyPathToColumnIndexesMap());
@@ -300,11 +301,16 @@ namespace TrackDb.Lib
 
         private TypedTableSchema(
             string tableName,
+            IImmutableList<int> primaryKeyColumnIndexes,
             IImmutableList<int> partitionKeyColumnIndexes,
             ConstructorMapping mainConstructorMapping,
             IImmutableDictionary<Type, ConstructorMapping> constructorMappingByType,
             IImmutableDictionary<string, IImmutableList<int>> propertyPathToColumnIndexesMap)
-            : base(tableName, mainConstructorMapping.ColumnSchemas, partitionKeyColumnIndexes)
+            : base(
+                  tableName,
+                  mainConstructorMapping.ColumnSchemas,
+                  primaryKeyColumnIndexes,
+                  partitionKeyColumnIndexes)
         {
             _mainConstructorMapping = mainConstructorMapping;
             _constructorMappingByType = mainConstructorMapping.GetIndexedMappings();
@@ -315,6 +321,24 @@ namespace TrackDb.Lib
         }
         #endregion
 
+        /// <summary>Add a primary key column mapped to a property.</summary>
+        /// <typeparam name="PT"></typeparam>
+        /// <param name="propertyExtractor"></param>
+        /// <returns></returns>
+        public TypedTableSchema<T> AddPrimaryKeyProperty<PT>(
+            Expression<Func<T, PT>> propertyExtractor)
+        {
+            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
+
+            return new TypedTableSchema<T>(
+                TableName,
+                PrimaryKeyColumnIndexes.Concat(columnIndexSubset).ToImmutableArray(),
+                PartitionKeyColumnIndexes,
+                _mainConstructorMapping,
+                _constructorMappingByType,
+                _propertyPathToColumnIndexesMap);
+        }
+
         /// <summary>
         /// Add a partition key column mapped to a property.
         /// </summary>
@@ -324,38 +348,15 @@ namespace TrackDb.Lib
         public TypedTableSchema<T> AddPartitionKeyProperty<PT>(
             Expression<Func<T, PT>> propertyExtractor)
         {
-            if (propertyExtractor.Body is MemberExpression me)
-            {
-                if (me.Member.MemberType == MemberTypes.Property)
-                {
-                    var propertyName = me.Member.Name;
-                    //  Is it from the input object?
+            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
 
-                    if (!TryGetColumnIndex(propertyName, out var columnIndex))
-                    {
-                        throw new ArgumentException(
-                            $"Property '{propertyName}' isn't mapped to a column",
-                            nameof(propertyExtractor));
-                    }
-
-                    return new TypedTableSchema<T>(
-                        TableName,
-                        PartitionKeyColumnIndexes.Append(columnIndex).ToImmutableArray(),
-                        _mainConstructorMapping,
-                        _constructorMappingByType,
-                        _propertyPathToColumnIndexesMap);
-                }
-                else
-                {
-                    throw new NotSupportedException(
-                        $"Primary key expression only supports properties:  '{propertyExtractor}'");
-                }
-            }
-            else
-            {
-                throw new NotSupportedException(
-                    $"Primary key expression not supported:  '{propertyExtractor}'");
-            }
+            return new TypedTableSchema<T>(
+                TableName,
+                PrimaryKeyColumnIndexes,
+                PartitionKeyColumnIndexes.Concat(columnIndexSubset).ToImmutableArray(),
+                _mainConstructorMapping,
+                _constructorMappingByType,
+                _propertyPathToColumnIndexesMap);
         }
 
         internal ReadOnlySpan<object?> FromObjectToColumns(T record)

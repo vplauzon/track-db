@@ -16,6 +16,7 @@ namespace TrackDb.Test.PrefixTruncate
         private readonly TableSchema _schema = new(
             "MyTable",
             new[] { new ColumnSchema("MyColumn", typeof(int)) },
+            Array.Empty<int>(),
             Array.Empty<int>());
 
         [Fact]

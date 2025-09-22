@@ -59,14 +59,17 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        #region Query
+        #region Update
 
         internal void UpdateRecord(
             T oldRecordVersion,
             T newRecordVersion,
-            TransactionContext? transactionContext = null)
+            TransactionContext? tx = null)
         {
-            throw new NotImplementedException();
+            var oldColumns = Schema.FromObjectToColumns(oldRecordVersion);
+            var newColumns = Schema.FromObjectToColumns(newRecordVersion);
+
+            UpdateRecord(oldColumns, newColumns, tx);
         }
         #endregion
     }
