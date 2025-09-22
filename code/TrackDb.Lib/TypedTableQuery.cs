@@ -121,13 +121,16 @@ namespace TrackDb.Lib
             {
                 throw new InvalidOperationException("ThenBy must come after an orderby");
             }
-            if (_table.Schema.TryGetColumnIndex(propertySelector.Body, out var columnIndex))
+
+            var columnIndexSubset = _table.Schema.GetColumnIndexSubset(propertySelector.Body);
+
+            if (columnIndexSubset.Count == 1)
             {
                 return new TypedTableQuery<T>(
                     _table,
                     _transactionContext,
                     _predicate,
-                    _sortColumns.Add(new SortColumn(columnIndex, isAscending)),
+                    _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
                     _takeCount);
             }
             else

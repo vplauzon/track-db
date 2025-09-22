@@ -40,7 +40,81 @@ namespace TrackDb.Lib
                 return new ConstructorMapping(argMaxConstructor, parameterMappings, columnSchemas);
             }
 
-            public ReadOnlySpan<object?> ObjectToColumns(T record)
+            public IImmutableDictionary<Type, ConstructorMapping> GetIndexedMappings()
+            {
+                return ListIndexedMappings()
+                    .Select(p => new
+                    {
+                        Type = p.Item1,
+                        Mapping = p.Item2
+                    })
+                    //  Take only on mapping per type (in case a type shows up multiple times)
+                    .GroupBy(o => o.Type)
+                    .Select(g => g.First())
+                    .ToImmutableDictionary(o => o.Type, o => o.Mapping);
+            }
+
+            private IEnumerable<(Type, ConstructorMapping)> ListIndexedMappings()
+            {
+                yield return (ConstructorInfo.DeclaringType!, this);
+
+                foreach (var cpm in ConstructorParameterMappings)
+                {
+                    if (cpm.ConstructorMapping != null)
+                    {
+                        foreach (var mapping in cpm.ConstructorMapping.ListIndexedMappings())
+                        {
+                            yield return mapping;
+                        }
+                    }
+                }
+            }
+
+            public IImmutableDictionary<string, IImmutableList<int>> GetPropertyPathToColumnIndexesMap()
+            {
+                return ListPropertyPathToColumnIndexes(string.Empty, 0)
+                    .ToImmutableDictionary(p => p.Item1, p => p.Item2);
+            }
+
+            public IEnumerable<(string, IImmutableList<int>)> ListPropertyPathToColumnIndexes(
+                string propertyPathPrefix,
+                int indexStart)
+            {   //  Entire node
+                yield return (
+                    propertyPathPrefix,
+                    Enumerable.Range(0, ColumnSchemas.Count)
+                    .Select(i => i + indexStart)
+                    .ToImmutableList());
+
+                foreach (var cpm in ConstructorParameterMappings)
+                {
+                    var subPrefix = string.IsNullOrWhiteSpace(propertyPathPrefix)
+                        ? cpm.PropertyInfo.Name
+                        : $"{propertyPathPrefix}.{cpm.PropertyInfo.Name}";
+
+                    if (cpm.ConstructorMapping == null)
+                    {   //  Property leaf
+                        yield return (
+                            subPrefix,
+                            Enumerable.Range(0, 1)
+                            .Select(i => i + indexStart)
+                            .ToImmutableList());
+                    }
+                    else
+                    {
+                        foreach (var pair in
+                            cpm.ConstructorMapping.ListPropertyPathToColumnIndexes(
+                                subPrefix,
+                                indexStart))
+                        {   //  Recursive
+                            yield return pair;
+                        }
+                    }
+                    ++indexStart;
+                }
+            }
+
+            public ReadOnlySpan<object?> ObjectToColumns(object record)
             {
                 var buffer = new object?[ColumnSchemas.Count];
 
@@ -199,8 +273,9 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        private readonly Func<T, ReadOnlySpan<object?>> _objectToColumnsFunc;
-        private readonly Func<ReadOnlySpan<object?>, object> _columnsToObjectFunc;
+        private readonly ConstructorMapping _mainConstructorMapping;
+        private readonly IImmutableDictionary<Type, ConstructorMapping> _constructorMappingByType;
+        private readonly IImmutableDictionary<string, IImmutableList<int>> _propertyPathToColumnIndexesMap;
 
         #region Constructor
         /// <summary>
@@ -214,29 +289,29 @@ namespace TrackDb.Lib
         public static TypedTableSchema<T> FromConstructor(string tableName)
         {
             var constructorMapping = ConstructorMapping.FromConstructor(typeof(T));
-            var columnSchemas = constructorMapping.ColumnSchemas
-                .ToImmutableArray();
-            var objectToColumnsFunc = constructorMapping.ObjectToColumns;
-            var columnsToObjectFunc = constructorMapping.ColumnsToObject;
 
             return new TypedTableSchema<T>(
                 tableName,
                 ImmutableArray<int>.Empty,
-                columnSchemas,
-                objectToColumnsFunc,
-                columnsToObjectFunc);
+                constructorMapping,
+                constructorMapping.GetIndexedMappings(),
+                constructorMapping.GetPropertyPathToColumnIndexesMap());
         }
 
         private TypedTableSchema(
             string tableName,
             IImmutableList<int> partitionKeyColumnIndexes,
-            IImmutableList<ColumnSchema> columnSchemas,
-            Func<T, ReadOnlySpan<object?>> objectToColumnsFunc,
-            Func<ReadOnlySpan<object?>, object> columnsToObjectFunc)
-            : base(tableName, columnSchemas, partitionKeyColumnIndexes)
+            ConstructorMapping mainConstructorMapping,
+            IImmutableDictionary<Type, ConstructorMapping> constructorMappingByType,
+            IImmutableDictionary<string, IImmutableList<int>> propertyPathToColumnIndexesMap)
+            : base(tableName, mainConstructorMapping.ColumnSchemas, partitionKeyColumnIndexes)
         {
-            _objectToColumnsFunc = objectToColumnsFunc;
-            _columnsToObjectFunc = columnsToObjectFunc;
+            _mainConstructorMapping = mainConstructorMapping;
+            _constructorMappingByType = mainConstructorMapping.GetIndexedMappings();
+            _propertyPathToColumnIndexesMap =
+                mainConstructorMapping.GetPropertyPathToColumnIndexesMap();
+            _constructorMappingByType = constructorMappingByType;
+            _propertyPathToColumnIndexesMap = propertyPathToColumnIndexesMap;
         }
         #endregion
 
@@ -266,9 +341,9 @@ namespace TrackDb.Lib
                     return new TypedTableSchema<T>(
                         TableName,
                         PartitionKeyColumnIndexes.Append(columnIndex).ToImmutableArray(),
-                        Columns,
-                        _objectToColumnsFunc,
-                        _columnsToObjectFunc);
+                        _mainConstructorMapping,
+                        _constructorMappingByType,
+                        _propertyPathToColumnIndexesMap);
                 }
                 else
                 {
@@ -285,15 +360,21 @@ namespace TrackDb.Lib
 
         internal ReadOnlySpan<object?> FromObjectToColumns(T record)
         {
-            return _objectToColumnsFunc(record);
+            return _mainConstructorMapping.ObjectToColumns(record!);
         }
 
         internal T FromColumnsToObject(ReadOnlySpan<object?> columns)
         {
-            return (T)_columnsToObjectFunc(columns);
+            return (T)_mainConstructorMapping.ColumnsToObject(columns);
         }
 
-        internal bool TryGetColumnIndex(Expression expression, out int columnIndex)
+        internal ReadOnlySpan<object?> FromPropertyValueToColumns(object propertyValue)
+        {
+            return _constructorMappingByType[propertyValue.GetType()]
+                .ObjectToColumns(propertyValue);
+        }
+
+        internal IImmutableList<int> GetColumnIndexSubset(Expression expression)
         {
             string GetPropertyPath(Expression expression, string? suffix)
             {
@@ -326,7 +407,15 @@ namespace TrackDb.Lib
 
             var path = GetPropertyPath(expression, null);
 
-            return TryGetColumnIndex(path, out columnIndex);
+            if (_propertyPathToColumnIndexesMap.TryGetValue(path, out var subset))
+            {
+                return subset;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Property path '{path}' doesn't map to a subset of columns");
+            }
         }
     }
 }

@@ -40,7 +40,7 @@ namespace TrackDb.Test
         public void TestNestedPropertyAccess()
         {
             const string TABLE_NAME = "NestedTable";
-            
+
             var schema = TypedTableSchema<NestedProperties>.FromConstructor(TABLE_NAME);
 
             // Verify schema creation with nested properties
@@ -50,13 +50,15 @@ namespace TrackDb.Test
 
             // Test single-level property access
             Expression<Func<NestedProperties, string>> expression1 = p => p.Inner.Name;
-            Assert.True(schema.TryGetColumnIndex(expression1, out var columnIndex1));
-            Assert.Equal(0, columnIndex1);
+
+            Assert.Single(schema.GetColumnIndexSubset(expression1));
+            Assert.Equal(0, schema.GetColumnIndexSubset(expression1)[0]);
 
             // Test multi-level property access
             Expression<Func<NestedProperties, int>> expression2 = p => p.Inner.More.Value;
-            Assert.True(schema.TryGetColumnIndex(expression2, out var columnIndex2));
-            Assert.Equal(1, columnIndex2);
+
+            Assert.Single(schema.GetColumnIndexSubset(expression2));
+            Assert.Equal(1, schema.GetColumnIndexSubset(expression2)[0]);
         }
     }
 }
