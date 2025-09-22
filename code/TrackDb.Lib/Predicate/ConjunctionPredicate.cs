@@ -47,7 +47,7 @@ namespace TrackDb.Lib.Predicate
 
                 if (sl != null || sr != null)
                 {
-                    QueryPredicate simplified =
+                    var simplified =
                         new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
 
                     return simplified.Simplify() ?? simplified;

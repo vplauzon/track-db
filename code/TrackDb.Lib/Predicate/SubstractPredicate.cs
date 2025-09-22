@@ -26,7 +26,20 @@ namespace TrackDb.Lib.Predicate
             }
             else
             {
-                return null;
+                var sl = LeftPredicate.Simplify();
+                var sr = RightPredicate.Simplify();
+
+                if (sl != null || sr != null)
+                {
+                    var simplified =
+                        new SubstractPredicate(sl ?? LeftPredicate, sr ?? RightPredicate);
+
+                    return simplified.Simplify() ?? simplified;
+                }
+                else
+                {
+                    return null;
+                }
             }
         }
 
