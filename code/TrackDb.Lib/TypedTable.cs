@@ -58,5 +58,16 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(this, transactionContext);
         }
         #endregion
+
+        #region Query
+
+        internal void UpdateRecord(
+            T oldRecordVersion,
+            T newRecordVersion,
+            TransactionContext? transactionContext = null)
+        {
+            throw new NotImplementedException();
+        }
+        #endregion
     }
 }
