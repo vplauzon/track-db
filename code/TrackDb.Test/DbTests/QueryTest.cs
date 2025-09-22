@@ -313,8 +313,8 @@ namespace TrackDb.Test.DbTests
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsEqualFullName.Count);
-                Assert.Contains(record1, resultsNotEqualVersionedName);
-                Assert.Contains(record2, resultsNotEqualVersionedName);
+                Assert.Contains(record1, resultsEqualFullName);
+                Assert.Contains(record2, resultsEqualFullName);
             }
         }
 
