@@ -61,7 +61,7 @@ namespace TrackDb.Lib
 
         #region Update
 
-        internal void UpdateRecord(
+        internal int UpdateRecord(
             T oldRecordVersion,
             T newRecordVersion,
             TransactionContext? tx = null)
@@ -69,7 +69,7 @@ namespace TrackDb.Lib
             var oldColumns = Schema.FromObjectToColumns(oldRecordVersion);
             var newColumns = Schema.FromObjectToColumns(newRecordVersion);
 
-            UpdateRecord(oldColumns, newColumns, tx);
+            return UpdateRecord(oldColumns, newColumns, tx);
         }
         #endregion
     }

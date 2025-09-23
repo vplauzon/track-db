@@ -21,13 +21,20 @@ namespace TrackDb.Test.DbTests
                 var record1 = new TestDatabase.MultiIntegers(10, 1, 2, 3);
                 var record2 = new TestDatabase.MultiIntegers(11, 1, 2, 3);
                 var record3 = new TestDatabase.MultiIntegers(12, 1, 2, 3);
-                await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
-                    : DataManagementActivity.None);
                 var record4 = new TestDatabase.MultiIntegers(13, 1, 2, 3);
                 var newRecord2 = new TestDatabase.MultiIntegers(11, 11, 21, 31);
 
-                db.MultiIntegerTable.UpdateRecord(record2, newRecord2);
+                db.MultiIntegerTable.AppendRecord(record1);
+                db.MultiIntegerTable.AppendRecord(record2);
+                db.MultiIntegerTable.AppendRecord(record3);
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.MultiIntegerTable.AppendRecord(record4);
+
+                var recordDeletedCount = db.MultiIntegerTable.UpdateRecord(record2, newRecord2);
+
+                Assert.Equal(1, recordDeletedCount);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
@@ -58,9 +65,6 @@ namespace TrackDb.Test.DbTests
                 var record2 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(1, new TestDatabase.FullName("Bob", "Dan")),
                     3000);
-                await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
-                    : DataManagementActivity.None);
                 var record3 = new TestDatabase.CompoundKeys(
                     new TestDatabase.VersionedName(1, new TestDatabase.FullName("Carl", "Fyr")),
                     4000);
@@ -68,7 +72,16 @@ namespace TrackDb.Test.DbTests
                     new TestDatabase.VersionedName(2, new TestDatabase.FullName("Carl", "Fyr")),
                     5000);
 
-                db.CompoundKeyTable.UpdateRecord(record3, newRecord3);
+                db.CompoundKeyTable.AppendRecord(record1);
+                db.CompoundKeyTable.AppendRecord(record2);
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.CompoundKeyTable.AppendRecord(record3);
+
+                var recordDeletedCount = db.CompoundKeyTable.UpdateRecord(record3, newRecord3);
+
+                Assert.Equal(1, recordDeletedCount);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
                     ? DataManagementActivity.PersistAllUserData
                     : DataManagementActivity.None);
@@ -76,7 +89,7 @@ namespace TrackDb.Test.DbTests
                 var resultsAll = db.CompoundKeyTable.Query()
                     .ToImmutableList();
 
-                Assert.Equal(4, resultsAll.Count);
+                Assert.Equal(3, resultsAll.Count);
                 Assert.Contains(record1, resultsAll);
                 Assert.Contains(record2, resultsAll);
                 Assert.Contains(newRecord3, resultsAll);

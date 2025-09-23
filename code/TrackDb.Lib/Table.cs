@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
@@ -73,12 +74,81 @@ namespace TrackDb.Lib
         #endregion
 
         #region Update
-        public void UpdateRecord(
+        public int UpdateRecord(
             ReadOnlySpan<object?> oldVersionRecord,
             ReadOnlySpan<object?> newVersionRecord,
             TransactionContext? tx = null)
         {
-            throw new NotImplementedException();
+            if (oldVersionRecord.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{oldVersionRecord.Length}'",
+                    nameof(oldVersionRecord));
+            }
+            if (newVersionRecord.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{newVersionRecord.Length}'",
+                    nameof(newVersionRecord));
+            }
+            if (tx != null)
+            {
+                return UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
+            }
+            else
+            {
+                using (tx = Database.CreateTransaction())
+                {
+                    var deletedCount =
+                        UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
+
+                    tx.Complete();
+
+                    return deletedCount;
+                }
+            }
+        }
+
+        private int UpdateRecordInternal(
+            ReadOnlySpan<object?> oldVersionRecord,
+            ReadOnlySpan<object?> newVersionRecord,
+            TransactionContext? tx)
+        {
+            var predicate = CreatePrimaryKeyEqualPredicate(oldVersionRecord);
+            var query = new TableQuery(this, tx, predicate, Array.Empty<int>());
+            var deletedRecordCount = query.Delete();
+
+            AppendRecord(newVersionRecord, tx);
+
+            return deletedRecordCount;
+        }
+
+        private QueryPredicate CreatePrimaryKeyEqualPredicate(
+            ReadOnlySpan<object?> oldVersionRecord)
+        {
+            QueryPredicate? predicate = null;
+
+            foreach (var columnIndex in Schema.PrimaryKeyColumnIndexes)
+            {
+                var value = oldVersionRecord[columnIndex];
+                var newPredicate = new BinaryOperatorPredicate(
+                    columnIndex,
+                    value,
+                    BinaryOperator.Equal);
+
+                predicate = predicate == null
+                    ? newPredicate
+                    : new ConjunctionPredicate(predicate, newPredicate);
+            }
+
+            if (predicate == null)
+            {
+                throw new InvalidOperationException(
+                    $"No primary defined on table '{Schema.TableName}':  " +
+                    $"can't participate in an update");
+            }
+
+            return predicate!;
         }
         #endregion
     }

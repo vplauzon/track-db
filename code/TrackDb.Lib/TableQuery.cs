@@ -146,9 +146,13 @@ namespace TrackDb.Lib
             return count;
         }
 
-        public void Delete()
+        /// <summary>
+        /// Delete record matching query predicate.
+        /// </summary>
+        /// <returns>Number of records deleted.</returns>
+        public int Delete()
         {
-            _table.Database.ExecuteWithinTransactionContext(
+            return _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
                 tc =>
                 {
@@ -183,6 +187,12 @@ namespace TrackDb.Lib
                                 _table.Schema.TableName,
                                 tc);
                         }
+
+                        return deletedRecordIds.Count;
+                    }
+                    else
+                    {
+                        return 0;
                     }
                 });
         }

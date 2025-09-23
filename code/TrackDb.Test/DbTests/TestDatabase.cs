@@ -20,7 +20,7 @@ namespace TrackDb.Test.DbTests
         public record VersionedName(int Version, FullName FullName);
 
         public record CompoundKeys(VersionedName VersionedName, short Value);
-        
+
         public record OtherTypes(Uri Uri);
         #endregion
 
@@ -35,8 +35,10 @@ namespace TrackDb.Test.DbTests
             var db = await Database.CreateAsync(
                 new DatabasePolicies(),
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
-                TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE),
-                TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE),
+                TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)
+                .AddPrimaryKeyProperty(m => m.Integer1),
+                TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE)
+                .AddPrimaryKeyProperty(m => m.VersionedName.FullName),
                 TypedTableSchema<OtherTypes>.FromConstructor(OTHER_TYPES_TABLE));
 
             return new TestDatabase(db);
