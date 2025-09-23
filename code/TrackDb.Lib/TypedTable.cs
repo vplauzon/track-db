@@ -60,8 +60,7 @@ namespace TrackDb.Lib
         #endregion
 
         #region Update
-
-        internal int UpdateRecord(
+        public int UpdateRecord(
             T oldRecordVersion,
             T newRecordVersion,
             TransactionContext? tx = null)
