@@ -9,7 +9,13 @@ namespace TrackDb.Lib.InMemory.Block
     internal class BlockBuilder : ReadOnlyBlockBase
     {
         #region Inner types
-        private record TruncationBound(int RecordCount, int Size);
+        private record TruncationBound(int RecordCount, int Size)
+        {
+            public override string ToString()
+            {
+                return $"(Count={RecordCount}, Size={Size})";
+            }
+        }
         #endregion
 
         private const int MAX_TRUNCATE_OPTIMIZATION_ROUNDS = 5;
@@ -295,7 +301,9 @@ namespace TrackDb.Lib.InMemory.Block
                 }
                 else
                 {
-                    throw new NotSupportedException();
+                    throw new NotSupportedException(
+                        $"Lower:  {lowerTruncationBound} ; New Lower:  {newLowerTruncationBound} ; " +
+                        $"Upper:  {upperTruncationBound} ; New Upper:  {newUpperTruncationBound}");
                 }
             }
         }
