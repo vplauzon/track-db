@@ -266,11 +266,15 @@ namespace TrackDb.Lib.InMemory.Block
                 block.RecordCount,
                 (int)Math.Ceiling((maxSize - bias) / slope));
             var newBlock = CreateTruncatedBlock(interpolatedCount);
+            var interpolatedBound = new TruncationBound(
+                interpolatedCount,
+                newBlock.Serialize().Payload.Length);
 
-            if (interpolatedCount == lowerTruncationBound.RecordCount
-                || interpolatedCount == upperTruncationBound.RecordCount)
+            if (interpolatedBound.RecordCount == lowerTruncationBound.RecordCount
+                || interpolatedBound.RecordCount == upperTruncationBound.RecordCount)
             {   //  Interpolation didn't move boundaries
-                if (interpolatedCount == 0)
+                if (interpolatedBound.RecordCount == 0
+                    || (interpolatedBound.Size > maxSize && lowerTruncationBound.RecordCount == 0))
                 {
                     throw new InvalidOperationException("Interpolation failed:  can't move from zero");
                 }
@@ -281,17 +285,14 @@ namespace TrackDb.Lib.InMemory.Block
             }
             else
             {
-                var size = newBlock.Serialize().Payload.Length;
-                var interpolatedBound = new TruncationBound(interpolatedCount, size);
-
-                if (size == maxSize
-                    || (interpolatedCount == block.RecordCount && size <= maxSize))
+                if (interpolatedBound.Size == maxSize
+                    || (interpolatedCount == block.RecordCount && interpolatedBound.Size <= maxSize))
                 {
                     return newBlock;
                 }
                 else if (interpolatedBound.RecordCount < upperTruncationBound.RecordCount)
                 {   //  Case of x3<x2
-                    if (size > maxSize)
+                    if (interpolatedBound.Size > maxSize)
                     {
                         return OptimizePrefixTruncation(
                             lowerTruncationBound,
