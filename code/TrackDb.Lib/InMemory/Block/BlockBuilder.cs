@@ -262,7 +262,9 @@ namespace TrackDb.Lib.InMemory.Block
             var slope = (double)(upperTruncationBound.Size - lowerTruncationBound.Size)
                 / (upperTruncationBound.RecordCount - lowerTruncationBound.RecordCount);
             var bias = upperTruncationBound.Size - slope * upperTruncationBound.RecordCount;
-            var interpolatedCount = (int)Math.Ceiling((maxSize - bias) / slope);
+            var interpolatedCount = Math.Min(
+                block.RecordCount,
+                (int)Math.Ceiling((maxSize - bias) / slope));
             var newBlock = CreateTruncatedBlock(interpolatedCount);
 
             if (interpolatedCount == lowerTruncationBound.RecordCount
@@ -277,16 +279,13 @@ namespace TrackDb.Lib.InMemory.Block
                     return newBlock;
                 }
             }
-            else if (interpolatedCount >= block.RecordCount)
-            {
-                return newBlock;
-            }
             else
             {
                 var size = newBlock.Serialize().Payload.Length;
                 var interpolatedBound = new TruncationBound(interpolatedCount, size);
 
-                if (size == maxSize)
+                if (size == maxSize
+                    || (interpolatedCount == block.RecordCount && size <= maxSize))
                 {
                     return newBlock;
                 }

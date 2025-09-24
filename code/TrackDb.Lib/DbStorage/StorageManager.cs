@@ -52,7 +52,9 @@ namespace TrackDb.Lib.DbStorage
         {
             if (buffer.Length == 0 || buffer.Length > BLOCK_SIZE)
             {
-                throw new ArgumentOutOfRangeException(nameof(buffer));
+                throw new ArgumentOutOfRangeException(
+                    nameof(buffer),
+                    $"Buffer size:  {buffer.Length}");
             }
 
             var blockId = ReserveBlock();
