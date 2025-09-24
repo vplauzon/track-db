@@ -9,7 +9,11 @@ namespace TrackDb.Lib.InMemory.Block
     internal class BlockBuilder : ReadOnlyBlockBase
     {
         #region Inner types
-        private record TruncationBound(int RecordCount, int Size)
+        private record TruncationBound(
+            //  Number of record in the block
+            int RecordCount,
+            //  Size (in bytes) of the block
+            int Size)
         {
             public override string ToString()
             {
@@ -204,8 +208,8 @@ namespace TrackDb.Lib.InMemory.Block
                 var size = newBlock.Serialize().Payload.Length;
 
                 if (size > maxSize || startingRowCount != totalRowCount)
-                {   //  Allow GC
-                    newBlock = null;
+                {
+                    newBlock = null;    //  Allow GC
                     newBlock = OptimizePrefixTruncation(
                         new TruncationBound(0, 0),
                         new TruncationBound(startingRowCount, size),
@@ -250,60 +254,76 @@ namespace TrackDb.Lib.InMemory.Block
             IBlock block = this;
             //  Assume lower & upper bound are on a line
             //  y = m.x + b (y = size, x = record count)
+            //  1:  lower bound, 2:  upper bound, 3:  interpolation
             //  => y2-y1 = m.(x2-x1) => m = (y2-y1)/(x2-x1) => b = y2-m.x2
+            //  y3 = maxSize (we try to hit that sweet spot)
             //  x3 = (y3-b)/m (interpolated record count)
-            var slope = (float)(upperTruncationBound.Size - lowerTruncationBound.Size)
+            //  Note:  x3 > x2 is possible (because we do not try the maximum value at first)
+            var slope = (double)(upperTruncationBound.Size - lowerTruncationBound.Size)
                 / (upperTruncationBound.RecordCount - lowerTruncationBound.RecordCount);
             var bias = upperTruncationBound.Size - slope * upperTruncationBound.RecordCount;
-            var interpolatedCount = Math.Min(
-                short.MaxValue,
-                Math.Min(block.RecordCount, (int)Math.Ceiling((maxSize - bias) / slope)));
+            var interpolatedCount = (int)Math.Ceiling((maxSize - bias) / slope);
             var newBlock = CreateTruncatedBlock(interpolatedCount);
-            var size = ((IBlock)newBlock).RecordCount > 0
-                ? newBlock.Serialize().Payload.Length
-                : 0;
 
-            if (interpolatedCount > upperTruncationBound.RecordCount
-                && size <= upperTruncationBound.Size)
-            {
-                throw new InvalidOperationException("Interpolation failed");
+            if (interpolatedCount == lowerTruncationBound.RecordCount
+                || interpolatedCount == upperTruncationBound.RecordCount)
+            {   //  Interpolation didn't move boundaries
+                if (interpolatedCount == 0)
+                {
+                    throw new InvalidOperationException("Interpolation failed:  can't move from zero");
+                }
+                else
+                {
+                    return newBlock;
+                }
             }
-            if (interpolatedCount < upperTruncationBound.RecordCount
-                && size > upperTruncationBound.Size)
-            {
-                throw new InvalidOperationException("Interpolation failed");
-            }
-            if (size <= maxSize
-                && (Math.Abs(size - maxSize) / ((double)maxSize) < 0.05
-                || iteration >= MAX_TRUNCATE_OPTIMIZATION_ROUNDS))
+            else if (interpolatedCount >= block.RecordCount)
             {
                 return newBlock;
             }
             else
             {
-                var newLowerTruncationBound = upperTruncationBound.Size <= size
-                    //  We have y1, y3, y2
-                    ? lowerTruncationBound
-                    //  We have y1, y2, y3
-                    : new TruncationBound(interpolatedCount, size);
-                var newUpperTruncationBound = upperTruncationBound.Size <= size
-                    ? new TruncationBound(interpolatedCount, size)
-                    : upperTruncationBound;
+                var size = newBlock.Serialize().Payload.Length;
+                var interpolatedBound = new TruncationBound(interpolatedCount, size);
 
-                if (newLowerTruncationBound != lowerTruncationBound
-                    || newUpperTruncationBound != upperTruncationBound)
+                if (size == maxSize)
                 {
-                    return OptimizePrefixTruncation(
-                        newLowerTruncationBound,
-                        newUpperTruncationBound,
-                        maxSize,
-                        iteration + 1);
+                    return newBlock;
+                }
+                else if (interpolatedBound.RecordCount < upperTruncationBound.RecordCount)
+                {   //  Case of x3<x2
+                    if (size > maxSize)
+                    {
+                        return OptimizePrefixTruncation(
+                            lowerTruncationBound,
+                            interpolatedBound,
+                            maxSize,
+                            iteration + 1);
+                    }
+                    else
+                    {
+                        return OptimizePrefixTruncation(
+                            interpolatedBound,
+                            upperTruncationBound,
+                            maxSize,
+                            iteration + 1);
+                    }
                 }
                 else
-                {
-                    throw new NotSupportedException(
-                        $"Lower:  {lowerTruncationBound} ; New Lower:  {newLowerTruncationBound} ; " +
-                        $"Upper:  {upperTruncationBound} ; New Upper:  {newUpperTruncationBound}");
+                {   //  Case of x3>x2
+                    if (upperTruncationBound.Size > maxSize)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed interpolation:  interpolated beyond maximum ; " +
+                            $"{lowerTruncationBound}, {upperTruncationBound}, " +
+                            $"{interpolatedBound}");
+                    }
+
+                    return OptimizePrefixTruncation(
+                        upperTruncationBound,
+                        interpolatedBound,
+                        maxSize,
+                        iteration + 1);
                 }
             }
         }
