@@ -230,7 +230,7 @@ namespace TrackDb.Lib.InMemory.Block
                 var records = block.Project(
                     new object?[columnCount + 1].AsMemory(),
                     Enumerable.Range(0, columnCount + 1),
-                    Enumerable.Range(0, Math.Min(block.RecordCount, truncateRowCount)),
+                    Enumerable.Range(0, truncateRowCount),
                     0);
 
                 foreach (var record in records)
@@ -239,7 +239,6 @@ namespace TrackDb.Lib.InMemory.Block
                         (long)record.Span[columnCount]!,
                         record.Span.Slice(0, columnCount));
                 }
-                DeleteRecordsByRecordIndex(Enumerable.Range(0, truncateRowCount));
 
                 return newBlock;
             }
