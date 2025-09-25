@@ -1,8 +1,8 @@
-﻿using TrackDb.Lib.InMemory.Block.SpecializedColumn;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -22,7 +22,9 @@ namespace TrackDb.Lib.InMemory.Block
         }
         #endregion
 
-        private const int START_TRUNCATE_LENGTH = 50;
+        private const int START_TRUNCATE_LENGTH = 100;
+        private const int MAX_TRUNCATE_NAIVE = 500;
+        private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
 
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
@@ -182,7 +184,7 @@ namespace TrackDb.Lib.InMemory.Block
             return Serialize(null);
         }
 
-        public int SerializeSize(int rowCount)
+        private int GetSerializeSize(int rowCount)
         {
             return Serialize(rowCount).Payload.Length;
         }
@@ -220,133 +222,95 @@ namespace TrackDb.Lib.InMemory.Block
                 return new BlockBuilder(block.TableSchema);
             }
             else
-            {   //  We start at 100 to limit the resource utilization in serialization
-                var startingRowCount = Math.Min(START_TRUNCATE_LENGTH, totalRowCount);
-                var newBlock = CreateTruncatedBlock(startingRowCount);
-                var size = newBlock.Serialize().Payload.Length;
+            {
+                var truncateRowCount = GetTruncateRowCount(maxSize);
+                var columnCount = block.TableSchema.Columns.Count;
+                var newBlock = new BlockBuilder(block.TableSchema);
+                //  Include record ID
+                var records = block.Project(
+                    new object?[columnCount + 1].AsMemory(),
+                    Enumerable.Range(0, columnCount + 1),
+                    Enumerable.Range(0, Math.Min(block.RecordCount, truncateRowCount)),
+                    0);
 
-                if (size > maxSize || startingRowCount != totalRowCount)
+                foreach (var record in records)
                 {
-                    newBlock = null;    //  Allow GC
-                    newBlock = OptimizePrefixTruncation(
-                        new TruncationBound(0, 0),
-                        new TruncationBound(startingRowCount, size),
-                        maxSize,
-                        1);
-                    DeleteRecordsByRecordIndex(
-                        Enumerable.Range(0, ((IBlock)newBlock).RecordCount));
+                    newBlock.AppendRecord(
+                        (long)record.Span[columnCount]!,
+                        record.Span.Slice(0, columnCount));
                 }
+                DeleteRecordsByRecordIndex(Enumerable.Range(0, truncateRowCount));
 
                 return newBlock;
             }
         }
 
-        private BlockBuilder CreateTruncatedBlock(int rowCount)
-        {
-            var block = (IBlock)this;
-            var columnCount = block.TableSchema.Columns.Count;
-            var newBlock = new BlockBuilder(block.TableSchema);
-            //  Include record ID
-            var records = block.Project(
-                new object?[columnCount + 1].AsMemory(),
-                Enumerable.Range(0, columnCount + 1),
-                Enumerable.Range(0, Math.Min(block.RecordCount, rowCount)),
-                0);
-
-            foreach (var record in records)
-            {
-                newBlock.AppendRecord(
-                    (long)record.Span[columnCount]!,
-                    record.Span.Slice(0, columnCount));
-            }
-
-            return newBlock;
-        }
-
-        private BlockBuilder OptimizePrefixTruncation(
-            TruncationBound lowerTruncationBound,
-            TruncationBound upperTruncationBound,
-            int maxSize,
-            int iteration)
+        private int GetTruncateRowCount(int maxSize)
         {
             IBlock block = this;
-            //  Assume lower & upper bound are on a line
-            //  y = m.x + b (y = size, x = record count)
-            //  1:  lower bound, 2:  upper bound, 3:  interpolation
-            //  => y2-y1 = m.(x2-x1) => m = (y2-y1)/(x2-x1) => b = y2-m.x2
-            //  y3 = maxSize (we try to hit that sweet spot)
-            //  x3 = (y3-b)/m (interpolated record count)
-            //  Note:  x3 > x2 is possible (because we do not try the maximum value at first)
-            var slope = (double)(upperTruncationBound.Size - lowerTruncationBound.Size)
-                / (upperTruncationBound.RecordCount - lowerTruncationBound.RecordCount);
-            var bias = upperTruncationBound.Size - slope * upperTruncationBound.RecordCount;
-            var interpolatedCount = Math.Min(
-                block.RecordCount,
-                (int)Math.Ceiling((maxSize - bias) / slope));
-            var newBlock = CreateTruncatedBlock(interpolatedCount);
-            var interpolatedBound = new TruncationBound(
-                interpolatedCount,
-                newBlock.Serialize().Payload.Length);
+            var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, block.RecordCount);
+            var startingRowCount = Math.Min(
+                maxRowCount,
+                maxRowCount <= MAX_TRUNCATE_NAIVE ? MAX_TRUNCATE_NAIVE : START_TRUNCATE_LENGTH);
+            var startingSize = GetSerializeSize(startingRowCount);
+            (var lowerBound, var upperBound) = GrowTruncationBounds(
+                maxSize,
+                maxRowCount,
+                new TruncationBound(0, 0),
+                new TruncationBound(startingRowCount, startingSize));
+            var optimalRowCount =
+                OptimizeTruncationRowCount(maxSize, maxRowCount, lowerBound, upperBound);
 
-            if (interpolatedBound.RecordCount == lowerTruncationBound.RecordCount
-                || interpolatedBound.RecordCount == upperTruncationBound.RecordCount)
-            {   //  Interpolation didn't move boundaries
-                if (interpolatedBound.RecordCount == 0
-                    || (interpolatedBound.Size > maxSize && lowerTruncationBound.RecordCount == 0))
-                {
-                    throw new InvalidOperationException("Interpolation failed:  can't move from zero");
-                }
-                else if (interpolatedBound.Size > maxSize)
-                {
-                    return CreateTruncatedBlock(lowerTruncationBound.RecordCount);
-                }
-                else
-                {
-                    return newBlock;
-                }
+            return optimalRowCount;
+        }
+
+        private (TruncationBound lowerBound, TruncationBound upperBound) GrowTruncationBounds(
+            int maxSize,
+            int maxRowCount,
+            TruncationBound lowerBound,
+            TruncationBound upperBound)
+        {
+            if (upperBound.Size >= maxSize || upperBound.RecordCount == maxRowCount)
+            {
+                return (lowerBound, upperBound);
             }
             else
             {
-                if (interpolatedBound.Size == maxSize
-                    || (interpolatedCount == block.RecordCount && interpolatedBound.Size <= maxSize))
-                {
-                    return newBlock;
-                }
-                else if (interpolatedBound.RecordCount < upperTruncationBound.RecordCount)
-                {   //  Case of x3<x2
-                    if (interpolatedBound.Size > maxSize)
-                    {
-                        return OptimizePrefixTruncation(
-                            lowerTruncationBound,
-                            interpolatedBound,
-                            maxSize,
-                            iteration + 1);
-                    }
-                    else
-                    {
-                        return OptimizePrefixTruncation(
-                            interpolatedBound,
-                            upperTruncationBound,
-                            maxSize,
-                            iteration + 1);
-                    }
-                }
-                else
-                {   //  Case of x3>x2
-                    if (upperTruncationBound.Size > maxSize)
-                    {
-                        throw new InvalidOperationException(
-                            $"Failed interpolation:  interpolated beyond maximum ; " +
-                            $"{lowerTruncationBound}, {upperTruncationBound}, " +
-                            $"{interpolatedBound}");
-                    }
+                var newCount = Math.Min(maxRowCount, upperBound.RecordCount * 2);
 
-                    return OptimizePrefixTruncation(
-                        upperTruncationBound,
-                        interpolatedBound,
-                        maxSize,
-                        iteration + 1);
-                }
+                return GrowTruncationBounds(
+                    maxSize,
+                    maxRowCount,
+                    upperBound,
+                    new TruncationBound(newCount, GetSerializeSize(newCount)));
+            }
+        }
+
+        private int OptimizeTruncationRowCount(
+            int maxSize,
+            int maxRowCount,
+            TruncationBound lowerBound,
+            TruncationBound upperBound)
+        {
+            if (upperBound.Size <= maxSize)
+            {
+                return upperBound.RecordCount;
+            }
+            else if (lowerBound.RecordCount == upperBound.RecordCount - 1)
+            {
+                return lowerBound.RecordCount;
+            }
+            else
+            {
+                var newCount = (lowerBound.RecordCount + upperBound.RecordCount) / 2;
+                var newSize = GetSerializeSize(newCount);
+                var newBound = new TruncationBound(newCount, newSize);
+
+                return OptimizeTruncationRowCount(
+                    maxSize,
+                    maxRowCount,
+                    newSize > maxSize ? lowerBound : newBound,
+                    newSize > maxSize ? newBound : upperBound);
             }
         }
         #endregion
