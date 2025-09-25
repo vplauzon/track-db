@@ -261,8 +261,6 @@ namespace TrackDb.Test.DbTests
             }
         }
 
-
-
         [Theory]
         [InlineData(false, false)]
         [InlineData(true, false)]
@@ -315,6 +313,53 @@ namespace TrackDb.Test.DbTests
                 Assert.Equal(2, resultsEqualFullName.Count);
                 Assert.Contains(record1, resultsEqualFullName);
                 Assert.Contains(record2, resultsEqualFullName);
+            }
+        }
+
+        [Theory]
+        [InlineData(false, false)]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        [InlineData(true, true)]
+        public async Task QueryInCompoundKeyNode(bool doPushPendingData1, bool doPushPendingData2)
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                var record1 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        78,
+                        new TestDatabase.FullName("Albain", "Forn")),
+                    12);
+                var record2 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        15,
+                        new TestDatabase.FullName("Albain", "Forn")),
+                    25);
+                var record3 = new TestDatabase.CompoundKeys(
+                    new TestDatabase.VersionedName(
+                        897,
+                        new TestDatabase.FullName("Yulnick", "Barn")),
+                    1562);
+
+                db.CompoundKeyTable.AppendRecord(record1);
+                await db.Database.ForceDataManagementAsync(doPushPendingData1
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+                db.CompoundKeyTable.AppendRecord(record2);
+                db.CompoundKeyTable.AppendRecord(record3);
+                await db.Database.ForceDataManagementAsync(doPushPendingData2
+                    ? DataManagementActivity.PersistAllUserData
+                    : DataManagementActivity.None);
+
+                var resultsIn = db.CompoundKeyTable.Query()
+                    .Where(pf => pf.Equal(
+                        r => r.VersionedName.FullName,
+                        record2.VersionedName.FullName))
+                    .Where(pf => pf.In(r => r.VersionedName.Version, [record2.VersionedName.Version]))
+                    .ToImmutableList();
+
+                Assert.Single(resultsIn);
+                Assert.Contains(record2, resultsIn);
             }
         }
 
