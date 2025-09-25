@@ -22,7 +22,7 @@ namespace TrackDb.Lib.InMemory.Block
         }
         #endregion
 
-        private const int MAX_TRUNCATE_OPTIMIZATION_ROUNDS = 5;
+        private const int START_TRUNCATE_LENGTH = 50;
 
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
@@ -179,12 +179,30 @@ namespace TrackDb.Lib.InMemory.Block
         /// <returns></returns>
         public SerializedBlock Serialize()
         {
+            return Serialize(null);
+        }
+
+        public int SerializeSize(int rowCount)
+        {
+            return Serialize(rowCount).Payload.Length;
+        }
+
+        private SerializedBlock Serialize(int? rowCount)
+        {
+            if (rowCount > ((IBlock)this).RecordCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(rowCount),
+                    $"{rowCount} > {((IBlock)this).RecordCount}");
+            }
+
             var serializedColumns = _dataColumns
-                .Select(c => c.Serialize())
+                .Select(c => c.Serialize(rowCount))
                 .ToImmutableArray();
 
             return new SerializedBlock(serializedColumns);
         }
+
 
         /// <summary>
         /// Extract a number of rows from the block builder.  The resulting
@@ -203,7 +221,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
             else
             {   //  We start at 100 to limit the resource utilization in serialization
-                var startingRowCount = Math.Min(100, totalRowCount);
+                var startingRowCount = Math.Min(START_TRUNCATE_LENGTH, totalRowCount);
                 var newBlock = CreateTruncatedBlock(startingRowCount);
                 var size = newBlock.Serialize().Payload.Length;
 

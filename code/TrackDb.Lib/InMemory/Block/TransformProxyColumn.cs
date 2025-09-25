@@ -60,9 +60,9 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        SerializedColumn IDataColumn.Serialize()
+        SerializedColumn IDataColumn.Serialize(int? rowCount)
         {
-            var innerColumn = _innerColumn.Serialize();
+            var innerColumn = _innerColumn.Serialize(rowCount);
 
             return new SerializedColumn(
                 innerColumn.ItemCount,

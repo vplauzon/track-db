@@ -76,7 +76,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         {
             var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
 
-            for (var i =0; i != _itemCount;++i)
+            for (var i = 0; i != _itemCount; ++i)
             {
                 if (values.Contains(_array[i]))
                 {
@@ -156,15 +156,21 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        SerializedColumn IDataColumn.Serialize()
+        SerializedColumn IDataColumn.Serialize(int? rowCount)
         {
             if (_itemCount == 0)
             {
                 throw new InvalidOperationException(
                     "Can't serialize as there are no items in data column");
             }
+            if (rowCount > _itemCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(rowCount),
+                    $"{rowCount} > {_itemCount}");
+            }
 
-            return Serialize(new ReadOnlyMemory<T>(_array, 0, _itemCount));
+            return Serialize(new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount));
         }
 
         void IDataColumn.Deserialize(SerializedColumn serializedColumn)
