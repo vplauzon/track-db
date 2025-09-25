@@ -278,6 +278,10 @@ namespace TrackDb.Lib.InMemory.Block
                 {
                     throw new InvalidOperationException("Interpolation failed:  can't move from zero");
                 }
+                else if (interpolatedBound.Size > maxSize)
+                {
+                    return CreateTruncatedBlock(lowerTruncationBound.RecordCount);
+                }
                 else
                 {
                     return newBlock;
