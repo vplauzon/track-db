@@ -31,6 +31,7 @@ namespace TrackDb.Lib
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
         private readonly bool _ignoreDeleted;
+        private readonly string? _queryTag;
 
         #region Constructors
         public TableQuery(
@@ -45,7 +46,8 @@ namespace TrackDb.Lib
                   projectionColumnIndexes,
                   Array.Empty<SortColumn>(),
                   null,
-                  false)
+                  false,
+                  null)
         {
         }
 
@@ -56,7 +58,8 @@ namespace TrackDb.Lib
             IEnumerable<int> projectionColumnIndexes,
             IEnumerable<SortColumn> sortColumns,
             int? takeCount,
-            bool ignoreDeleted)
+            bool ignoreDeleted,
+            string? queryTag)
         {
             _table = table;
             _transactionContext = tc;
@@ -65,6 +68,7 @@ namespace TrackDb.Lib
             _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
             _ignoreDeleted = ignoreDeleted;
+            _queryTag = queryTag;
         }
         #endregion
 
@@ -78,7 +82,8 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 sortColumns,
                 _takeCount,
-                _ignoreDeleted);
+                _ignoreDeleted,
+                _queryTag);
         }
 
         public TableQuery WithTake(int? takeCount)
@@ -90,7 +95,8 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 _sortColumns,
                 takeCount,
-                _ignoreDeleted);
+                _ignoreDeleted,
+                _queryTag);
         }
 
         internal TableQuery WithIgnoreDeleted()
@@ -102,7 +108,21 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 _sortColumns,
                 _takeCount,
-                true);
+                true,
+                _queryTag);
+        }
+
+        internal TableQuery WithQueryTag(string queryTag)
+        {
+            return new TableQuery(
+                _table,
+                _transactionContext,
+                _predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                _takeCount,
+                true,
+                queryTag);
         }
         #endregion
 

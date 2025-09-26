@@ -16,6 +16,7 @@ namespace TrackDb.Lib
         private readonly QueryPredicate _predicate;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
+        private readonly string? _queryTag;
 
         #region Constructors
         internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
@@ -24,6 +25,7 @@ namespace TrackDb.Lib
                   transactionContext,
                   AllInPredicate.Instance,
                   ImmutableArray<SortColumn>.Empty,
+                  null,
                   null)
         {
         }
@@ -33,13 +35,15 @@ namespace TrackDb.Lib
             TransactionContext? transactionContext,
             QueryPredicate predicate,
             IEnumerable<SortColumn> sortColumns,
-            int? takeCount)
+            int? takeCount,
+            string? queryTag)
         {
             _table = table;
             _transactionContext = transactionContext;
             _predicate = predicate;
             _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
+            _queryTag = queryTag;
         }
         #endregion
 
@@ -64,7 +68,8 @@ namespace TrackDb.Lib
                 _transactionContext,
                 newPredicate,
                 Array.Empty<SortColumn>(),
-                _takeCount);
+                _takeCount,
+                _queryTag);
         }
 
         public TypedTableQuery<T> Take(int count)
@@ -79,7 +84,8 @@ namespace TrackDb.Lib
                 _transactionContext,
                 _predicate,
                 _sortColumns,
-                count);
+                count,
+                _queryTag);
         }
 
         #region Order By
@@ -131,7 +137,8 @@ namespace TrackDb.Lib
                     _transactionContext,
                     _predicate,
                     _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
-                    _takeCount);
+                    _takeCount,
+                    _queryTag);
             }
             else
             {
@@ -141,6 +148,17 @@ namespace TrackDb.Lib
             }
         }
         #endregion
+
+        public TypedTableQuery<T> WithQueryTag(string queryTag)
+        {
+            return new TypedTableQuery<T>(
+                _table,
+                _transactionContext,
+                _predicate,
+                _sortColumns,
+                _takeCount,
+                queryTag);
+        }
         #endregion
 
         #region IEnumerator<T>
