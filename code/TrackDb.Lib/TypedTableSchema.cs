@@ -313,9 +313,6 @@ namespace TrackDb.Lib
                   partitionKeyColumnIndexes)
         {
             _mainConstructorMapping = mainConstructorMapping;
-            _constructorMappingByType = mainConstructorMapping.GetIndexedMappings();
-            _propertyPathToColumnIndexesMap =
-                mainConstructorMapping.GetPropertyPathToColumnIndexesMap();
             _constructorMappingByType = constructorMappingByType;
             _propertyPathToColumnIndexesMap = propertyPathToColumnIndexesMap;
         }
