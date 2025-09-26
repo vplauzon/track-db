@@ -183,12 +183,12 @@ namespace TrackDb.Lib
         }
 
         #region System tables
-        public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution()
+        public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tc = null)
         {
             return new TypedTableQuery<QueryExecutionRecord>(
                 QueryExecutionTable,
                 false,
-                null);
+                tc);
         }
 
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
