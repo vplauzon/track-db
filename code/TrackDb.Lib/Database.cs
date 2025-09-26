@@ -182,6 +182,13 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
             }
         }
+
+        #region System tables
+        public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution()
+        {
+            return new TypedTableQuery<QueryExecutionRecord>(_queryExecutionTable, false, null);
+        }
+        #endregion
         #endregion
 
         #region Meta data tables
