@@ -27,15 +27,16 @@ namespace TrackDb.Lib.InMemory.Block
         {
         }
 
-        private static ReadOnlyMemory<byte> CreateBlockPayload(IImmutableList<SerializedColumn> serializedColumns)
+        private static ReadOnlyMemory<byte> CreateBlockPayload(
+            IImmutableList<SerializedColumn> serializedColumns)
         {
             var payloadSizes = serializedColumns
-                .Select(c => (short)c.Payload.Length)
+                .Select(c => c.Payload.Length)
                 .ToImmutableArray();
             var payloadSizesSize = sizeof(short) * payloadSizes.Length;
             var blockPayload = new byte[
                 payloadSizesSize
-                + payloadSizes.Select(i => (int)i).Sum()];
+                + payloadSizes.Sum()];
             var sizeSpan = blockPayload.AsSpan().Slice(0, payloadSizesSize);
 
             for (int i = 0; i != payloadSizes.Length; ++i)
@@ -47,7 +48,7 @@ namespace TrackDb.Lib.InMemory.Block
                 //  Write column payload within block payload
                 serializedColumns[i].Payload.CopyTo(
                     blockPayload.AsMemory().Slice(
-                        payloadSizesSize + serializedColumns.Take(i).Select(c => c.Payload.Length).Sum(),
+                        payloadSizesSize + payloadSizes.Take(i).Sum(),
                         serializedColumns[i].Payload.Length));
             }
 
