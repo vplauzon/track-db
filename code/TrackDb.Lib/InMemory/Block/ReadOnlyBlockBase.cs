@@ -146,12 +146,16 @@ namespace TrackDb.Lib.InMemory.Block
 
         int IBlock.RecordCount => RecordCount;
 
-        IEnumerable<int> IBlock.Filter(QueryPredicate predicate)
+        FilterOutput IBlock.Filter(QueryPredicate predicate, bool provideAuditTrail)
         {
+            var auditTrails = new List<PredicateAuditTrail>();
             //  Initiate a simplification prior to the resolution process
-            var resultRowIndexes = ResolvePredicate(predicate.Simplify() ?? predicate);
+            var indexes = ResolvePredicate(
+                predicate.Simplify() ?? predicate,
+                provideAuditTrail,
+                auditTrails);
 
-            return resultRowIndexes;
+            return new FilterOutput(indexes, auditTrails);
         }
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
@@ -194,10 +198,14 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Predicate filtering
-        private IImmutableSet<int> ResolvePredicate(QueryPredicate predicate)
+        private IImmutableSet<int> ResolvePredicate(
+            QueryPredicate predicate,
+            bool provideAuditTrail,
+            List<PredicateAuditTrail> predicateAuditTrails)
         {
             var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
 
+            AuditPredicate(provideAuditTrail, predicate, predicateAuditTrails);
             if (leafPredicate != null)
             {
                 var resultPredicate = new ResultPredicate(ResolveLeafPredicate(leafPredicate));
@@ -209,7 +217,12 @@ namespace TrackDb.Lib.InMemory.Block
                 }
                 else
                 {
-                    return ResolvePredicate(newPredicate.Simplify() ?? newPredicate);
+                    AuditPredicate(provideAuditTrail, newPredicate, predicateAuditTrails);
+
+                    return ResolvePredicate(
+                        newPredicate.Simplify() ?? newPredicate,
+                        provideAuditTrail,
+                        predicateAuditTrails);
                 }
             }
             else if (predicate is ResultPredicate rp)
@@ -230,6 +243,8 @@ namespace TrackDb.Lib.InMemory.Block
                 {
                     var finalPredicate = finalSubstitution.Simplify() ?? finalSubstitution;
 
+                    AuditPredicate(provideAuditTrail, finalSubstitution, predicateAuditTrails);
+                    AuditPredicate(provideAuditTrail, finalPredicate, predicateAuditTrails);
                     if (finalPredicate is ResultPredicate rp2)
                     {
                         return rp2.RecordIndexes;
@@ -239,6 +254,17 @@ namespace TrackDb.Lib.InMemory.Block
                         throw new InvalidOperationException("Can't complete query");
                     }
                 }
+            }
+        }
+
+        private void AuditPredicate(
+            bool provideAuditTrail,
+            QueryPredicate predicate,
+            List<PredicateAuditTrail> predicateAuditTrails)
+        {
+            if (provideAuditTrail)
+            {
+                predicateAuditTrails.Add(new PredicateAuditTrail(DateTime.Now, predicate));
             }
         }
 

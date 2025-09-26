@@ -8,6 +8,7 @@ namespace TrackDb.Lib.SystemData
 {
     public record QueryExecutionRecord(
         DateTime Timestamp,
+        string TableName,
         string QueryId,
         string QueryTag,
         long BlockId,

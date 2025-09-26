@@ -13,8 +13,9 @@ namespace TrackDb.Lib.InMemory.Block
 
         /// <summary>Filters the rows given a predicate.</summary>
         /// <param name="predicate"></param>
+        /// <param name="provideAuditTrail"></param>
         /// <returns>Filtered row indexes.</returns>
-        IEnumerable<int> Filter(QueryPredicate predicate);
+        FilterOutput Filter(QueryPredicate predicate, bool provideAuditTrail);
 
         /// <summary>
         /// Project columns of given row indexes.  See <see cref="TableQuery"/> for column indexes.

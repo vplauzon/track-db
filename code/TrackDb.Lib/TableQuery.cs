@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
+using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
@@ -314,16 +315,18 @@ namespace TrackDb.Lib
                 .Append(_table.Schema.Columns.Count)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
+            var queryId = Guid.NewGuid().ToString();
 
             foreach (var block in ListBlocks(transactionContext))
             {
-                var rowIndexes = block.Block.Filter(_predicate);
+                var filterOutput = block.Block.Filter(_predicate, _queryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     materializedProjectionColumnIndexes,
-                    rowIndexes,
+                    filterOutput.RowIndexes,
                     block.BlockId);
 
+                AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
                 foreach (var result in RemoveDeleted(deletedRecordIds, results))
                 {
                     //  Remove last column (record ID)
@@ -334,6 +337,26 @@ namespace TrackDb.Lib
                         yield break;
                     }
                 }
+            }
+        }
+
+        private void AuditPredicate(
+            IEnumerable<PredicateAuditTrail> predicateAuditTrails,
+            int blockId,
+            string queryId)
+        {
+            if (_queryTag != null)
+            {
+                var records = predicateAuditTrails
+                    .Select(p => new QueryExecutionRecord(
+                        p.Timestamp,
+                        _table.Schema.TableName,
+                        queryId,
+                        _queryTag,
+                        blockId,
+                        p.Predicate.ToString()));
+
+                _table.Database.QueryExecutionTable.AppendRecords(records);
             }
         }
 
@@ -498,19 +521,21 @@ namespace TrackDb.Lib
             var buffer = new object?[projectionColumnIndexes.Length].AsMemory();
             var accumulatedSortValues = ImmutableArray<object?[]>.Empty;
             var areSortValuesSorted = false;
+            var queryId = Guid.NewGuid().ToString();
 
             foreach (var block in ListBlocks(transactionContext))
             {
-                var rowIndexes = block.Block.Filter(_predicate);
+                var filterOutput = block.Block.Filter(_predicate, _queryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     projectionColumnIndexes,
-                    rowIndexes,
+                    filterOutput.RowIndexes,
                     block.BlockId);
                 var newSortValues = RemoveDeleted(deletedRecordIds, results)
                     .Select(r => r.ToArray())
                     .ToImmutableArray();
 
+                AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
                 if (accumulatedSortValues.Length + newSortValues.Length > _takeCount)
                 {
                     var allSortValues = accumulatedSortValues.Concat(newSortValues);
