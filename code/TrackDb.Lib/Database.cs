@@ -24,7 +24,6 @@ namespace TrackDb.Lib
     {
         private readonly Lazy<StorageManager> _storageManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
-        private readonly TypedTable<QueryExecutionRecord> _queryExecutionTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState;
@@ -77,7 +76,7 @@ namespace TrackDb.Lib
             _tombstoneTable = new TypedTable<TombstoneRecord>(
                 this,
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
-            _queryExecutionTable = new TypedTable<QueryExecutionRecord>(
+            QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
             _dataLifeCycleManager = new DataLifeCycleManager(this, _tombstoneTable, _storageManager);
@@ -85,7 +84,7 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, null, true, false, false))
                 .Append(new TableProperties(_tombstoneTable, null, false, false, true))
-                .Append(new TableProperties(_queryExecutionTable, null, false, false, false))
+                .Append(new TableProperties(QueryExecutionTable, null, false, false, false))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
@@ -187,10 +186,12 @@ namespace TrackDb.Lib
         public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution()
         {
             return new TypedTableQuery<QueryExecutionRecord>(
-                _queryExecutionTable,
+                QueryExecutionTable,
                 false,
                 null);
         }
+
+        internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
         #endregion
         #endregion
 
