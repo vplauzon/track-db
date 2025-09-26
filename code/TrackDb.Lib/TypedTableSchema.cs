@@ -329,10 +329,16 @@ namespace TrackDb.Lib
             Expression<Func<T, PT>> propertyExtractor)
         {
             var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
+            var newPrimaryKeyColumnIndexes = PrimaryKeyColumnIndexes
+                .Concat(columnIndexSubset)
+                .OrderBy(i => i)
+                .ToImmutableArray();
+
+            ValidateNonRepeatingIndexes(newPrimaryKeyColumnIndexes);
 
             return new TypedTableSchema<T>(
                 TableName,
-                PrimaryKeyColumnIndexes.Concat(columnIndexSubset).ToImmutableArray(),
+                newPrimaryKeyColumnIndexes,
                 PartitionKeyColumnIndexes,
                 _mainConstructorMapping,
                 _constructorMappingByType,
@@ -349,11 +355,17 @@ namespace TrackDb.Lib
             Expression<Func<T, PT>> propertyExtractor)
         {
             var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
+            var newPartitionKeyColumnIndexes = PartitionKeyColumnIndexes
+                .Concat(columnIndexSubset)
+                .OrderBy(i => i)
+                .ToImmutableArray();
+
+            ValidateNonRepeatingIndexes(newPartitionKeyColumnIndexes);
 
             return new TypedTableSchema<T>(
                 TableName,
                 PrimaryKeyColumnIndexes,
-                PartitionKeyColumnIndexes.Concat(columnIndexSubset).ToImmutableArray(),
+                newPartitionKeyColumnIndexes,
                 _mainConstructorMapping,
                 _constructorMappingByType,
                 _propertyPathToColumnIndexesMap);
@@ -416,6 +428,20 @@ namespace TrackDb.Lib
             {
                 throw new ArgumentOutOfRangeException(
                     $"Property path '{path}' doesn't map to a subset of columns");
+            }
+        }
+
+        private void ValidateNonRepeatingIndexes(IEnumerable<int> columnIndexes)
+        {
+            var hasRepeatedIndex = columnIndexes
+                .GroupBy(i => i)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .Any();
+
+            if (hasRepeatedIndex)
+            {
+                throw new ArgumentException("Repeated indexes", nameof(columnIndexes));
             }
         }
     }

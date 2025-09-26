@@ -59,6 +59,12 @@ namespace TrackDb.Test
 
             Assert.Single(schema.GetColumnIndexSubset(expression2));
             Assert.Equal(1, schema.GetColumnIndexSubset(expression2)[0]);
+
+            Expression<Func<NestedProperties, InnerClass>> expression3 = p => p.Inner;
+            
+            Assert.Equal(2, schema.GetColumnIndexSubset(expression3).Count);
+            Assert.Equal(0, schema.GetColumnIndexSubset(expression3)[0]);
+            Assert.Equal(1, schema.GetColumnIndexSubset(expression3)[1]);
         }
     }
 }
