@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.Policies;
 using TrackDb.Lib.DataLifeCycle;
+using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
@@ -23,6 +24,7 @@ namespace TrackDb.Lib
     {
         private readonly Lazy<StorageManager> _storageManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
+        private readonly TypedTable<QueryExecutionRecord> _queryExecutionTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private long _recordId = 0;
         private volatile DatabaseState _databaseState;
@@ -75,11 +77,15 @@ namespace TrackDb.Lib
             _tombstoneTable = new TypedTable<TombstoneRecord>(
                 this,
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
+            _queryExecutionTable = new TypedTable<QueryExecutionRecord>(
+                this,
+                TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
             _dataLifeCycleManager = new DataLifeCycleManager(this, _tombstoneTable, _storageManager);
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, null, true, false, false))
                 .Append(new TableProperties(_tombstoneTable, null, false, false, true))
+                .Append(new TableProperties(_queryExecutionTable, null, false, false, false))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
