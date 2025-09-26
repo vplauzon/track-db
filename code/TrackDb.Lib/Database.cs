@@ -186,7 +186,10 @@ namespace TrackDb.Lib
         #region System tables
         public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution()
         {
-            return new TypedTableQuery<QueryExecutionRecord>(_queryExecutionTable, false, null);
+            return new TypedTableQuery<QueryExecutionRecord>(
+                _queryExecutionTable,
+                false,
+                null);
         }
         #endregion
         #endregion

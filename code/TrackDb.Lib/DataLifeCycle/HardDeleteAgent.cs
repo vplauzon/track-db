@@ -156,15 +156,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Distinct()
                 .ToImmutableArray();
             var metaDataTable = Database.GetMetaDataTable(table.Schema.TableName);
-            var metaDataRecordsQuery = new TableQuery(
-                metaDataTable,
-                tc,
+            var metaDataRecordsQuery = metaDataTable.Query(tc)
                 //  We're looking for the block ID in the meta data table
+                .WithPredicate(
                 new BinaryOperatorPredicate(
                     metaDataTable.Schema.FindColumnIndex(MetadataColumns.BLOCK_ID),
                     blockId,
-                    BinaryOperator.Equal),
-                Enumerable.Range(0, metaDataTable.Schema.Columns.Count))
+                    BinaryOperator.Equal))
                 .WithTake(1);
             var metaDataRecords = metaDataRecordsQuery.ToImmutableArray();
 
@@ -250,15 +248,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tombstoneBuilder = new BlockBuilder(TombstoneTable.Schema);
             var tombstoneColumnCount = TombstoneTable.Schema.Columns.Count;
-            var remainingTombstoneRecords = new TableQuery(
-                TombstoneTable,
-                tc,
-                TombstoneTable
-                .PredicateFactory
-                .NotIn(t => t.RecordId, tombstoneRecordIds)
-                .QueryPredicate,
+            var remainingTombstoneRecords = TombstoneTable.Query(tc)
+                .Where(pf => pf.NotIn(t => t.RecordId, tombstoneRecordIds))
+                .TableQuery
                 //  Include record ID
-                Enumerable.Range(0, tombstoneColumnCount + 1));
+                .WithProjection(Enumerable.Range(0, tombstoneColumnCount + 1));
 
             foreach (var tombstoneRecord in remainingTombstoneRecords)
             {
@@ -275,12 +269,11 @@ namespace TrackDb.Lib.DataLifeCycle
             Table table,
             IImmutableList<long> tombstoneRecordIds)
         {
-            var newTombstoneRecords = new TableQuery(
-                table,
-                tc,
-                new InPredicate(table.Schema.Columns.Count, tombstoneRecordIds.Cast<object?>()),
+            var newTombstoneRecords = table.Query(tc)
+                .WithPredicate(
+                new InPredicate(table.Schema.Columns.Count, tombstoneRecordIds.Cast<object?>()))
                 //  Project Record ID + Block ID
-                new[] { table.Schema.Columns.Count, table.Schema.Columns.Count + 2 })
+                .WithProjection(new[] { table.Schema.Columns.Count, table.Schema.Columns.Count + 2 })
                 .WithIgnoreDeleted()
                 .Select(r => new
                 {

@@ -1,10 +1,10 @@
-﻿using TrackDb.Lib.Predicate;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Linq.Expressions;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
@@ -184,50 +184,37 @@ namespace TrackDb.Lib
         }
         #endregion
 
+        public TableQuery TableQuery
+        {
+            get
+            {
+                var tableQuery = ((Table)_table).Query(_transactionContext)
+                    .WithPredicate(_predicate)
+                    .WithSortColumns(_sortColumns)
+                    .WithTake(_takeCount);
+
+                return _queryTag == null
+                    ? tableQuery
+                    : tableQuery.WithQueryTag(_queryTag);
+            }
+        }
+
         public long Count()
         {
-            var tableQuery = new TableQuery(
-                _table,
-                _transactionContext,
-                _predicate,
-                //  We are not bringing back any column
-                Enumerable.Range(0, 0))
-                .WithTake(_takeCount);
-
-            return tableQuery.Count();
+            return TableQuery.Count();
         }
 
         public void Delete()
         {
-            if (!_canDelete)
-            {
-                throw new UnauthorizedAccessException("Can't delete records on this table");
-            }
-
-            var tableQuery = new TableQuery(
-                _table,
-                _transactionContext,
-                _predicate,
-                Enumerable.Range(0, _table.Schema.Columns.Count))
-                .WithSortColumns(_sortColumns)
-                .WithTake(_takeCount);
-
-            tableQuery.Delete();
+            TableQuery.Delete();
         }
 
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
             var columnCount = _table.Schema.Columns.Count;
-            var tableQuery = new TableQuery(
-                _table,
-                _transactionContext,
-                _predicate,
-                Enumerable.Range(0, columnCount))
-                .WithSortColumns(_sortColumns)
-                .WithTake(_takeCount);
 
-            foreach (var result in tableQuery)
+            foreach (var result in TableQuery)
             {
                 var objectRow = (T)_table.Schema.FromColumnsToObject(result.Span);
 

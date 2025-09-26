@@ -1,10 +1,10 @@
-﻿using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
@@ -25,6 +25,7 @@ namespace TrackDb.Lib
         #endregion
 
         private readonly Table _table;
+        private readonly bool _canDelete;
         private readonly TransactionContext? _transactionContext;
         private readonly QueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
@@ -34,16 +35,16 @@ namespace TrackDb.Lib
         private readonly string? _queryTag;
 
         #region Constructors
-        public TableQuery(
+        internal TableQuery(
             Table table,
-            TransactionContext? tc,
-            QueryPredicate predicate,
-            IEnumerable<int> projectionColumnIndexes)
+            bool canDelete,
+            TransactionContext? tc)
             : this(
                   table,
+                  canDelete,
                   tc,
-                  predicate,
-                  projectionColumnIndexes,
+                  AllInPredicate.Instance,
+                  Enumerable.Range(0, table.Schema.Columns.Count),
                   Array.Empty<SortColumn>(),
                   null,
                   false,
@@ -53,6 +54,7 @@ namespace TrackDb.Lib
 
         private TableQuery(
             Table table,
+            bool canDelete,
             TransactionContext? tc,
             QueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
@@ -62,6 +64,7 @@ namespace TrackDb.Lib
             string? queryTag)
         {
             _table = table;
+            _canDelete = canDelete;
             _transactionContext = tc;
             _predicate = predicate.Simplify() ?? predicate;
             _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
@@ -73,10 +76,39 @@ namespace TrackDb.Lib
         #endregion
 
         #region Alterations
+        public TableQuery WithPredicate(QueryPredicate predicate)
+        {
+            return new TableQuery(
+                _table,
+                _canDelete,
+                _transactionContext,
+                predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                _takeCount,
+                _ignoreDeleted,
+                _queryTag);
+        }
+
+        public TableQuery WithProjection(IEnumerable<int> projectionColumnIndexes)
+        {
+            return new TableQuery(
+                _table,
+                _canDelete,
+                _transactionContext,
+                _predicate,
+                projectionColumnIndexes.ToImmutableArray(),
+                _sortColumns,
+                _takeCount,
+                _ignoreDeleted,
+                _queryTag);
+        }
+
         public TableQuery WithSortColumns(IEnumerable<SortColumn> sortColumns)
         {
             return new TableQuery(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _projectionColumnIndexes,
@@ -90,6 +122,7 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _projectionColumnIndexes,
@@ -103,6 +136,7 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _projectionColumnIndexes,
@@ -116,6 +150,7 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _projectionColumnIndexes,
@@ -172,6 +207,11 @@ namespace TrackDb.Lib
         /// <returns>Number of records deleted.</returns>
         public int Delete()
         {
+            if (!_canDelete)
+            {
+                throw new UnauthorizedAccessException("Can't delete records on this table");
+            }
+
             return _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
                 tc =>
@@ -330,17 +370,14 @@ namespace TrackDb.Lib
             }
         }
 
-        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext transactionContext)
+        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext tc)
         {
             if (_table.Database.HasMetaDataTable(_table.Schema.TableName))
             {
                 var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
-                var metaDataQuery = new TableQuery(
-                    metaDataTable,
-                    transactionContext,
+                var metaDataQuery = metaDataTable.Query(tc)
                     //  Must be optimize to filter only blocks with relevant data
-                    AllInPredicate.Instance,
-                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count));
+                    .WithPredicate(AllInPredicate.Instance);
 
                 foreach (var metaDataRow in metaDataQuery)
                 {
@@ -358,11 +395,11 @@ namespace TrackDb.Lib
             }
         }
 
-        private IBlock GetBlock(TransactionContext transactionContext, int blockId)
+        private IBlock GetBlock(TransactionContext tc, int blockId)
         {
             if (blockId <= 0)
             {
-                return ListUnpersistedBlocks(transactionContext)
+                return ListUnpersistedBlocks(tc)
                     .Where(i => i.BlockId == blockId)
                     .Select(i => i.Block)
                     .First();
@@ -370,15 +407,13 @@ namespace TrackDb.Lib
             else
             {
                 var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
-                var metaDataQuery = new TableQuery(
-                    metaDataTable,
-                    transactionContext,
+                var metaDataQuery = metaDataTable.Query(tc)
+                    .WithPredicate(
                     new BinaryOperatorPredicate(
                         //  Block ID
                         metaDataTable.Schema.Columns.Count - 1,
                         blockId,
-                        BinaryOperator.Equal),
-                    Enumerable.Range(0, metaDataTable.Schema.Columns.Count));
+                        BinaryOperator.Equal));
                 var metaDataRow = metaDataQuery.First();
                 var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
                     metaDataRow,

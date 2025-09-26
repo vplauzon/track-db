@@ -1,5 +1,4 @@
-﻿using TrackDb.Lib.InMemory;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -19,6 +18,11 @@ namespace TrackDb.Lib
         public Database Database { get; }
 
         public TableSchema Schema { get; }
+
+        public TableQuery Query(TransactionContext? transactionContext = null)
+        {
+            return new TableQuery(this, true, transactionContext);
+        }
 
         #region Append
         public void AppendRecord(
@@ -114,9 +118,9 @@ namespace TrackDb.Lib
             ReadOnlySpan<object?> newVersionRecord,
             TransactionContext? tx)
         {
-            var predicate = CreatePrimaryKeyEqualPredicate(oldVersionRecord);
-            var query = new TableQuery(this, tx, predicate, Array.Empty<int>());
-            var deletedRecordCount = query.Delete();
+            var deletedRecordCount = Query(tx)
+                .WithPredicate(CreatePrimaryKeyEqualPredicate(oldVersionRecord))
+                .Delete();
 
             AppendRecord(newVersionRecord, tx);
 
