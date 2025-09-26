@@ -12,6 +12,7 @@ namespace TrackDb.Lib
         where T : notnull
     {
         private readonly TypedTable<T> _table;
+        private readonly bool _canDelete;
         private readonly TransactionContext? _transactionContext;
         private readonly QueryPredicate _predicate;
         private readonly IImmutableList<SortColumn> _sortColumns;
@@ -19,9 +20,13 @@ namespace TrackDb.Lib
         private readonly string? _queryTag;
 
         #region Constructors
-        internal TypedTableQuery(TypedTable<T> table, TransactionContext? transactionContext)
+        internal TypedTableQuery(
+            TypedTable<T> table,
+            bool canDelete,
+            TransactionContext? transactionContext)
             : this(
                   table,
+                  canDelete,
                   transactionContext,
                   AllInPredicate.Instance,
                   ImmutableArray<SortColumn>.Empty,
@@ -32,6 +37,7 @@ namespace TrackDb.Lib
 
         internal TypedTableQuery(
             TypedTable<T> table,
+            bool canDelete,
             TransactionContext? transactionContext,
             QueryPredicate predicate,
             IEnumerable<SortColumn> sortColumns,
@@ -39,6 +45,7 @@ namespace TrackDb.Lib
             string? queryTag)
         {
             _table = table;
+            _canDelete = canDelete;
             _transactionContext = transactionContext;
             _predicate = predicate;
             _sortColumns = sortColumns.ToImmutableArray();
@@ -65,6 +72,7 @@ namespace TrackDb.Lib
 
             return new TypedTableQuery<T>(
                 _table,
+                _canDelete,
                 _transactionContext,
                 newPredicate,
                 Array.Empty<SortColumn>(),
@@ -81,6 +89,7 @@ namespace TrackDb.Lib
 
             return new TypedTableQuery<T>(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _sortColumns,
@@ -134,6 +143,7 @@ namespace TrackDb.Lib
             {
                 return new TypedTableQuery<T>(
                     _table,
+                    _canDelete,
                     _transactionContext,
                     _predicate,
                     _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
@@ -153,6 +163,7 @@ namespace TrackDb.Lib
         {
             return new TypedTableQuery<T>(
                 _table,
+                _canDelete,
                 _transactionContext,
                 _predicate,
                 _sortColumns,
@@ -188,6 +199,11 @@ namespace TrackDb.Lib
 
         public void Delete()
         {
+            if (!_canDelete)
+            {
+                throw new UnauthorizedAccessException("Can't delete records on this table");
+            }
+
             var tableQuery = new TableQuery(
                 _table,
                 _transactionContext,

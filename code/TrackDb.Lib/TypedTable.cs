@@ -55,7 +55,7 @@ namespace TrackDb.Lib
         #region Query
         public TypedTableQuery<T> Query(TransactionContext? transactionContext = null)
         {
-            return new TypedTableQuery<T>(this, transactionContext);
+            return new TypedTableQuery<T>(this, true, transactionContext);
         }
         #endregion
 
