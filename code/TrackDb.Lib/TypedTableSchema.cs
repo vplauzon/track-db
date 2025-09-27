@@ -72,46 +72,37 @@ namespace TrackDb.Lib
 
             public IImmutableDictionary<string, IImmutableList<int>> GetPropertyPathToColumnIndexesMap()
             {
-                return ListPropertyPathToColumnIndexes(string.Empty, 0)
-                    .ToImmutableDictionary(p => p.Item1, p => p.Item2);
-            }
-
-            public IEnumerable<(string, IImmutableList<int>)> ListPropertyPathToColumnIndexes(
-                string propertyPathPrefix,
-                int indexStart)
-            {   //  Entire node
-                yield return (
-                    propertyPathPrefix,
-                    Enumerable.Range(0, ColumnSchemas.Count)
-                    .Select(i => i + indexStart)
-                    .ToImmutableList());
-
-                foreach (var cpm in ConstructorParameterMappings)
-                {
-                    var subPrefix = string.IsNullOrWhiteSpace(propertyPathPrefix)
-                        ? cpm.PropertyInfo.Name
-                        : $"{propertyPathPrefix}.{cpm.PropertyInfo.Name}";
-
-                    if (cpm.ConstructorMapping == null)
-                    {   //  Property leaf
-                        yield return (
-                            subPrefix,
-                            Enumerable.Range(0, 1)
-                            .Select(i => i + indexStart)
-                            .ToImmutableList());
-                    }
-                    else
+                var pathIndex = ColumnSchemas
+                    .Select(c => c.ColumnName)
+                    .Index()
+                    .Select(o => new
                     {
-                        foreach (var pair in
-                            cpm.ConstructorMapping.ListPropertyPathToColumnIndexes(
-                                subPrefix,
-                                indexStart))
-                        {   //  Recursive
-                            yield return pair;
-                        }
-                    }
-                    ++indexStart;
+                        o.Index,
+                        ColumnPath = o.Item,
+                        ColumnParts = o.Item.Split('.')
+                    })
+                    .ToImmutableArray();
+                var maxDepth = pathIndex
+                    .Select(o => o.ColumnParts.Length)
+                    .Max();
+                var pairs = new List<KeyValuePair<string, ImmutableList<int>>>();
+
+                for (var depth = 1; depth <= maxDepth; ++depth)
+                {
+                    var depthPairs = pathIndex
+                        .Where(o => o.ColumnParts.Length >= depth)
+                        .Select(o => new
+                        {
+                            Prefix = string.Join('.', o.ColumnParts.Take(depth)),
+                            o.Index
+                        })
+                        .GroupBy(o => o.Prefix)
+                        .Select(g => KeyValuePair.Create(g.Key, g.Select(o => o.Index).ToImmutableList()));
+
+                    pairs.AddRange(depthPairs);
                 }
+
+                return pairs.ToImmutableDictionary(p => p.Key, p => (IImmutableList<int>)p.Value);
             }
 
             public ReadOnlySpan<object?> ObjectToColumns(object record)
