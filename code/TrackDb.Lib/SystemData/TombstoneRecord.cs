@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TrackDb.Lib
+namespace TrackDb.Lib.SystemData
 {
     internal record TombstoneRecord(
         long RecordId,
