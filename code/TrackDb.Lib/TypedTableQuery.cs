@@ -204,9 +204,9 @@ namespace TrackDb.Lib
             return TableQuery.Count();
         }
 
-        public void Delete()
+        public int Delete()
         {
-            TableQuery.Delete();
+            return TableQuery.Delete();
         }
 
         #region Query internals
