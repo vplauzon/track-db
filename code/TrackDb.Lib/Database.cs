@@ -116,9 +116,6 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        #region Public interface
-        public DatabasePolicies DatabasePolicies { get; }
-
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             await ValueTask.CompletedTask;
@@ -127,6 +124,9 @@ namespace TrackDb.Lib
                 ((IDisposable)_storageManager.Value).Dispose();
             }
         }
+
+        #region Public interface
+        public DatabasePolicies DatabasePolicies { get; }
 
         public Table GetTable(string tableName)
         {
@@ -183,6 +183,32 @@ namespace TrackDb.Lib
         }
 
         #region System tables
+        public DatabaseStatistics GetDatabaseStatistics()
+        {
+            var state = _databaseState;
+            var inMemoryDatabase = state.InMemoryDatabase;
+            var userTableNames = state.TableMap
+                .Where(p => p.Value.IsUserTable)
+                .Select(p => p.Key)
+                .ToImmutableHashSet();
+            var userTableRecordCount = inMemoryDatabase.TableTransactionLogsMap
+                .Where(p => userTableNames.Contains(p.Key))
+                .SelectMany(p => p.Value.InMemoryBlocks)
+                .Sum(block => block.RecordCount);
+            var inMemoryTombstoneRecords = 0;
+
+            if (inMemoryDatabase.TableTransactionLogsMap.ContainsKey(
+                _tombstoneTable.Schema.TableName))
+            {
+                inMemoryTombstoneRecords +=
+                    inMemoryDatabase.TableTransactionLogsMap[_tombstoneTable.Schema.TableName]
+                    .InMemoryBlocks
+                    .Sum(block => block.RecordCount);
+            }
+
+            return new DatabaseStatistics(userTableRecordCount, inMemoryTombstoneRecords);
+        }
+
         public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tc = null)
         {
             return new TypedTableQuery<QueryExecutionRecord>(
