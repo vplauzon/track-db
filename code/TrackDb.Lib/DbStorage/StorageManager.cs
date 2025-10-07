@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Linq;
 
 namespace TrackDb.Lib.DbStorage
@@ -12,84 +13,133 @@ namespace TrackDb.Lib.DbStorage
         private const int INCREMENT_BLOCK_COUNT = 256;
 
         private readonly string _filePath;
-        private readonly MemoryMappedFile _mappedFile;
-        private readonly Stack<int> _availableIds = new(
-            Enumerable.Range(1, INCREMENT_BLOCK_COUNT + 1).Reverse());
+        private readonly ConcurrentStack<FileStream> _streamStack = new();
 
         #region Constructors
         public StorageManager(string filePath)
         {
             _filePath = filePath;
-            _mappedFile = MemoryMappedFile.CreateFromFile(
-                filePath,
-                FileMode.Create,
-                null,
-                (long)INCREMENT_BLOCK_COUNT * BLOCK_SIZE);
+            //  Create the file itself
+            ReleaseFileStream(CreateFileStream());
         }
         #endregion
 
-        public short BlockSize => BLOCK_SIZE;
-
         void IDisposable.Dispose()
         {
-            _mappedFile.Dispose();
+            foreach (var stream in _streamStack)
+            {
+                stream.Dispose();
+            }
             File.Delete(_filePath);
         }
 
+        public short BlockSize => BLOCK_SIZE;
+
+        #region Block read / write
         public byte[] ReadBlock(int blockId)
         {
-            using (var accessor = CreateViewAccessor(blockId, true))
-            {
-                var buffer = new byte[BLOCK_SIZE];
+            var fileStream = AcquireFileStream();
 
-                accessor.ReadArray(0, buffer, 0, BLOCK_SIZE);
+            try
+            {
+                fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
+
+                var buffer = new byte[BLOCK_SIZE];
+                var readCount = fileStream.Read(buffer, 0, BLOCK_SIZE);
+
+                if (readCount != BLOCK_SIZE)
+                {
+                    throw new IOException(
+                        $"Block read resulted in only {readCount} " +
+                        $"bytes read instead of {BLOCK_SIZE}");
+                }
 
                 return buffer;
             }
+            finally
+            {
+                ReleaseFileStream(fileStream);
+            }
         }
 
-        public int WriteBlock(byte[] buffer)
+        public void WriteBlock(int blockId, ReadOnlySpan<byte> buffer)
         {
-            if (buffer.Length == 0 || buffer.Length > BLOCK_SIZE)
+            if (buffer.Length > BLOCK_SIZE)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(buffer),
                     $"Buffer size:  {buffer.Length}");
             }
 
-            var blockId = ReserveBlock();
+            var fileStream = AcquireFileStream();
 
-            using (var accessor = CreateViewAccessor(blockId, false))
+            try
             {
-                accessor.WriteArray(0, buffer, 0, buffer.Length);
+                fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
+                fileStream.Write(buffer);
             }
-
-            return blockId;
-        }
-
-        public void ReleaseBlock(int blockId)
-        {
-            _availableIds.Push(blockId);
-        }
-
-        private MemoryMappedViewAccessor CreateViewAccessor(int blockId, bool isReadOnly)
-        {
-            return _mappedFile.CreateViewAccessor(
-                blockId * BLOCK_SIZE,
-                BLOCK_SIZE,
-                isReadOnly ? MemoryMappedFileAccess.Read : MemoryMappedFileAccess.ReadWrite);
-        }
-
-        private int ReserveBlock()
-        {
-            if (_availableIds.TryPop(out var blockId))
+            finally
             {
-                return blockId;
+                ReleaseFileStream(fileStream);
+            }
+        }
+
+        private long GetBlockPosition(int blockId)
+        {
+            return (blockId - 1) * BLOCK_SIZE;
+        }
+        #endregion
+
+        public IEnumerable<int> CreateBlockBatch()
+        {
+            var fileStream = AcquireFileStream();
+
+            try
+            {
+                var currentBlockCount = (int)(fileStream.Length / BLOCK_SIZE);
+                var targetBlockCount = currentBlockCount + INCREMENT_BLOCK_COUNT;
+
+                fileStream.SetLength(targetBlockCount * (long)BLOCK_SIZE);
+
+                return Enumerable.Range(currentBlockCount + 1, targetBlockCount);
+            }
+            finally
+            {
+                ReleaseFileStream(fileStream);
+            }
+        }
+
+        #region File stream management
+        private FileStream AcquireFileStream()
+        {
+            if (_streamStack.TryPop(out var fileStream))
+            {
+                return fileStream;
             }
             else
             {
-                throw new NotImplementedException("Need to expend the file");
+                return CreateFileStream();
             }
         }
+
+        private void ReleaseFileStream(FileStream fileStream)
+        {
+            _streamStack.Push(fileStream);
+        }
+
+        private FileStream CreateFileStream()
+        {
+            var fileStream = new FileStream(
+               _filePath,
+               FileMode.OpenOrCreate,
+               FileAccess.ReadWrite,
+               FileShare.ReadWrite,
+               //  Disables FileStream’s internal buffer
+               bufferSize: 1,
+               FileOptions.RandomAccess | FileOptions.WriteThrough);
+
+            return fileStream;
+        }
+        #endregion
     }
 }

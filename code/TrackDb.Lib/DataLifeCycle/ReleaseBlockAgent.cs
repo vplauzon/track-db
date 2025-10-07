@@ -26,11 +26,8 @@ namespace TrackDb.Lib.DataLifeCycle
             var discardedBlockIds = Database.GetDatabaseStateSnapshot().DiscardedBlockIds;
 
             if (!dbState.TransactionMap.Any() && discardedBlockIds.Any())
-            {   //  We don't want any transaction in case one uses the discarded blocks
-                foreach (var blockId in discardedBlockIds)
-                {
-                    StorageManager.ReleaseBlock(blockId);
-                }
+            {
+                Database.ReleaseBlockIds(discardedBlockIds);
                 Database.ChangeDatabaseState(state =>
                 {
                     return state with

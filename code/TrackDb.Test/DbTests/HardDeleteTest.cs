@@ -37,8 +37,8 @@ namespace TrackDb.Test.DbTests
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
                 using (var tc = db.Database.CreateTransaction())
                 {
-                    Assert.False(
-                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
+                    Assert.False(tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.ContainsKey(
+                        db.PrimitiveTable.Schema.TableName));
                 }
             }
         }

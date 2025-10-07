@@ -55,8 +55,9 @@ namespace TrackDb.Lib.DataLifeCycle
                         if (isFirstBlockToPersist || ((IBlock)tableBlock).RecordCount == rowCount)
                         {
                             var serializedBlock = blockToPersist.Serialize();
-                            var blockId = StorageManager.WriteBlock(serializedBlock.Payload.ToArray());
-
+                            var blockId = Database.GetFreeBlockId();
+                            
+                            StorageManager.WriteBlock(blockId, serializedBlock.Payload.Span);
                             tableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),

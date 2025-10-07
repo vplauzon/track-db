@@ -222,6 +222,39 @@ namespace TrackDb.Lib
                 tc);
         }
 
+        internal int GetFreeBlockId()
+        {
+            var availableBlock = _availableBlockTable.Query()
+                .Take(1)
+                .FirstOrDefault();
+
+            if (availableBlock != null)
+            {
+                _availableBlockTable.Query()
+                    .Where(pf => pf.Equal(b => b.BlockId, availableBlock.BlockId))
+                    .Delete();
+
+                return availableBlock.BlockId;
+            }
+            else
+            {
+                var blockIds = _storageManager.Value.CreateBlockBatch()
+                    .ToImmutableArray();
+
+                _availableBlockTable.AppendRecords(blockIds
+                    .Skip(1)
+                    .Select(id => new AvailableBlockRecord(id)));
+
+                return blockIds.First();
+            }
+        }
+
+        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
+        {
+            _availableBlockTable.AppendRecords(blockIds
+                .Select(id => new AvailableBlockRecord(id)));
+        }
+
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
         #endregion
         #endregion
