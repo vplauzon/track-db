@@ -20,7 +20,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private readonly TaskCompletionSource _dataMaintenanceStopSource = new TaskCompletionSource();
         //  List of agents responsible for data life cycle
         private readonly IImmutableList<DataLifeCycleAgentBase> _dataLifeCycleAgents;
-        private TaskCompletionSource _dataMaintenanceTriggerSource = new TaskCompletionSource();
+        private TaskCompletionSource _dataMaintenanceTriggerSource = ResetDataMaintenanceTriggerSource();
         private DataManagementActivity _forcedDataManagementActivity = DataManagementActivity.None;
         private TaskCompletionSource? _forceDataManagementSource = null;
 
@@ -78,18 +78,18 @@ namespace TrackDb.Lib.DataLifeCycle
                     _dataMaintenanceTriggerSource.Task,
                     _dataMaintenanceStopSource.Task);
 
-                //  Reset the trigger source (before starting the work)
-                _dataMaintenanceTriggerSource = new TaskCompletionSource();
-
                 var forcedDataManagementActivity = Interlocked.Exchange(
                     ref _forcedDataManagementActivity,
                     DataManagementActivity.None);
                 var iterationCount = 0;
 
-                while (!DataMaintanceIteration(forcedDataManagementActivity))
+                do
                 {
                     ++iterationCount;
+                    //  Reset the trigger source (before starting the work)
+                    _dataMaintenanceTriggerSource = ResetDataMaintenanceTriggerSource();
                 }
+                while (!DataMaintanceIteration(forcedDataManagementActivity)) ;
                 _forceDataManagementSource?.TrySetResult();
             }
         }
@@ -118,6 +118,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 _forceDataManagementSource?.TrySetException(ex);
                 throw;
             }
+        }
+
+        private static TaskCompletionSource ResetDataMaintenanceTriggerSource()
+        {
+            return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 }
