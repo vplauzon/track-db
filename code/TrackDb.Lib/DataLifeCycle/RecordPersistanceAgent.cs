@@ -52,7 +52,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         var rowCount = ((IBlock)blockToPersist).RecordCount;
 
                         //  We stop before persisting the last (typically incomplete) block
-                        if (isFirstBlockToPersist || ((IBlock)tableBlock).RecordCount == rowCount)
+                        if (isFirstBlockToPersist || ((IBlock)tableBlock).RecordCount > rowCount)
                         {
                             var serializedBlock = blockToPersist.Serialize();
                             var blockId = Database.GetFreeBlockId();
