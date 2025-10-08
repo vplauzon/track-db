@@ -21,4 +21,10 @@
     <ProjectReference Include="..\TrackDb.Lib\TrackDb.Lib.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Properties\test.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
