@@ -33,7 +33,7 @@ namespace TrackDb.Test.DbTests
         public static async Task<TestDatabase> CreateAsync()
         {
             var db = await Database.CreateAsync(
-                new DatabasePolicies(),
+                DatabasePolicy.Create(),
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)
                 .AddPrimaryKeyProperty(m => m.Integer1),

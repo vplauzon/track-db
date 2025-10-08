@@ -42,7 +42,7 @@ namespace TrackDb.Test
                 (doHardDeleteAll ? DataManagementActivity.HardDeleteAll : DataManagementActivity.None);
             var tableName = "MyTable";
             var db = await Database.CreateAsync(
-                new DatabasePolicies(),
+                DatabasePolicy.Create(),
                 TypedTableSchema<Entity>.FromConstructor(tableName));
             var table = db.GetTypedTable<Entity>(tableName);
             var entity1 = new Entity("Alice", Status.InProgress, 25, 450000000, 657, DateTime.Now);

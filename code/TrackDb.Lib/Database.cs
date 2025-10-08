@@ -31,7 +31,7 @@ namespace TrackDb.Lib
 
         #region Constructors
         public async static Task<Database> CreateAsync(
-            DatabasePolicies databasePolicies,
+            DatabasePolicy databasePolicies,
             params IEnumerable<TableSchema> schemas)
         {
             await Task.CompletedTask;
@@ -39,7 +39,7 @@ namespace TrackDb.Lib
             return new Database(databasePolicies, schemas);
         }
 
-        private Database(DatabasePolicies databasePolicies, params IEnumerable<TableSchema> schemas)
+        private Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))
@@ -93,7 +93,7 @@ namespace TrackDb.Lib
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
-            DatabasePolicies = databasePolicies;
+            DatabasePolicy = databasePolicies;
         }
 
         private Table CreateTable(TableSchema schema)
@@ -131,7 +131,7 @@ namespace TrackDb.Lib
         }
 
         #region Public interface
-        public DatabasePolicies DatabasePolicies { get; }
+        public DatabasePolicy DatabasePolicy { get; }
 
         public Table GetTable(string tableName)
         {
