@@ -1,7 +1,7 @@
-﻿using TrackDb.Lib.InMemory;
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory;
 
 namespace TrackDb.Lib
 {
@@ -20,6 +20,7 @@ namespace TrackDb.Lib
 
         private readonly Database _database;
         private readonly Func<long, TransactionState> _stateResolutionFunc;
+        private readonly bool _doLog;
         private TransactionStatus _status = TransactionStatus.Open;
 
         #region Constructors
@@ -28,10 +29,12 @@ namespace TrackDb.Lib
         /// <param name="stateResolutionFunc"></param>
         internal TransactionContext(
             Database database,
-            Func<long, TransactionState> stateResolutionFunc)
+            Func<long, TransactionState> stateResolutionFunc,
+            bool doLog)
             : this(
                   database,
                   stateResolutionFunc,
+                  doLog,
                   Interlocked.Increment(ref _nextTransactionId))
         {
         }
@@ -48,6 +51,7 @@ namespace TrackDb.Lib
             : this(
                   database,
                   txId => transactionState,
+                  false,
                   0)
         {
         }
@@ -55,10 +59,12 @@ namespace TrackDb.Lib
         private TransactionContext(
             Database database,
             Func<long, TransactionState> stateResolutionFunc,
+            bool doLog,
             long transactionId)
         {
             _database = database;
             _stateResolutionFunc = stateResolutionFunc;
+            _doLog = doLog;
             TransactionId = transactionId;
         }
         #endregion
@@ -82,7 +88,7 @@ namespace TrackDb.Lib
                 _status = TransactionStatus.Complete;
                 if (TransactionId != 0)
                 {
-                    _database.CompleteTransaction(TransactionId);
+                    _database.CompleteTransaction(TransactionId, _doLog);
                 }
             }
             else

@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 
-namespace TrackDb.Lib.DbStorage
+namespace TrackDb.Lib
 {
     internal class StorageManager : IDisposable
     {

@@ -1,6 +1,5 @@
 ﻿using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.DbStorage;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -443,7 +442,8 @@ namespace TrackDb.Lib
                             "Transaction ID can't be found in database state",
                             nameof(transactionId));
                     }
-                });
+                },
+                true);
 
             ChangeDatabaseState(currentDbState =>
             {
@@ -529,7 +529,7 @@ namespace TrackDb.Lib
             }
         }
 
-        internal void CompleteTransaction(long transactionId)
+        internal void CompleteTransaction(long transactionId, bool doLog)
         {
             //  Fetch transaction state
             var transactionState = _databaseState.TransactionMap[transactionId];
@@ -553,6 +553,7 @@ namespace TrackDb.Lib
                 }
             });
             _dataLifeCycleManager.TriggerDataManagement();
+            LogTransaction(transactionState.UncommittedTransactionLog);
         }
 
         internal void RollbackTransaction(long transactionId)
@@ -569,6 +570,18 @@ namespace TrackDb.Lib
             DataManagementActivity dataManagementActivity = DataManagementActivity.None)
         {
             await _dataLifeCycleManager.ForceDataManagementAsync(dataManagementActivity);
+        }
+
+        private void LogTransaction(TransactionLog transactionLog)
+        {
+            var tableMap = _databaseState.TableMap;
+            var blockBuilders = transactionLog.TableBlockBuilderMap
+                .Where(p => tableMap[p.Key].IsUserTable)
+                .Select(p => p.Value);
+            var tombstoneBuilder = transactionLog.TableBlockBuilderMap.ContainsKey(
+                _tombstoneTable.Schema.TableName)
+                ? transactionLog.TableBlockBuilderMap[_tombstoneTable.Schema.TableName]
+                : null;
         }
         #endregion
 
