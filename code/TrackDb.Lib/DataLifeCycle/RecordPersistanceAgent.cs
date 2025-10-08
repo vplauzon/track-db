@@ -56,7 +56,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         {
                             var serializedBlock = blockToPersist.Serialize();
                             var blockId = Database.GetFreeBlockId();
-                            
+
                             StorageManager.WriteBlock(blockId, serializedBlock.Payload.Span);
                             tableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(

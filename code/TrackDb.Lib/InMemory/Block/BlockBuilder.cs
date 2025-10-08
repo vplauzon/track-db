@@ -257,8 +257,8 @@ namespace TrackDb.Lib.InMemory.Block
                 maxRowCount,
                 new TruncationBound(0, 0),
                 new TruncationBound(startingRowCount, startingSize));
-            var optimalRowCount =
-                OptimizeTruncationRowCount(maxSize, maxRowCount, lowerBound, upperBound);
+            (var optimalRowCount, var iterationCount) =
+                OptimizeTruncationRowCount(maxSize, maxRowCount, lowerBound, upperBound, 1);
 
             return optimalRowCount;
         }
@@ -285,31 +285,57 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        private int OptimizeTruncationRowCount(
+        private (int recordCount, int iterationCount) OptimizeTruncationRowCount(
             int maxSize,
             int maxRowCount,
             TruncationBound lowerBound,
-            TruncationBound upperBound)
+            TruncationBound upperBound,
+            int iterationCount)
         {
+            const int DELTA_SIZE_TOLERANCE = 10;
+
             if (upperBound.Size <= maxSize)
             {
-                return upperBound.RecordCount;
+                return (upperBound.RecordCount, iterationCount);
             }
             else if (lowerBound.RecordCount == upperBound.RecordCount - 1)
             {
-                return lowerBound.RecordCount;
+                return (lowerBound.RecordCount, iterationCount);
             }
             else
             {
-                var newCount = (lowerBound.RecordCount + upperBound.RecordCount) / 2;
+                //var newCount = (lowerBound.RecordCount + upperBound.RecordCount) / 2;
+                //  Interpolate the new count
+                //  Assuming X = count & Y = size
+                //  Also assuming that Y = m.X + b (it's linear)
+                //  We want Y to converge to maxSize or Y3 = maxSize
+                //  Y1 = m.X1 + b, Y2 = m.X2 + b
+                //  => Y2-Y1 = m.(X2-X1) => m = (Y2-Y1)/(X2-X1)
+                //  => b = Y1-m.X1
+                //  Then, Y3 = m.X3 + b => X3 = (Y3-b)/m
+                var m = ((double)(upperBound.Size - lowerBound.Size))
+                    / (upperBound.RecordCount - lowerBound.RecordCount);
+                var b = lowerBound.Size - m * lowerBound.RecordCount;
+                var newCount = (int)((maxSize - b) / m);
                 var newSize = GetSerializeSize(newCount);
                 var newBound = new TruncationBound(newCount, newSize);
+                var newLowerBound = newSize > maxSize ? lowerBound : newBound;
+                var newUpperBound = newSize > maxSize ? newBound : upperBound;
 
-                return OptimizeTruncationRowCount(
-                    maxSize,
-                    maxRowCount,
-                    newSize > maxSize ? lowerBound : newBound,
-                    newSize > maxSize ? newBound : upperBound);
+                if (Math.Abs(newSize - lowerBound.Size) < DELTA_SIZE_TOLERANCE
+                    || Math.Abs(newSize - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                {
+                    return (lowerBound.RecordCount, iterationCount);
+                }
+                else
+                {
+                    return OptimizeTruncationRowCount(
+                        maxSize,
+                        maxRowCount,
+                        newLowerBound,
+                        newUpperBound,
+                        iterationCount + 1);
+                }
             }
         }
         #endregion
