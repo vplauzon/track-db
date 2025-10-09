@@ -53,7 +53,7 @@ namespace TrackDb.Lib
             _storageManager = new Lazy<StorageManager>(
                 () => new StorageManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
                 LazyThreadSafetyMode.ExecutionAndPublication);
-            _logManager = databasePolicies.LogPolicy.LogFolderUri != null
+            _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
                 ? new LogManager(databasePolicies.LogPolicy)
                 : null;
 
@@ -566,7 +566,10 @@ namespace TrackDb.Lib
             {
                 var contentText = ToTransactionContent(transactionState.UncommittedTransactionLog);
 
-                _logManager.QueueContent(contentText);
+                if (contentText != null)
+                {
+                    _logManager.QueueContent(contentText);
+                }
             }
         }
 

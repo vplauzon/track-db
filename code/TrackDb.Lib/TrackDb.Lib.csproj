@@ -29,4 +29,8 @@
     <None Remove="Settings\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Files.DataLake" Version="12.23.0" />
+  </ItemGroup>
+
 </Project>

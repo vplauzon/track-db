@@ -1,18 +1,19 @@
-﻿using System;
+﻿using Azure.Core;
+using System;
 
 namespace TrackDb.Lib.Policies
 {
     public record LogPolicy(
-        Uri? LogFolderUri,
+        StorageConfiguration? StorageConfiguration,
         TimeSpan BufferingTimeWindow)
     {
         public static LogPolicy Create(
-            Uri? LogFolderUri = null,
+            StorageConfiguration? StorageConfiguration = null,
             TimeSpan? BufferingTimeWindow = null)
         {
             return new LogPolicy(
-                  LogFolderUri,
-                  BufferingTimeWindow ?? TimeSpan.FromSeconds(5));
+                StorageConfiguration,
+                BufferingTimeWindow ?? TimeSpan.FromSeconds(5));
         }
     }
 }
