@@ -46,7 +46,9 @@ namespace TrackDb.LogTest
             }
             else
             {
-                return null;
+                var variableText = Environment.GetEnvironmentVariable(key);
+
+                return variableText;
             }
         }
     }

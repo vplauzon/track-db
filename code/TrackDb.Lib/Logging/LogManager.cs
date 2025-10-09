@@ -1,4 +1,5 @@
-﻿using Azure.Storage.Files.DataLake;
+﻿using Azure;
+using Azure.Storage.Files.DataLake;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -27,9 +28,18 @@ namespace TrackDb.Lib.Logging
             }
 
             _logPolicy = logPolicy;
-            _loggingDirectory = new DataLakeDirectoryClient(
-                _logPolicy.StorageConfiguration.LogFolderUri,
-                _logPolicy.StorageConfiguration.TokenCredential);
+            if (_logPolicy.StorageConfiguration.TokenCredential != null)
+            {
+                _loggingDirectory = new DataLakeDirectoryClient(
+                    _logPolicy.StorageConfiguration.LogFolderUri,
+                    _logPolicy.StorageConfiguration.TokenCredential);
+            }
+            else
+            {
+                _loggingDirectory = new DataLakeDirectoryClient(
+                    _logPolicy.StorageConfiguration.LogFolderUri,
+                    _logPolicy.StorageConfiguration.SasCredential);
+            }
         }
 
         public async Task InitLogsAsync()

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Azure;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -40,21 +41,28 @@ namespace TrackDb.LogTest
         #region Constructor
         public static async Task<TestDatabase> CreateAsync(Guid testId)
         {
-            var logFolderText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
-            var logFolderEnv = Environment.GetEnvironmentVariable("logFolderUri");
+            var logFolderUriText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
+            var logFolderSas = TestConfiguration.Instance.GetConfiguration("logFolderSas");
 
-            if (string.IsNullOrWhiteSpace(logFolderText)
-                && string.IsNullOrWhiteSpace(logFolderEnv))
+            if (string.IsNullOrWhiteSpace(logFolderUriText))
             {
                 throw new InvalidOperationException("'logFolderUri' is missing from configuration");
             }
+            if (string.IsNullOrWhiteSpace(logFolderSas))
+            {
+                throw new InvalidOperationException("'logFolderSas' is missing from configuration");
+            }
 
-            var logFolderUri = new UriBuilder((logFolderText ?? logFolderEnv)!);
+            var logFolderUri = new UriBuilder(logFolderUriText);
 
             logFolderUri.Path += $"/{_runFolder}/{testId}";
 
             var db = await Database.CreateAsync(
-                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(logFolderUri.Uri)),
+                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(
+                    new StorageConfiguration(
+                        logFolderUri.Uri,
+                        null,
+                        new AzureSasCredential(logFolderSas)))),
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)

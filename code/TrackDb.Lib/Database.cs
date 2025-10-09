@@ -102,6 +102,7 @@ namespace TrackDb.Lib
 
             _databaseState = new DatabaseState(tableMap);
             DatabasePolicy = databasePolicies;
+            DatabasePolicy.LogPolicy.StorageConfiguration?.Validate();
         }
 
         private Table CreateTable(TableSchema schema)
