@@ -10,6 +10,8 @@ namespace TrackDb.LogTest
 {
     internal class TestDatabase : IAsyncDisposable
     {
+        private static readonly string _runFolder = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss");
+
         #region Entity types
         public enum ActivityState
         {
@@ -36,7 +38,7 @@ namespace TrackDb.LogTest
         private const string TASK_TABLE = "Task";
 
         #region Constructor
-        public static async Task<TestDatabase> CreateAsync()
+        public static async Task<TestDatabase> CreateAsync(Guid testId)
         {
             var logFolderText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
             var logFolderEnv = Environment.GetEnvironmentVariable("logFolderUri");
@@ -47,9 +49,12 @@ namespace TrackDb.LogTest
                 throw new InvalidOperationException("'logFolderUri' is missing from configuration");
             }
 
-            var logFolderUri = new Uri((logFolderText ?? logFolderEnv)!);
+            var logFolderUri = new UriBuilder((logFolderText ?? logFolderEnv)!);
+
+            logFolderUri.Path += $"/{_runFolder}/{testId}";
+
             var db = await Database.CreateAsync(
-                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(logFolderUri)),
+                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(logFolderUri.Uri)),
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)
