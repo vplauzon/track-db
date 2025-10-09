@@ -7,7 +7,6 @@
     <WarningLevel>9999</WarningLevel>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <IsPackable>false</IsPackable>
-    <RunSettingsFilePath>$(MSBuildProjectDirectory)\Test.runsettings</RunSettingsFilePath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,12 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TrackDb.Lib\TrackDb.Lib.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Properties\test.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>

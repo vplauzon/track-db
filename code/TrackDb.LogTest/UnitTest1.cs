@@ -1,4 +1,6 @@
-﻿namespace TrackDb.LogTest
+﻿using Xunit;
+
+namespace TrackDb.LogTest
 {
     public class UnitTest1
     {
