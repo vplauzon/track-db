@@ -8,5 +8,5 @@ namespace TrackDb.Lib.Logging
 {
     internal record TransactionContent(
         Dictionary<string, TableTransactionContent> Tables,
-        Dictionary<string, List<long>>? Tombstones);
+        Dictionary<string, List<long>> Tombstones);
 }

@@ -13,6 +13,7 @@ using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Logging;
 using TrackDb.Lib.Policies;
+using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
@@ -24,6 +25,7 @@ namespace TrackDb.Lib
     public class Database : IAsyncDisposable
     {
         private readonly Lazy<StorageManager> _storageManager;
+        private readonly LogManager? _logManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
@@ -35,9 +37,11 @@ namespace TrackDb.Lib
             DatabasePolicy databasePolicies,
             params IEnumerable<TableSchema> schemas)
         {
-            await Task.CompletedTask;
+            var database = new Database(databasePolicies, schemas);
 
-            return new Database(databasePolicies, schemas);
+            await database.InitLogsAsync();
+
+            return database;
         }
 
         private Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
@@ -49,6 +53,9 @@ namespace TrackDb.Lib
             _storageManager = new Lazy<StorageManager>(
                 () => new StorageManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
                 LazyThreadSafetyMode.ExecutionAndPublication);
+            _logManager = databasePolicies.LogPolicy.LogFolderUri != null
+                ? new LogManager(databasePolicies.LogPolicy)
+                : null;
 
             var invalidTableName = userTables
                 .Select(t => t.Schema.TableName)
@@ -555,9 +562,11 @@ namespace TrackDb.Lib
                 }
             });
             _dataLifeCycleManager.TriggerDataManagement();
-            if (doLog && DatabasePolicy.LogPolicy.LogFolderUri != null)
+            if (doLog && _logManager != null)
             {
-                LogTransaction(transactionState.UncommittedTransactionLog);
+                var contentText = ToTransactionContent(transactionState.UncommittedTransactionLog);
+
+                _logManager.QueueContent(contentText);
             }
         }
 
@@ -575,26 +584,6 @@ namespace TrackDb.Lib
             DataManagementActivity dataManagementActivity = DataManagementActivity.None)
         {
             await _dataLifeCycleManager.ForceDataManagementAsync(dataManagementActivity);
-        }
-
-        private void LogTransaction(TransactionLog transactionLog)
-        {
-            var tableMap = _databaseState.TableMap;
-            var tables = transactionLog.TableBlockBuilderMap
-                .Where(p => tableMap[p.Key].IsUserTable)
-                .Select(p => KeyValuePair.Create(p.Key, p.Value.ToLog()))
-                .ToDictionary();
-            var tombstoneBuilder = transactionLog.TableBlockBuilderMap.ContainsKey(
-                _tombstoneTable.Schema.TableName)
-                ? transactionLog.TableBlockBuilderMap[_tombstoneTable.Schema.TableName]
-                : null;
-
-            if (tombstoneBuilder != null)
-            {
-                throw new NotImplementedException();
-            }
-            var content = new TransactionContent(tables, null);
-            var contentText = JsonSerializer.Serialize(content);
         }
         #endregion
 
@@ -633,6 +622,68 @@ namespace TrackDb.Lib
             var block = new ReadOnlyBlock(schema, serializedBlock);
 
             return block;
+        }
+        #endregion
+
+        #region Logging
+        private async Task InitLogsAsync()
+        {
+            if (_logManager != null)
+            {
+                await _logManager.InitLogsAsync();
+            }
+        }
+
+        private string? ToTransactionContent(TransactionLog transactionLog)
+        {
+            Dictionary<string, List<long>> ToTombstones(IBlock block)
+            {
+                var tableMap = _databaseState.TableMap;
+                var userTableNames = tableMap
+                    .Where(t => t.Value.IsUserTable)
+                    .Select(t => t.Key);
+                var pf = new QueryPredicateFactory<TombstoneRecord>(_tombstoneTable.Schema);
+                var predicate = pf
+                    .In(t => t.TableName, userTableNames)
+                    .QueryPredicate;
+                var rowIndexes = block.Filter(predicate, false).RowIndexes;
+                var columnIndexes = _tombstoneTable.Schema.GetColumnIndexSubset(t => t.TableName)
+                    .Concat(_tombstoneTable.Schema.GetColumnIndexSubset(t => t.RecordId));
+                var buffer = new object[2];
+                var content = block.Project(buffer, columnIndexes, rowIndexes, 0)
+                    .Select(data => new
+                    {
+                        Table = (string)data.Span[0]!,
+                        RecordId = (long)data.Span[1]!
+                    })
+                    .GroupBy(o => o.Table)
+                    .ToDictionary(g => g.Key, g => g.Select(i => i.RecordId).ToList());
+
+                return content;
+            }
+
+            var tableMap = _databaseState.TableMap;
+            var tables = transactionLog.TableBlockBuilderMap
+                .Where(p => tableMap[p.Key].IsUserTable)
+                .Select(p => KeyValuePair.Create(p.Key, p.Value.ToLog()))
+                .ToDictionary();
+            var tombstones = transactionLog.TableBlockBuilderMap.ContainsKey(
+                _tombstoneTable.Schema.TableName)
+                ? ToTombstones(
+                    transactionLog.TableBlockBuilderMap[_tombstoneTable.Schema.TableName])
+                : new Dictionary<string, List<long>>();
+
+            if (tables.Any() || tombstones.Any())
+            {
+                var content = new TransactionContent(tables, tombstones);
+                var contentText = JsonSerializer.Serialize(content);
+
+                return contentText;
+            }
+            else
+            {
+                return null;
+            }
         }
         #endregion
     }
