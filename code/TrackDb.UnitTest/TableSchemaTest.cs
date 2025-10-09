@@ -3,7 +3,7 @@ using System.Linq.Expressions;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.Test
+namespace TrackDb.UnitTest
 {
     public class TableSchemaTest
     {

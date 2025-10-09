@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
 
-namespace TrackDb.Test.DbTests
+namespace TrackDb.UnitTest.DbTests
 {
     internal class TestDatabase : IAsyncDisposable
     {

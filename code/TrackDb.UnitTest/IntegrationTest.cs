@@ -8,7 +8,7 @@ using TrackDb.Lib;
 using TrackDb.Lib.Policies;
 using Xunit;
 
-namespace TrackDb.Test
+namespace TrackDb.UnitTest
 {
     public class IntegrationTest
     {

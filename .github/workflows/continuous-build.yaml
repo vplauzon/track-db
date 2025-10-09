@@ -23,4 +23,4 @@ jobs:
       run: dotnet build code/ --configuration Release --no-restore
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test
     - name: Test
-      run: dotnet test code/TrackDb.Test --configuration Release --no-build --verbosity normal
+      run: dotnet test code/TrackDb.UnitTest --configuration Release --no-build --verbosity normal

@@ -1,3 +1,3 @@
 ﻿using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("TrackDb.Test")]
+[assembly: InternalsVisibleTo("TrackDb.UnitTest")]

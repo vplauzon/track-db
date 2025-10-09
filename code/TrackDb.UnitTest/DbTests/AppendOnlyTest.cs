@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.Test.DbTests
+namespace TrackDb.UnitTest.DbTests
 {
     public class AppendOnlyTest
     {

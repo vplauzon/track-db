@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using Xunit;
 
-namespace TrackDb.Test.Codecs
+namespace TrackDb.UnitTest.Codecs
 {
     public class BitPackerTest
     {

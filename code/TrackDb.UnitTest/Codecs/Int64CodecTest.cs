@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.Test.Codecs
+namespace TrackDb.UnitTest.Codecs
 {
     public class Int64CodecTest
     {

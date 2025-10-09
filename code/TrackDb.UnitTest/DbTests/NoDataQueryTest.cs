@@ -2,10 +2,10 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
-using TrackDb.Test.DbTests;
+using TrackDb.UnitTest.DbTests;
 using Xunit;
 
-namespace TrackDb.Test.DbTests
+namespace TrackDb.UnitTest.DbTests
 {
     public class NoDataQueryTest
     {

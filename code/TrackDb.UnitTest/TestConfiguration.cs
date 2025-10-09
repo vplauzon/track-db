@@ -3,7 +3,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Text.Json;
 
-namespace TrackDb.Test
+namespace TrackDb.UnitTest
 {
     public class TestConfiguration
     {
