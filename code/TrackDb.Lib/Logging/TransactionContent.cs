@@ -6,5 +6,7 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Logging
 {
-    internal record TransactionContent(List<TableTransactionContent> Tables);
+    internal record TransactionContent(
+        List<TableTransactionContent> Tables,
+        List<TombstoneContent> Tombstones);
 }

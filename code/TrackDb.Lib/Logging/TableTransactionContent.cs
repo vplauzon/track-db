@@ -4,6 +4,6 @@ namespace TrackDb.Lib.Logging
 {
     internal record TableTransactionContent(
         string TableName,
-        List<long> TombstoneRecordIds,
+        List<long> NewRecordIds,
         List<ColumnTransactionContent> Columns);
 }
