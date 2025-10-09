@@ -1,16 +1,18 @@
-﻿using TrackDb.Lib.InMemory;
-using TrackDb.Lib.InMemory.Block;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using TrackDb.Lib.Policies;
 using TrackDb.Lib.DataLifeCycle;
+using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Logging;
+using TrackDb.Lib.Policies;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
@@ -553,7 +555,10 @@ namespace TrackDb.Lib
                 }
             });
             _dataLifeCycleManager.TriggerDataManagement();
-            LogTransaction(transactionState.UncommittedTransactionLog);
+            if (doLog && DatabasePolicy.LogPolicy.LogFolderUri != null)
+            {
+                LogTransaction(transactionState.UncommittedTransactionLog);
+            }
         }
 
         internal void RollbackTransaction(long transactionId)
@@ -577,11 +582,19 @@ namespace TrackDb.Lib
             var tableMap = _databaseState.TableMap;
             var tables = transactionLog.TableBlockBuilderMap
                 .Where(p => tableMap[p.Key].IsUserTable)
-                .Select(p => p.Value.ToLog());
+                .Select(p => KeyValuePair.Create(p.Key, p.Value.ToLog()))
+                .ToDictionary();
             var tombstoneBuilder = transactionLog.TableBlockBuilderMap.ContainsKey(
                 _tombstoneTable.Schema.TableName)
                 ? transactionLog.TableBlockBuilderMap[_tombstoneTable.Schema.TableName]
                 : null;
+
+            if (tombstoneBuilder != null)
+            {
+                throw new NotImplementedException();
+            }
+            var content = new TransactionContent(tables, null);
+            var contentText = JsonSerializer.Serialize(content);
         }
         #endregion
 

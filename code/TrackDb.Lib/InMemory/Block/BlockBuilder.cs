@@ -349,13 +349,12 @@ namespace TrackDb.Lib.InMemory.Block
                 .Select(i => (long)_dataColumns.Last().GetValue(i)!)
                 .ToList();
             var columns = Enumerable.Range(0, _dataColumns.Count - 1)
-                .Select(i => new ColumnTransactionContent(
+                .Select(i => KeyValuePair.Create(
                     Schema.Columns[i].ColumnName,
                     _dataColumns[i].GetLogValues().ToList()))
-                .ToList();
+                .ToDictionary();
 
             return new TableTransactionContent(
-                Schema.TableName,
                 newRecordIds,
                 columns);
         }
