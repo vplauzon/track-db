@@ -15,7 +15,7 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            var columnIndexes = Schema.GetColumnIndexSubset(propertySelection.Body);
+            var columnIndexes = Schema.GetColumnIndexSubset(propertySelection);
             var columnValues = columnIndexes.Count > 1
                 ? Schema.FromPropertyValueToColumns(value!)
                 : new object[] { value! }.AsSpan();

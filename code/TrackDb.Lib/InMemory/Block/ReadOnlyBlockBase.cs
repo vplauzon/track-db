@@ -5,6 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Predicate;
@@ -32,6 +33,11 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 return index;
             }
+
+            IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
+            {
+                throw new NotSupportedException();
+            }
         }
 
         private record BlockIdColumn(int BlockId) : IReadOnlyDataColumn
@@ -51,6 +57,11 @@ namespace TrackDb.Lib.InMemory.Block
             public object? GetValue(int index)
             {
                 return BlockId;
+            }
+
+            IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
+            {
+                throw new NotSupportedException();
             }
         }
         #endregion

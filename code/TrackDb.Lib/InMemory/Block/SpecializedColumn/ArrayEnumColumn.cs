@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text.Json;
 using TrackDb.Lib.Predicate;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -105,6 +105,13 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
             return Int64Codec.Decompress(intSerializedColumn)
                 .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
+        }
+
+        protected override JsonElement GetLogValue(object? objectData)
+        {
+            var element = JsonSerializer.SerializeToElement(objectData?.ToString());
+
+            return element;
         }
     }
 }

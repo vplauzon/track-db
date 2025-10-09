@@ -1,10 +1,11 @@
-﻿using TrackDb.Lib.Predicate;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -27,17 +28,6 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         public ReadOnlySpan<T> RawData => new ReadOnlySpan<T>(_array, 0, _itemCount);
 
-        public IEnumerable<T> EnumerableRawData
-        {
-            get
-            {
-                for (var i = 0; i != _itemCount; ++i)
-                {
-                    yield return _array[i];
-                }
-            }
-        }
-
         #region IReadOnlyDataColumn
         int IReadOnlyDataColumn.RecordCount => _itemCount;
 
@@ -49,6 +39,14 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
 
             return GetObjectData(_array[index]);
+        }
+
+        IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
+        {
+            foreach (var item in _array.Take(_itemCount))
+            {
+                yield return GetLogValue(GetObjectData(item));
+            }
         }
 
         IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)
@@ -200,5 +198,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         protected abstract SerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
 
         protected abstract IEnumerable<object?> Deserialize(SerializedColumn serializedColumn);
+
+        protected virtual JsonElement GetLogValue(object? objectData)
+        {
+            return JsonSerializer.SerializeToElement(objectData);
+        }
     }
 }

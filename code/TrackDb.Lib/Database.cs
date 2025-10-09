@@ -575,9 +575,9 @@ namespace TrackDb.Lib
         private void LogTransaction(TransactionLog transactionLog)
         {
             var tableMap = _databaseState.TableMap;
-            var blockBuilders = transactionLog.TableBlockBuilderMap
+            var tables = transactionLog.TableBlockBuilderMap
                 .Where(p => tableMap[p.Key].IsUserTable)
-                .Select(p => p.Value);
+                .Select(p => p.Value.ToLog());
             var tombstoneBuilder = transactionLog.TableBlockBuilderMap.ContainsKey(
                 _tombstoneTable.Schema.TableName)
                 ? transactionLog.TableBlockBuilderMap[_tombstoneTable.Schema.TableName]

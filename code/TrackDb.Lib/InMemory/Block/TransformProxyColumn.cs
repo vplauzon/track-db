@@ -2,8 +2,11 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using TrackDb.Lib.Predicate;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -22,12 +25,20 @@ namespace TrackDb.Lib.InMemory.Block
         protected abstract object? OutToInValue(object? value);
 
         protected abstract object? InToOutValue(object? value);
+        
+        protected abstract JsonElement InToLogValue(object? value);
 
         int IReadOnlyDataColumn.RecordCount => _innerColumn.RecordCount;
 
         object? IReadOnlyDataColumn.GetValue(int index)
         {
             return InToOutValue(_innerColumn.GetValue(index));
+        }
+
+        IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
+        {
+            return Enumerable.Range(0, _innerColumn.RecordCount)
+                .Select(i => InToLogValue(_innerColumn.GetValue(i)));
         }
 
         IEnumerable<int> IReadOnlyDataColumn.FilterBinary(

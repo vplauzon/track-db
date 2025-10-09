@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Text.Json;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -33,6 +34,13 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 : true;
 
             return boolValue;
+        }
+
+        protected override JsonElement InToLogValue(object? value)
+        {
+            var boolValue = (bool?)value;
+
+            return JsonSerializer.SerializeToElement(boolValue);
         }
     }
 }

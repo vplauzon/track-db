@@ -137,7 +137,7 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException("ThenBy must come after an orderby");
             }
 
-            var columnIndexSubset = _table.Schema.GetColumnIndexSubset(propertySelector.Body);
+            var columnIndexSubset = _table.Schema.GetColumnIndexSubset(propertySelector);
 
             if (columnIndexSubset.Count == 1)
             {

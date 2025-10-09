@@ -32,10 +32,8 @@ namespace TrackDb.UnitTest.DbTests
         #region Constructor
         public static async Task<TestDatabase> CreateAsync()
         {
-            var logFolderText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
-            var logFolderUri = logFolderText == null ? null : new Uri(logFolderText);
             var db = await Database.CreateAsync(
-                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(logFolderUri)),
+                DatabasePolicy.Create(),
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)
                 .AddPrimaryKeyProperty(m => m.Integer1),

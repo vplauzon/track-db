@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
+using TrackDb.Lib.Logging;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -337,6 +338,26 @@ namespace TrackDb.Lib.InMemory.Block
                         iterationCount + 1);
                 }
             }
+        }
+        #endregion
+
+        #region Log
+        public TableTransactionContent ToLog()
+        {
+            var recordCount = RecordCount;
+            var newRecordIds = Enumerable.Range(0, recordCount)
+                .Select(i => (long)_dataColumns.Last().GetValue(i)!)
+                .ToList();
+            var columns = Enumerable.Range(0, _dataColumns.Count - 1)
+                .Select(i => new ColumnTransactionContent(
+                    Schema.Columns[i].ColumnName,
+                    _dataColumns[i].GetLogValues().ToList()))
+                .ToList();
+
+            return new TableTransactionContent(
+                Schema.TableName,
+                newRecordIds,
+                columns);
         }
         #endregion
     }

@@ -316,7 +316,7 @@ namespace TrackDb.Lib
         public TypedTableSchema<T> AddPrimaryKeyProperty<PT>(
             Expression<Func<T, PT>> propertyExtractor)
         {
-            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
+            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor);
             var newPrimaryKeyColumnIndexes = PrimaryKeyColumnIndexes
                 .Concat(columnIndexSubset)
                 .OrderBy(i => i)
@@ -342,7 +342,7 @@ namespace TrackDb.Lib
         public TypedTableSchema<T> AddPartitionKeyProperty<PT>(
             Expression<Func<T, PT>> propertyExtractor)
         {
-            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor.Body);
+            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor);
             var newPartitionKeyColumnIndexes = PartitionKeyColumnIndexes
                 .Concat(columnIndexSubset)
                 .OrderBy(i => i)
@@ -373,6 +373,11 @@ namespace TrackDb.Lib
         {
             return _constructorMappingByType[propertyValue.GetType()]
                 .ObjectToColumns(propertyValue);
+        }
+
+        internal IImmutableList<int> GetColumnIndexSubset<U>(Expression<Func<T, U>> propertySelection)
+        {
+            return GetColumnIndexSubset(propertySelection.Body);
         }
 
         internal IImmutableList<int> GetColumnIndexSubset(Expression expression)

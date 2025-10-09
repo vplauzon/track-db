@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -14,8 +15,10 @@ namespace TrackDb.Lib.InMemory.Block
 
         object? GetValue(int index);
 
+        IEnumerable<JsonElement> GetLogValues();
+
         IEnumerable<int> FilterBinary(BinaryOperator binaryOperator, object? value);
-        
+
         IEnumerable<int> FilterIn(IImmutableSet<object?> values);
     }
 }
