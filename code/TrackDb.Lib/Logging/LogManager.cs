@@ -14,11 +14,21 @@ namespace TrackDb.Lib.Logging
 {
     internal class LogManager : IAsyncDisposable
     {
+        #region Inner types
+        private record ContentItem(string content, DateTime Timestamp, TaskCompletionSource? tcs)
+        {
+            public ContentItem(string content)
+                : this(content, DateTime.Now, null)
+            {
+            }
+        }
+        #endregion
+
         private static readonly string SEPARATOR = "\n";
 
         private readonly LogPolicy _logPolicy;
         private readonly LogStorageManager _logStorageManager;
-        private readonly ConcurrentQueue<string> _contentQueue = new();
+        private readonly ConcurrentQueue<ContentItem> _contentQueue = new();
         private volatile int _contentLength;
 
         public LogManager(LogPolicy logPolicy)
@@ -34,7 +44,7 @@ namespace TrackDb.Lib.Logging
 
         public void QueueContent(string contentText)
         {
-            _contentQueue.Enqueue(contentText);
+            _contentQueue.Enqueue(new ContentItem(contentText));
 
             var totalLength =
                 Interlocked.Add(ref _contentLength, contentText.Length + SEPARATOR.Length);
