@@ -39,7 +39,7 @@ namespace TrackDb.Lib
         {
             var database = new Database(databasePolicies, schemas);
 
-            await database.InitLogsAsync();
+            await database.InitLogsAsync(CancellationToken.None);
 
             return database;
         }
@@ -630,11 +630,11 @@ namespace TrackDb.Lib
         #endregion
 
         #region Logging
-        private async Task InitLogsAsync()
+        private async Task InitLogsAsync(CancellationToken ct)
         {
             if (_logManager != null)
             {
-                await _logManager.InitLogsAsync();
+                await _logManager.InitLogsAsync(ct);
             }
         }
 
