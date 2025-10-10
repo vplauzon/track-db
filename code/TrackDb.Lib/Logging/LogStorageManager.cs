@@ -4,6 +4,7 @@ using Azure.Storage.Files.DataLake;
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.Policies;
@@ -15,6 +16,7 @@ namespace TrackDb.Lib.Logging
         private readonly LogPolicy _logPolicy;
         private readonly DataLakeDirectoryClient _loggingDirectory;
         private readonly BlobContainerClient _loggingContainer;
+        private readonly long _currentCheckpointBlobIndex = 1;
         private long _currentLogBlobIndex = 1;
         private AppendBlobClient? _currentLogBlob;
 
@@ -79,9 +81,28 @@ namespace TrackDb.Lib.Logging
             }
             else
             {
+                await CreateInitialCheckpointAsync(ct);
                 _currentLogBlob = _loggingContainer.GetAppendBlobClient(
                     _loggingDirectory.GetFileClient($"log-{_currentLogBlobIndex:D19}.json").Path);
                 await _currentLogBlob.CreateIfNotExistsAsync();
+            }
+        }
+
+        private async Task CreateInitialCheckpointAsync(CancellationToken ct)
+        {
+            var checkpointBlob = _loggingContainer.GetAppendBlobClient(
+                _loggingDirectory.GetFileClient(
+                    $"log-{_currentCheckpointBlobIndex:D19}.json").Path);
+            var checkpointHeader = new CheckpointHeader(new Version(1, 0), 1);
+            var checkpointHeaderText = JsonSerializer.Serialize(checkpointHeader);
+
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.WriteLine(checkpointHeaderText);
+                writer.Flush();
+                stream.Position = 0;
+                await checkpointBlob.AppendBlockAsync(stream);
             }
         }
         #endregion
