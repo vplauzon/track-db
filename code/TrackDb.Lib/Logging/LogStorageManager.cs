@@ -2,6 +2,7 @@
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ namespace TrackDb.Lib.Logging
         private long _currentLogBlobIndex = 1;
         private AppendBlobClient? _currentLogBlob;
 
+        #region Constructor
         public LogStorageManager(LogPolicy logPolicy)
         {
             if (logPolicy.StorageConfiguration == null)
@@ -48,12 +50,16 @@ namespace TrackDb.Lib.Logging
                 _loggingContainer = dummyBlob.GetParentBlobContainerClient();
             }
         }
+        #endregion
+
+        public int MaxBlockSize => _currentLogBlob!.AppendBlobMaxAppendBlockBytes;
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             await Task.CompletedTask;
         }
 
+        #region Initialization
         public async Task InitLogsAsync(CancellationToken ct)
         {
             await _loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
@@ -76,6 +82,15 @@ namespace TrackDb.Lib.Logging
                 _currentLogBlob = _loggingContainer.GetAppendBlobClient(
                     _loggingDirectory.GetFileClient($"log-{_currentLogBlobIndex:D19}.json").Path);
                 await _currentLogBlob.CreateIfNotExistsAsync();
+            }
+        }
+        #endregion
+
+        public async Task PersistBlockAsync(byte[] buffer)
+        {
+            using (var stream = new MemoryStream(buffer))
+            {
+                await _currentLogBlob!.AppendBlockAsync(stream);
             }
         }
     }

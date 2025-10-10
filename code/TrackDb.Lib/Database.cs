@@ -132,10 +132,13 @@ namespace TrackDb.Lib
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            await ValueTask.CompletedTask;
             if (_storageManager.IsValueCreated)
             {
                 ((IDisposable)_storageManager.Value).Dispose();
+            }
+            if (_logManager != null)
+            {
+                await ((IAsyncDisposable)_logManager).DisposeAsync();
             }
         }
 
