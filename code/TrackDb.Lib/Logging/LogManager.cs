@@ -40,6 +40,13 @@ namespace TrackDb.Lib.Logging
                 Interlocked.Add(ref _contentLength, contentText.Length + SEPARATOR.Length);
         }
 
+        public async Task CommitContentAsync(string contentText)
+        {
+            await Task.CompletedTask;
+
+            throw new NotImplementedException();
+        }
+
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             await ((IAsyncDisposable)_logStorageManager).DisposeAsync();
