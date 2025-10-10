@@ -14,7 +14,7 @@ namespace TrackDb.Lib.DataLifeCycle
         public RecordPersistanceAgent(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<StorageManager> storageManager)
+            Lazy<DbFileManager> storageManager)
             : base(database, tombstoneTable, storageManager)
         {
         }

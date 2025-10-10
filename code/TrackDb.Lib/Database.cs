@@ -24,7 +24,7 @@ namespace TrackDb.Lib
     /// </summary>
     public class Database : IAsyncDisposable
     {
-        private readonly Lazy<StorageManager> _storageManager;
+        private readonly Lazy<DbFileManager> _dbFileManager;
         private readonly LogManager? _logManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
@@ -50,8 +50,8 @@ namespace TrackDb.Lib
                 .Select(s => CreateTable(s))
                 .ToImmutableArray();
 
-            _storageManager = new Lazy<StorageManager>(
-                () => new StorageManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
+            _dbFileManager = new Lazy<DbFileManager>(
+                () => new DbFileManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
                 LazyThreadSafetyMode.ExecutionAndPublication);
             _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
                 ? new LogManager(databasePolicies.LogPolicy)
@@ -91,7 +91,7 @@ namespace TrackDb.Lib
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
-            _dataLifeCycleManager = new DataLifeCycleManager(this, _tombstoneTable, _storageManager);
+            _dataLifeCycleManager = new DataLifeCycleManager(this, _tombstoneTable, _dbFileManager);
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, null, true, false, false))
@@ -132,9 +132,9 @@ namespace TrackDb.Lib
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            if (_storageManager.IsValueCreated)
+            if (_dbFileManager.IsValueCreated)
             {
-                ((IDisposable)_storageManager.Value).Dispose();
+                await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
             }
             if (_logManager != null)
             {
@@ -250,7 +250,7 @@ namespace TrackDb.Lib
             }
             else
             {
-                var blockIds = _storageManager.Value.CreateBlockBatch()
+                var blockIds = _dbFileManager.Value.CreateBlockBatch()
                     .ToImmutableArray();
 
                 _availableBlockTable.AppendRecords(blockIds
@@ -624,7 +624,7 @@ namespace TrackDb.Lib
             TableSchema schema,
             SerializedBlockMetaData serializedBlockMetaData)
         {
-            var payload = _storageManager.Value.ReadBlock(blockId);
+            var payload = _dbFileManager.Value.ReadBlock(blockId);
             var serializedBlock = new SerializedBlock(serializedBlockMetaData, payload);
             var block = new ReadOnlyBlock(schema, serializedBlock);
 
