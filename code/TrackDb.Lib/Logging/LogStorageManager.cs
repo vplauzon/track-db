@@ -13,6 +13,8 @@ namespace TrackDb.Lib.Logging
 {
     internal class LogStorageManager : IAsyncDisposable
     {
+        private const string TEMP_FOLDER = "temp";
+
         private readonly LogPolicy _logPolicy;
         private readonly DataLakeDirectoryClient _loggingDirectory;
         private readonly BlobContainerClient _loggingContainer;
@@ -44,11 +46,11 @@ namespace TrackDb.Lib.Logging
             {
                 var dummyBlob = new AppendBlobClient(
                     _logPolicy.StorageConfiguration.LogFolderUri,
-                    _logPolicy.StorageConfiguration.SasCredential);
+                    _logPolicy.StorageConfiguration.KeyCredential);
 
                 _loggingDirectory = new DataLakeDirectoryClient(
                     _logPolicy.StorageConfiguration.LogFolderUri,
-                    _logPolicy.StorageConfiguration.SasCredential);
+                    _logPolicy.StorageConfiguration.KeyCredential);
                 _loggingContainer = dummyBlob.GetParentBlobContainerClient();
             }
         }
@@ -64,7 +66,21 @@ namespace TrackDb.Lib.Logging
         #region Initialization
         public async Task InitLogsAsync(CancellationToken ct)
         {
-            await _loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
+            var deleteTempTask = _loggingDirectory
+                .GetSubDirectoryClient(TEMP_FOLDER)
+                .DeleteIfExistsAsync(cancellationToken: ct);
+            var createDirectoryTask =
+                _loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
+            var accountInfoTask =
+                _loggingContainer.GetParentBlobServiceClient().GetAccountInfoAsync(ct);
+
+            await Task.WhenAll(deleteTempTask, createDirectoryTask, accountInfoTask);
+            if (!accountInfoTask.Result.Value.IsHierarchicalNamespaceEnabled)
+            {
+                throw new InvalidOperationException(
+                    $"Storage account {_loggingContainer.GetParentBlobServiceClient().Uri} " +
+                    $"must support hierarchical namespace");
+            }
 
             var blobList = await _loggingDirectory.GetPathsAsync(cancellationToken: ct)
                 .ToImmutableListAsync();
@@ -90,9 +106,12 @@ namespace TrackDb.Lib.Logging
 
         private async Task CreateInitialCheckpointAsync(CancellationToken ct)
         {
-            var checkpointBlob = _loggingContainer.GetAppendBlobClient(
-                _loggingDirectory.GetFileClient(
-                    $"log-{_currentCheckpointBlobIndex:D19}.json").Path);
+            var blobName = $"checkpoint-{_currentCheckpointBlobIndex:D19}.json";
+            var tempDirectory = _loggingDirectory.GetSubDirectoryClient(TEMP_FOLDER);
+            var tempCheckpointBlob = _loggingContainer.GetAppendBlobClient(
+                tempDirectory.GetFileClient(blobName).Path);
+            var tempCheckpointBlobCreateTask =
+                tempCheckpointBlob.CreateAsync(cancellationToken: ct);
             var checkpointHeader = new CheckpointHeader(new Version(1, 0), 1);
             var checkpointHeaderText = JsonSerializer.Serialize(checkpointHeader);
 
@@ -102,8 +121,12 @@ namespace TrackDb.Lib.Logging
                 writer.WriteLine(checkpointHeaderText);
                 writer.Flush();
                 stream.Position = 0;
-                await checkpointBlob.AppendBlockAsync(stream);
+                await tempCheckpointBlobCreateTask;
+                await tempCheckpointBlob.AppendBlockAsync(stream, cancellationToken: ct);
             }
+            await tempDirectory.GetFileClient(blobName).RenameAsync(
+                _loggingDirectory.GetFileClient(blobName).Path,
+                cancellationToken: ct);
         }
         #endregion
 

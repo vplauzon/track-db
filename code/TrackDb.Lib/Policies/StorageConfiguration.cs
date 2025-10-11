@@ -1,5 +1,6 @@
 ﻿using Azure;
 using Azure.Core;
+using Azure.Storage;
 using System;
 
 namespace TrackDb.Lib.Policies
@@ -7,19 +8,19 @@ namespace TrackDb.Lib.Policies
     public record StorageConfiguration(
         Uri LogFolderUri,
         TokenCredential? TokenCredential,
-        AzureSasCredential? SasCredential)
+        StorageSharedKeyCredential? KeyCredential)
     {
         public void Validate()
         {
-            if (TokenCredential == null && SasCredential == null)
+            if (TokenCredential == null && KeyCredential == null)
             {
                 throw new ArgumentException(
-                    $"{nameof(TokenCredential)} & {nameof(SasCredential)} can't both be null");
+                    $"{nameof(TokenCredential)} & {nameof(KeyCredential)} can't both be null");
             }
-            if (TokenCredential != null && SasCredential != null)
+            if (TokenCredential != null && KeyCredential != null)
             {
                 throw new ArgumentException(
-                    $"{nameof(TokenCredential)} & {nameof(SasCredential)} can't both be non-null");
+                    $"{nameof(TokenCredential)} & {nameof(KeyCredential)} can't both be non-null");
             }
         }
     }

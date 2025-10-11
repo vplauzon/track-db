@@ -1,4 +1,5 @@
 ﻿using Azure;
+using Azure.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,27 +43,28 @@ namespace TrackDb.LogTest
         public static async Task<TestDatabase> CreateAsync(Guid testId)
         {
             var logFolderUriText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
-            var logFolderSas = TestConfiguration.Instance.GetConfiguration("logFolderSas");
+            var logFolderKey = TestConfiguration.Instance.GetConfiguration("logFolderKey");
 
             if (string.IsNullOrWhiteSpace(logFolderUriText))
             {
                 throw new InvalidOperationException("'logFolderUri' is missing from configuration");
             }
-            if (string.IsNullOrWhiteSpace(logFolderSas))
+            if (string.IsNullOrWhiteSpace(logFolderKey))
             {
-                throw new InvalidOperationException("'logFolderSas' is missing from configuration");
+                throw new InvalidOperationException("'logFolderKey' is missing from configuration");
             }
 
             var logFolderUri = new UriBuilder(logFolderUriText);
 
             logFolderUri.Path += $"/{_runFolder}/{testId}";
 
+            var accountName = logFolderUri.Host.Split('.').First();
             var db = await Database.CreateAsync(
                 DatabasePolicy.Create(LogPolicy: LogPolicy.Create(
                     new StorageConfiguration(
                         logFolderUri.Uri,
                         null,
-                        new AzureSasCredential(logFolderSas)))),
+                        new StorageSharedKeyCredential(accountName, logFolderKey)))),
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)
