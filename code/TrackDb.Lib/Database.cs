@@ -24,7 +24,7 @@ namespace TrackDb.Lib
     /// </summary>
     public class Database : IAsyncDisposable
     {
-        private readonly Lazy<DbFileManager> _dbFileManager;
+        private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly LogManager? _logManager;
         private readonly TypedTable<TombstoneRecord> _tombstoneTable;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
@@ -50,8 +50,8 @@ namespace TrackDb.Lib
                 .Select(s => CreateTable(s))
                 .ToImmutableArray();
 
-            _dbFileManager = new Lazy<DbFileManager>(
-                () => new DbFileManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
+            _dbFileManager = new Lazy<DatabaseFileManager>(
+                () => new DatabaseFileManager(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.db")),
                 LazyThreadSafetyMode.ExecutionAndPublication);
             _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
                 ? new LogManager(databasePolicies.LogPolicy)

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
-    internal class DbFileManager : IAsyncDisposable
+    internal class DatabaseFileManager : IAsyncDisposable
     {
         private const int BLOCK_SIZE = 4096;
         private const int INCREMENT_BLOCK_COUNT = 256;
@@ -18,7 +18,7 @@ namespace TrackDb.Lib
         private readonly object _lock = new();
 
         #region Constructors
-        public DbFileManager(string filePath)
+        public DatabaseFileManager(string filePath)
         {
             _filePath = filePath;
             _fileStream = new FileStream(

@@ -26,7 +26,7 @@ namespace TrackDb.Lib.DataLifeCycle
         public DataLifeCycleManager(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DbFileManager> storageManager)
+            Lazy<DatabaseFileManager> storageManager)
         {
             _database = database;
             _dataMaintenanceTask = DataMaintanceAsync();

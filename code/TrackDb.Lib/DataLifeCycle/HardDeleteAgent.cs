@@ -15,7 +15,7 @@ namespace TrackDb.Lib.DataLifeCycle
         public HardDeleteAgent(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DbFileManager> storageManager)
+            Lazy<DatabaseFileManager> storageManager)
             : base(database, tombstoneTable, storageManager)
         {
         }
