@@ -1,5 +1,4 @@
-﻿using Azure;
-using Azure.Storage;
+﻿using Azure.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;

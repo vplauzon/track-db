@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,6 +8,6 @@ using System.Threading.Tasks;
 namespace TrackDb.Lib.Logging
 {
     internal record TransactionContent(
-        Dictionary<string, TableTransactionContent> Tables,
-        Dictionary<string, List<long>> Tombstones);
+        IImmutableDictionary<string, TableTransactionContent> Tables,
+        IImmutableDictionary<string, List<long>> Tombstones);
 }

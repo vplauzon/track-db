@@ -100,8 +100,19 @@ namespace TrackDb.Lib
 
         public async Task LogAndCompleteAsync()
         {
-            await Task.CompletedTask;
-            Complete();
+            if (_status == TransactionStatus.Open)
+            {
+                _status = TransactionStatus.Complete;
+                if (TransactionId != 0)
+                {
+                    await _database.LogAndCompleteTransactionAsync(TransactionId, _doLog);
+                }
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"Transaction context is in terminal state of '{_status}'");
+            }
         }
 
         public void Rollback()

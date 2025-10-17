@@ -2,8 +2,11 @@
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,19 +14,26 @@ using TrackDb.Lib.Policies;
 
 namespace TrackDb.Lib.Logging
 {
+    /// <summary>
+    /// Manages log storage, i.e. Azure storage blobs.
+    /// Abstract checkpoint + batch size + multiple log files.
+    /// </summary>
     internal class LogStorageManager : IAsyncDisposable
     {
         private const string TEMP_FOLDER = "temp";
 
+        private static readonly string SEPARATOR = "\n";
+
         private readonly LogPolicy _logPolicy;
+        private readonly string _localFolder;
         private readonly DataLakeDirectoryClient _loggingDirectory;
         private readonly BlobContainerClient _loggingContainer;
-        private readonly long _currentCheckpointBlobIndex = 1;
-        private long _currentLogBlobIndex = 1;
+        private long _currentCheckpointBlobIndex = 0;
+        private long _currentLogBlobIndex = 0;
         private AppendBlobClient? _currentLogBlob;
 
         #region Constructor
-        public LogStorageManager(LogPolicy logPolicy)
+        public LogStorageManager(LogPolicy logPolicy, string localFolder)
         {
             if (logPolicy.StorageConfiguration == null)
             {
@@ -31,6 +41,7 @@ namespace TrackDb.Lib.Logging
             }
 
             _logPolicy = logPolicy;
+            _localFolder = localFolder;
             if (_logPolicy.StorageConfiguration.TokenCredential != null)
             {
                 var dummyBlob = new AppendBlobClient(
@@ -56,15 +67,13 @@ namespace TrackDb.Lib.Logging
         }
         #endregion
 
-        public int MaxBlockSize => _currentLogBlob!.AppendBlobMaxAppendBlockBytes;
-
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             await Task.CompletedTask;
         }
 
-        #region Initialization
-        public async Task InitLogsAsync(CancellationToken ct)
+        #region Load
+        public async Task<LogStorageLoadOutput> LoadLogsAsync(CancellationToken ct)
         {
             var deleteTempTask = _loggingDirectory
                 .GetSubDirectoryClient(TEMP_FOLDER)
@@ -96,46 +105,106 @@ namespace TrackDb.Lib.Logging
                 throw new NotImplementedException();
             }
             else
-            {
-                await CreateInitialCheckpointAsync(ct);
-                _currentLogBlob = _loggingContainer.GetAppendBlobClient(
-                    _loggingDirectory.GetFileClient($"log-{_currentLogBlobIndex:D19}.json").Path);
-                await _currentLogBlob.CreateIfNotExistsAsync();
+            {   //  Nothing in storage, we need to create checkpoint
+                return new LogStorageLoadOutput(true, AsyncEnumerable.Empty<string>());
             }
-        }
-
-        private async Task CreateInitialCheckpointAsync(CancellationToken ct)
-        {
-            var blobName = $"checkpoint-{_currentCheckpointBlobIndex:D19}.json";
-            var tempDirectory = _loggingDirectory.GetSubDirectoryClient(TEMP_FOLDER);
-            var tempCheckpointBlob = _loggingContainer.GetAppendBlobClient(
-                tempDirectory.GetFileClient(blobName).Path);
-            var tempCheckpointBlobCreateTask =
-                tempCheckpointBlob.CreateAsync(cancellationToken: ct);
-            var checkpointHeader = new CheckpointHeader(new Version(1, 0), 1);
-            var checkpointHeaderText = JsonSerializer.Serialize(checkpointHeader);
-
-            using (var stream = new MemoryStream())
-            using (var writer = new StreamWriter(stream))
-            {
-                writer.WriteLine(checkpointHeaderText);
-                writer.Flush();
-                stream.Position = 0;
-                await tempCheckpointBlobCreateTask;
-                await tempCheckpointBlob.AppendBlockAsync(stream, cancellationToken: ct);
-            }
-            await tempDirectory.GetFileClient(blobName).RenameAsync(
-                _loggingDirectory.GetFileClient(blobName).Path,
-                cancellationToken: ct);
         }
         #endregion
 
-        public async Task PersistBlockAsync(byte[] buffer)
+        #region Checkpoint
+        public async Task CreateCheckpointAsync(
+            IAsyncEnumerable<string> transactionTexts,
+            CancellationToken ct)
         {
-            using (var stream = new MemoryStream(buffer))
+            var checkpointFileName = $"checkpoint-{++_currentCheckpointBlobIndex:D19}.json";
+            var logFileName = $"log-{++_currentLogBlobIndex:D19}.json";
+            var tempLocalPath = Path.Combine(_localFolder, checkpointFileName);
+            var tempCloudDirectory = _loggingDirectory.GetSubDirectoryClient(TEMP_FOLDER);
+            var checkpointHeader = new CheckpointHeader(new Version(1, 0), 1);
+            var checkpointHeaderText = JsonSerializer.Serialize(checkpointHeader);
+
+            using (var stream = File.Create(tempLocalPath))
+            using (var writer = new StreamWriter(stream))
             {
-                await _currentLogBlob!.AppendBlockAsync(stream);
+                writer.Write(checkpointHeaderText);
+                await foreach (var tx in transactionTexts)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    writer.Write(SEPARATOR);
+                    writer.Write(tx);
+                }
+            }
+
+            var checkpointFileClient = tempCloudDirectory.GetFileClient(checkpointFileName);
+            var logFileClient = _loggingDirectory.GetFileClient(logFileName);
+
+            await checkpointFileClient.UploadAsync(
+                tempLocalPath,
+                true,
+                cancellationToken: ct);
+            await checkpointFileClient.RenameAsync(
+                _loggingDirectory.GetFileClient(checkpointFileName).Path,
+                cancellationToken: ct);
+            _currentLogBlob = _loggingContainer.GetAppendBlobClient(logFileClient.Path);
+            await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
+        }
+        #endregion
+
+        #region Batch persistance
+        public bool CanFitInBatch(IEnumerable<string> transactionTexts)
+        {
+            int totalLength = GetTotalLength(transactionTexts);
+
+            return totalLength > _currentLogBlob!.AppendBlobMaxAppendBlockBytes;
+        }
+
+        public async Task PersistBatchAsync(IEnumerable<string> transactionTexts)
+        {
+            using (var stream = new MemoryStream())
+            using (var writer = new StreamWriter(stream))
+            {
+                var totalLength = GetTotalLength(transactionTexts);
+
+                if (totalLength > _currentLogBlob!.AppendBlobMaxAppendBlockBytes)
+                {
+                    if (transactionTexts.Count() > 1)
+                    {
+                        throw new ArgumentException(
+                            $"'{transactionTexts.Count()}' transactions",
+                            nameof(transactionTexts));
+                    }
+                    else
+                    {
+                        throw new NotSupportedException("Too large transaction");
+                    }
+                }
+                else
+                {
+                    foreach (var transactionText in transactionTexts)
+                    {
+                        writer.Write(SEPARATOR);
+                        writer.Write(transactionText);
+                    }
+                    writer.Flush();
+                    stream.Position = 0;
+                    if (totalLength != stream.Length)
+                    {
+                        throw new InvalidDataException(
+                            $"Expected batch size to be '{totalLength}' but is '{stream.Length}'");
+                    }
+                    await _currentLogBlob!.AppendBlockAsync(stream);
+                }
             }
         }
+
+        private static int GetTotalLength(IEnumerable<string> transactionTexts)
+        {
+            var contentLength = transactionTexts.Sum(t => t.Length);
+            var separatorsLength = transactionTexts.Count() * SEPARATOR.Length;
+            var totalLength = contentLength + separatorsLength;
+
+            return totalLength;
+        }
+        #endregion
     }
 }
