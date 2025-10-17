@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.Marshalling;
 using System.Text;
@@ -38,6 +39,11 @@ namespace TrackDb.Lib.Logging
             }
         }
         #endregion
+
+        private static readonly JsonSerializerOptions JSON_OPTIONS = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
 
         private readonly LogPolicy _logPolicy;
         private readonly IImmutableDictionary<string, TableSchema> _tableSchemaMap;
@@ -120,6 +126,10 @@ namespace TrackDb.Lib.Logging
             [EnumeratorCancellation]
             CancellationToken ct)
         {
+            var schemaContent = new SchemaContent(_tableSchemaMap.Values);
+            var schemaText = JsonSerializer.Serialize(schemaContent, JSON_OPTIONS);
+
+            yield return schemaText;
             await foreach (var tx in transactions.WithCancellation(ct))
             {
                 var text = ToTransactionText(tx);
@@ -201,7 +211,7 @@ namespace TrackDb.Lib.Logging
             if (userTables.Any() || tombstoneRecordMap.Any())
             {
                 var content = new TransactionContent(userTables, tombstoneRecordMap);
-                var contentText = JsonSerializer.Serialize(content);
+                var contentText = JsonSerializer.Serialize(content, JSON_OPTIONS);
 
                 return contentText;
             }
