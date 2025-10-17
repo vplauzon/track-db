@@ -1,6 +1,7 @@
 ﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
+using Azure.Storage.Files.DataLake.Specialized;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -94,10 +95,12 @@ namespace TrackDb.Lib.Logging
             var blobList = await _loggingDirectory.GetPathsAsync(cancellationToken: ct)
                 .ToImmutableListAsync();
             var lastCheckpoint = blobList
-                .Select(i => i.Name)
-                .Where(n => n.StartsWith("checkpoint-"))
-                .Where(n => n.EndsWith(".json"))
-                .OrderBy(n => n)
+                .Where(i => i.IsDirectory == false)
+                .Select(i => _loggingDirectory.GetParentFileSystemClient()
+                .GetFileClient(i.Name))
+                .Where(f => f.Name.StartsWith("checkpoint-"))
+                .Where(f => f.Name.EndsWith(".json"))
+                .OrderBy(f => f.Name)
                 .LastOrDefault();
 
             if (lastCheckpoint != null)
