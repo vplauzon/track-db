@@ -361,7 +361,15 @@ namespace TrackDb.Lib.InMemory.Block
 
         public void AppendLog(TableTransactionContent content)
         {
-            throw new NotImplementedException();
+            for (var i = 0; i != Schema.Columns.Count; ++i)
+            {
+                _dataColumns[i].AppendLogValues(content.Columns[Schema.Columns[i].ColumnName]);
+            }
+            //  Record ID
+            foreach (var newRecordId in content.NewRecordIds)
+            {
+                _dataColumns[Schema.Columns.Count].AppendValue(newRecordId);
+            }
         }
         #endregion
     }
