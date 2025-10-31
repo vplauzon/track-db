@@ -89,9 +89,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         #region IDataColumn
         void IDataColumn.AppendValue(object? value)
         {
-            var strongValue = value == null
-                ? (AllowNull ? NullValue : throw new ArgumentNullException(nameof(value)))
-                : (T)value;
+            var strongValue = GetPrimitiveData(value);
 
             if (_array.Length <= _itemCount)
             {
@@ -107,9 +105,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         {
             IDataColumn column = this;
 
-            foreach(var logValue in logValues)
+            foreach (var logValue in logValues)
             {
-                column.AppendValue(GetObjectDataFromLog(logValue));
+                var objectData = GetObjectDataFromLog(logValue);
+                var primitiveData = GetPrimitiveData(objectData);
+                
+                column.AppendValue(primitiveData);
             }
         }
 
@@ -217,6 +218,13 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         protected virtual object? GetObjectDataFromLog(JsonElement logElement)
         {
             return JsonSerializer.Deserialize<T>(logElement);
+        }
+
+        private T GetPrimitiveData(object? value)
+        {
+            return value == null
+                ? (AllowNull ? NullValue : throw new ArgumentNullException(nameof(value)))
+                : (T)value;
         }
     }
 }
