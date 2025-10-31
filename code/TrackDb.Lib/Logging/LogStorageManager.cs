@@ -237,8 +237,7 @@ namespace TrackDb.Lib.Logging
                 : _currentLogBlobIndex + 1;
             var tempFile = await TempFile.LoadTempFileAsync(
                 _localFolder,
-                _loggingDirectory.GetFileClient(
-                    $"log-{GetPaddedIndex(nextLogBlobIndex)}.json"),
+                _loggingDirectory.GetFileClient($"log-{GetPaddedIndex(nextLogBlobIndex)}.json"),
                 ct);
 
             _currentLogBlobIndex = nextLogBlobIndex;
