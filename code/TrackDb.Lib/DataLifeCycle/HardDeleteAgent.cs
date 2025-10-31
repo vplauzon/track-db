@@ -151,7 +151,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tombstoneRecordIds = TombstoneTable.Query(tc)
                 .Where(pf => pf.Equal(t => t.BlockId, blockId))
-                .Select(t => t.RecordId)
+                .Select(t => t.DeletedRecordId)
                 //  In case a record got deleted twice (in 2 parallel transactions)
                 .Distinct()
                 .ToImmutableArray();
@@ -249,7 +249,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var tombstoneBuilder = new BlockBuilder(TombstoneTable.Schema);
             var tombstoneColumnCount = TombstoneTable.Schema.Columns.Count;
             var remainingTombstoneRecords = TombstoneTable.Query(tc)
-                .Where(pf => pf.NotIn(t => t.RecordId, tombstoneRecordIds))
+                .Where(pf => pf.NotIn(t => t.DeletedRecordId, tombstoneRecordIds))
                 .TableQuery
                 //  Include record ID
                 .WithProjection(Enumerable.Range(0, tombstoneColumnCount + 1));

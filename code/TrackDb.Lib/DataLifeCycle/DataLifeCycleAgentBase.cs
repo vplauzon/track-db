@@ -80,7 +80,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 var tombstoneRowIndexesToRemove = ((IBlock)tombstoneBlockBuilder).Filter(
                     tombstoneQueryFactory.Equal(t => t.TableName, tableName)
-                    .And(tombstoneQueryFactory.In(t => t.RecordId, actuallyDeletedRecordIds))
+                    .And(tombstoneQueryFactory.In(t => t.DeletedRecordId, actuallyDeletedRecordIds))
                     .QueryPredicate,
                     false)
                     .RowIndexes;

@@ -3,7 +3,7 @@
 namespace TrackDb.Lib.SystemData
 {
     internal record TombstoneRecord(
-        long RecordId,
+        long DeletedRecordId,
         int? BlockId,
         string TableName,
         DateTime Timestamp);

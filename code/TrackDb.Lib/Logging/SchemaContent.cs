@@ -3,32 +3,26 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Logging
 {
     internal record SchemaContent(
-        IImmutableDictionary<string, IImmutableList<ColumnSchemaContent>> Tables)
+        IImmutableList<TableSchemaContent> Tables)
+        : ContentBase<SchemaContent>
     {
-        public SchemaContent(IEnumerable<TableSchema> schemas)
-            : this(FromTableSchemas(schemas))
+        public static SchemaContent FromSchemas(IEnumerable<TableSchema> schemas)
         {
-        }
-
-        private static IImmutableDictionary<string, IImmutableList<ColumnSchemaContent>> FromTableSchemas(
-            IEnumerable<TableSchema> schemas)
-        {
-            return schemas
-                .Select(s => new
-                {
+            var tables = schemas
+                .Select(s => new TableSchemaContent(
                     s.TableName,
-                    ColumnSchemas = s.Columns
-                    .Select(c => new ColumnSchemaContent(c))
-                    .ToImmutableArray()
-                })
-                .ToImmutableDictionary(
-                o => o.TableName,
-                o => (IImmutableList<ColumnSchemaContent>)o.ColumnSchemas);
+                    s.Columns
+                    .Select(c => new ColumnSchemaContent(c.ColumnName, c.ColumnType.Name))
+                    .ToImmutableArray()))
+                .ToImmutableArray();
+
+            return new(tables);
         }
     }
 }

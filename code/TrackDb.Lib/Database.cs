@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using TrackDb.Lib.DataLifeCycle;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
@@ -451,6 +452,11 @@ namespace TrackDb.Lib
         #region Transaction
         public TransactionContext CreateTransaction()
         {
+            return CreateTransaction(true);
+        }
+
+        internal TransactionContext CreateTransaction(bool doLog)
+        {
             _dataLifeCycleManager.ObserveBackgroundTask();
 
             var transactionContext = new TransactionContext(
@@ -468,7 +474,7 @@ namespace TrackDb.Lib
                             nameof(transactionId));
                     }
                 },
-                true);
+                doLog);
 
             ChangeDatabaseState(currentDbState =>
             {
@@ -651,7 +657,7 @@ namespace TrackDb.Lib
             return tableName != _tombstoneTable.Schema.TableName
                 ? _tombstoneTable.Query(transactionContext)
                 .Where(ts => ts.TableName == tableName)
-                .Select(ts => ts.RecordId)
+                .Select(ts => ts.DeletedRecordId)
                 : Array.Empty<long>();
         }
         #endregion
@@ -675,13 +681,18 @@ namespace TrackDb.Lib
         {
             if (_logManager != null)
             {
-                var logTransactionLoadOutput = await _logManager.LoadLogsAsync(ct);
-
-                await foreach (var tx in logTransactionLoadOutput.Transactions)
+                await foreach (var tl in _logManager.LoadLogsAsync(ct))
                 {
-                    throw new NotImplementedException();
+                    ChangeDatabaseState(currentDbState =>
+                    {   //  Add transaction log to the state
+                        return currentDbState with
+                        {
+                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(tl)
+                        };
+                    });
+                    _dataLifeCycleManager.TriggerDataManagement();
                 }
-                if (logTransactionLoadOutput.IsCheckpointRequired)
+                if (_logManager.IsCheckpointCreationRequired)
                 {
                     using (var tx = CreateDummyTransaction())
                     {
@@ -711,7 +722,7 @@ namespace TrackDb.Lib
                 var doContinue = true;
 
                 ct.ThrowIfCancellationRequested();
-                while(doContinue)
+                while (doContinue)
                 {
                     var txLog = new TransactionLog();
 

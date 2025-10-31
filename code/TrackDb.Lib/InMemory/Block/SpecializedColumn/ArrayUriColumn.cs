@@ -38,5 +38,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
             return JsonSerializer.SerializeToElement(stringValue);
         }
+
+        protected override object? LogValueToIn(JsonElement logValue)
+        {
+            var text = JsonSerializer.Deserialize<string?>(logValue);
+
+            return text == null ? null : new Uri(text);
+        }
     }
 }

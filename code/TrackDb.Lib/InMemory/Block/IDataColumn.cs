@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace TrackDb.Lib.InMemory.Block
@@ -12,6 +13,12 @@ namespace TrackDb.Lib.InMemory.Block
         /// <summary>Append value at the end of the column.</summary>
         /// <param name="value"></param>
         void AppendValue(object? value);
+
+        /// <summary>
+        /// Append logged values at the end of the column.
+        /// </summary>
+        /// <param name="values"></param>
+        void AppendLogValues(IEnumerable<JsonElement> values);
 
         void Reorder(IEnumerable<int> orderIndexes);
 

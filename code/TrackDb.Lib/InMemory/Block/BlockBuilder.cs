@@ -358,6 +358,11 @@ namespace TrackDb.Lib.InMemory.Block
                 newRecordIds,
                 columns);
         }
+
+        public void AppendLog(TableTransactionContent content)
+        {
+            throw new NotImplementedException();
+        }
         #endregion
     }
 }

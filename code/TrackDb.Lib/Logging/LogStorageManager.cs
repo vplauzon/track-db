@@ -1,12 +1,15 @@
-﻿using Azure.Storage.Blobs;
+﻿using Azure;
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Specialized;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -21,15 +24,60 @@ namespace TrackDb.Lib.Logging
     /// </summary>
     internal class LogStorageManager : IAsyncDisposable
     {
-        private const string TEMP_FOLDER = "temp";
+        #region Inner Types
+        private class TempFile : IDisposable
+        {
+            private readonly string _localPath;
 
+            #region Constructor
+            private TempFile(string localPath)
+            {
+                _localPath = localPath;
+            }
+
+            public async static Task<TempFile?> LoadTempFileAsync(
+                string localFolder,
+                DataLakeFileClient file,
+                CancellationToken ct)
+            {
+                try
+                {
+                    var tempLocalCheckpointPath = Path.Combine(localFolder, Guid.NewGuid().ToString());
+
+                    await file.ReadToAsync(tempLocalCheckpointPath, cancellationToken: ct);
+
+                    return new TempFile(tempLocalCheckpointPath);
+                }
+                catch (RequestFailedException)
+                {
+                    return null;
+                }
+            }
+            #endregion
+
+            void IDisposable.Dispose()
+            {
+                File.Delete(_localPath);
+            }
+
+            public FileStream OpenRead()
+            {
+                return File.OpenRead(_localPath);
+            }
+        }
+        #endregion
+
+        private const string TEMP_FOLDER = "temp";
+        private const string CHECKPOINT_FOLDER = "checkpoint";
+
+        private static readonly Version HEADER_VERSION = new(1, 0);
         private static readonly string SEPARATOR = "\n";
 
         private readonly LogPolicy _logPolicy;
         private readonly string _localFolder;
         private readonly DataLakeDirectoryClient _loggingDirectory;
         private readonly BlobContainerClient _loggingContainer;
-        private long _currentCheckpointBlobIndex = 0;
+        private bool _isCheckpointCreationRequired = false;
         private long _currentLogBlobIndex = 0;
         private AppendBlobClient? _currentLogBlob;
 
@@ -73,43 +121,137 @@ namespace TrackDb.Lib.Logging
             await Task.CompletedTask;
         }
 
+        public bool IsCheckpointCreationRequired => _isCheckpointCreationRequired;
+
         #region Load
-        public async Task<LogStorageLoadOutput> LoadLogsAsync(CancellationToken ct)
+        public async IAsyncEnumerable<string> LoadAsync(
+            [EnumeratorCancellation]
+            CancellationToken ct)
         {
             var deleteTempTask = _loggingDirectory
                 .GetSubDirectoryClient(TEMP_FOLDER)
                 .DeleteIfExistsAsync(cancellationToken: ct);
-            var createDirectoryTask =
-                _loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
-            var accountInfoTask =
-                _loggingContainer.GetParentBlobServiceClient().GetAccountInfoAsync(ct);
+            var checkpointDirectory = _loggingDirectory.GetSubDirectoryClient(CHECKPOINT_FOLDER);
+            var createCheckpointDirectoryTask =
+                checkpointDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
+            var accountInfo =
+                await _loggingContainer.GetParentBlobServiceClient().GetAccountInfoAsync(ct);
 
-            await Task.WhenAll(deleteTempTask, createDirectoryTask, accountInfoTask);
-            if (!accountInfoTask.Result.Value.IsHierarchicalNamespaceEnabled)
+            if (!accountInfo.Value.IsHierarchicalNamespaceEnabled)
             {
                 throw new InvalidOperationException(
                     $"Storage account {_loggingContainer.GetParentBlobServiceClient().Uri} " +
                     $"must support hierarchical namespace");
             }
+            await Task.WhenAll(deleteTempTask, createCheckpointDirectoryTask);
 
-            var blobList = await _loggingDirectory.GetPathsAsync(cancellationToken: ct)
+            var checkpointPathList = await checkpointDirectory.GetPathsAsync(cancellationToken: ct)
                 .ToImmutableListAsync();
-            var lastCheckpoint = blobList
+            var lastCheckpoint = checkpointPathList
                 .Where(i => i.IsDirectory == false)
-                .Select(i => _loggingDirectory.GetParentFileSystemClient()
-                .GetFileClient(i.Name))
-                .Where(f => f.Name.StartsWith("checkpoint-"))
+                .Select(i => _loggingDirectory.GetParentFileSystemClient().GetFileClient(i.Name))
                 .Where(f => f.Name.EndsWith(".json"))
+                .Where(f => f.Name.StartsWith("checkpoint-"))
                 .OrderBy(f => f.Name)
                 .LastOrDefault();
 
+            //  Enables GC
+            checkpointPathList = checkpointPathList.Clear();
             if (lastCheckpoint != null)
             {
-                throw new NotImplementedException();
+                await foreach (var text in LoadLinesFromCheckpointAsync(lastCheckpoint, ct))
+                {
+                    yield return text;
+                }
             }
             else
             {   //  Nothing in storage, we need to create checkpoint
-                return new LogStorageLoadOutput(true, AsyncEnumerable.Empty<string>());
+                _isCheckpointCreationRequired = true;
+            }
+        }
+
+        private async IAsyncEnumerable<string> LoadLinesFromCheckpointAsync(
+            DataLakeFileClient lastCheckpoint,
+            [EnumeratorCancellation]
+            CancellationToken ct)
+        {
+            _currentLogBlobIndex = long.Parse(lastCheckpoint.Name.Split('.')[0].Split('-')[1]);
+
+            var nextLogTask = TempFile.LoadTempFileAsync(_localFolder, lastCheckpoint, ct);
+            var isFirstLine = true;
+
+            while (true)
+            {
+                using (var currentLogFile = await nextLogTask)
+                {
+                    if (currentLogFile == null)
+                    {
+                        if (isFirstLine)
+                        {
+                            _isCheckpointCreationRequired = true;
+                        }
+                        yield break;
+                    }
+                    else
+                    {   //  Always read forward
+                        nextLogTask = LoadNextLogAsync(isFirstLine, ct);
+                        using (currentLogFile)
+                        using (var fileStream = currentLogFile.OpenRead())
+                        using (var reader = new StreamReader(fileStream))
+                        {
+                            string? line;
+
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                if (isFirstLine)
+                                {
+                                    if (line == null)
+                                    {
+                                        throw new InvalidDataException("Checkpoint has no header");
+                                    }
+
+                                    var checkpointHeader = CheckpointHeader.FromJson(line);
+
+                                    ValidateHeaderVersion(checkpointHeader.Version);
+                                    isFirstLine = false;
+                                }
+                                else if(!string.IsNullOrEmpty(line))
+                                {
+                                    yield return line;
+                                }
+                            }
+                            if (isFirstLine)
+                            {
+                                throw new InvalidDataException("Checkpoint is empty");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private async Task<TempFile?> LoadNextLogAsync(bool isFirstLog, CancellationToken ct)
+        {
+            var nextLogBlobIndex = isFirstLog
+                ? _currentLogBlobIndex
+                : _currentLogBlobIndex + 1;
+            var tempFile = await TempFile.LoadTempFileAsync(
+                _localFolder,
+                _loggingDirectory.GetFileClient(
+                    $"log-{GetPaddedIndex(nextLogBlobIndex)}.json"),
+                ct);
+
+            _currentLogBlobIndex = nextLogBlobIndex;
+
+            return tempFile;
+        }
+
+        private void ValidateHeaderVersion(Version version)
+        {
+            if (version != HEADER_VERSION)
+            {
+                throw new NotSupportedException(
+                    $"Unsupported checkpoint header version:  {version}");
             }
         }
         #endregion
@@ -119,14 +261,16 @@ namespace TrackDb.Lib.Logging
             IAsyncEnumerable<string> transactionTexts,
             CancellationToken ct)
         {
-            var checkpointFileName = $"checkpoint-{++_currentCheckpointBlobIndex:D19}.json";
-            var logFileName = $"log-{++_currentLogBlobIndex:D19}.json";
-            var tempLocalPath = Path.Combine(_localFolder, checkpointFileName);
-            var tempCloudDirectory = _loggingDirectory.GetSubDirectoryClient(TEMP_FOLDER);
-            var checkpointHeader = new CheckpointHeader(new Version(1, 0), 1);
-            var checkpointHeaderText = JsonSerializer.Serialize(checkpointHeader);
+            ++_currentLogBlobIndex;
 
-            using (var stream = File.Create(tempLocalPath))
+            var checkpointFileName = $"checkpoint-{GetPaddedIndex(_currentLogBlobIndex)}.json";
+            var logFileName = $"log-{GetPaddedIndex(_currentLogBlobIndex)}.json";
+            var tempCheckpointFileName = Path.Combine(_localFolder, checkpointFileName);
+            var tempCloudDirectory = _loggingDirectory.GetSubDirectoryClient(TEMP_FOLDER);
+            var checkpointHeader = new CheckpointHeader(HEADER_VERSION);
+            var checkpointHeaderText = checkpointHeader.ToJson();
+
+            using (var stream = File.Create(tempCheckpointFileName))
             using (var writer = new StreamWriter(stream))
             {
                 writer.Write(checkpointHeaderText);
@@ -142,11 +286,13 @@ namespace TrackDb.Lib.Logging
             var logFileClient = _loggingDirectory.GetFileClient(logFileName);
 
             await checkpointFileClient.UploadAsync(
-                tempLocalPath,
+                tempCheckpointFileName,
                 true,
                 cancellationToken: ct);
             await checkpointFileClient.RenameAsync(
-                _loggingDirectory.GetFileClient(checkpointFileName).Path,
+                _loggingDirectory
+                .GetSubDirectoryClient(CHECKPOINT_FOLDER)
+                .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
             _currentLogBlob = _loggingContainer.GetAppendBlobClient(logFileClient.Path);
             await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
@@ -209,5 +355,10 @@ namespace TrackDb.Lib.Logging
             return totalLength;
         }
         #endregion
+
+        private string GetPaddedIndex(long index)
+        {
+            return $"{index:D19}";
+        }
     }
 }

@@ -103,6 +103,16 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
+        void IDataColumn.AppendLogValues(IEnumerable<JsonElement> logValues)
+        {
+            IDataColumn column = this;
+
+            foreach(var logValue in logValues)
+            {
+                column.AppendValue(GetObjectDataFromLog(logValue));
+            }
+        }
+
         void IDataColumn.Reorder(IEnumerable<int> orderIndexes)
         {
             if (_itemCount > 1)
@@ -202,6 +212,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         protected virtual JsonElement GetLogValue(object? objectData)
         {
             return JsonSerializer.SerializeToElement(objectData);
+        }
+
+        protected virtual object? GetObjectDataFromLog(JsonElement logElement)
+        {
+            return JsonSerializer.Deserialize<T>(logElement);
         }
     }
 }

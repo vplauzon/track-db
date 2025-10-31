@@ -1,26 +1,22 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.Marshalling;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
-using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Policies;
-using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.Logging
 {
     /// <summary>
-    /// Manages log transactions, i.e. string-serialized transactions.
+    /// Manages <see cref="TransactionLog">.
     /// Abstract buffering many transactions and schema-check.
     /// </summary>
     internal class LogTransactionManager : IAsyncDisposable
@@ -40,11 +36,6 @@ namespace TrackDb.Lib.Logging
         }
         #endregion
 
-        private static readonly JsonSerializerOptions JSON_OPTIONS = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-
         private readonly LogPolicy _logPolicy;
         private readonly IImmutableDictionary<string, TableSchema> _tableSchemaMap;
         private readonly TypedTableSchema<TombstoneRecord> _tombstoneSchema;
@@ -53,6 +44,7 @@ namespace TrackDb.Lib.Logging
         private readonly TaskCompletionSource _stopBackgroundProcessingSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Channel<ContentItem> _channel = Channel.CreateUnbounded<ContentItem>();
+        private bool _isCheckpointCreationRequired = false;
 
         public LogTransactionManager(
             LogPolicy logPolicy,
@@ -74,40 +66,96 @@ namespace TrackDb.Lib.Logging
             await ((IAsyncDisposable)_logStorageManager).DisposeAsync();
         }
 
+        public bool IsCheckpointCreationRequired => _isCheckpointCreationRequired
+            || _logStorageManager.IsCheckpointCreationRequired;
+
         #region Load
-        public async Task<LogTransactionLoadOutput> LoadLogsAsync(CancellationToken ct)
+        public async IAsyncEnumerable<TransactionLog> LoadLogsAsync(
+            [EnumeratorCancellation]
+            CancellationToken ct)
         {
-            var logStorageLoadOutput = await _logStorageManager.LoadLogsAsync(ct);
+            var enumerator = _logStorageManager.LoadAsync(ct).GetAsyncEnumerator();
 
-            await using (var enumerator = logStorageLoadOutput.TransactionTexts.GetAsyncEnumerator())
+            //  Try read first element
+            if (!await enumerator.MoveNextAsync())
+            {   //  No items
+                _isCheckpointCreationRequired = true;
+                yield break;
+            }
+            else
             {
-                //  Try read first element
-                if (!await enumerator.MoveNextAsync())
-                {   //  No items
-                    return new LogTransactionLoadOutput(
-                        true,
-                        AsyncEnumerable.Empty<TransactionLog>());
-                }
-                else
-                {
-                    var isSchemaValid = ValidateSchema(enumerator.Current);
+                var schemaContent = SchemaContent.FromJson(enumerator.Current);
 
-                    return new LogTransactionLoadOutput(
-                        logStorageLoadOutput.IsCheckpointRequired
-                        && isSchemaValid,
-                        ParseTransactions(enumerator));
+                _isCheckpointCreationRequired = ValidateSchema(schemaContent);
+                while (await enumerator.MoveNextAsync())
+                {
+                    var logContent = TransactionContent.FromJson(enumerator.Current);
+                    var log = logContent.ToTransactionLog(_tombstoneSchema, _tableSchemaMap);
+
+                    yield return log;
                 }
             }
         }
 
-        private IAsyncEnumerable<TransactionLog> ParseTransactions(IAsyncEnumerator<string> enumerator)
+        private bool ValidateSchema(SchemaContent schemaContent)
         {
-            throw new NotImplementedException();
-        }
+            //  Extra table persisted isn't permitted
+            var extraTableName = schemaContent.Tables.Select(t => t.TableName)
+                .Except(_tableSchemaMap.Keys)
+                .FirstOrDefault();
 
-        private bool ValidateSchema(string schemaText)
-        {
-            throw new NotImplementedException();
+            if (extraTableName != null)
+            {
+                throw new InvalidDataException(
+                    $"Table '{extraTableName}' is present in checkpoint but ins't defined" +
+                    $" in the database");
+            }
+            foreach (var tableContent in schemaContent.Tables)
+            {
+                var tableName = tableContent.TableName;
+                var tableSchema = _tableSchemaMap[tableName];
+                var extraColumnName = tableContent.Columns.Select(c => c.ColumnName)
+                    .Except(tableSchema.Columns.Select(c => c.ColumnName))
+                    .FirstOrDefault();
+                var missingColumnName = tableSchema.Columns.Select(c => c.ColumnName)
+                    .Except(tableContent.Columns.Select(c => c.ColumnName))
+                    .Where(columnName => tableSchema.Columns.Where(c => c.ColumnName == columnName).Any())
+                    .FirstOrDefault();
+
+                if (extraColumnName != null)
+                {
+                    throw new InvalidDataException(
+                        $"Column '{tableName}'.'{extraColumnName}' is present in checkpoint " +
+                        $"but ins't defined in the database");
+                }
+                if (missingColumnName != null)
+                {
+                    throw new InvalidDataException(
+                        $"Column '{tableName}'.'{missingColumnName}' is defined in the database " +
+                        $"but ins't present in checkpoint");
+                }
+                foreach (var checkpointColumn in tableContent.Columns)
+                {
+                    var columnName = checkpointColumn.ColumnName;
+                    var columnType = checkpointColumn.ColumnType;
+                    var columnSchema = tableSchema.Columns
+                        .Where(c => c.ColumnName == columnName)
+                        .First();
+
+                    if (columnType != columnSchema.ColumnType.Name)
+                    {
+                        throw new InvalidDataException(
+                            $"Column '{tableName}'.'{columnName}' is defined as " +
+                            $"'{columnSchema.ColumnType.Name}' in the database " +
+                            $"but is '{columnType}' in checkpoint");
+                    }
+                }
+            }
+
+            //  Missing table in checkpoint is permitted, but requires new checkpoint
+            return _tableSchemaMap.Keys
+                .Except(schemaContent.Tables.Select(t => t.TableName))
+                .Any();
         }
         #endregion
 
@@ -126,17 +174,19 @@ namespace TrackDb.Lib.Logging
             [EnumeratorCancellation]
             CancellationToken ct)
         {
-            var schemaContent = new SchemaContent(_tableSchemaMap.Values);
-            var schemaText = JsonSerializer.Serialize(schemaContent, JSON_OPTIONS);
+            var schemaContent = SchemaContent.FromSchemas(_tableSchemaMap.Values);
 
-            yield return schemaText;
+            yield return schemaContent.ToJson();
             await foreach (var tx in transactions.WithCancellation(ct))
             {
-                var text = ToTransactionText(tx);
+                var txContent = TransactionContent.FromTransactionLog(
+                    tx,
+                    _tombstoneSchema,
+                    _tableSchemaMap);
 
-                if (text != null)
+                if (txContent != null)
                 {
-                    yield return text;
+                    yield return txContent.ToJson();
                 }
             }
         }
@@ -145,11 +195,14 @@ namespace TrackDb.Lib.Logging
         #region Push transaction
         public void QueueContent(TransactionLog transactionLog)
         {
-            var contentText = ToTransactionText(transactionLog);
+            var content = TransactionContent.FromTransactionLog(
+                transactionLog,
+                _tombstoneSchema,
+                _tableSchemaMap);
 
-            if (contentText != null)
+            if (content != null)
             {
-                if (!_channel.Writer.TryWrite(new ContentItem(contentText)))
+                if (!_channel.Writer.TryWrite(new ContentItem(content.ToJson())))
                 {
                     throw new InvalidOperationException("Couldn't write content");
                 }
@@ -158,12 +211,15 @@ namespace TrackDb.Lib.Logging
 
         public async Task CommitContentAsync(TransactionLog transactionLog)
         {
-            var contentText = ToTransactionText(transactionLog);
+            var content = TransactionContent.FromTransactionLog(
+                transactionLog,
+                _tombstoneSchema,
+                _tableSchemaMap);
 
-            if (contentText != null)
+            if (content != null)
             {
                 var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var item = new ContentItem(contentText, tcs);
+                var item = new ContentItem(content.ToJson(), tcs);
 
                 if (!_channel.Writer.TryWrite(item))
                 {
@@ -171,53 +227,6 @@ namespace TrackDb.Lib.Logging
                 }
 
                 await tcs.Task;
-            }
-        }
-
-        private string? ToTransactionText(TransactionLog transactionLog)
-        {
-            IImmutableDictionary<string, List<long>> ToTombstones(IBlock block)
-            {
-                var pf = new QueryPredicateFactory<TombstoneRecord>(_tombstoneSchema);
-                var isUserTablePredicate = pf
-                    .In(t => t.TableName, _tableSchemaMap.Keys)
-                    .QueryPredicate;
-                var rowIndexes = block.Filter(isUserTablePredicate, false).RowIndexes;
-                var columnIndexes = _tombstoneSchema.GetColumnIndexSubset(t => t.TableName)
-                    .Concat(_tombstoneSchema.GetColumnIndexSubset(t => t.RecordId));
-                var buffer = new object[2];
-                var content = block.Project(buffer, columnIndexes, rowIndexes, 0)
-                    .Select(data => new
-                    {
-                        Table = (string)data.Span[0]!,
-                        RecordId = (long)data.Span[1]!
-                    })
-                    .GroupBy(o => o.Table)
-                    .ToImmutableDictionary(g => g.Key, g => g.Select(i => i.RecordId).ToList());
-
-                return content;
-            }
-
-            var userTables = transactionLog.TableBlockBuilderMap
-                .Where(p => _tableSchemaMap.ContainsKey(p.Key))
-                .Select(p => KeyValuePair.Create(p.Key, p.Value.ToLog()))
-                .ToImmutableDictionary();
-            var tombstoneRecordMap = transactionLog.TableBlockBuilderMap.ContainsKey(
-                _tombstoneSchema.TableName)
-                ? ToTombstones(
-                    transactionLog.TableBlockBuilderMap[_tombstoneSchema.TableName])
-                : ImmutableDictionary<string, List<long>>.Empty;
-
-            if (userTables.Any() || tombstoneRecordMap.Any())
-            {
-                var content = new TransactionContent(userTables, tombstoneRecordMap);
-                var contentText = JsonSerializer.Serialize(content, JSON_OPTIONS);
-
-                return contentText;
-            }
-            else
-            {
-                return null;
             }
         }
         #endregion
