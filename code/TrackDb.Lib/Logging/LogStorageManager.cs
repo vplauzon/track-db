@@ -40,15 +40,15 @@ namespace TrackDb.Lib.Logging
                 DataLakeFileClient file,
                 CancellationToken ct)
             {
-                try
-                {
-                    var tempLocalCheckpointPath = Path.Combine(localFolder, Guid.NewGuid().ToString());
+                var tempLocalCheckpointPath = Path.Combine(localFolder, Guid.NewGuid().ToString());
 
+                if (await file.ExistsAsync(ct))
+                {
                     await file.ReadToAsync(tempLocalCheckpointPath, cancellationToken: ct);
 
                     return new TempFile(tempLocalCheckpointPath);
                 }
-                catch (RequestFailedException)
+                else
                 {
                     return null;
                 }
@@ -215,7 +215,7 @@ namespace TrackDb.Lib.Logging
                                     ValidateHeaderVersion(checkpointHeader.Version);
                                     isFirstLine = false;
                                 }
-                                else if(!string.IsNullOrEmpty(line))
+                                else if (!string.IsNullOrEmpty(line))
                                 {
                                     yield return line;
                                 }
@@ -240,7 +240,10 @@ namespace TrackDb.Lib.Logging
                 _loggingDirectory.GetFileClient($"log-{GetPaddedIndex(nextLogBlobIndex)}.json"),
                 ct);
 
-            _currentLogBlobIndex = nextLogBlobIndex;
+            if (tempFile != null)
+            {
+                _currentLogBlobIndex = nextLogBlobIndex;
+            }
 
             return tempFile;
         }
