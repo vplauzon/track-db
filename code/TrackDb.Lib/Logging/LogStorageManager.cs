@@ -306,7 +306,7 @@ namespace TrackDb.Lib.Logging
         {
             int totalLength = GetTotalLength(transactionTexts);
 
-            return totalLength > _currentLogBlob!.AppendBlobMaxAppendBlockBytes;
+            return totalLength <= _currentLogBlob!.AppendBlobMaxAppendBlockBytes;
         }
 
         public async Task PersistBatchAsync(IEnumerable<string> transactionTexts)

@@ -14,13 +14,30 @@ namespace TrackDb.LogTest
         private static readonly string _runFolder = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss");
 
         #region Entity types
+        public enum WorkflowState
+        {
+            Pending,
+            Started,
+            Completed
+        }
+
         public enum ActivityState
         {
             Started,
             Completed
         }
 
-        public record Workflow(string WorkflowName, int WorkflowId, DateTime StartTime);
+        public enum TaskState
+        {
+            Started,
+            Completed
+        }
+
+        public record Workflow(
+            string WorkflowName,
+            int WorkflowId,
+            WorkflowState State,
+            DateTime StartTime);
 
         public record Activity(
             string WorkflowName,
@@ -32,6 +49,7 @@ namespace TrackDb.LogTest
             string WorkflowName,
             string ActivityName,
             string TaskName,
+            TaskState State,
             DateTime StartTime,
             DateTime? EndTime);
         #endregion

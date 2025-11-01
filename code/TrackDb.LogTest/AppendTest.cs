@@ -12,7 +12,11 @@ namespace TrackDb.LogTest
         public async Task OneRecordAsync()
         {
             var testId = Guid.NewGuid();
-            var record = new TestDatabase.Workflow("My Workflow", 42, DateTime.Now);
+            var record = new TestDatabase.Workflow(
+                "My Workflow",
+                42,
+                TestDatabase.WorkflowState.Started,
+                DateTime.Now);
 
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
@@ -31,7 +35,11 @@ namespace TrackDb.LogTest
         public async Task MultipleRecordsAsync()
         {
             var testId = Guid.NewGuid();
-            var workflow = new TestDatabase.Workflow("My Workflow", 42, DateTime.Now);
+            var workflow = new TestDatabase.Workflow(
+                "My Workflow",
+                42,
+                TestDatabase.WorkflowState.Started,
+                DateTime.Now);
             var activity1 = new TestDatabase.Activity(
                 workflow.WorkflowName,
                 "Activity-1",
@@ -46,12 +54,14 @@ namespace TrackDb.LogTest
                 workflow.WorkflowName,
                 activity2.ActivityName,
                 "Task 1",
+                TestDatabase.TaskState.Started,
                 DateTime.Now,
                 null);
             var task2 = new TestDatabase.ActivityTask(
                 workflow.WorkflowName,
                 activity2.ActivityName,
-                "Task 1",
+                "Task 2",
+                TestDatabase.TaskState.Started,
                 task1.StartTime,
                 DateTime.Now);
 
