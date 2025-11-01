@@ -254,7 +254,7 @@ namespace TrackDb.Lib.Logging
                             queue.Enqueue(itemTask.Result);
                         }
                     }
-                    else if (_stopBackgroundProcessingSource.Task.IsCompleted)
+                    if (_stopBackgroundProcessingSource.Task.IsCompleted)
                     {
                         break;
                     }
