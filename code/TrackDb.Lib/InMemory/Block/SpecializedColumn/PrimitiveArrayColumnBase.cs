@@ -217,7 +217,14 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected virtual object? GetObjectDataFromLog(JsonElement logElement)
         {
-            return JsonSerializer.Deserialize<T>(logElement);
+            if (logElement.ValueKind == JsonValueKind.Null)
+            {
+                return null;
+            }
+            else
+            {
+                return JsonSerializer.Deserialize<T>(logElement);
+            }
         }
 
         private T GetPrimitiveData(object? value)

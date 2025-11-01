@@ -202,7 +202,9 @@ namespace TrackDb.Lib.Logging
 
             if (content != null)
             {
-                if (!_channel.Writer.TryWrite(new ContentItem(content.ToJson())))
+                var item = new ContentItem(content.ToJson());
+
+                if (!_channel.Writer.TryWrite(item))
                 {
                     throw new InvalidOperationException("Couldn't write content");
                 }
@@ -236,38 +238,39 @@ namespace TrackDb.Lib.Logging
         {
             var queue = new Queue<ContentItem>();
 
-            //  We must drain the queue even if a stop has been called
-            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queue.Any())
+            do
             {
-                //  Buffer items
-                while (!queue.Any()
-                    || (!IsBlockComplete(queue)
-                    && IsBufferingTimeOver(queue.Peek())))
-                {
-                    if (!DrainChannel(queue))
-                    {
-                        var itemTask = _channel.Reader.ReadAsync().AsTask();
-
-                        await Task.WhenAny(itemTask, _stopBackgroundProcessingSource.Task);
-                        if (itemTask.IsCompleted)
-                        {
-                            queue.Enqueue(itemTask.Result);
-                        }
-                    }
-                    if (_stopBackgroundProcessingSource.Task.IsCompleted)
-                    {
-                        break;
-                    }
-                }
                 //  Process items
-                while (queue.Any()
+                if (queue.Any()
                     && (_stopBackgroundProcessingSource.Task.IsCompleted
                     || IsBufferingTimeOver(queue.Peek())
                     || IsBlockComplete(queue)))
                 {
                     await PersistBlockAsync(queue);
                 }
+                if (!DrainChannel(queue))
+                {
+                    var itemTask = _channel.Reader.WaitToReadAsync().AsTask();
+
+                    if (queue.Any())
+                    {
+                        var delay = queue.Peek().Timestamp.Add(_logPolicy.BufferingTimeWindow)
+                            - DateTime.Now;
+                        var delayTask = Task.Delay(delay > TimeSpan.Zero ? delay : TimeSpan.Zero);
+
+                        await Task.WhenAny(
+                            itemTask,
+                            _stopBackgroundProcessingSource.Task,
+                            delayTask);
+                    }
+                    else
+                    {
+                        await Task.WhenAny(itemTask, _stopBackgroundProcessingSource.Task);
+                    }
+                    DrainChannel(queue);
+                }
             }
+            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queue.Any());
         }
 
         private async Task PersistBlockAsync(Queue<ContentItem> queue)
@@ -277,28 +280,32 @@ namespace TrackDb.Lib.Logging
 
             while (queue.Any())
             {
-                var item = queue.Dequeue();
-                var canFit =
-                    _logStorageManager.CanFitInBatch(transactionTextList.Append(item.Content));
-
-                if (canFit || !transactionTextList.Any())
-                {   //  Cumulate
-                    transactionTextList.Add(item.Content);
-                    if (item.Tcs != null)
-                    {
-                        tcsList.Add(item.Tcs);
-                    }
-                }
-                if (!canFit || !queue.Any())
+                if (queue.TryPeek(out var item))
                 {
-                    await _logStorageManager.PersistBatchAsync(transactionTextList);
-                    //  Confirm persistance
-                    foreach (var tcs in tcsList)
-                    {
-                        tcs.TrySetResult();
-                    }
+                    var canFit = _logStorageManager.CanFitInBatch(
+                        transactionTextList.Append(item.Content));
 
-                    return;
+                    if (canFit || !transactionTextList.Any())
+                    {   //  Cumulate
+                        transactionTextList.Add(item.Content);
+                        if (item.Tcs != null)
+                        {
+                            tcsList.Add(item.Tcs);
+                        }
+                        //  Actually dequeue the peeked item
+                        queue.Dequeue();
+                    }
+                    if (!canFit || !queue.Any())
+                    {
+                        await _logStorageManager.PersistBatchAsync(transactionTextList);
+                        //  Confirm persistance
+                        foreach (var tcs in tcsList)
+                        {
+                            tcs.TrySetResult();
+                        }
+
+                        return;
+                    }
                 }
             }
         }

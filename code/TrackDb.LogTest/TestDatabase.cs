@@ -23,11 +23,13 @@ namespace TrackDb.LogTest
         public record Workflow(string WorkflowName, int WorkflowId, DateTime StartTime);
 
         public record Activity(
+            string WorkflowName,
             string ActivityName,
             string? ParentActivityName,
             ActivityState State);
 
         public record ActivityTask(
+            string WorkflowName,
             string ActivityName,
             string TaskName,
             DateTime StartTime,

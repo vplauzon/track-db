@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using TrackDb.Lib.Predicate;
@@ -112,6 +113,28 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             var element = JsonSerializer.SerializeToElement(objectData?.ToString());
 
             return element;
+        }
+
+        protected override object? GetObjectDataFromLog(JsonElement logElement)
+        {
+            var text = JsonSerializer.Deserialize<string>(logElement);
+
+            if (text == null)
+            {
+                return null;
+            }
+            else
+            {
+                if (Enum.TryParse<T>(text, out var enumValue))
+                {
+                    return enumValue;
+                }
+                else
+                {
+                    throw new InvalidDataException(
+                        $"Can't parse value '{text}' for enum type {typeof(T).Name}");
+                }
+            }
         }
     }
 }
