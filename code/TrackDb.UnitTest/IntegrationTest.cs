@@ -37,7 +37,7 @@ namespace TrackDb.UnitTest
         public async Task ComprehensiveAsync(bool doPersistAllUserData, bool doHardDeleteAll)
         {
             var dataManagementActivity =
-                (doPersistAllUserData ? DataManagementActivity.PersistAllUserData : DataManagementActivity.None)
+                (doPersistAllUserData ? DataManagementActivity.PersistAllNonMetaData : DataManagementActivity.None)
                 |
                 (doHardDeleteAll ? DataManagementActivity.HardDeleteAll : DataManagementActivity.None);
             var tableName = "MyTable";

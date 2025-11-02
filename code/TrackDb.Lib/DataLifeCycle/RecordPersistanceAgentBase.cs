@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.SystemData;
 
@@ -21,43 +22,36 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
-            var doPersistAllUserData =
-                (forcedDataManagementActivity & DataManagementActivity.PersistAllUserData) != 0;
-            var doPersistAllMetaData =
-                (forcedDataManagementActivity & DataManagementActivity.PersistAllMetaData) != 0;
+            var tableName = GetMergedCandidate(forcedDataManagementActivity);
 
-            return PersistOldRecords(doPersistAllUserData, doPersistAllMetaData);
-        }
-
-        private bool PersistOldRecords(bool doPersistAllUserData, bool doPersistAllMetaData)
-        {
-            using (var tc = Database.CreateDummyTransaction())
-            {
-                var tableName = GetMergeCandidate(doPersistAllUserData, doPersistAllMetaData, tc);
-
-                if (tableName != null)
+            if (tableName != null)
+            {   //  We will persist blocks from the table
+                using (var tx = Database.CreateDummyTransaction())
                 {
-                    (var tableBlock, var tombstoneBlock) =
-                        MergeTableTransactionLogs(tableName, tc);
+                    var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
+                    var tableBlock =
+                        inMemoryDatabase.TableTransactionLogsMap[tableName].InMemoryBlocks.First();
+                    var newTableBlock = new BlockBuilder(tableBlock.TableSchema);
                     var metadataTable =
-                        Database.GetMetaDataTable(((IBlock)tableBlock).TableSchema.TableName);
+                        Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
                     var metadataBlock = new BlockBuilder(metadataTable.Schema);
                     var isFirstBlockToPersist = true;
 
-                    tableBlock.OrderByRecordId();
-                    while (((IBlock)tableBlock).RecordCount > 0)
+                    newTableBlock.AppendBlock(tableBlock);
+                    newTableBlock.OrderByRecordId();
+                    while (((IBlock)newTableBlock).RecordCount > 0)
                     {
-                        var blockToPersist = tableBlock.TruncateBlock(StorageManager.BlockSize);
+                        var blockToPersist = newTableBlock.TruncateBlock(StorageManager.BlockSize);
                         var rowCount = ((IBlock)blockToPersist).RecordCount;
 
                         //  We stop before persisting the last (typically incomplete) block
-                        if (isFirstBlockToPersist || ((IBlock)tableBlock).RecordCount > rowCount)
+                        if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
                         {
                             var serializedBlock = blockToPersist.Serialize();
                             var blockId = Database.GetFreeBlockId();
 
                             StorageManager.WriteBlock(blockId, serializedBlock.Payload.Span);
-                            tableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
+                            newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
                                 serializedBlock.MetaData.CreateMetaDataRecord(blockId));
@@ -68,103 +62,94 @@ namespace TrackDb.Lib.DataLifeCycle
                             break;
                         }
                     }
-                    CommitPersistance(tableBlock, metadataBlock, tombstoneBlock, tc);
+                    CommitPersistance(newTableBlock, metadataBlock, tx);
                 }
-
-                return tableName == null;
             }
+
+            return tableName == null;
         }
 
-        private void CommitPersistance(
-            BlockBuilder tableBlock,
-            BlockBuilder metadataBlock,
-            BlockBuilder? tombstoneBlock,
-            TransactionContext tc)
-        {
-            var replaceMapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
-            var addMapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
+        protected abstract IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+            TransactionContext tx);
 
-            replaceMapBuilder.Add(((IBlock)tableBlock).TableSchema.TableName, tableBlock);
-            if (tombstoneBlock != null)
+
+        protected abstract bool IsPersistanceRequired(
+            DataManagementActivity forcedDataManagementActivity,
+            TransactionContext tc);
+
+        #region Candidates
+        private string? GetMergedCandidate(DataManagementActivity forcedDataManagementActivity)
+        {
+            string? tableName = null;
+
+            do
             {
-                replaceMapBuilder.Add(
-                    ((IBlock)tombstoneBlock).TableSchema.TableName,
-                    tombstoneBlock);
-            }
-            addMapBuilder.Add(((IBlock)metadataBlock).TableSchema.TableName, metadataBlock);
-
-            CommitAlteredLogs(
-                replaceMapBuilder.ToImmutable(),
-                addMapBuilder.ToImmutable(),
-                tc);
-        }
-
-        private bool ShouldPersistUserData(bool doPersistEverything, TransactionContext tc)
-        {
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
-            var totalUserRecords = inMemoryDb.TableTransactionLogsMap
-                .Where(p => tableMap[p.Key].IsUserTable)
-                .Select(p => p.Value)
-                .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
-
-            return (doPersistEverything && totalUserRecords > 0)
-                || totalUserRecords > Database.DatabasePolicy.InMemoryPolicy.MaxUserDataRecords;
-        }
-
-        private bool ShouldPersistMetaData(bool doPersistEverything, TransactionContext tc)
-        {
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
-            var totalMetaDataRecords = inMemoryDb.TableTransactionLogsMap
-                .Where(p => tableMap[p.Key].IsMetaDataTable)
-                .Select(p => p.Value)
-                .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
-
-            return (doPersistEverything && totalMetaDataRecords > 0)
-                || totalMetaDataRecords > Database.DatabasePolicy.InMemoryPolicy.MaxMetaDataRecords;
-        }
-
-        private string? GetMergeCandidate(
-            bool doPersistAllUserData,
-            bool doPersistAllMetaData,
-            TransactionContext tc)
-        {
-            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
-            //  Should we persist any data given the total number of records in memory (across tables)?
-            var doUserData = ShouldPersistUserData(doPersistAllUserData, tc);
-            var doMetaData = ShouldPersistMetaData(doPersistAllMetaData, tc);
-
-            if (doUserData || doMetaData)
-            {   //  Find the oldest record across tables
-                var oldestRecordId = long.MaxValue;
-                var oldestTableName = (string?)null;
-                var buffer = new object?[1].AsMemory();
-                var rowIndexes = new[] { 0 };
-                var projectedColumns = new int[1];
-                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-
-                foreach (var pair in inMemoryDb.TableTransactionLogsMap)
+                if (tableName != null)
                 {
-                    var tableName = pair.Key;
-                    var logs = pair.Value;
-                    var table = Database.GetAnyTable(tableName);
-                    var isTableElligible = (doMetaData && tableMap[tableName].IsMetaDataTable)
-                        || (doUserData && tableMap[tableName].IsUserTable);
-
-                    if (isTableElligible)
+                    tableName = GetUnmergedCandidate(forcedDataManagementActivity);
+                }
+                if (tableName != null)
+                {
+                    if (MergeTableTransactionLogs(tableName))
                     {
-                        var block = logs.InMemoryBlocks
-                            .Where(b => b.RecordCount > 0)
-                            .FirstOrDefault();
+                        var newTableName = GetUnmergedCandidate(forcedDataManagementActivity);
 
-                        if (block != null)
+                        if (newTableName == tableName)
+                        {
+                            return tableName;
+                        }
+                        else
+                        {
+                            tableName = newTableName;
+                            //  Re-loop if null, otherwise will return null
+                        }
+                    }
+                    else
+                    {
+                        return tableName;
+                    }
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            while (tableName != null);
+
+            return null;
+        }
+
+        private string? GetUnmergedCandidate(DataManagementActivity forcedDataManagementActivity)
+        {
+            using (var tx = Database.CreateTransaction())
+            {
+                var inMemoryDb = tx.TransactionState.InMemoryDatabase;
+
+                //  Should we persist any data given the total number of records in memory (across tables)?
+                if (IsPersistanceRequired(forcedDataManagementActivity, tx))
+                {   //  Find the oldest record across tables
+                    var oldestRecordId = long.MaxValue;
+                    var oldestTableName = (string?)null;
+                    var buffer = new object?[1];
+                    var rowIndexes = new[] { 0 };
+                    var projectedColumns = new int[1];
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+
+                    foreach (var pair in GetTableLogs(tx))
+                    {
+                        var tableName = pair.Key;
+                        var logs = pair.Value;
+                        var table = Database.GetAnyTable(tableName);
+                        var blocks = logs.InMemoryBlocks
+                            .Where(b => b.RecordCount > 0);
+
+                        foreach (var block in blocks)
                         {   //  Fetch the record ID
                             projectedColumns[0] = block.TableSchema.Columns.Count;
 
                             var blockOldestRecordId = block.Project(buffer, projectedColumns, rowIndexes, 0)
                                 .Select(r => ((long?)r.Span[0])!.Value)
-                                .First();
+                                .Min();
 
                             if (blockOldestRecordId < oldestRecordId)
                             {
@@ -173,14 +158,58 @@ namespace TrackDb.Lib.DataLifeCycle
                             }
                         }
                     }
-                }
 
-                return oldestTableName;
+                    return oldestTableName;
+                }
+                else
+                {
+                    return null;
+                }
             }
-            else
+        }
+        #endregion
+
+        private void CommitPersistance(
+            IBlock tableBlock,
+            IBlock metadataBlock,
+            TransactionContext tx)
+        {
+            Database.ChangeDatabaseState(state =>
             {
-                return null;
-            }
+                var inMemoryDatabase = state.InMemoryDatabase;
+                var tableTransactionLogsMap = inMemoryDatabase.TableTransactionLogsMap;
+                var tableLogs = tableTransactionLogsMap[tableBlock.TableSchema.TableName];
+                var metadataTableLogs = tableTransactionLogsMap.ContainsKey(metadataBlock.TableSchema.TableName)
+                ? tableTransactionLogsMap[metadataBlock.TableSchema.TableName]
+                : new ImmutableTableTransactionLogs();
+
+                //  Adjust table
+                tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
+                    tableBlock.TableSchema.TableName,
+                    tableLogs with
+                    {
+                        InMemoryBlocks = tableLogs.InMemoryBlocks
+                        .Skip(1)
+                        .Prepend(tableBlock)
+                        .ToImmutableArray()
+                    });
+                //  Adjust metadata table
+                tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
+                    metadataBlock.TableSchema.TableName,
+                    metadataTableLogs with
+                    {
+                        InMemoryBlocks = metadataTableLogs.InMemoryBlocks
+                        .Append(metadataBlock)
+                        .ToImmutableArray()
+                    });
+                inMemoryDatabase = inMemoryDatabase with
+                {
+                    TableTransactionLogsMap = tableTransactionLogsMap
+                };
+                state = state with { InMemoryDatabase = inMemoryDatabase };
+
+                return state;
+            });
         }
     }
 }

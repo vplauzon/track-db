@@ -5,10 +5,7 @@
         string? MetaDataTableName,
         bool IsUserTable,
         bool IsMetaDataTable,
-        bool IsTombstone)
+        bool IsPersisted)
     {
-        public bool IsPersisted => IsUserTable || IsMetaDataTable;
-        
-        public bool IsLogged => IsUserTable;
     }
 }

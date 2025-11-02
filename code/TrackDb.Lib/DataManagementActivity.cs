@@ -11,7 +11,7 @@ namespace TrackDb.Lib
     {
         None = 0,
         MergeAllInMemoryLogs = 1,
-        PersistAllUserData = 2,
+        PersistAllNonMetaData = 2,
         PersistAllMetaData = 4,
         HardDeleteAll = 8
     }

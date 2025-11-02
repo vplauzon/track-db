@@ -28,7 +28,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.MultiIntegerTable.AppendRecord(record2);
                 db.MultiIntegerTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(record4);
 
@@ -36,7 +36,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(1, recordDeletedCount);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.MultiIntegerTable.Query()
@@ -75,7 +75,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.CompoundKeyTable.AppendRecord(record1);
                 db.CompoundKeyTable.AppendRecord(record2);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.CompoundKeyTable.AppendRecord(record3);
 
@@ -83,7 +83,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(1, recordDeletedCount);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.CompoundKeyTable.Query()

@@ -20,7 +20,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.PrimitiveTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
             }
         }
@@ -38,7 +38,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.CompoundKeyTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
             }
         }
@@ -54,7 +54,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.OtherTypesTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
             }
         }
@@ -70,7 +70,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
             }
         }
@@ -96,7 +96,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
             }
         }

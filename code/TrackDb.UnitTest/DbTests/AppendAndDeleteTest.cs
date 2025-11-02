@@ -21,7 +21,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.PrimitiveTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.Query()
                     .Where(pf => pf.Equal(r => r.Integer, 1))
@@ -44,7 +44,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(4));
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 db.PrimitiveTable.Query()

@@ -36,7 +36,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         protected DatabaseFileManager StorageManager => _storageManager.Value;
 
-        protected void MergeTableTransactionLogs(string tableName)
+        protected bool MergeTableTransactionLogs(string tableName)
         {
             using (var tc = Database.CreateDummyTransaction())
             {
@@ -54,6 +54,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     ImmutableDictionary<string, BlockBuilder>.Empty,
                     tc);
             }
+
+            throw new NotImplementedException();
         }
 
         protected (BlockBuilder tableBlock, BlockBuilder? tombstoneBlock) MergeTableTransactionLogs(

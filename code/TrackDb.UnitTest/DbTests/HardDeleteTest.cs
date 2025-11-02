@@ -17,7 +17,7 @@ namespace TrackDb.UnitTest.DbTests
                 var record = new TestDatabase.Primitives(1);
 
                 db.PrimitiveTable.AppendRecord(record);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 1);
 
@@ -55,7 +55,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.PrimitiveTable.AppendRecord(record1);
                 db.PrimitiveTable.AppendRecord(record2);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 2);
 
@@ -76,7 +76,7 @@ namespace TrackDb.UnitTest.DbTests
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
                 if (doPushPendingData)
                 {
-                    await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllUserData);
+                    await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
                 }
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());

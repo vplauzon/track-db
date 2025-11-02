@@ -20,12 +20,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.PrimitiveTable.Query()
@@ -47,12 +47,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.PrimitiveTable.Query()
@@ -125,12 +125,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2, 3, 4));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(record);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(100, 200, 300, 400));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var results1 = db.MultiIntegerTable.Query()
@@ -162,12 +162,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(1, 2, 3, 4));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(10, 20, 30, 40));
                 db.MultiIntegerTable.AppendRecord(new TestDatabase.MultiIntegers(100, 200, 300, 400));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var results = db.MultiIntegerTable.Query()
@@ -216,12 +216,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.CompoundKeyTable.AppendRecord(record1);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.CompoundKeyTable.Query()
@@ -288,12 +288,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.CompoundKeyTable.AppendRecord(record1);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsNotEqualVersionedName = db.CompoundKeyTable.Query()
@@ -343,12 +343,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.CompoundKeyTable.AppendRecord(record1);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.CompoundKeyTable.AppendRecord(record2);
                 db.CompoundKeyTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsIn = db.CompoundKeyTable.Query()
@@ -378,12 +378,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.OtherTypesTable.AppendRecord(record1);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.OtherTypesTable.AppendRecord(record2);
                 db.OtherTypesTable.AppendRecord(record3);
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.OtherTypesTable.Query()
@@ -420,7 +420,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(2, db.PrimitiveTable.Query().Count());
 
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 Assert.Equal(2, db.PrimitiveTable.Query().Count());
@@ -430,7 +430,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(3, db.PrimitiveTable.Query().Count());
 
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 Assert.Equal(3, db.PrimitiveTable.Query().Count());
@@ -440,7 +440,7 @@ namespace TrackDb.UnitTest.DbTests
                     .Where(pf => pf.Equal(r => r.Integer, 2))
                     .Delete();
                 await db.Database.ForceDataManagementAsync(doPushPendingData3
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.PrimitiveTable.Query()
@@ -505,12 +505,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var count = db.PrimitiveTable.Query()
@@ -531,12 +531,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(1));
                 await db.Database.ForceDataManagementAsync(doPushPendingData1
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(2));
                 db.PrimitiveTable.AppendRecord(new TestDatabase.Primitives(3, 43));
                 await db.Database.ForceDataManagementAsync(doPushPendingData2
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsOnly2 = db.PrimitiveTable.Query()

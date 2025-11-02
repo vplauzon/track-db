@@ -26,7 +26,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.CompoundKeyTable.AppendRecords(records);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
-                    ? DataManagementActivity.PersistAllUserData
+                    ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
                 var resultsAll = db.CompoundKeyTable.Query()

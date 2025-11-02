@@ -106,10 +106,10 @@ namespace TrackDb.Lib
                 : null;
 
             var tableMap = userTables
-                .Select(t => new TableProperties(t, null, true, false, false))
-                .Append(new TableProperties(_tombstoneTable, null, false, false, true))
-                .Append(new TableProperties(_availableBlockTable, null, false, false, false))
-                .Append(new TableProperties(QueryExecutionTable, null, false, false, false))
+                .Select(t => new TableProperties(t, null, true, false, true))
+                .Append(new TableProperties(_tombstoneTable, null, false, false, false))
+                .Append(new TableProperties(_availableBlockTable, null, false, false, true))
+                .Append(new TableProperties(QueryExecutionTable, null, false, false, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
@@ -343,7 +343,7 @@ namespace TrackDb.Lib
                         {
                             var tableMap = state.TableMap.Add(
                                 metaDataTableName,
-                                new TableProperties(metaDataTable, null, false, true, false))
+                                new TableProperties(metaDataTable, null, false, true, true))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
                                 MetaDataTableName = metaDataTableName
