@@ -33,7 +33,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             using (var tc = Database.CreateDummyTransaction())
             {
-                var tableName = GetOldestTable(doPersistAllUserData, doPersistAllMetaData, tc);
+                var tableName = GetMergeCandidate(doPersistAllUserData, doPersistAllMetaData, tc);
 
                 if (tableName != null)
                 {
@@ -125,17 +125,18 @@ namespace TrackDb.Lib.DataLifeCycle
                 || totalMetaDataRecords > Database.DatabasePolicy.InMemoryPolicy.MaxMetaDataRecords;
         }
 
-        private string? GetOldestTable(
+        private string? GetMergeCandidate(
             bool doPersistAllUserData,
             bool doPersistAllMetaData,
             TransactionContext tc)
         {
             var inMemoryDb = tc.TransactionState.InMemoryDatabase;
+            //  Should we persist any data given the total number of records in memory (across tables)?
             var doUserData = ShouldPersistUserData(doPersistAllUserData, tc);
             var doMetaData = ShouldPersistMetaData(doPersistAllMetaData, tc);
 
             if (doUserData || doMetaData)
-            {
+            {   //  Find the oldest record across tables
                 var oldestRecordId = long.MaxValue;
                 var oldestTableName = (string?)null;
                 var buffer = new object?[1].AsMemory();
