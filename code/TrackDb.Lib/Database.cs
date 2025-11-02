@@ -145,6 +145,7 @@ namespace TrackDb.Lib
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
+            await ((IAsyncDisposable)_dataLifeCycleManager).DisposeAsync();
             if (_dbFileManager.IsValueCreated)
             {
                 await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
