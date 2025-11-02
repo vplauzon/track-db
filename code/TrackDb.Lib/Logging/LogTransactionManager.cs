@@ -317,7 +317,11 @@ namespace TrackDb.Lib.Logging
 
         private bool IsBufferingTimeOver(ContentItem contentItem)
         {
-            return contentItem.Timestamp.Add(_logPolicy.BufferingTimeWindow) > DateTime.Now;
+            var triggerTime = contentItem.Timestamp.Add(_logPolicy.BufferingTimeWindow);
+            var now = DateTime.Now;
+            var isTrigger = triggerTime <= now;
+            
+            return isTrigger;
         }
 
         private bool DrainChannel(Queue<ContentItem> queue)
