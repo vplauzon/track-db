@@ -2,5 +2,6 @@
 {
     public record DatabaseStatistics(
         int InMemoryUserTableRecords,
-        int InMemoryTombstoneRecords);
+        int InMemoryTombstoneRecords,
+        int OnDiskUserTableBlocks);
 }

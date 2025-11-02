@@ -111,6 +111,7 @@ namespace TrackDb.LogTest
                         tx.Complete();
                     }
                 }
+                var stats = db.Database.GetDatabaseStatistics();
             }
             //  Check final state after reloading
             await using (var db = await TestDatabase.CreateAsync(testId))

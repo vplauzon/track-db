@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Transactions;
 using TrackDb.Lib.DataLifeCycle;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
@@ -218,6 +217,7 @@ namespace TrackDb.Lib
         {
             var state = _databaseState;
             var inMemoryDatabase = state.InMemoryDatabase;
+            var tableMap = state.TableMap;
             var userTableNames = state.TableMap
                 .Where(p => p.Value.IsUserTable)
                 .Select(p => p.Key)
@@ -226,18 +226,19 @@ namespace TrackDb.Lib
                 .Where(p => userTableNames.Contains(p.Key))
                 .SelectMany(p => p.Value.InMemoryBlocks)
                 .Sum(block => block.RecordCount);
-            var inMemoryTombstoneRecords = 0;
+            var inMemoryTombstoneRecords = inMemoryDatabase.TableTransactionLogsMap
+                .Where(p => p.Key == _tombstoneTable.Schema.TableName)
+                .SelectMany(p => p.Value.InMemoryBlocks)
+                .Sum(b => b.RecordCount);
+            var onDiskUserTableBlocks = inMemoryDatabase.TableTransactionLogsMap
+                .Where(p => tableMap[p.Key].IsMetaDataTable)
+                .SelectMany(p => p.Value.InMemoryBlocks)
+                .Count();
 
-            if (inMemoryDatabase.TableTransactionLogsMap.ContainsKey(
-                _tombstoneTable.Schema.TableName))
-            {
-                inMemoryTombstoneRecords +=
-                    inMemoryDatabase.TableTransactionLogsMap[_tombstoneTable.Schema.TableName]
-                    .InMemoryBlocks
-                    .Sum(block => block.RecordCount);
-            }
-
-            return new DatabaseStatistics(userTableRecordCount, inMemoryTombstoneRecords);
+            return new DatabaseStatistics(
+                userTableRecordCount,
+                inMemoryTombstoneRecords,
+                onDiskUserTableBlocks);
         }
 
         public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tc = null)
