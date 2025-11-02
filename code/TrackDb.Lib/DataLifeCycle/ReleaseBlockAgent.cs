@@ -22,9 +22,9 @@ namespace TrackDb.Lib.DataLifeCycle
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
             var dbState = Database.GetDatabaseStateSnapshot();
-            var discardedBlockIds = Database.GetDatabaseStateSnapshot().DiscardedBlockIds;
+            var discardedBlockIds = dbState.DiscardedBlockIds;
 
-            if (!dbState.TransactionMap.Any() && discardedBlockIds.Any())
+            if (discardedBlockIds.Any() && !dbState.TransactionMap.Any())
             {
                 Database.ReleaseBlockIds(discardedBlockIds);
                 Database.ChangeDatabaseState(state =>
