@@ -24,3 +24,6 @@ jobs:
     # See https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-test
     - name: Test
       run: dotnet test code/TrackDb.LogTest --configuration Release --no-build --verbosity normal
+      env:
+          logFolderUri: ${{ secrets.logFolderUri }}
+          logFolderKey: ${{ secrets.logFolderKey }}
