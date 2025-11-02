@@ -9,9 +9,9 @@ using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class RecordPersistanceAgent : DataLifeCycleAgentBase
+    internal abstract class RecordPersistanceAgentBase : DataLifeCycleAgentBase
     {
-        public RecordPersistanceAgent(
+        public RecordPersistanceAgentBase(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
             Lazy<DatabaseFileManager> storageManager)
