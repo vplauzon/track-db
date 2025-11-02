@@ -9,9 +9,21 @@ namespace TrackDb.LogTest
     public class PerformanceTest
     {
         [Fact]
-        public async Task Test50()
+        public async Task Test00050()
         {
             await RunPerformanceTestAsync(50);
+        }
+
+        [Fact]
+        public async Task Test00250()
+        {
+            await RunPerformanceTestAsync(250);
+        }
+
+        [Fact]
+        public async Task Test01000()
+        {
+            await RunPerformanceTestAsync(1000);
         }
 
         private async Task RunPerformanceTestAsync(long cycleCount)
