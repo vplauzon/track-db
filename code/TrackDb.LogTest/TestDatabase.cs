@@ -59,7 +59,7 @@ namespace TrackDb.LogTest
         private const string TASK_TABLE = "Task";
 
         #region Constructor
-        public static async Task<TestDatabase> CreateAsync(Guid testId)
+        public static async Task<TestDatabase> CreateAsync(string testId)
         {
             var logFolderUriText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
             var logFolderKey = TestConfiguration.Instance.GetConfiguration("logFolderKey");

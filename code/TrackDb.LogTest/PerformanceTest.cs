@@ -28,7 +28,7 @@ namespace TrackDb.LogTest
 
         private async Task RunPerformanceTestAsync(long cycleCount)
         {
-            var testId = Guid.NewGuid();
+            var testId = $"PerformanceTest-{cycleCount}-{Guid.NewGuid()}";
 
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
