@@ -83,7 +83,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             do
             {
-                if (tableName != null)
+                if (tableName == null)
                 {
                     tableName = FindUnmergedCandidate(doPersistAll);
                 }
