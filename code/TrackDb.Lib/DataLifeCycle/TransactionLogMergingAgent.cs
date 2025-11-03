@@ -23,32 +23,19 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var doMergeAll =
                 (forcedDataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0;
-
-            MergeTransactionLogs(doMergeAll);
-
-            return true;
-        }
-
-        private void MergeTransactionLogs(bool doMergeAll)
-        {
-            for (var candidateTable = FindMergeCandidate(doMergeAll);
-                 candidateTable != null;
-                 candidateTable = FindMergeCandidate(doMergeAll))
-            {
-                MergeTableTransactionLogs(candidateTable);
-            }
-        }
-
-        private string? FindMergeCandidate(bool doMergeAll)
-        {
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
                 : Database.DatabasePolicy.InMemoryPolicy.MaxBlocksPerTable;
-
-            return Database.GetDatabaseStateSnapshot().InMemoryDatabase.TableTransactionLogsMap
+            var candidateTables = Database.GetDatabaseStateSnapshot().InMemoryDatabase.TableTransactionLogsMap
                 .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
-                .Select(p => p.Key)
-                .FirstOrDefault();
+                .Select(p => p.Key);
+
+            foreach(var tableName in candidateTables)
+            {
+                MergeTableTransactionLogs(tableName);
+            }
+
+            return true;
         }
     }
 }
