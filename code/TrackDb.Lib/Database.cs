@@ -13,6 +13,7 @@ using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Logging;
 using TrackDb.Lib.Policies;
+using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
@@ -668,10 +669,10 @@ namespace TrackDb.Lib
         internal IBlock GetOrLoadBlock(
             int blockId,
             TableSchema schema,
-            SerializedBlockMetaData serializedBlockMetaData)
+            SerializedBlockMetaData serializedBlockMetadata)
         {
             var payload = _dbFileManager.Value.ReadBlock(blockId);
-            var serializedBlock = new SerializedBlock(serializedBlockMetaData, payload);
+            var serializedBlock = new SerializedBlock(serializedBlockMetadata, payload);
             var block = new ReadOnlyBlock(schema, serializedBlock);
 
             return block;

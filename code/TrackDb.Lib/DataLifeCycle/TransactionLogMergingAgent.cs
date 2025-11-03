@@ -8,10 +8,10 @@ using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class LogMergingAgent : DataLifeCycleAgentBase
+    internal class TransactionLogMergingAgent : DataLifeCycleAgentBase
     {
 
-        public LogMergingAgent(
+        public TransactionLogMergingAgent(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
             Lazy<DatabaseFileManager> storageManager)

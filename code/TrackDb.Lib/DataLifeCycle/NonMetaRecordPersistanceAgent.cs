@@ -18,6 +18,9 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
+        protected override int MaxInMemoryDataRecords =>
+            Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
+
         protected override IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
             TransactionContext tx)
         {
@@ -36,36 +39,12 @@ namespace TrackDb.Lib.DataLifeCycle
             return logs;
         }
 
-        protected override bool IsPersistanceRequired(
-            DataManagementActivity forcedDataManagementActivity,
-            TransactionContext tx)
+        protected override bool DoPersistAll(DataManagementActivity forcedDataManagementActivity)
         {
             var doPersistEverything =
                 (forcedDataManagementActivity & DataManagementActivity.PersistAllNonMetaData) != 0;
 
-            var tableLogs = GetTableLogs(tx);
-            var totalRecords = tableLogs
-                .Select(p => p.Value)
-                .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
-
-            if (totalRecords > 0)
-            {
-                if (doPersistEverything)
-                {
-                    return true;
-                }
-                else
-                {
-                    var tableCount = tableLogs.Count();
-                    var threshold = Math.Max(
-                        Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecordsInMemory,
-                        tableCount * Database.DatabasePolicy.InMemoryPolicy.MinNonMetaDataRecordsPerBlock);
-
-                    return totalRecords > threshold;
-                }
-            }
-
-            return false;
+            return doPersistEverything;
         }
     }
 }

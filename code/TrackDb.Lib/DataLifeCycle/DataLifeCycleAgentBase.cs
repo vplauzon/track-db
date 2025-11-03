@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
@@ -38,163 +39,129 @@ namespace TrackDb.Lib.DataLifeCycle
 
         protected bool MergeTableTransactionLogs(string tableName)
         {
-            using (var tc = Database.CreateDummyTransaction())
+            using (var tx = Database.CreateDummyTransaction())
             {
-                (var tableBlock, var tombstoneBlock) =
-                    MergeTableTransactionLogs(tableName, tc);
-                var mapBuilder = ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder();
+                var map = tx.TransactionState.InMemoryDatabase.TableTransactionLogsMap;
 
-                mapBuilder.Add(tableName, tableBlock);
-                if (tombstoneBlock != null)
+                if (map.ContainsKey(tableName))
                 {
-                    mapBuilder.Add(TombstoneTable.Schema.TableName, tombstoneBlock);
-                }
-                CommitAlteredLogs(
-                    mapBuilder.ToImmutable(),
-                    ImmutableDictionary<string, BlockBuilder>.Empty,
-                    tc);
-            }
+                    var logs = map[tableName];
 
-            throw new NotImplementedException();
-        }
-
-        protected (BlockBuilder tableBlock, BlockBuilder? tombstoneBlock) MergeTableTransactionLogs(
-            string tableName,
-            TransactionContext tc)
-        {
-            var inMemoryDb = tc.TransactionState.InMemoryDatabase;
-            var logs = inMemoryDb.TableTransactionLogsMap[tableName];
-            var blockBuilder = logs.MergeLogs();
-            var deletedRecordsIds = Database.GetDeletedRecordIds(tableName, tc);
-            var actuallyDeletedRecordIds = blockBuilder.DeleteRecordsByRecordId(deletedRecordsIds)
-                .ToImmutableArray();
-
-            if (actuallyDeletedRecordIds.Any())
-            {   //  We need to erase the tombstones record that were actually deleted
-                var tombstoneBlockBuilder = new BlockBuilder(TombstoneTable.Schema);
-                var tombstoneQueryFactory = new QueryPredicateFactory<TombstoneRecord>(TombstoneTable.Schema);
-
-                foreach (var block in
-                    tc.TransactionState.ListTransactionLogBlocks(TombstoneTable.Schema.TableName))
-                {
-                    tombstoneBlockBuilder.AppendBlock(block);
-                }
-
-                var tombstoneRowIndexesToRemove = ((IBlock)tombstoneBlockBuilder).Filter(
-                    tombstoneQueryFactory.Equal(t => t.TableName, tableName)
-                    .And(tombstoneQueryFactory.In(t => t.DeletedRecordId, actuallyDeletedRecordIds))
-                    .QueryPredicate,
-                    false)
-                    .RowIndexes;
-
-                tombstoneBlockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexesToRemove);
-
-                return (blockBuilder, tombstoneBlockBuilder);
-            }
-            else
-            {
-                return (blockBuilder, null);
-            }
-        }
-
-        protected void CommitAlteredLogs(
-            IImmutableDictionary<string, BlockBuilder> tableToReplacedLogsMap,
-            IImmutableDictionary<string, BlockBuilder> tableToAddedLogsMap,
-            TransactionContext tc)
-        {
-            IImmutableDictionary<string, ImmutableTableTransactionLogs> UpdateLogs(
-                IImmutableDictionary<string, ImmutableTableTransactionLogs> oldMap,
-                IImmutableDictionary<string, ImmutableTableTransactionLogs> newMap,
-                string tableName,
-                BlockBuilder newBlock)
-            {
-                oldMap.TryGetValue(tableName, out var oldLogs);
-                newMap.TryGetValue(tableName, out var newLogs);
-
-                var resultingBlocks =
-                    (newLogs?.InMemoryBlocks ?? (IEnumerable<IBlock>)Array.Empty<IBlock>())
-                    .Skip(oldLogs?.InMemoryBlocks.Count ?? 0);
-
-                if (((IBlock)newBlock).RecordCount > 0)
-                {
-                    resultingBlocks = resultingBlocks
-                        .Prepend(newBlock);
-                }
-                if (resultingBlocks.Any())
-                {
-                    return newMap.SetItem(
-                        tableName,
-                        new ImmutableTableTransactionLogs(resultingBlocks.ToImmutableArray()));
-                }
-                else
-                {
-                    return newLogs == null
-                        ? newMap
-                        : newMap.Remove(tableName);
-                }
-            }
-            IImmutableDictionary<string, ImmutableTableTransactionLogs> AddLogs(
-                IImmutableDictionary<string, ImmutableTableTransactionLogs> oldMap,
-                IImmutableDictionary<string, ImmutableTableTransactionLogs> newMap,
-                string tableName,
-                BlockBuilder newBlock)
-            {
-                if (((IBlock)newBlock).RecordCount > 0)
-                {
-                    oldMap.TryGetValue(tableName, out var oldLogs);
-                    newMap.TryGetValue(tableName, out var newLogs);
-
-                    var resultingBlocks =
-                        (newLogs?.InMemoryBlocks ?? (IEnumerable<IBlock>)Array.Empty<IBlock>())
-                        .Append(newBlock);
-
-                    if (resultingBlocks.Any())
+                    if (logs.InMemoryBlocks.Count == 1
+                        && AreTombstoneRecords(logs.InMemoryBlocks.First(), tx))
                     {
-                        return newMap.SetItem(
-                            tableName,
-                            new ImmutableTableTransactionLogs(resultingBlocks.ToImmutableArray()));
+                        return false;
+                    }
+                    var blockBuilder = logs.MergeLogs();
+
+                    if (map.ContainsKey(TombstoneTable.Schema.TableName))
+                    {
+                        var tombstoneLogs = map[TombstoneTable.Schema.TableName];
+                        var tombstoneBuilder = tombstoneLogs.MergeLogs();
+
+                        TrimBlocks(blockBuilder, tombstoneBuilder);
+                        CommitMerge(blockBuilder, tombstoneBuilder, tx);
                     }
                     else
                     {
-                        return newLogs == null
-                            ? newMap
-                            : newMap.Remove(tableName);
+                        CommitMerge(blockBuilder, null, tx);
                     }
+
+                    return true;
                 }
                 else
                 {
-                    return newMap;
+                    return false;
                 }
             }
+        }
 
+        private bool AreTombstoneRecords(IBlock block, TransactionContext tx)
+        {
+            var recordIds = block.Project(
+                new object?[1],
+                [block.TableSchema.Columns.Count],
+                Enumerable.Range(0, block.RecordCount),
+                0)
+                .Select(b => (long)b.Span[0]!);
+            var tombstoneCount = TombstoneTable.Query(tx)
+                .Where(pf => pf.In(t => t.DeletedRecordId, recordIds))
+                .Count();
+            var areTombstoneRecords = tombstoneCount != 0;
+
+            return areTombstoneRecords;
+        }
+
+        private void TrimBlocks(BlockBuilder blockBuilder, BlockBuilder tombstoneBuilder)
+        {
+            var recordIds = ((IBlock)blockBuilder).Project(
+                new object?[1],
+                [((IBlock)blockBuilder).TableSchema.Columns.Count],
+                Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount),
+                0)
+                .Select(b => b.Span[0])
+                .ToImmutableArray();
+            var tombstoneRowIndexes = ((IBlock)tombstoneBuilder).Filter(
+                new ConjunctionPredicate(
+                    new BinaryOperatorPredicate(
+                        TombstoneTable.Schema.GetColumnIndexSubset(t => t.TableName).First(),
+                        ((IBlock)blockBuilder).TableSchema.TableName,
+                        BinaryOperator.Equal),
+                    new InPredicate(
+                        TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId).First(),
+                        recordIds)),
+                false).RowIndexes;
+            var deletedRecordIds = ((IBlock)tombstoneBuilder).Project(
+                new object?[1],
+                TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId),
+                tombstoneRowIndexes,
+                0)
+                .Select(b => (long)b.Span[0]!);
+
+            blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
+            tombstoneBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+        }
+
+        private void CommitMerge(
+            IBlock block,
+            IBlock? tombstoneBlock,
+            TransactionContext tx)
+        {
             Database.ChangeDatabaseState(state =>
             {
-                var stateCurrentMap = state.InMemoryDatabase.TableTransactionLogsMap;
+                var map = state.InMemoryDatabase.TableTransactionLogsMap;
 
-                foreach (var pair in tableToReplacedLogsMap)
+                //  Record table
+                if (block.RecordCount > 0)
                 {
-                    var tableName = pair.Key;
-                    var newBlock = pair.Value;
-
-                    stateCurrentMap = UpdateLogs(
-                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap,
-                        stateCurrentMap,
-                        tableName,
-                        newBlock);
+                    map = map.SetItem(block.TableSchema.TableName, new(block));
                 }
-                foreach (var pair in tableToAddedLogsMap)
+                else
                 {
-                    var tableName = pair.Key;
-                    var newBlock = pair.Value;
-
-                    stateCurrentMap = AddLogs(
-                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap,
-                        stateCurrentMap,
-                        tableName,
-                        newBlock);
+                    map = map.Remove(block.TableSchema.TableName);
+                }
+                //  Record tombstone
+                if (tombstoneBlock != null)
+                {
+                    if (tombstoneBlock.RecordCount > 0)
+                    {
+                        map = map.SetItem(
+                            tombstoneBlock.TableSchema.TableName,
+                            new(tombstoneBlock));
+                    }
+                    else
+                    {
+                        map = map.Remove(tombstoneBlock.TableSchema.TableName);
+                    }
                 }
 
-                return state with { InMemoryDatabase = new InMemoryDatabase(stateCurrentMap) };
+                return state with
+                {
+                    InMemoryDatabase = state.InMemoryDatabase with
+                    {
+                        TableTransactionLogsMap = map
+                    }
+                };
             });
         }
     }
