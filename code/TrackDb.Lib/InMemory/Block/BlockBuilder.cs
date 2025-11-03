@@ -64,7 +64,7 @@ namespace TrackDb.Lib.InMemory.Block
             //  Include record ID
             var data = block.Project(
                 new object?[Schema.Columns.Count + 1].AsMemory(),
-                Enumerable.Range(0, Schema.Columns.Count + 1),
+                Enumerable.Range(0, Schema.Columns.Count + 1).ToImmutableArray(),
                 Enumerable.Range(0, block.RecordCount),
                 0);
 
@@ -230,7 +230,7 @@ namespace TrackDb.Lib.InMemory.Block
                 //  Include record ID
                 var records = block.Project(
                     new object?[columnCount + 1].AsMemory(),
-                    Enumerable.Range(0, columnCount + 1),
+                    Enumerable.Range(0, columnCount + 1).ToImmutableArray(),
                     Enumerable.Range(0, truncateRowCount),
                     0);
 
@@ -382,14 +382,18 @@ namespace TrackDb.Lib.InMemory.Block
             get
             {
                 IBlock block = this;
+                var columnNames = block.TableSchema.Columns
+                    .Select(c => c.ColumnName)
+                    .Append("$$recordId")
+                    .Append("$$blockId");
                 var projection = block.Project(
                     new object?[block.TableSchema.Columns.Count + 3],
-                    Enumerable.Range(0, block.TableSchema.Columns.Count + 3),
+                    Enumerable.Range(0, block.TableSchema.Columns.Count + 3).ToImmutableArray(),
                     Enumerable.Range(0, block.RecordCount),
                     42)
                     .Select(b => b.ToArray()
-                    .Zip(block.TableSchema.Columns)
-                    .ToImmutableDictionary(p => p.Second.ColumnName, p => p.First))
+                    .Zip(columnNames)
+                    .ToImmutableDictionary(p => p.Second, p => p.First))
                     .ToImmutableArray();
 
                 return projection;

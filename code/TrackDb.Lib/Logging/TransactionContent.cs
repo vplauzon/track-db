@@ -35,7 +35,7 @@ namespace TrackDb.Lib.Logging
                     //  Add the record-id of the tombstone record itself
                     .Append(tombstoneSchema.Columns.Count);
                 var buffer = new object[3];
-                var content = block.Project(buffer, columnIndexes, rowIndexes, 0)
+                var content = block.Project(buffer, columnIndexes.ToImmutableArray(), rowIndexes, 0)
                     .Select(data => new
                     {
                         Table = (string)data.Span[0]!,

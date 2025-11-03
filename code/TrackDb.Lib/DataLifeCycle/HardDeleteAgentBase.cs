@@ -149,13 +149,14 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var recordIdRecord = table.Query(tx)
+                .WithIgnoreDeleted()
                 //  Where recordID
                 .WithPredicate(new BinaryOperatorPredicate(
                     table.Schema.Columns.Count,
                     recordId,
                     BinaryOperator.Equal))
                 //  Only project the block ID
-                .WithProjection([table.Schema.Columns.Count + 1])
+                .WithProjection([table.Schema.Columns.Count + 2])
                 .FirstOrDefault();
 
             if (recordIdRecord.Length == 0)

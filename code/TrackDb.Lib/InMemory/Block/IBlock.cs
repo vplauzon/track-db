@@ -30,7 +30,7 @@ namespace TrackDb.Lib.InMemory.Block
         /// <returns></returns>
         IEnumerable<ReadOnlyMemory<object?>> Project(
             Memory<object?> buffer,
-            IEnumerable<int> projectionColumnIndexes,
+            IImmutableList<int> projectionColumnIndexes,
             IEnumerable<int> rowIndexes,
             int blockId);
     }

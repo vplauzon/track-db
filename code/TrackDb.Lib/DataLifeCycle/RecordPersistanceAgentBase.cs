@@ -131,7 +131,6 @@ namespace TrackDb.Lib.DataLifeCycle
                     var oldestTableName = (string?)null;
                     var buffer = new object?[1];
                     var rowIndexes = new[] { 0 };
-                    var projectedColumns = new int[1];
                     var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
                     foreach (var pair in GetTableLogs(tx))
@@ -144,7 +143,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                         foreach (var block in blocks)
                         {   //  Fetch the record ID
-                            projectedColumns[0] = block.TableSchema.Columns.Count;
+                            var projectedColumns = ImmutableArray.Create(block.TableSchema.Columns.Count);
 
                             var blockOldestRecordId = block.Project(buffer, projectedColumns, rowIndexes, 0)
                                 .Select(r => ((long?)r.Span[0])!.Value)
@@ -196,27 +195,19 @@ namespace TrackDb.Lib.DataLifeCycle
                 : new ImmutableTableTransactionLogs();
 
                 //  Adjust table
-                if (tableBlock.RecordCount > 0)
+                var inMemoryBlocks = tableLogs.InMemoryBlocks.Skip(1);
+
+                inMemoryBlocks = tableBlock.RecordCount > 0
+                ? inMemoryBlocks.Prepend(tableBlock)
+                : inMemoryBlocks;
+
+                if (inMemoryBlocks.Any())
                 {
                     tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
                         tableBlock.TableSchema.TableName,
                         tableLogs with
                         {
-                            InMemoryBlocks = tableLogs.InMemoryBlocks
-                            .Skip(1)
-                            .Prepend(tableBlock)
-                            .ToImmutableArray()
-                        });
-                }
-                else if (tableLogs.InMemoryBlocks.Count > 0)
-                {
-                    tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
-                        tableBlock.TableSchema.TableName,
-                        tableLogs with
-                        {
-                            InMemoryBlocks = tableLogs.InMemoryBlocks
-                            .Skip(1)
-                            .ToImmutableArray()
+                            InMemoryBlocks = inMemoryBlocks.ToImmutableArray()
                         });
                 }
                 else

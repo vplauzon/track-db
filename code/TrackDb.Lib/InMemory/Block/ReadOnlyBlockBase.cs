@@ -171,21 +171,19 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
             Memory<object?> buffer,
-            IEnumerable<int> projectionColumnIndexes,
+            IImmutableList<int> projectionColumnIndexes,
             IEnumerable<int> rowIndexes,
             int blockId)
         {
-            var materializedProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
-
-            if (materializedProjectionColumnIndexes.Count() != buffer.Length)
+            if (projectionColumnIndexes.Count() != buffer.Length)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
-                    $"Number of projected columns ({materializedProjectionColumnIndexes.Count()}) " +
+                    $"Number of projected columns ({projectionColumnIndexes.Count()}) " +
                     $"isn't the same as the buffer size ({buffer.Length})");
             }
 
-            var columns = materializedProjectionColumnIndexes
+            var columns = projectionColumnIndexes
                 .Select(index => index < 0 || index > Schema.Columns.Count + 2
                 ? throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
