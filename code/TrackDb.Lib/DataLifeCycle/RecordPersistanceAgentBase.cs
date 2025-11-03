@@ -196,15 +196,34 @@ namespace TrackDb.Lib.DataLifeCycle
                 : new ImmutableTableTransactionLogs();
 
                 //  Adjust table
-                tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
-                    tableBlock.TableSchema.TableName,
-                    tableLogs with
-                    {
-                        InMemoryBlocks = tableLogs.InMemoryBlocks
-                        .Skip(1)
-                        .Prepend(tableBlock)
-                        .ToImmutableArray()
-                    });
+                if (tableBlock.RecordCount > 0)
+                {
+                    tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
+                        tableBlock.TableSchema.TableName,
+                        tableLogs with
+                        {
+                            InMemoryBlocks = tableLogs.InMemoryBlocks
+                            .Skip(1)
+                            .Prepend(tableBlock)
+                            .ToImmutableArray()
+                        });
+                }
+                else if (tableLogs.InMemoryBlocks.Count > 0)
+                {
+                    tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
+                        tableBlock.TableSchema.TableName,
+                        tableLogs with
+                        {
+                            InMemoryBlocks = tableLogs.InMemoryBlocks
+                            .Skip(1)
+                            .ToImmutableArray()
+                        });
+                }
+                else
+                {
+                    tableTransactionLogsMap = tableTransactionLogsMap.Remove(
+                        tableBlock.TableSchema.TableName);
+                }
                 //  Adjust metadata table
                 tableTransactionLogsMap = tableTransactionLogsMap.SetItem(
                     metadataBlock.TableSchema.TableName,
