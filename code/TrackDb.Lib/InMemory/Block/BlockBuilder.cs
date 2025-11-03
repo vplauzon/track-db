@@ -372,5 +372,29 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
         #endregion
+
+        #region Debug View
+        /// <summary>
+        /// To be used in debugging.
+        /// </summary>
+        internal IEnumerable<IImmutableDictionary<string, object?>> DebugView
+        {
+            get
+            {
+                IBlock block = this;
+                var projection = block.Project(
+                    new object?[block.TableSchema.Columns.Count + 3],
+                    Enumerable.Range(0, block.TableSchema.Columns.Count + 3),
+                    Enumerable.Range(0, block.RecordCount),
+                    42)
+                    .Select(b => b.ToArray()
+                    .Zip(block.TableSchema.Columns)
+                    .ToImmutableDictionary(p => p.Second.ColumnName, p => p.First))
+                    .ToImmutableArray();
+
+                return projection;
+            }
+        }
+        #endregion
     }
 }
