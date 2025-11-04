@@ -8,10 +8,6 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
-    /// <summary>
-    /// Database:  a collection of tables that can share transactions
-    /// and are persisted in the same file.
-    /// </summary>
     internal static class MetadataColumns
     {
         public const string ITEM_COUNT = "$itemCount";

@@ -87,13 +87,21 @@ namespace TrackDb.Lib
 
         public IImmutableList<ColumnSchema> Columns { get; }
 
+        #region Extra columns
+        public int RecordIdColumnIndex => Columns.Count;
+
+        public int RowIndexColumnIndex => Columns.Count + 1;
+
+        public int BlockIdColumnIndex => Columns.Count + 2;
+        #endregion
+
         /// <summary>
         /// Primary keys are used in
         /// <see cref="Table.UpdateRecord(ReadOnlySpan{object?}, ReadOnlySpan{object?}, TransactionContext?)"/>.
         /// It is used to delete an old record by doing a where-clause on its primary key.
         /// </summary>
         public IImmutableList<int> PrimaryKeyColumnIndexes { get; }
-        
+
         public IImmutableList<int> PartitionKeyColumnIndexes { get; }
 
         public int FindColumnIndex(string columnName)

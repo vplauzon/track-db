@@ -21,7 +21,7 @@ namespace TrackDb.Lib.DataLifeCycle
         protected override (string TableName, long RecordId)? FindRecordCandidate(
             bool doHardDeleteAll)
         {
-            using (var tx = Database.CreateTransaction())
+            using (var tx = Database.CreateDummyTransaction())
             {
                 var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 

@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
@@ -15,6 +13,14 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal abstract class HardDeleteAgentBase : DataLifeCycleAgentBase
     {
+        #region Inner types
+        private record MetadataRecord(
+            Table MetadataTable,
+            long MetadataRecordId,
+            int? MetadataBlockId,
+            ReadOnlyMemory<object?> Record);
+        #endregion
+
         public HardDeleteAgentBase(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
@@ -52,9 +58,9 @@ namespace TrackDb.Lib.DataLifeCycle
             using (var tx = Database.CreateDummyTransaction())
             {
                 int blockId = GetBlockId(table, recordId, tx);
-                (var metadataRecordId, var metadataRecord) = GetMetadataRecord(tableName, blockId, tx);
+                var metadataRecord = GetMetadataRecord(tableName, blockId, tx);
                 var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
-                    metadataRecord,
+                    metadataRecord.Record,
                     out var serializedBlockId);
                 var block = Database.GetOrLoadBlock(blockId, table.Schema, serializedBlockMetadata);
                 (var trimmedBlock, var trimmedTombstone) = TrimRecords(block, tx);
@@ -63,9 +69,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 trimmedTombstone.AppendRecord(
                     Database.NewRecordId(),
                     TombstoneTable.Schema.FromObjectToColumns(new TombstoneRecord(
-                        metadataRecordId,
-                        blockId,
-                        Database.GetMetaDataTable(tableName).Schema.TableName,
+                        metadataRecord.MetadataRecordId,
+                        metadataRecord.MetadataBlockId,
+                        metadataRecord.MetadataTable.Schema.TableName,
                         DateTime.Now)));
                 Database.ChangeDatabaseState(state =>
                 {
@@ -169,12 +175,15 @@ namespace TrackDb.Lib.DataLifeCycle
             return blockId;
         }
 
-        private (long MetadataRecordId, ReadOnlyMemory<object?> Record) GetMetadataRecord(
+        private MetadataRecord GetMetadataRecord(
             string tableName,
             int blockId,
             TransactionContext tx)
         {
             var metaDataTable = Database.GetMetaDataTable(tableName);
+            var projectionColumnIndexes = Enumerable.Range(0, metaDataTable.Schema.Columns.Count)
+                .Append(metaDataTable.Schema.RecordIdColumnIndex)
+                .Append(metaDataTable.Schema.BlockIdColumnIndex);
             var metaDataRecord = metaDataTable.Query(tx)
                 //  We're looking for the block ID in the meta data table
                 .WithPredicate(
@@ -182,8 +191,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     metaDataTable.Schema.FindColumnIndex(MetadataColumns.BLOCK_ID),
                     blockId,
                     BinaryOperator.Equal))
-                //  Return record-ID as well
-                .WithProjection(Enumerable.Range(0, metaDataTable.Schema.Columns.Count + 1))
+                //  Return record-ID & block-ID as well
+                .WithProjection(projectionColumnIndexes)
                 .WithTake(1)
                 .FirstOrDefault();
 
@@ -193,9 +202,14 @@ namespace TrackDb.Lib.DataLifeCycle
                     $"Can't load block '{blockId}' on table '{tableName}'");
             }
 
-            return (
-                (long)metaDataRecord.Span[metaDataRecord.Length - 1]!,
-                metaDataRecord.Slice(0, metaDataRecord.Length - 1));
+            var metadataRecordId = (long)metaDataRecord.Span[metaDataRecord.Length - 2]!;
+            var metadataBlockId = (int?)metaDataRecord.Span[metaDataRecord.Length - 1];
+
+            return new(
+                metaDataTable,
+                metadataRecordId,
+                metadataBlockId <= 0 ? null : metadataBlockId,
+                metaDataRecord.Slice(0, metaDataRecord.Length - 2));
         }
         #endregion
     }
