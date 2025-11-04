@@ -24,7 +24,20 @@ namespace TrackDb.Lib.DataLifeCycle
             using (var tx = Database.CreateTransaction())
             {
                 var maxTombstonePeriod = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
-                var oldestTombstone = TombstoneTable.Query(tx)
+                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                var query = TombstoneTable.Query(tx);
+
+                if (doHardDeleteAll)
+                {
+                    var systemTables = tableMap
+                        .Where(p => p.Value.IsSystemTable)
+                        .Select(p => p.Key);
+                    //  Avoid infinite loop by having system tables hard delete on command
+                    query = query
+                        .Where(pf => pf.NotIn(t => t.TableName, systemTables));
+                }
+
+                var oldestTombstone = query
                     .OrderBy(t => t.Timestamp)
                     .Take(1)
                     .FirstOrDefault();

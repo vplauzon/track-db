@@ -108,8 +108,8 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, null, true, false, false, true))
                 .Append(new TableProperties(_tombstoneTable, null, false, false, true, false))
-                .Append(new TableProperties(_availableBlockTable, null, false, true, false, true))
-                .Append(new TableProperties(QueryExecutionTable, null, false, true, false, true))
+                .Append(new TableProperties(_availableBlockTable, null, false, false, true, true))
+                .Append(new TableProperties(QueryExecutionTable, null, false, false, true, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);

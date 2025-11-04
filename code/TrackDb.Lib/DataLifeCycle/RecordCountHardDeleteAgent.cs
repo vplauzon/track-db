@@ -31,6 +31,12 @@ namespace TrackDb.Lib.DataLifeCycle
                     string? tableName = null;
                     long recordId = -1;
                     var maxRecordCount = 0;
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+
+                    tombstoneGroups = doHardDeleteAll
+                        //  Avoid infinite loop by having system tables hard delete on command
+                        ? tombstoneGroups.Where(g => !tableMap[g.Key.TableName].IsSystemTable)
+                        : tombstoneGroups;
 
                     foreach (var group in tombstoneGroups)
                     {
