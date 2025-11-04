@@ -65,7 +65,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     TombstoneTable.Schema.FromObjectToColumns(new TombstoneRecord(
                         metadataRecordId,
                         blockId,
-                        tableName,
+                        Database.GetMetaDataTable(tableName).Schema.TableName,
                         DateTime.Now)));
                 Database.ChangeDatabaseState(state =>
                 {
