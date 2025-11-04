@@ -5,6 +5,7 @@
         string? MetaDataTableName,
         bool IsUserTable,
         bool IsMetaDataTable,
+        bool IsSystemTable,
         bool IsPersisted)
     {
     }
