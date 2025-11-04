@@ -136,29 +136,53 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             Database.ChangeDatabaseState(state =>
             {
-                var map = state.InMemoryDatabase.TableTransactionLogsMap;
+                var stateMap = state.InMemoryDatabase.TableTransactionLogsMap;
+                var txMap = tx.TransactionState.InMemoryDatabase.TableTransactionLogsMap;
+                var stateTableBlocks = stateMap[block.TableSchema.TableName].InMemoryBlocks;
+                var txTableBlocks = txMap[block.TableSchema.TableName].InMemoryBlocks;
+                var newPrefixBlocks = stateTableBlocks
+                .Skip(txTableBlocks.Count);
 
                 //  Record table
                 if (block.RecordCount > 0)
                 {
-                    map = map.SetItem(block.TableSchema.TableName, new(block));
+                    stateMap = stateMap.SetItem(
+                        block.TableSchema.TableName,
+                        new(newPrefixBlocks.Append(block).ToImmutableArray()));
+                }
+                else if (newPrefixBlocks.Any())
+                {
+                    stateMap = stateMap.SetItem(
+                        block.TableSchema.TableName,
+                        new(newPrefixBlocks.ToImmutableArray()));
                 }
                 else
                 {
-                    map = map.Remove(block.TableSchema.TableName);
+                    stateMap = stateMap.Remove(block.TableSchema.TableName);
                 }
                 //  Record tombstone
                 if (tombstoneBlock != null)
                 {
+                    var stateTombstoneBlocks = stateMap[TombstoneTable.Schema.TableName].InMemoryBlocks;
+                    var txTombstoneBlocks = txMap[TombstoneTable.Schema.TableName].InMemoryBlocks;
+                    var newPrefixTombstoneBlocks = stateTombstoneBlocks
+                    .Skip(txTombstoneBlocks.Count);
+
                     if (tombstoneBlock.RecordCount > 0)
                     {
-                        map = map.SetItem(
-                            tombstoneBlock.TableSchema.TableName,
-                            new(tombstoneBlock));
+                        stateMap = stateMap.SetItem(
+                            TombstoneTable.Schema.TableName,
+                            new(newPrefixTombstoneBlocks.Append(tombstoneBlock).ToImmutableArray()));
+                    }
+                    else if (newPrefixTombstoneBlocks.Any())
+                    {
+                        stateMap = stateMap.SetItem(
+                            TombstoneTable.Schema.TableName,
+                            new(newPrefixTombstoneBlocks.ToImmutableArray()));
                     }
                     else
                     {
-                        map = map.Remove(tombstoneBlock.TableSchema.TableName);
+                        stateMap = stateMap.Remove(TombstoneTable.Schema.TableName);
                     }
                 }
 
@@ -166,7 +190,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     InMemoryDatabase = state.InMemoryDatabase with
                     {
-                        TableTransactionLogsMap = map
+                        TableTransactionLogsMap = stateMap
                     }
                 };
             });

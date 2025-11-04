@@ -141,14 +141,12 @@ namespace TrackDb.Lib.InMemory.Block
                         RecordIndex = recordIndex
                     })
                     .Where(o => recordIdSet.Contains(o.RecordId))
-                    .OrderBy(o => o.RecordIndex)
                     .ToImmutableArray();
 
                 if (deletedRecordPairs.Any())
                 {
                     var deletedRecordIndexes = deletedRecordPairs
-                        .Select(o => o.RecordIndex)
-                        .ToImmutableArray();
+                        .Select(o => o.RecordIndex);
 
                     DeleteRecordsByRecordIndex(deletedRecordIndexes);
 
