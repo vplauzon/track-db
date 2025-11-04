@@ -14,6 +14,8 @@ namespace TrackDb.Lib.DataLifeCycle
     internal abstract class HardDeleteAgentBase : DataLifeCycleAgentBase
     {
         #region Inner types
+        protected record TableRecord(string TableName, long RecordId);
+
         private record MetadataRecord(
             Table MetadataTable,
             long MetadataRecordId,
@@ -33,11 +35,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var doHardDeleteAll =
                 (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
-            var candidate = FindRecordCandidate(doHardDeleteAll);
+            var candidate = FindMergedRecordCandidate(doHardDeleteAll);
 
             if (candidate != null)
             {
-                HardDelete(candidate.Value.TableName, candidate.Value.RecordId);
+                HardDelete(candidate.TableName, candidate.RecordId);
 
                 return false;
             }
@@ -47,8 +49,36 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        protected abstract (string TableName, long RecordId)? FindRecordCandidate(
-            bool doHardDeleteAll);
+        protected abstract TableRecord? FindUnmergedRecordCandidate(bool doHardDeleteAll);
+
+        private TableRecord? FindMergedRecordCandidate(bool doHardDeleteAll)
+        {
+            TableRecord? tableRecord = FindUnmergedRecordCandidate(doHardDeleteAll);
+
+            while (tableRecord != null)
+            {
+                if (MergeTableTransactionLogs(tableRecord.TableName))
+                {
+                    var newTableRecord = FindUnmergedRecordCandidate(doHardDeleteAll);
+
+                    if (newTableRecord == tableRecord)
+                    {
+                        return tableRecord;
+                    }
+                    else
+                    {
+                        tableRecord = newTableRecord;
+                        //  Re-loop if null, otherwise will return null
+                    }
+                }
+                else
+                {
+                    return tableRecord;
+                }
+            }
+
+            return null;
+        }
 
         #region Hard Delete
         private void HardDelete(string tableName, long recordId)
@@ -162,7 +192,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     recordId,
                     BinaryOperator.Equal))
                 //  Only project the block ID
-                .WithProjection([table.Schema.Columns.Count + 2])
+                .WithProjection([table.Schema.BlockIdColumnIndex])
                 .FirstOrDefault();
 
             if (recordIdRecord.Length == 0)

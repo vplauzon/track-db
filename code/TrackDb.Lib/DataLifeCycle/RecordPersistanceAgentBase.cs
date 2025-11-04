@@ -79,41 +79,29 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Candidates
         private string? FindMergedCandidate(bool doPersistAll)
         {
-            string? tableName = null;
+            string? tableName = FindUnmergedCandidate(doPersistAll);
 
-            do
+            while (tableName != null)
             {
-                if (tableName == null)
+                if (MergeTableTransactionLogs(tableName))
                 {
-                    tableName = FindUnmergedCandidate(doPersistAll);
-                }
-                if (tableName != null)
-                {
-                    if (MergeTableTransactionLogs(tableName))
-                    {
-                        var newTableName = FindUnmergedCandidate(doPersistAll);
+                    var newTableName = FindUnmergedCandidate(doPersistAll);
 
-                        if (newTableName == tableName)
-                        {
-                            return tableName;
-                        }
-                        else
-                        {
-                            tableName = newTableName;
-                            //  Re-loop if null, otherwise will return null
-                        }
+                    if (newTableName == tableName)
+                    {
+                        return tableName;
                     }
                     else
                     {
-                        return tableName;
+                        tableName = newTableName;
+                        //  Re-loop if null, otherwise will return null
                     }
                 }
                 else
                 {
-                    return null;
+                    return tableName;
                 }
             }
-            while (tableName != null);
 
             return null;
         }

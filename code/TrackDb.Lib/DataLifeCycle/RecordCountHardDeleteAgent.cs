@@ -18,8 +18,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        protected override (string TableName, long RecordId)? FindRecordCandidate(
-            bool doHardDeleteAll)
+        protected override TableRecord? FindUnmergedRecordCandidate(bool doHardDeleteAll)
         {
             using (var tx = Database.CreateDummyTransaction())
             {
@@ -44,7 +43,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
 
                     return tableName != null
-                        ? (tableName, recordId)
+                        ? new(tableName, recordId)
                         : null;
                 }
                 else

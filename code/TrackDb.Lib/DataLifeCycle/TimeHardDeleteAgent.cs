@@ -19,8 +19,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        protected override (string TableName, long RecordId)? FindRecordCandidate(
-            bool doHardDeleteAll)
+        protected override TableRecord? FindUnmergedRecordCandidate(bool doHardDeleteAll)
         {
             using (var tx = Database.CreateTransaction())
             {
@@ -32,7 +31,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 return oldestTombstone != null
                     && (doHardDeleteAll || DateTime.Now - oldestTombstone.Timestamp > maxTombstonePeriod)
-                    ? (oldestTombstone.TableName, oldestTombstone.DeletedRecordId)
+                    ? new(oldestTombstone.TableName, oldestTombstone.DeletedRecordId)
                     : null;
             }
         }

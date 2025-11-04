@@ -384,8 +384,8 @@ namespace TrackDb.Lib.InMemory.Block
                 IBlock block = this;
                 var columnNames = block.TableSchema.Columns
                     .Select(c => c.ColumnName)
-                    .Append("$$recordId")
-                    .Append("$$blockId");
+                    .Append("$recordId")
+                    .Append("$blockId");
                 var projection = block.Project(
                     new object?[block.TableSchema.Columns.Count + 3],
                     Enumerable.Range(0, block.TableSchema.Columns.Count + 3).ToImmutableArray(),

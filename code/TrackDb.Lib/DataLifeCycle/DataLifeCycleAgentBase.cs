@@ -48,7 +48,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var logs = map[tableName];
 
                     if (logs.InMemoryBlocks.Count == 1
-                        && AreTombstoneRecords(logs.InMemoryBlocks.First(), tx))
+                        && !AreTombstoneRecords(logs.InMemoryBlocks.First(), tx))
                     {
                         return false;
                     }
@@ -96,7 +96,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var recordIds = ((IBlock)blockBuilder).Project(
                 new object?[1],
-                [((IBlock)blockBuilder).TableSchema.Columns.Count],
+                [((IBlock)blockBuilder).TableSchema.RecordIdColumnIndex],
                 Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount),
                 0)
                 .Select(b => b.Span[0])
