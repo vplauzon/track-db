@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
@@ -87,60 +88,74 @@ namespace TrackDb.Lib.DataLifeCycle
 
             using (var tx = Database.CreateDummyTransaction())
             {
-                int blockId = GetBlockId(table, recordId, tx);
-                var metadataRecord = GetMetadataRecord(tableName, blockId, tx);
-                var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
-                    metadataRecord.Record,
-                    out var serializedBlockId);
-                var block = Database.GetOrLoadBlock(blockId, table.Schema, serializedBlockMetadata);
-                (var trimmedBlock, var trimmedTombstone) = TrimRecords(block, tx);
+                var blockId = GetBlockId(table, recordId, tx);
 
-                //  Delete meta data entry (for the deleted block)
-                trimmedTombstone.AppendRecord(
-                    Database.NewRecordId(),
-                    TombstoneTable.Schema.FromObjectToColumns(new TombstoneRecord(
-                        metadataRecord.MetadataRecordId,
-                        metadataRecord.MetadataBlockId,
-                        metadataRecord.MetadataTable.Schema.TableName,
-                        DateTime.Now)));
-                Database.ChangeDatabaseState(state =>
+                if (blockId != null)
                 {
-                    var map = state.InMemoryDatabase.TableTransactionLogsMap;
-
-                    //  Record table
-                    if (((IBlock)trimmedBlock).RecordCount == 0)
-                    {
-                        //  Nothing
-                    }
-                    else if (map.ContainsKey(tableName))
-                    {
-                        map = map.SetItem(
-                            tableName,
-                            map[tableName] with
-                            {
-                                InMemoryBlocks = map[tableName].InMemoryBlocks.Add(trimmedBlock)
-                            });
-                    }
-                    else // Map doesn't have the table, but we do have data
-                    {
-                        map = map.SetItem(tableName, new(trimmedBlock));
-                    }
-                    //  Tombstone table
-                    map = map.SetItem(
-                        TombstoneTable.Schema.TableName,
-                        new(trimmedTombstone));
-
-                    return state with
-                    {
-                        //  Discard the block ID
-                        DiscardedBlockIds = state.DiscardedBlockIds.Add(blockId),
-                        InMemoryDatabase = state.InMemoryDatabase with
-                        {
-                            TableTransactionLogsMap = map
-                        }
-                    };
-                });
+                    HardDelete(table, blockId.Value, tx);
+                }
+                else
+                {
+                    DeleteTombstoneRecord(tableName, recordId);
+                }
             }
+        }
+
+        private void HardDelete(Table table, int blockId, TransactionContext tx)
+        {
+            var tableName = table.Schema.TableName;
+            var metadataRecord = GetMetadataRecord(tableName, blockId, tx);
+            var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
+                metadataRecord.Record,
+                out var serializedBlockId);
+            var block = Database.GetOrLoadBlock(blockId, table.Schema, serializedBlockMetadata);
+            (var trimmedBlock, var trimmedTombstone) = TrimRecords(block, tx);
+
+            //  Delete meta data entry (for the deleted block)
+            trimmedTombstone.AppendRecord(
+                Database.NewRecordId(),
+                TombstoneTable.Schema.FromObjectToColumns(new TombstoneRecord(
+                    metadataRecord.MetadataRecordId,
+                    metadataRecord.MetadataBlockId,
+                    metadataRecord.MetadataTable.Schema.TableName,
+                    DateTime.Now)));
+            Database.ChangeDatabaseState(state =>
+            {
+                var map = state.InMemoryDatabase.TableTransactionLogsMap;
+
+                //  Record table
+                if (((IBlock)trimmedBlock).RecordCount == 0)
+                {
+                    //  Nothing
+                }
+                else if (map.ContainsKey(tableName))
+                {
+                    map = map.SetItem(
+                        tableName,
+                        map[tableName] with
+                        {
+                            InMemoryBlocks = map[tableName].InMemoryBlocks.Add(trimmedBlock)
+                        });
+                }
+                else // Map doesn't have the table, but we do have data
+                {
+                    map = map.SetItem(tableName, new(trimmedBlock));
+                }
+                //  Tombstone table
+                map = map.SetItem(
+                    TombstoneTable.Schema.TableName,
+                    new(trimmedTombstone));
+
+                return state with
+                {
+                    //  Discard the block ID
+                    DiscardedBlockIds = state.DiscardedBlockIds.Add(blockId),
+                    InMemoryDatabase = state.InMemoryDatabase with
+                    {
+                        TableTransactionLogsMap = map
+                    }
+                };
+            });
         }
 
         private (BlockBuilder TrimmedBlock, BlockBuilder TrimmedTombstone) TrimRecords(
@@ -179,7 +194,7 @@ namespace TrackDb.Lib.DataLifeCycle
             return (trimmedBlock, trimmedTombstone);
         }
 
-        private static int GetBlockId(
+        private static int? GetBlockId(
             Table table,
             long recordId,
             TransactionContext tx)
@@ -196,13 +211,15 @@ namespace TrackDb.Lib.DataLifeCycle
                 .FirstOrDefault();
 
             if (recordIdRecord.Length == 0)
-            {
-                throw new InvalidDataException(
-                    $"Can't load record '{recordId}' on table '{table.Schema.TableName}'");
+            {   //  This is the case where two transactions deleted the same record
+                return null;
             }
-            var blockId = (int)recordIdRecord.Span[0]!;
+            else
+            {
+                var blockId = (int)recordIdRecord.Span[0]!;
 
-            return blockId;
+                return blockId;
+            }
         }
 
         private MetadataRecord GetMetadataRecord(
@@ -240,6 +257,70 @@ namespace TrackDb.Lib.DataLifeCycle
                 metadataRecordId,
                 metadataBlockId <= 0 ? null : metadataBlockId,
                 metaDataRecord.Slice(0, metaDataRecord.Length - 2));
+        }
+
+        private void DeleteTombstoneRecord(string tableName, long recordId)
+        {
+            using (var tx = Database.CreateDummyTransaction())
+            {
+                var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
+                var logs =
+                    inMemoryDatabase.TableTransactionLogsMap[TombstoneTable.Schema.TableName];
+                var builder = logs.MergeLogs();
+                var rowIndexes = ((IBlock)builder).Filter(
+                    new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            TombstoneTable.Schema.GetColumnIndexSubset(t => t.TableName).First(),
+                            tableName,
+                            BinaryOperator.Equal),
+                        new BinaryOperatorPredicate(
+                            TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId).First(),
+                            recordId,
+                            BinaryOperator.Equal)
+                        ),
+                    false)
+                    .RowIndexes;
+
+                builder.DeleteRecordsByRecordIndex(rowIndexes);
+                Database.ChangeDatabaseState(state =>
+                {
+                    var map = state.InMemoryDatabase.TableTransactionLogsMap;
+                    var stateLogs = map[TombstoneTable.Schema.TableName];
+
+                    if (((IBlock)builder).RecordCount == 0)
+                    {
+                        if (stateLogs.InMemoryBlocks.Count == logs.InMemoryBlocks.Count)
+                        {
+                            map = map.Remove(TombstoneTable.Schema.TableName);
+                        }
+                        else
+                        {
+                            map = map.SetItem(
+                                TombstoneTable.Schema.TableName,
+                                new(stateLogs.InMemoryBlocks
+                                .Skip(logs.InMemoryBlocks.Count)
+                                .ToImmutableArray()));
+                        }
+                    }
+                    else
+                    {
+                        map = map.SetItem(
+                            TombstoneTable.Schema.TableName,
+                            new(stateLogs.InMemoryBlocks
+                            .Skip(logs.InMemoryBlocks.Count)
+                            .Prepend(builder)
+                            .ToImmutableArray()));
+                    }
+
+                    return state with
+                    {
+                        InMemoryDatabase = state.InMemoryDatabase with
+                        {
+                            TableTransactionLogsMap = map
+                        }
+                    };
+                });
+            }
         }
         #endregion
     }

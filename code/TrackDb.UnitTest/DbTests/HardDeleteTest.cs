@@ -45,7 +45,7 @@ namespace TrackDb.UnitTest.DbTests
 
         [Theory]
         [InlineData(false)]
-        //[InlineData(true)]
+        [InlineData(true)]
         public async Task Parallel(bool doPushPendingData)
         {
             await using (var db = await TestDatabase.CreateAsync())
@@ -59,17 +59,17 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 2);
 
-                var tc1 = db.Database.CreateTransaction();
-                var tc2 = db.Database.CreateTransaction();
+                var tx1 = db.Database.CreateTransaction();
+                var tx2 = db.Database.CreateTransaction();
 
                 //  In tc1, we delete first one, in tc2, we delete both
-                db.PrimitiveTable.Query(tc1)
+                db.PrimitiveTable.Query(tx1)
                     .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
-                db.PrimitiveTable.Query(tc2)
+                db.PrimitiveTable.Query(tx2)
                     .Delete();
 
-                tc1.Complete();
+                tx1.Complete();
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
@@ -81,7 +81,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
-                tc2.Complete();
+                tx2.Complete();
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(0, db.PrimitiveTable.Query().Count());
