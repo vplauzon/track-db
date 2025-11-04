@@ -307,9 +307,9 @@ namespace TrackDb.Lib
         /// <returns></returns>
         internal Table GetMetaDataTable(string tableName)
         {
-            var existingMap = _databaseState.TableMap;
+            var map = _databaseState.TableMap;
 
-            if (existingMap.TryGetValue(tableName, out var table))
+            if (map.TryGetValue(tableName, out var table))
             {
                 if (!table.IsPersisted)
                 {
@@ -317,7 +317,7 @@ namespace TrackDb.Lib
                 }
                 if (table.MetaDataTableName != null)
                 {
-                    if (existingMap.TryGetValue(table.MetaDataTableName, out var metaTable))
+                    if (map.TryGetValue(table.MetaDataTableName, out var metaTable))
                     {
                         return metaTable.Table;
                     }
@@ -383,12 +383,12 @@ namespace TrackDb.Lib
                     new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
                     new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
                 })
-                //  We add the extent-id columns
+                //  We add the record-id columns
                 .Append(new[]
                 {
-                    new ColumnSchema("$hasNulls-$extentId", typeof(bool)),
-                    new ColumnSchema("$min-$extentId", typeof(long)),
-                    new ColumnSchema("$max-$extentId", typeof(long))
+                    new ColumnSchema("$hasNulls-$recordId", typeof(bool)),
+                    new ColumnSchema("$min-$recordId", typeof(long)),
+                    new ColumnSchema("$max-$recordId", typeof(long))
                 })
                 //  We add the itemCount & block-id columns
                 .Append(new[]

@@ -54,12 +54,9 @@ namespace TrackDb.Lib.InMemory.Block
                     o.Second,
                     o.Third
                 })
-                .Append(new object?[]
-                {
-                    ItemCount,
-                    blockId
-                })
                 .SelectMany(c => c)
+                .Append(ItemCount)
+                .Append(blockId)
                 .ToArray();
 
             return metaData;

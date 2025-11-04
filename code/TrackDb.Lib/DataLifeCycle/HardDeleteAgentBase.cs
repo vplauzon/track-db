@@ -52,7 +52,7 @@ namespace TrackDb.Lib.DataLifeCycle
             using (var tx = Database.CreateDummyTransaction())
             {
                 int blockId = GetBlockId(table, recordId, tx);
-                var metadataRecord = GetMetadataRecord(tableName, blockId, tx);
+                (var metadataRecordId, var metadataRecord) = GetMetadataRecord(tableName, blockId, tx);
                 var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
                     metadataRecord,
                     out var serializedBlockId);
@@ -63,7 +63,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 trimmedTombstone.AppendRecord(
                     Database.NewRecordId(),
                     TombstoneTable.Schema.FromObjectToColumns(new TombstoneRecord(
-                        (long)metadataRecord.Span[metadataRecord.Length - 1]!,
+                        metadataRecordId,
                         blockId,
                         tableName,
                         DateTime.Now)));
@@ -169,7 +169,7 @@ namespace TrackDb.Lib.DataLifeCycle
             return blockId;
         }
 
-        private ReadOnlyMemory<object?> GetMetadataRecord(
+        private (long MetadataRecordId, ReadOnlyMemory<object?> Record) GetMetadataRecord(
             string tableName,
             int blockId,
             TransactionContext tx)
@@ -193,7 +193,9 @@ namespace TrackDb.Lib.DataLifeCycle
                     $"Can't load block '{blockId}' on table '{tableName}'");
             }
 
-            return metaDataRecord;
+            return (
+                (long)metaDataRecord.Span[metaDataRecord.Length - 1]!,
+                metaDataRecord.Slice(0, metaDataRecord.Length - 1));
         }
         #endregion
     }
