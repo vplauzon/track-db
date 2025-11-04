@@ -9,6 +9,12 @@ namespace TrackDb.LogTest
     public class PerformanceTest
     {
         [Fact]
+        public async Task Test00010()
+        {
+            await RunPerformanceTestAsync(10);
+        }
+
+        [Fact]
         public async Task Test00050()
         {
             await RunPerformanceTestAsync(50);
@@ -111,42 +117,50 @@ namespace TrackDb.LogTest
                         tx.Complete();
                     }
                 }
+
+                CheckDb(db, cycleCount);
+
                 var stats = db.Database.GetDatabaseStatistics();
                 Console.WriteLine(stats);
             }
             //  Check final state after reloading
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
-                var completedWorkflowCount = db.WorkflowTable.Query()
-                    .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
-                    .Count();
-                var incompleteWorkflowCount = db.WorkflowTable.Query()
-                    .Where(pf => pf.NotEqual(w => w.State, TestDatabase.WorkflowState.Completed))
-                    .Count();
-
-                Assert.Equal(cycleCount, completedWorkflowCount);
-                Assert.Equal(0, incompleteWorkflowCount);
-
-                var completedActivityCount = db.ActivityTable.Query()
-                    .Where(pf => pf.Equal(w => w.State, TestDatabase.ActivityState.Completed))
-                    .Count();
-                var incompleteActivityCount = db.ActivityTable.Query()
-                    .Where(pf => pf.NotEqual(w => w.State, TestDatabase.ActivityState.Completed))
-                    .Count();
-
-                Assert.Equal(2 * cycleCount, completedActivityCount);
-                Assert.Equal(0, incompleteActivityCount);
-
-                var completedTaskCount = db.TaskTable.Query()
-                    .Where(pf => pf.Equal(w => w.State, TestDatabase.TaskState.Completed))
-                    .Count();
-                var incompleteTaskCount = db.TaskTable.Query()
-                    .Where(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
-                    .Count();
-
-                Assert.Equal(3 * cycleCount, completedTaskCount);
-                Assert.Equal(0, incompleteTaskCount);
+                CheckDb(db, cycleCount);
             }
+        }
+
+        private void CheckDb(TestDatabase db, long cycleCount)
+        {
+            var completedWorkflowCount = db.WorkflowTable.Query()
+                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Count();
+            var incompleteWorkflowCount = db.WorkflowTable.Query()
+                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Count();
+
+            Assert.Equal(cycleCount, completedWorkflowCount);
+            Assert.Equal(0, incompleteWorkflowCount);
+
+            var completedActivityCount = db.ActivityTable.Query()
+                .Where(pf => pf.Equal(w => w.State, TestDatabase.ActivityState.Completed))
+                .Count();
+            var incompleteActivityCount = db.ActivityTable.Query()
+                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.ActivityState.Completed))
+                .Count();
+
+            Assert.Equal(2 * cycleCount, completedActivityCount);
+            Assert.Equal(0, incompleteActivityCount);
+
+            var completedTaskCount = db.TaskTable.Query()
+                .Where(pf => pf.Equal(w => w.State, TestDatabase.TaskState.Completed))
+                .Count();
+            var incompleteTaskCount = db.TaskTable.Query()
+                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
+                .Count();
+
+            Assert.Equal(3 * cycleCount, completedTaskCount);
+            Assert.Equal(0, incompleteTaskCount);
         }
     }
 }

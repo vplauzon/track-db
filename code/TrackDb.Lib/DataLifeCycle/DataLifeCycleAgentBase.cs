@@ -54,7 +54,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                     var blockBuilder = logs.MergeLogs();
 
-                    if (map.ContainsKey(TombstoneTable.Schema.TableName))
+                    if (tableName != TombstoneTable.Schema.TableName
+                        && map.ContainsKey(TombstoneTable.Schema.TableName))
                     {
                         var tombstoneLogs = map[TombstoneTable.Schema.TableName];
                         var tombstoneBuilder = tombstoneLogs.MergeLogs();
@@ -93,33 +94,39 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         private void TrimBlocks(BlockBuilder blockBuilder, BlockBuilder tombstoneBuilder)
-        {
-            var recordIds = ((IBlock)blockBuilder).Project(
-                new object?[1],
-                [((IBlock)blockBuilder).TableSchema.RecordIdColumnIndex],
-                Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount),
-                0)
-                .Select(b => b.Span[0])
-                .ToImmutableArray();
-            var tombstoneRowIndexes = ((IBlock)tombstoneBuilder).Filter(
-                new ConjunctionPredicate(
-                    new BinaryOperatorPredicate(
-                        TombstoneTable.Schema.GetColumnIndexSubset(t => t.TableName).First(),
-                        ((IBlock)blockBuilder).TableSchema.TableName,
-                        BinaryOperator.Equal),
-                    new InPredicate(
-                        TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId).First(),
-                        recordIds)),
+        {   //  Fetch all tombstoned record ID for the table
+            var allTombstoneRowIndexes = ((IBlock)tombstoneBuilder).Filter(
+                new BinaryOperatorPredicate(
+                    TombstoneTable.Schema.GetColumnIndexSubset(t => t.TableName).First(),
+                    ((IBlock)blockBuilder).TableSchema.TableName,
+                    BinaryOperator.Equal),
                 false).RowIndexes;
-            var deletedRecordIds = ((IBlock)tombstoneBuilder).Project(
-                new object?[1],
-                TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId),
-                tombstoneRowIndexes,
+            var allTombstonedRecordIdMap = ((IBlock)tombstoneBuilder).Project(
+                new object?[2],
+                [
+                    TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId).First(),
+                    TombstoneTable.Schema.RecordIdColumnIndex
+                ],
+                allTombstoneRowIndexes,
                 0)
-                .Select(b => (long)b.Span[0]!);
+                .Select(b => new
+                {
+                    DeletedRecordId = (long)b.Span[0]!,
+                    TombstoneRecordId = (long)b.Span[1]!
+                })
+                .ToImmutableDictionary(o => o.DeletedRecordId, o => o.TombstoneRecordId);
+            //  Delete those found in the block
+            var hardDeletedRecordIds = blockBuilder.DeleteRecordsByRecordId(
+                allTombstonedRecordIdMap.Keys);
+            //  Delete those found from the tombstone table
+            var hardDeletedTombstoneRecordIds = tombstoneBuilder.DeleteRecordsByRecordId(
+                hardDeletedRecordIds
+                .Select(id => allTombstonedRecordIdMap[id]));
 
-            blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
-            tombstoneBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+            if (hardDeletedTombstoneRecordIds.Count() != hardDeletedRecordIds.Count())
+            {
+                throw new InvalidOperationException("Merge logic flawed");
+            }
         }
 
         private void CommitMerge(
