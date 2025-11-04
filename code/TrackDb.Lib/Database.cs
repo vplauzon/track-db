@@ -215,30 +215,10 @@ namespace TrackDb.Lib
         #region System tables
         public DatabaseStatistics GetDatabaseStatistics()
         {
-            var state = _databaseState;
-            var inMemoryDatabase = state.InMemoryDatabase;
-            var tableMap = state.TableMap;
-            var userTableNames = state.TableMap
-                .Where(p => p.Value.IsUserTable)
-                .Select(p => p.Key)
-                .ToImmutableHashSet();
-            var userTableRecordCount = inMemoryDatabase.TableTransactionLogsMap
-                .Where(p => userTableNames.Contains(p.Key))
-                .SelectMany(p => p.Value.InMemoryBlocks)
-                .Sum(block => block.RecordCount);
-            var inMemoryTombstoneRecords = inMemoryDatabase.TableTransactionLogsMap
-                .Where(p => p.Key == _tombstoneTable.Schema.TableName)
-                .SelectMany(p => p.Value.InMemoryBlocks)
-                .Sum(b => b.RecordCount);
-            var onDiskUserTableBlocks = inMemoryDatabase.TableTransactionLogsMap
-                .Where(p => tableMap[p.Key].IsMetaDataTable)
-                .SelectMany(p => p.Value.InMemoryBlocks)
-                .Count();
-
-            return new DatabaseStatistics(
-                userTableRecordCount,
-                inMemoryTombstoneRecords,
-                onDiskUserTableBlocks);
+            using (var tx = CreateTransaction())
+            {
+                return DatabaseStatistics.Create(GetDatabaseStateSnapshot(), _tombstoneTable, tx);
+            }
         }
 
         public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tc = null)

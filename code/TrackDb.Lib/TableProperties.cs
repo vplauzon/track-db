@@ -6,7 +6,5 @@
         bool IsUserTable,
         bool IsMetaDataTable,
         bool IsSystemTable,
-        bool IsPersisted)
-    {
-    }
+        bool IsPersisted);
 }
