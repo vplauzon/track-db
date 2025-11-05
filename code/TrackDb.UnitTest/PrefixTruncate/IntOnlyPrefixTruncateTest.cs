@@ -50,7 +50,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             for (var i = 1; i != ROW_COUNT; ++i)
             {
-                block.AppendRecord(i, new[] { (object)i });
+                block.AppendRecord(i, [ (object)i ]);
             }
 
             var prefix = block.TruncateBlock(MAX_SIZE);
