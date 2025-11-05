@@ -308,8 +308,8 @@ namespace TrackDb.Lib
                 }
                 else
                 {
-                    var metaDataSchema = SerializedBlockMetaData.CreateMetadataSchema(
-                        table.Table.Schema);
+                    var metaDataSchema = MetadataSchemaManager.FromTableSchema(table.Table.Schema)
+                        .MetadataSchema;
                     var metaDataTable = new Table(this, metaDataSchema);
 
                     ChangeDatabaseState(state =>

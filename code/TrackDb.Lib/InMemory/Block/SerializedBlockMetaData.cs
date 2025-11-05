@@ -66,40 +66,5 @@ namespace TrackDb.Lib.InMemory.Block
 
             return metaData;
         }
-
-        public static TableSchema CreateMetadataSchema(TableSchema tableSchema)
-        {
-            var metaDataColumns = tableSchema.Columns
-                //  For each column we create a min, max & hasNulls column
-                .Select(c => new[]
-                {
-                    new ColumnSchema($"$hasNulls-{c.ColumnName}", typeof(bool)),
-                    new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
-                    new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
-                })
-                //  We add the record-id columns
-                .Append(
-                [
-                    new ColumnSchema("$hasNulls-$recordId", typeof(bool)),
-                    new ColumnSchema("$min-$recordId", typeof(long)),
-                    new ColumnSchema("$max-$recordId", typeof(long))
-                ])
-                //  We add the itemCount & block-id columns
-                .Append(
-                [
-                    new ColumnSchema(MetadataColumns.ITEM_COUNT, typeof(int)),
-                    new ColumnSchema(MetadataColumns.SIZE, typeof(int)),
-                    new ColumnSchema(MetadataColumns.BLOCK_ID, typeof(int))
-                ])
-                //  We fan out the columns
-                .SelectMany(c => c);
-            var metaDataSchema = new TableSchema(
-                $"$meta-{tableSchema.TableName}",
-                metaDataColumns,
-                Array.Empty<int>(),
-                Array.Empty<int>());
-
-            return metaDataSchema;
-        }
     }
 }

@@ -183,6 +183,8 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var metaDataTable = Database.GetMetaDataTable(tableName);
+            var metadataSchemaManager =
+                MetadataSchemaManager.FromMetadataTableSchema(metaDataTable.Schema);
             var projectionColumnIndexes = Enumerable.Range(0, metaDataTable.Schema.Columns.Count)
                 .Append(metaDataTable.Schema.RecordIdColumnIndex)
                 .Append(metaDataTable.Schema.BlockIdColumnIndex);
@@ -190,7 +192,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  We're looking for the block ID in the meta data table
                 .WithPredicate(
                 new BinaryOperatorPredicate(
-                    metaDataTable.Schema.FindColumnIndex(MetadataColumns.BLOCK_ID),
+                    metadataSchemaManager.BlockIdColumnIndex,
                     blockId,
                     BinaryOperator.Equal))
                 //  Return record-ID & block-ID as well
