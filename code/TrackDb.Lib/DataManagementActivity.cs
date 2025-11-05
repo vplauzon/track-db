@@ -12,7 +12,8 @@ namespace TrackDb.Lib
         None = 0,
         MergeAllInMemoryLogs = 1,
         PersistAllNonMetaData = 2,
-        PersistAllMetaData = 4,
+        /// <summary>We limit to 1st level metadata to avoid recursive explosion of metadata tables.</summary>
+        PersistAllMetaDataFirstLevel = 4,
         HardDeleteAll = 8
     }
 }

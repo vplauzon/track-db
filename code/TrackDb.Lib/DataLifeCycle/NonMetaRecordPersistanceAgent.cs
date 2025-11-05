@@ -22,6 +22,7 @@ namespace TrackDb.Lib.DataLifeCycle
             Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
 
         protected override IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+            DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
@@ -39,10 +40,10 @@ namespace TrackDb.Lib.DataLifeCycle
             return logs;
         }
 
-        protected override bool DoPersistAll(DataManagementActivity forcedDataManagementActivity)
+        protected override bool DoPersistAll(DataManagementActivity forcedActivity)
         {
             var doPersistEverything =
-                (forcedDataManagementActivity & DataManagementActivity.PersistAllNonMetaData) != 0;
+                (forcedActivity & DataManagementActivity.PersistAllNonMetaData) != 0;
 
             return doPersistEverything;
         }

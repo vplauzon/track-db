@@ -190,7 +190,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         private SerializedBlock Serialize(int? rowCount)
         {
-            if (rowCount > ((IBlock)this).RecordCount)
+            if ((rowCount ?? 1) > ((IBlock)this).RecordCount)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(rowCount),

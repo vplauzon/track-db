@@ -20,9 +20,9 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override bool Run(DataManagementActivity forcedDataManagementActivity)
+        public override bool Run(DataManagementActivity forcedActivity)
         {
-            var tableName = FindMergedCandidate(DoPersistAll(forcedDataManagementActivity));
+            var tableName = FindMergedCandidate(forcedActivity);
 
             if (tableName != null)
             {   //  We will persist blocks from the table
@@ -72,20 +72,21 @@ namespace TrackDb.Lib.DataLifeCycle
         protected abstract int MaxInMemoryDataRecords { get; }
 
         protected abstract IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+            DataManagementActivity forcedActivity,
             TransactionContext tx);
 
-        protected abstract bool DoPersistAll(DataManagementActivity forcedDataManagementActivity);
+        protected abstract bool DoPersistAll(DataManagementActivity forcedActivity);
 
         #region Candidates
-        private string? FindMergedCandidate(bool doPersistAll)
+        private string? FindMergedCandidate(DataManagementActivity forcedActivity)
         {
-            string? tableName = FindUnmergedCandidate(doPersistAll);
+            string? tableName = FindUnmergedCandidate(forcedActivity);
 
             while (tableName != null)
             {
                 if (MergeTableTransactionLogs(tableName))
                 {
-                    var newTableName = FindUnmergedCandidate(doPersistAll);
+                    var newTableName = FindUnmergedCandidate(forcedActivity);
 
                     if (newTableName == tableName)
                     {
@@ -106,14 +107,14 @@ namespace TrackDb.Lib.DataLifeCycle
             return null;
         }
 
-        private string? FindUnmergedCandidate(bool doPersistAll)
+        private string? FindUnmergedCandidate(DataManagementActivity forcedActivity)
         {
             using (var tx = Database.CreateTransaction())
             {
                 var inMemoryDb = tx.TransactionState.InMemoryDatabase;
 
                 //  Should we persist any data given the total number of records in memory (across tables)?
-                if (IsPersistanceRequired(doPersistAll, tx))
+                if (IsPersistanceRequired(forcedActivity, tx))
                 {   //  Find the oldest record across tables
                     var oldestRecordId = long.MaxValue;
                     var oldestTableName = (string?)null;
@@ -121,7 +122,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var rowIndexes = new[] { 0 };
                     var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
-                    foreach (var pair in GetTableLogs(tx))
+                    foreach (var pair in GetTableLogs(forcedActivity, tx))
                     {
                         var tableName = pair.Key;
                         var logs = pair.Value;
@@ -155,16 +156,16 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         private bool IsPersistanceRequired(
-            bool doPersistAll,
+            DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
-            var tableLogs = GetTableLogs(tx);
+            var tableLogs = GetTableLogs(forcedActivity, tx);
             var totalRecords = tableLogs
                 .Select(p => p.Value)
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
 
             return totalRecords > MaxInMemoryDataRecords
-                || (totalRecords > 0 && doPersistAll);
+                || (totalRecords > 0 && DoPersistAll(forcedActivity));
         }
         #endregion
 
