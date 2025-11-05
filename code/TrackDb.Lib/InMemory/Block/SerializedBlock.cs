@@ -10,21 +10,23 @@ namespace TrackDb.Lib.InMemory.Block
     internal record SerializedBlock(SerializedBlockMetaData MetaData, ReadOnlyMemory<byte> Payload)
     {
         #region Constructor
-        public SerializedBlock(IImmutableList<SerializedColumn> columns)
-            : this(
-                  new SerializedBlockMetaData(
-                      columns.First().ItemCount,
-                      columns
-                      .Select(c => c.HasNulls)
-                      .ToImmutableArray(),
-                      columns
-                      .Select(c => c.ColumnMinimum)
-                      .ToImmutableArray(),
-                      columns
-                      .Select(c => c.ColumnMaximum)
-                      .ToImmutableArray()),
-                  CreateBlockPayload(columns))
+        public static SerializedBlock Create(IImmutableList<SerializedColumn> columns)
         {
+            var payload = CreateBlockPayload(columns);
+            var metadata = new SerializedBlockMetaData(
+                columns.First().ItemCount,
+                payload.Span.Length*sizeof(byte),
+                columns
+                .Select(c => c.HasNulls)
+                .ToImmutableArray(),
+                columns
+                .Select(c => c.ColumnMinimum)
+                .ToImmutableArray(),
+                columns
+                .Select(c => c.ColumnMaximum)
+                .ToImmutableArray());
+
+            return new(metadata, payload);
         }
 
         private static ReadOnlyMemory<byte> CreateBlockPayload(

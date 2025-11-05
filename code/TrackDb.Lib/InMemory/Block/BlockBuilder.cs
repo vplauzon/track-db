@@ -201,7 +201,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .Select(c => c.Serialize(rowCount))
                 .ToImmutableArray();
 
-            return new SerializedBlock(serializedColumns);
+            return SerializedBlock.Create(serializedColumns);
         }
 
 

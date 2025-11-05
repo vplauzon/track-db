@@ -11,6 +11,8 @@ namespace TrackDb.Lib
     internal static class MetadataColumns
     {
         public const string ITEM_COUNT = "$itemCount";
+        
+        public const string SIZE = "$size";
 
         public const string BLOCK_ID = "$blockId";
     }

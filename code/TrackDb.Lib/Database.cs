@@ -308,9 +308,8 @@ namespace TrackDb.Lib
                 }
                 else
                 {
-                    var metaDataTableName = GetMetadataTableName(tableName);
-                    var metaDataSchema =
-                        CreateMetaDataSchema(metaDataTableName, table.Table.Schema);
+                    var metaDataSchema = SerializedBlockMetaData.CreateMetadataSchema(
+                        table.Table.Schema);
                     var metaDataTable = new Table(this, metaDataSchema);
 
                     ChangeDatabaseState(state =>
@@ -322,11 +321,11 @@ namespace TrackDb.Lib
                         else
                         {
                             var tableMap = state.TableMap.Add(
-                                metaDataTableName,
+                                metaDataSchema.TableName,
                                 new TableProperties(metaDataTable, null, false, true, false, true))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
-                                MetaDataTableName = metaDataTableName
+                                MetaDataTableName = metaDataSchema.TableName
                             });
                             var newState = state with
                             {
@@ -345,45 +344,6 @@ namespace TrackDb.Lib
             {
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
             }
-        }
-
-        private string GetMetadataTableName(string tableName)
-        {
-            return $"$meta-{tableName}";
-        }
-
-        private TableSchema CreateMetaDataSchema(string metaDataTableName, TableSchema schema)
-        {
-            var metaDataColumns = schema.Columns
-                //  For each column we create a min, max & hasNulls column
-                .Select(c => new[]
-                {
-                    new ColumnSchema($"$hasNulls-{c.ColumnName}", typeof(bool)),
-                    new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
-                    new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
-                })
-                //  We add the record-id columns
-                .Append(new[]
-                {
-                    new ColumnSchema("$hasNulls-$recordId", typeof(bool)),
-                    new ColumnSchema("$min-$recordId", typeof(long)),
-                    new ColumnSchema("$max-$recordId", typeof(long))
-                })
-                //  We add the itemCount & block-id columns
-                .Append(new[]
-                {
-                    new ColumnSchema(MetadataColumns.ITEM_COUNT, typeof(int)),
-                    new ColumnSchema(MetadataColumns.BLOCK_ID, typeof(int))
-                })
-                //  We fan out the columns
-                .SelectMany(c => c);
-            var metaDataSchema = new TableSchema(
-                metaDataTableName,
-                metaDataColumns,
-                Array.Empty<int>(),
-                Array.Empty<int>());
-
-            return metaDataSchema;
         }
         #endregion
 
