@@ -32,6 +32,12 @@ namespace TrackDb.LogTest
             await RunPerformanceTestAsync(1000);
         }
 
+        [Fact]
+        public async Task Test010000()
+        {
+            await RunPerformanceTestAsync(10000);
+        }
+
         private async Task RunPerformanceTestAsync(long cycleCount)
         {
             var testId = $"PerformanceTest-{cycleCount}-{Guid.NewGuid()}";
