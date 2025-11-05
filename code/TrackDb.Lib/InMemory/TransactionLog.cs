@@ -26,5 +26,16 @@ namespace TrackDb.Lib.InMemory
             }
             TableBlockBuilderMap[schema.TableName].AppendRecord(recordId, record);
         }
+
+        public void AppendBlock(IBlock block)
+        {
+            if (!TableBlockBuilderMap.ContainsKey(block.TableSchema.TableName))
+            {
+                TableBlockBuilderMap.Add(
+                    block.TableSchema.TableName,
+                    new BlockBuilder(block.TableSchema));
+            }
+            TableBlockBuilderMap[block.TableSchema.TableName].AppendBlock(block);
+        }
     }
 }
