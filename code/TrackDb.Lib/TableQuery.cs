@@ -405,13 +405,11 @@ namespace TrackDb.Lib
                 foreach (var metaDataRow in metaDataQuery)
                 {
                     var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
-                        metaDataRow,
-                        out var blockId);
+                        metaDataRow);
 
                     yield return new IdentifiedBlock(
-                        blockId,
+                        serializedBlockMetaData.BlockId,
                         _table.Database.GetOrLoadBlock(
-                            blockId,
                             _table.Schema,
                             serializedBlockMetaData));
                 }
@@ -439,11 +437,9 @@ namespace TrackDb.Lib
                         BinaryOperator.Equal));
                 var metaDataRow = metaDataQuery.First();
                 var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
-                    metaDataRow,
-                    out var _);
+                    metaDataRow);
 
                 return _table.Database.GetOrLoadBlock(
-                    blockId,
                     _table.Schema,
                     serializedBlockMetaData);
             }

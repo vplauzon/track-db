@@ -177,18 +177,19 @@ namespace TrackDb.Lib.InMemory.Block
         /// Everything else is metadata outside the block, captured in
         /// <see cref="SerializedBlock"/>.
         /// </summary>
+        /// <param name="blockId"></param>
         /// <returns></returns>
-        public SerializedBlock Serialize()
+        public SerializedBlock Serialize(int blockId)
         {
-            return Serialize(null);
+            return Serialize(blockId, null);
         }
 
         private int GetSerializeSize(int rowCount)
         {
-            return Serialize(rowCount).Payload.Length;
+            return Serialize(0, rowCount).Payload.Length;
         }
 
-        private SerializedBlock Serialize(int? rowCount)
+        private SerializedBlock Serialize(int blockId, int? rowCount)
         {
             if ((rowCount ?? 1) > ((IBlock)this).RecordCount)
             {
@@ -201,7 +202,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .Select(c => c.Serialize(rowCount))
                 .ToImmutableArray();
 
-            return SerializedBlock.Create(serializedColumns);
+            return SerializedBlock.Create(blockId, serializedColumns);
         }
 
 

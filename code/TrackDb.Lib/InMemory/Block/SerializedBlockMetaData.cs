@@ -9,24 +9,24 @@ namespace TrackDb.Lib.InMemory.Block
     internal record SerializedBlockMetaData(
         int ItemCount,
         int Size,
+        int BlockId,
         IImmutableList<bool> ColumnHasNulls,
         IImmutableList<object?> ColumnMinima,
         IImmutableList<object?> ColumnMaxima)
     {
         public static SerializedBlockMetaData FromMetaDataRecord(
-            ReadOnlyMemory<object?> record,
-            out int blockId)
+            ReadOnlyMemory<object?> record)
         {
             var columnStats = record.Slice(0, record.Length - 3);
             var blockInfo = record.Slice(columnStats.Length).Span;
             var itemCount = ((int?)blockInfo[0])!.Value;
             var size = ((int?)blockInfo[1])!.Value;
+            var blockId = ((int?)blockInfo[2])!.Value;
 
             if (columnStats.Length % 3 != 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(record));
             }
-            blockId = ((int?)blockInfo[2])!.Value;
 
             var columnEnumeration = Enumerable.Range(0, columnStats.Length / 3);
             var columnHasNulls = columnEnumeration
@@ -42,12 +42,13 @@ namespace TrackDb.Lib.InMemory.Block
             return new SerializedBlockMetaData(
                 itemCount,
                 size,
+                blockId,
                 columnHasNulls,
                 columnMinima,
                 columnMaxima);
         }
 
-        public ReadOnlySpan<object?> CreateMetaDataRecord(int blockId)
+        public ReadOnlySpan<object?> CreateMetaDataRecord()
         {
             var metaData = ColumnHasNulls
                 .Zip(ColumnMinima, ColumnMaxima)
@@ -60,7 +61,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .SelectMany(c => c)
                 .Append(ItemCount)
                 .Append(Size)
-                .Append(blockId)
+                .Append(BlockId)
                 .ToArray();
 
             return metaData;

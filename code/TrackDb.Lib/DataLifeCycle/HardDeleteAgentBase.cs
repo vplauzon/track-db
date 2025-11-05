@@ -114,9 +114,8 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
-                metadataRecord.Record,
-                out var serializedBlockId);
-            var block = Database.GetOrLoadBlock(blockId, table.Schema, serializedBlockMetadata);
+                metadataRecord.Record);
+            var block = Database.GetOrLoadBlock(table.Schema, serializedBlockMetadata);
 
             tx.TransactionState.UncommittedTransactionLog.AppendBlock(block);
         }

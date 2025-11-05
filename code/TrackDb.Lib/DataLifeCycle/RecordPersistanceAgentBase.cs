@@ -47,14 +47,14 @@ namespace TrackDb.Lib.DataLifeCycle
                         //  We stop before persisting the last (typically incomplete) block
                         if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
                         {
-                            var serializedBlock = blockToPersist.Serialize();
                             var blockId = Database.GetFreeBlockId();
+                            var serializedBlock = blockToPersist.Serialize(blockId);
 
                             StorageManager.WriteBlock(blockId, serializedBlock.Payload.Span);
                             newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
-                                serializedBlock.MetaData.CreateMetaDataRecord(blockId));
+                                serializedBlock.MetaData.CreateMetaDataRecord());
                             isFirstBlockToPersist = false;
                         }
                         else

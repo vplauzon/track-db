@@ -38,7 +38,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
             var prefix = block.TruncateBlock(MAX_SIZE);
 
             Assert.Equal(1, ((IBlock)prefix).RecordCount);
-            Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
+            Assert.True(prefix.Serialize(0).Payload.Length <= MAX_SIZE);
         }
 
         [Fact]
@@ -57,7 +57,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             Assert.True(((IBlock)prefix).RecordCount > 0);
             Assert.True(((IBlock)prefix).RecordCount < ROW_COUNT);
-            Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
+            Assert.True(prefix.Serialize(0).Payload.Length <= MAX_SIZE);
         }
     }
 }
