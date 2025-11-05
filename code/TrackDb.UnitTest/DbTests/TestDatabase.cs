@@ -34,7 +34,8 @@ namespace TrackDb.UnitTest.DbTests
         {
             var db = await Database.CreateAsync(
                 DatabasePolicy.Create(),
-                TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE),
+                TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE)
+                .AddPrimaryKeyProperty(p => p.Integer),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)
                 .AddPrimaryKeyProperty(m => m.Integer1),
                 TypedTableSchema<CompoundKeys>.FromConstructor(COMPOUND_KEYS_TABLE)

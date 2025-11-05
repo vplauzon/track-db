@@ -75,7 +75,7 @@ namespace TrackDb.UnitTest.DbTests
         }
 
         [Fact]
-        public async Task WithUpdate()
+        public async Task WithManyUpdates()
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
