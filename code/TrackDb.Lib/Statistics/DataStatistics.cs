@@ -8,6 +8,7 @@ namespace TrackDb.Lib.Statistics
 {
     public record DataStatistics(
         int InMemoryTableRecords,
+        int InMemoryTombstoneRecords,
         int OnDiskBlockCount,
         long OnDiskRecordCount,
         long OnDiskSize)

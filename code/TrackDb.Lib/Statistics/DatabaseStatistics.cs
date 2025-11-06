@@ -7,9 +7,8 @@ namespace TrackDb.Lib.Statistics
 {
     public record DatabaseStatistics(
         int MaxTableGeneration,
-        int InMemoryTombstoneRecords,
-        DataStatistics NonMetadataStatistics,
-        DataStatistics MetadataStatistics)
+        DataStatistics GlobalStatistics,
+        IImmutableDictionary<string, DataStatistics> TableStatistics)
     {
         #region Constructor
         internal static DatabaseStatistics Create(
@@ -18,36 +17,34 @@ namespace TrackDb.Lib.Statistics
             TransactionContext tx)
         {
             var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
+            var tableTransactionLogsMap = inMemoryDatabase.TableTransactionLogsMap;
+            var tombstoneTableName = tombstoneTable.Schema.TableName;
             var tableMap = state.TableMap;
-            var inMemoryRecordCountMap = inMemoryDatabase.TableTransactionLogsMap
-                .Select(p => new
+            var inMemoryRecordCountMap = tableMap
+                .Where(p => p.Key != tombstoneTableName)
+                .Select(t => new
                 {
-                    IsMetaData = tableMap[p.Key].IsMetaDataTable,
-                    RecordCount = p.Value.InMemoryBlocks.Sum(block => block.RecordCount)
+                    TableName = t.Key,
+                    RecordCount = tableTransactionLogsMap.ContainsKey(t.Key)
+                    ? tableTransactionLogsMap[t.Key].InMemoryBlocks.Sum(block => block.RecordCount)
+                    : 0,
+                    TombstoneRecordCount = tombstoneTable.Query(tx)
+                    .Where(ts => ts.TableName == t.Key)
+                    .Count()
                 })
-                .GroupBy(o => o.IsMetaData)
-                .ToImmutableDictionary(g => g.Key, g => g.Sum(o => o.RecordCount));
-            var inMemoryTombstoneRecordCount = inMemoryDatabase.TableTransactionLogsMap
-                .Where(p => p.Key == tombstoneTable.Schema.TableName)
-                .SelectMany(p => p.Value.InMemoryBlocks)
-                .Sum(b => b.RecordCount);
+                .ToImmutableDictionary(t => t.TableName);
             var onDiskMap = tableMap
                 .Where(p => p.Value.MetaDataTableName != null)
                 .Select(p => new
                 {
-                    p.Value.IsMetaDataTable,
-                    MetaDataTable = tableMap[p.Value.MetaDataTableName!].Table
-                })
-                .Select(o => new
-                {
-                    o.IsMetaDataTable,
-                    o.MetaDataTable,
+                    p.Value.Table.Schema.TableName,
+                    MetaDataTable = tableMap[p.Value.MetaDataTableName!].Table,
                     MetadataSchemaManager = MetadataSchemaManager.FromMetadataTableSchema(
-                        o.MetaDataTable.Schema),
+                        tableMap[p.Value.MetaDataTableName!].Table.Schema),
                 })
                 .Select(o => new
                 {
-                    o.IsMetaDataTable,
+                    o.TableName,
                     BlockStats = o.MetaDataTable.Query(tx)
                     .WithProjection([
                         o.MetadataSchemaManager.ItemCountColumnIndex,
@@ -58,6 +55,7 @@ namespace TrackDb.Lib.Statistics
                         BlockCount = 1,
                         Size = (long)(int)b.Span[1]!
                     })
+                    //  Summarize all blocks
                     .Aggregate((o1, o2) => new
                     {
                         RecordCount = o1.RecordCount + o2.RecordCount,
@@ -65,29 +63,27 @@ namespace TrackDb.Lib.Statistics
                         Size = o1.Size + o2.Size
                     })
                 })
-                .GroupBy(o => o.IsMetaDataTable)
+                .ToImmutableDictionary(o => o.TableName, o => o.BlockStats);
+            var tableStatistics = tableMap
+                .Where(p => p.Key != tombstoneTableName)
+                .Select(t => t.Key)
                 .ToImmutableDictionary(
-                g => g.Key,
-                g => g.Select(o => o.BlockStats).Aggregate((o1, o2) => new
-                {
-                    RecordCount = o1.RecordCount + o2.RecordCount,
-                    BlockCount = o1.BlockCount + o2.BlockCount,
-                    Size = o1.Size + o2.Size
-                }));
+                t => t,
+                tableName => new DataStatistics(
+                    inMemoryRecordCountMap[tableName].RecordCount,
+                    inMemoryRecordCountMap[tableName].TombstoneRecordCount,
+                    onDiskMap.ContainsKey(tableName) ? onDiskMap[tableName].BlockCount : 0,
+                    onDiskMap.ContainsKey(tableName) ? onDiskMap[tableName].RecordCount : 0,
+                    onDiskMap.ContainsKey(tableName) ? onDiskMap[tableName].Size : 0));
+            var globalStatistics = new DataStatistics(
+                tableStatistics.Sum(t => t.Value.InMemoryTableRecords),
+                tableStatistics.Sum(t => t.Value.InMemoryTombstoneRecords),
+                tableStatistics.Sum(t => t.Value.OnDiskBlockCount),
+                tableStatistics.Sum(t => t.Value.OnDiskRecordCount),
+                tableStatistics.Sum(t => t.Value.OnDiskSize));
+            var maxTableGeneration = GetMaxTableGeneration(tableMap);
 
-            return new DatabaseStatistics(
-                GetMaxTableGeneration(tableMap),
-                inMemoryTombstoneRecordCount,
-                new(
-                    inMemoryRecordCountMap.ContainsKey(false) ? inMemoryRecordCountMap[false] : 0,
-                    onDiskMap.ContainsKey(false) ? onDiskMap[false].BlockCount : 0,
-                    onDiskMap.ContainsKey(false) ? onDiskMap[false].RecordCount : 0,
-                    onDiskMap.ContainsKey(false) ? onDiskMap[false].Size : 0),
-                new(
-                    inMemoryRecordCountMap.ContainsKey(true) ? inMemoryRecordCountMap[true] : 0,
-                    onDiskMap.ContainsKey(true) ? onDiskMap[true].BlockCount : 0,
-                    onDiskMap.ContainsKey(true) ? onDiskMap[true].RecordCount : 0,
-                    onDiskMap.ContainsKey(true) ? onDiskMap[true].Size : 0));
+            return new DatabaseStatistics(maxTableGeneration, globalStatistics, tableStatistics);
         }
 
         private static int GetMaxTableGeneration(
