@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -43,6 +44,14 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockToPersist = newTableBlock.TruncateBlock(StorageManager.BlockSize);
                         var rowCount = ((IBlock)blockToPersist).RecordCount;
+
+                        if (rowCount == 0)
+                        {
+                            throw new InvalidDataException(
+                                $"A single record is too large to persist on table " +
+                                $"'{tableBlock.TableSchema.TableName}' with " +
+                                $"{tableBlock.TableSchema.Columns.Count} columns");
+                        }
 
                         //  We stop before persisting the last (typically incomplete) block
                         if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
