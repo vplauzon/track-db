@@ -13,6 +13,7 @@ using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Logging;
 using TrackDb.Lib.Policies;
+using TrackDb.Lib.Statistics;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
