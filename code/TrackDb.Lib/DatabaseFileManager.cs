@@ -85,12 +85,12 @@ namespace TrackDb.Lib
 
         public IEnumerable<int> CreateBlockBatch()
         {
-            lock(_lock)
+            lock (_lock)
             {
                 var currentBlockCount = (int)(_fileStream.Length / BLOCK_SIZE);
                 var targetBlockCount = currentBlockCount + INCREMENT_BLOCK_COUNT;
 
-                _fileStream.SetLength(targetBlockCount * (long)BLOCK_SIZE);
+                _fileStream.SetLength((targetBlockCount + 1) * (long)BLOCK_SIZE);
 
                 return Enumerable.Range(currentBlockCount + 1, targetBlockCount);
             }

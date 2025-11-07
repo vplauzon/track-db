@@ -10,7 +10,6 @@ namespace TrackDb.Lib.InMemory.Block
         int ItemCount,
         int Size,
         int BlockId,
-        IImmutableList<bool> ColumnHasNulls,
         IImmutableList<object?> ColumnMinima,
         IImmutableList<object?> ColumnMaxima)
     {
@@ -23,40 +22,35 @@ namespace TrackDb.Lib.InMemory.Block
             var size = ((int?)blockInfo[1])!.Value;
             var blockId = ((int?)blockInfo[2])!.Value;
 
-            if (columnStats.Length % 3 != 0)
+            if (columnStats.Length % 2 != 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(record));
             }
 
-            var columnEnumeration = Enumerable.Range(0, columnStats.Length / 3);
-            var columnHasNulls = columnEnumeration
-                .Select(i => ((bool?)columnStats.Span[i * 3])!.Value)
-                .ToImmutableArray();
+            var columnEnumeration = Enumerable.Range(0, columnStats.Length / 2);
             var columnMinima = columnEnumeration
-                .Select(i => columnStats.Span[i * 3 + 1])
+                .Select(i => columnStats.Span[i * 2 + 0])
                 .ToImmutableArray();
             var columnMaxima = columnEnumeration
-                .Select(i => columnStats.Span[i * 3 + 2])
+                .Select(i => columnStats.Span[i * 2 + 1])
                 .ToImmutableArray();
 
             return new SerializedBlockMetaData(
                 itemCount,
                 size,
                 blockId,
-                columnHasNulls,
                 columnMinima,
                 columnMaxima);
         }
 
         public ReadOnlySpan<object?> CreateMetaDataRecord()
         {
-            var metaData = ColumnHasNulls
-                .Zip(ColumnMinima, ColumnMaxima)
+            var metaData = ColumnMinima
+                .Zip(ColumnMaxima)
                 .Select(o => new object?[]
                 {
                     o.First,
-                    o.Second,
-                    o.Third
+                    o.Second
                 })
                 .SelectMany(c => c)
                 .Append(ItemCount)

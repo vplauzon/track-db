@@ -56,12 +56,19 @@ namespace TrackDb.Lib.Statistics
                         Size = (long)(int)b.Span[1]!
                     })
                     //  Summarize all blocks
-                    .Aggregate((o1, o2) => new
-                    {
-                        RecordCount = o1.RecordCount + o2.RecordCount,
-                        BlockCount = o1.BlockCount + o2.BlockCount,
-                        Size = o1.Size + o2.Size
-                    })
+                    .Aggregate(
+                        new
+                        {
+                            RecordCount = (long)0,
+                            BlockCount = 0,
+                            Size = (long)0
+                        },
+                        (o1, o2) => new
+                        {
+                            RecordCount = o1.RecordCount + o2.RecordCount,
+                            BlockCount = o1.BlockCount + o2.BlockCount,
+                            Size = o1.Size + o2.Size
+                        })
                 })
                 .ToImmutableDictionary(o => o.TableName, o => o.BlockStats);
             var tableStatistics = tableMap

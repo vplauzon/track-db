@@ -28,6 +28,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         protected abstract object? LogValueToIn(JsonElement logValue);
 
+        #region IReadOnlyDataColumn
         int IReadOnlyDataColumn.RecordCount => _innerColumn.RecordCount;
 
         object? IReadOnlyDataColumn.GetValue(int index)
@@ -56,6 +57,20 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
+        SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        {
+            var innerColumn = _innerColumn.Serialize(rowCount);
+
+            return new SerializedColumn(
+                innerColumn.ItemCount,
+                innerColumn.HasNulls,
+                InToOutValue(innerColumn.ColumnMinimum),
+                InToOutValue(innerColumn.ColumnMaximum),
+                innerColumn.Payload);
+        }
+        #endregion
+
+        #region IDataColumn
         void IDataColumn.AppendValue(object? value)
         {
             _innerColumn.AppendValue(OutToInValue(value));
@@ -79,18 +94,6 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        SerializedColumn IDataColumn.Serialize(int? rowCount)
-        {
-            var innerColumn = _innerColumn.Serialize(rowCount);
-
-            return new SerializedColumn(
-                innerColumn.ItemCount,
-                innerColumn.HasNulls,
-                InToOutValue(innerColumn.ColumnMinimum),
-                InToOutValue(innerColumn.ColumnMaximum),
-                innerColumn.Payload);
-        }
-
         void IDataColumn.Deserialize(SerializedColumn serializedColumn)
         {
             var innerSerializedColumn = new SerializedColumn(
@@ -102,5 +105,6 @@ namespace TrackDb.Lib.InMemory.Block
 
             _innerColumn.Deserialize(innerSerializedColumn);
         }
+        #endregion
     }
 }
