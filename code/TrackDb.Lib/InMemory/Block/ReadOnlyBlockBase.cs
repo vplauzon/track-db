@@ -38,23 +38,30 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 throw new NotSupportedException();
             }
+
+            SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         private record BlockIdColumn(int BlockId) : IReadOnlyDataColumn
         {
             public int RecordCount => throw new NotSupportedException();
 
-            public IEnumerable<int> FilterBinary(BinaryOperator binaryOperator, object? value)
+            IEnumerable<int> IReadOnlyDataColumn.FilterBinary(
+                BinaryOperator binaryOperator,
+                object? value)
             {
                 throw new NotSupportedException();
             }
 
-            public IEnumerable<int> FilterIn(IImmutableSet<object?> values)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
             {
                 throw new NotSupportedException();
             }
 
-            public object? GetValue(int index)
+            object? IReadOnlyDataColumn.GetValue(int index)
             {
                 return BlockId;
             }
@@ -62,6 +69,11 @@ namespace TrackDb.Lib.InMemory.Block
             IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
             {
                 throw new NotSupportedException();
+            }
+
+            SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            {
+                throw new NotImplementedException();
             }
         }
         #endregion

@@ -84,6 +84,23 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
             return matchBuilder.ToImmutable();
         }
+
+        SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        {
+            if (_itemCount == 0)
+            {
+                throw new InvalidOperationException(
+                    "Can't serialize as there are no items in data column");
+            }
+            if (rowCount > _itemCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(rowCount),
+                    $"{rowCount} > {_itemCount}");
+            }
+
+            return Serialize(new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount));
+        }
         #endregion
 
         #region IDataColumn
@@ -163,23 +180,6 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 Array.Copy(_array, newArray, _itemCount);
                 _array = newArray;
             }
-        }
-
-        SerializedColumn IDataColumn.Serialize(int? rowCount)
-        {
-            if (_itemCount == 0)
-            {
-                throw new InvalidOperationException(
-                    "Can't serialize as there are no items in data column");
-            }
-            if (rowCount > _itemCount)
-            {
-                throw new ArgumentOutOfRangeException(
-                    nameof(rowCount),
-                    $"{rowCount} > {_itemCount}");
-            }
-
-            return Serialize(new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount));
         }
 
         void IDataColumn.Deserialize(SerializedColumn serializedColumn)

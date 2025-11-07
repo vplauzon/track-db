@@ -25,11 +25,6 @@ namespace TrackDb.Lib.InMemory.Block
         /// <summary>Delete record indexes.</summary>
         /// <param name="recordIndexes"></param>
         void DeleteRecords(IEnumerable<int> recordIndexes);
-        
-        /// <summary>Serialize the first <paramref name="rowCount"/> items.</summary>
-        /// <param name="rowCount">If <c>null</c>, serialize everything.</param>
-        /// <returns></returns>
-        SerializedColumn Serialize(int? rowCount);
 
         /// <summary>Deserialize the payload and insert records in the column.</summary>
         /// <param name="serializedColumn"></param>
