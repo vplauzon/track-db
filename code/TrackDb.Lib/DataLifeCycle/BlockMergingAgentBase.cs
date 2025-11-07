@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,7 +22,23 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             public static IEnumerable<MetadataRecord> LoadMetaRecords(IBlock block)
             {
-                throw new NotImplementedException();
+                var rawRecords = block.Project(
+                    new object?[block.TableSchema.Columns.Count + 1],
+                    Enumerable.Range(0, block.TableSchema.Columns.Count + 1).ToImmutableArray(),
+                    Enumerable.Range(0, block.RecordCount),
+                    0);
+                var metadataSchemaManager = MetadataSchemaManager.FromMetadataTableSchema(
+                    block.TableSchema);
+                var records = rawRecords
+                    .Select(r => new(
+                        block.TableSchema.TableName,
+                        (long)r.Span[block.TableSchema.RecordIdColumnIndex]!,
+                        (int)r.Span[metadataSchemaManager.BlockIdColumnIndex]!,
+                        (int)r.Span[metadataSchemaManager.SizeColumnIndex]!,
+                        throw new NotImplementedException(),
+                        r.ToArray()));
+
+                return records;
             }
         }
         #endregion
@@ -53,7 +68,12 @@ namespace TrackDb.Lib.DataLifeCycle
             MetadataRecord blockToMerge,
             bool doForceHardDelete)
         {
-            throw new NotImplementedException();
+            if (neighbours.Any() || doForceHardDelete)
+            {
+                throw new NotImplementedException();
+            }
+
+            return false;
         }
     }
 }
