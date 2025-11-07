@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
@@ -13,10 +14,18 @@ namespace TrackDb.Lib.DataLifeCycle
     {
         #region Inner Types
         protected record MetadataRecord(
+            string metadataTableName,
+            long RecordId,
             int BlockId,
             int Size,
             long MinRecordId,
-            ReadOnlyMemory<object?> Record);
+            ReadOnlyMemory<object?> Record)
+        {
+            public static IEnumerable<MetadataRecord> LoadMetaRecords(IBlock block)
+            {
+                throw new NotImplementedException();
+            }
+        }
         #endregion
 
         public BlockMergingAgentBase(
@@ -31,15 +40,17 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var doMergeAll =
                 (forcedDataManagementActivity & DataManagementActivity.BlockMergeFirstGeneration) != 0;
+            var doPersistMetadata =
+                (forcedDataManagementActivity & DataManagementActivity.PersistAllMetaDataFirstLevel) != 0;
 
-            return RunMerge(doMergeAll);
+            return RunMerge(doMergeAll, doPersistMetadata);
         }
 
-        protected abstract bool RunMerge(bool doMergeAll);
-        
+        protected abstract bool RunMerge(bool doMergeAll, bool doPersistMetadata);
+
         protected bool MergeBlocks(
-            IEnumerable<MetadataRecord> metadataRecords,
-            int blockIdToMerge,
+            IEnumerable<MetadataRecord> neighbours,
+            MetadataRecord blockToMerge,
             bool doForceHardDelete)
         {
             throw new NotImplementedException();
