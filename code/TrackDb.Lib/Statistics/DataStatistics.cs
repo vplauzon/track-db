@@ -13,10 +13,13 @@ namespace TrackDb.Lib.Statistics
         long OnDiskRecordCount,
         long OnDiskSize)
     {
-        public long OnDiskSizePerBlock => OnDiskSize / OnDiskBlockCount;
+        public long OnDiskSizePerBlock =>
+            OnDiskBlockCount == 0 ? 0 : OnDiskSize / OnDiskBlockCount;
 
-        public long OnDiskSizePerRecord => OnDiskSize / OnDiskRecordCount;
+        public long OnDiskSizePerRecord =>
+            OnDiskRecordCount == 0 ? 0 : OnDiskSize / OnDiskRecordCount;
 
-        public long OnDiskRecordPerBlock => OnDiskRecordCount / OnDiskBlockCount;
+        public long OnDiskRecordPerBlock =>
+            OnDiskBlockCount == 0 ? 0 : OnDiskRecordCount / OnDiskBlockCount;
     }
 }
