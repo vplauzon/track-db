@@ -16,6 +16,7 @@ namespace TrackDb.Lib
         private readonly string _filePath;
         private readonly FileStream _fileStream;
         private readonly object _lock = new();
+        private long _fileLength = 0;
 
         #region Constructors
         public DatabaseFileManager(string filePath)
@@ -45,6 +46,8 @@ namespace TrackDb.Lib
         {
             lock (_lock)
             {
+                var position = GetBlockPosition(blockId);
+
                 _fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
 
                 var buffer = new byte[BLOCK_SIZE];
@@ -54,7 +57,8 @@ namespace TrackDb.Lib
                 {
                     throw new IOException(
                         $"Block read resulted in only {readCount} " +
-                        $"bytes read instead of {BLOCK_SIZE}");
+                        $"bytes read instead of {BLOCK_SIZE} ; file is {_fileLength} bytes long " +
+                        $"and read started at {position}");
                 }
 
                 return buffer;
@@ -91,6 +95,7 @@ namespace TrackDb.Lib
                 var targetBlockCount = currentBlockCount + INCREMENT_BLOCK_COUNT;
 
                 _fileStream.SetLength((targetBlockCount + 1) * (long)BLOCK_SIZE);
+                _fileLength = (targetBlockCount + 1) * (long)BLOCK_SIZE;
 
                 return Enumerable.Range(currentBlockCount + 1, targetBlockCount);
             }
