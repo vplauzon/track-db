@@ -21,9 +21,6 @@ namespace TrackDb.Lib.InMemory.Block
                 payload.Span.Length * sizeof(byte),
                 blockId,
                 columns
-                .Select(c => c.HasNulls)
-                .ToImmutableArray(),
-                columns
                 .Select(c => c.ColumnMinimum)
                 .ToImmutableArray(),
                 columns
@@ -72,7 +69,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         public IEnumerable<SerializedColumn> CreateSerializedColumns()
         {
-            var columnCount = MetaData.ColumnHasNulls.Count;
+            var columnCount = MetaData.ColumnMinima.Count;
             var hasNullsPayloadSize = (columnCount + 7) / 8 * sizeof(byte); //  (N+7)/8 = ceil(N/8)
             var hasNullsPayload = Payload.Slice(0, hasNullsPayloadSize);
             var hasNulls = BitPacker.Unpack(hasNullsPayload.Span, columnCount, 1)

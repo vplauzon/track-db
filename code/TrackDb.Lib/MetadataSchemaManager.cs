@@ -21,14 +21,12 @@ namespace TrackDb.Lib
                 //  For each column we create a min, max & hasNulls column
                 .Select(c => new[]
                 {
-                    new ColumnSchema($"$hasNulls-{c.ColumnName}", typeof(bool)),
                     new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
                     new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
                 })
                 //  We add the record-id columns
                 .Append(
                 [
-                    new ColumnSchema("$hasNulls-$recordId", typeof(bool)),
                     new ColumnSchema("$min-$recordId", typeof(long)),
                     new ColumnSchema("$max-$recordId", typeof(long))
                 ])
