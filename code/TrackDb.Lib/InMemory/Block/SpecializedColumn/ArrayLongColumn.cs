@@ -69,15 +69,25 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v);
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values);
 
             //  No need to convert min and max
-            return column;
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum,
+                package.ColumnMaximum,
+                package.Payload);
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            return Int64Codec.Decompress(serializedColumn)
+            return Int64Codec.Decompress(new(
+                column.ItemCount,
+                column.HasNulls,
+                (long?)column.ColumnMinimum,
+                (long?)column.ColumnMaximum,
+                column.Payload))
                 .Cast<object?>();
         }
     }

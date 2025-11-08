@@ -201,7 +201,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var valuesSequencePayloadLength = decodingMemory.ReadShort();
                         var valuesSequenceLength = decodingMemory.ReadShort();
                         var valuesSequencePayload = decodingMemory.ReadArray(valuesSequencePayloadLength);
-                        var valuesSequence = Int64Codec.Decompress(new SerializedColumn(
+                        var valuesSequence = Int64Codec.Decompress(new LongCompressedPackage(
                             valuesSequenceLength,
                             true,
                             (long)valuesSequenceMinimum,
@@ -213,7 +213,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                             .ToImmutableArray();
                         var indexColumnPayloadLength = decodingMemory.ReadShort();
                         var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(new SerializedColumn(
+                        var indexes = Int64Codec.Decompress(new LongCompressedPackage(
                             column.ItemCount,
                             false,
                             (long)(column.HasNulls ? -1 : 0),
@@ -229,7 +229,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     {   //  2 or 1 unique values, can be deduced from column, but still need to serialize indexes
                         var indexColumnPayloadLength = decodingMemory.ReadShort();
                         var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(new SerializedColumn(
+                        var indexes = Int64Codec.Decompress(new LongCompressedPackage(
                             column.ItemCount,
                             false,
                             (long)(column.HasNulls ? -1 : 0),

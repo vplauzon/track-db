@@ -83,7 +83,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
             //  Convert min and max to int-64 (from int-32)
-            var intSerializedColumn = new SerializedColumn(
+            var intSerializedColumn = new LongCompressedPackage(
                 column.ItemCount,
                 column.HasNulls,
                 column.ColumnMinimum == null ? null : Convert.ToInt64(column.ColumnMinimum),

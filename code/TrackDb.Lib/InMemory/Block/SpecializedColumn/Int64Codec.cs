@@ -21,6 +21,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
     /// </summary>
     internal static class Int64Codec
     {
+        #region Compress
         /// <summary>
         /// <paramref name="values"/> is enumerated into three times.
         /// Since everything is transient, we do away with sanity checks
@@ -29,7 +30,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         /// <param name="values"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public static SerializedColumn Compress(IEnumerable<long?> values)
+        public static LongCompressedPackage Compress(IEnumerable<long?> values)
         {
             if (values == null || !values.Any())
             {
@@ -101,7 +102,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 packedDeltas.CopyTo(packedDeltaSpan);
             }
 
-            return new SerializedColumn(
+            return new LongCompressedPackage(
                 itemCount,
                 nonNull < itemCount,
                 nonNull == 0 ? null : min,
@@ -121,48 +122,50 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             // Slow path: use BigInteger for large ranges
             return (ulong)(new BigInteger(value) - new BigInteger(min));
         }
+        #endregion
 
-        public static IEnumerable<long?> Decompress(SerializedColumn column)
+        #region Decompress
+        public static IEnumerable<long?> Decompress(LongCompressedPackage package)
         {
-            if (!column.HasNulls && object.Equals(column.ColumnMinimum, column.ColumnMaximum))
+            if (!package.HasNulls && object.Equals(package.ColumnMinimum, package.ColumnMaximum))
             {   //  Only one value
-                return Enumerable.Range(0, column.ItemCount)
-                    .Select(i => (long?)column.ColumnMinimum);
+                return Enumerable.Range(0, package.ItemCount)
+                    .Select(i => (long?)package.ColumnMinimum);
             }
             else
-            if (column.ColumnMinimum == null)
+            if (package.ColumnMinimum == null)
             {   //  Only nulls
-                return Enumerable.Range(0, column.ItemCount)
+                return Enumerable.Range(0, package.ItemCount)
                     .Select(i => (long?)null);
             }
             else
             {
-                var extremeNullRegime = !column.HasNulls || column.ColumnMinimum == null;
-                var hasDeltas = !object.Equals(column.ColumnMinimum, column.ColumnMaximum);
-                var payloadSpan = column.Payload.Span;
+                var extremeNullRegime = !package.HasNulls || package.ColumnMinimum == null;
+                var hasDeltas = !object.Equals(package.ColumnMinimum, package.ColumnMaximum);
+                var payloadSpan = package.Payload.Span;
                 var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
                 var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
                 var nonNull = nonNullSpan.Length != 0
                     ? BinaryPrimitives.ReadUInt16LittleEndian(nonNullSpan.Slice(0, sizeof(UInt16)))
-                    : column.HasNulls
+                    : package.HasNulls
                     ? 0
-                    : column.ItemCount;
-                var bitmapBytes = (column.ItemCount + 7) / 8;
+                    : package.ItemCount;
+                var bitmapBytes = (package.ItemCount + 7) / 8;
                 var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
                 var bitmapSpan = payloadSpan.Slice(nonNullSize, bitmapSize);
                 var packedDeltaSpan = payloadSpan.Slice(nonNullSize + bitmapSize);
-                var min = (long)column.ColumnMinimum!;
-                var max = (long)column.ColumnMaximum!;
+                var min = (long)package.ColumnMinimum!;
+                var max = (long)package.ColumnMaximum!;
                 var deltas = hasDeltas
                     ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
                     : Array.Empty<ulong>();
-                var values = new long?[column.ItemCount];
+                var values = new long?[package.ItemCount];
                 var deltaI = 0;
 
                 //  Read deltas back
-                for (var i = 0; i < column.ItemCount; i++)
+                for (var i = 0; i < package.ItemCount; i++)
                 {
-                    var valid = column.HasNulls
+                    var valid = package.HasNulls
                         ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
                         : true;
 
@@ -194,5 +197,6 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             // Slow path: use BigInteger for large ranges
             return (long)(new BigInteger(delta) + new BigInteger(min));
         }
+        #endregion
     }
 }
