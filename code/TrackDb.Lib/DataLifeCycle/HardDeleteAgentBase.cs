@@ -161,7 +161,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         recordId,
                         BinaryOperator.Equal))
                     //  Only project the block ID
-                    .WithProjection([table.Schema.BlockIdColumnIndex])
+                    .WithProjection([table.Schema.ParentBlockIdColumnIndex])
                     .FirstOrDefault();
 
                 if (recordIdRecord.Length == 0)
@@ -187,7 +187,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 MetadataSchemaManager.FromMetadataTableSchema(metaDataTable.Schema);
             var projectionColumnIndexes = Enumerable.Range(0, metaDataTable.Schema.Columns.Count)
                 .Append(metaDataTable.Schema.RecordIdColumnIndex)
-                .Append(metaDataTable.Schema.BlockIdColumnIndex);
+                .Append(metaDataTable.Schema.ParentBlockIdColumnIndex);
             var metaDataRecord = metaDataTable.Query(tx)
                 //  We're looking for the block ID in the meta data table
                 .WithPredicate(

@@ -92,7 +92,7 @@ namespace TrackDb.Lib
 
         public int RowIndexColumnIndex => Columns.Count + 1;
 
-        public int BlockIdColumnIndex => Columns.Count + 2;
+        public int ParentBlockIdColumnIndex => Columns.Count + 2;
         #endregion
 
         /// <summary>
@@ -127,6 +127,11 @@ namespace TrackDb.Lib
         internal bool TryGetColumnIndex(string columnName, out int columnIndex)
         {
             return _columnNameToColumnIndexMap.TryGetValue(columnName, out columnIndex);
+        }
+
+        internal virtual MetadataTableSchema CreateMetadataTableSchema()
+        {
+            return MetadataTableSchema.FromParentSchema(this);
         }
     }
 }
