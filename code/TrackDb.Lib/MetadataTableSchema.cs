@@ -59,10 +59,10 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        internal override MetadataTableSchema CreateMetadataTableSchema()
-        {
-            throw new NotImplementedException();
-        }
+        //internal override MetadataTableSchema CreateMetadataTableSchema()
+        //{
+        //    throw new NotImplementedException();
+        //}
 
         #region Metadata Columns
         public int ItemCountColumnIndex => Columns.Count - 3;

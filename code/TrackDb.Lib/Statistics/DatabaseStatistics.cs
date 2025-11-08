@@ -38,17 +38,15 @@ namespace TrackDb.Lib.Statistics
                 .Select(p => new
                 {
                     p.Value.Table.Schema.TableName,
-                    MetaDataTable = tableMap[p.Value.MetaDataTableName!].Table,
-                    MetadataSchemaManager = MetadataSchemaManager.FromMetadataTableSchema(
-                        tableMap[p.Value.MetaDataTableName!].Table.Schema),
+                    MetaDataTable = tableMap[p.Value.MetaDataTableName!].Table
                 })
                 .Select(o => new
                 {
                     o.TableName,
                     BlockStats = o.MetaDataTable.Query(tx)
                     .WithProjection([
-                        o.MetadataSchemaManager.ItemCountColumnIndex,
-                        o.MetadataSchemaManager.SizeColumnIndex])
+                        ((MetadataTableSchema) o.MetaDataTable.Schema).ItemCountColumnIndex,
+                        ((MetadataTableSchema) o.MetaDataTable.Schema).SizeColumnIndex])
                     .Select(b => new
                     {
                         RecordCount = (long)(int)b.Span[0]!,

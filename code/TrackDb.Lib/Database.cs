@@ -309,8 +309,7 @@ namespace TrackDb.Lib
                 }
                 else
                 {
-                    var metaDataSchema = MetadataSchemaManager.FromTableSchema(table.Table.Schema)
-                        .MetadataSchema;
+                    var metaDataSchema = table.Table.Schema.CreateMetadataTableSchema();
                     var metaDataTable = new Table(this, metaDataSchema);
 
                     ChangeDatabaseState(state =>
