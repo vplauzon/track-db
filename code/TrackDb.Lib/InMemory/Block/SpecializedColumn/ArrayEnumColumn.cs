@@ -92,19 +92,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            //  Convert min and max to int-64 (from T)
-            var intSerializedColumn = new LongCompressedPackage(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
-                ? null
-                : Convert.ToInt64(column.ColumnMinimum!),
-                column.ColumnMaximum == null
-                ? null
-                : Convert.ToInt64(column.ColumnMaximum!),
-                column.Payload);
-
-            return Int64Codec.Decompress(intSerializedColumn)
+            return Int64Codec.Decompress(column.ItemCount, column.HasNulls, column.Payload)
                 .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
         }
 

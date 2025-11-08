@@ -14,37 +14,37 @@ namespace TrackDb.UnitTest.Codecs
         [Fact]
         public void IdenticalNonNull()
         {
-            TestScenario(new long?[] { 42, 42, 42 }, false);
+            TestScenario(new long?[] { 42, 42, 42 });
         }
 
         [Fact]
         public void IdenticalWithNull()
         {
-            TestScenario(new long?[] { 42, null, 42 }, true);
+            TestScenario(new long?[] { 42, null, 42 });
         }
 
         [Fact]
         public void IdenticalWithOneNonNull()
         {
-            TestScenario(new long?[] { null, null, 43 }, true);
+            TestScenario(new long?[] { null, null, 43 });
         }
 
         [Fact]
         public void OnlyNulls()
         {
-            TestScenario(new long?[] { null, null, null, null }, false);
+            TestScenario(new long?[] { null, null, null, null });
         }
 
         [Fact]
         public void VariedNonNull()
         {
-            TestScenario(new long?[] { 1, 2, 3, 4, 5, 6 }, true);
+            TestScenario(new long?[] { 1, 2, 3, 4, 5, 6 });
         }
 
         [Fact]
         public void VariedWithNull()
         {
-            TestScenario(new long?[] { 1, null, 3, 4, null }, true);
+            TestScenario(new long?[] { 1, null, 3, 4, null });
         }
 
         [Fact]
@@ -56,8 +56,7 @@ namespace TrackDb.UnitTest.Codecs
             TestScenario(
                 Enumerable.Range(0, 25000)
                 .Select(i => (long?)random.Next(0, 25000))
-                .ToImmutableArray(),
-                true);
+                .ToImmutableArray());
         }
 
         [Fact]
@@ -79,72 +78,74 @@ namespace TrackDb.UnitTest.Codecs
         [Fact]
         public void SingleValueSequences()
         {
-            TestScenario(new long?[] { 42 }, false);
-            TestScenario(new long?[] { null }, false);
+            TestScenario(new long?[] { 42 });
+            TestScenario(new long?[] { null });
         }
 
         [Fact]
         public void TwoValueSequences()
         {
-            TestScenario(new long?[] { 1, 2 }, true);
-            TestScenario(new long?[] { 1, null }, true);
-            TestScenario(new long?[] { null, 1 }, true);
-            TestScenario(new long?[] { 1, 1 }, false);
+            TestScenario(new long?[] { 1, 2 });
+            TestScenario(new long?[] { 1, null });
+            TestScenario(new long?[] { null, 1 });
+            TestScenario(new long?[] { 1, 1 });
         }
 
         [Fact]
         public void BoundaryValues()
         {
-            TestScenario(new long?[] { long.MinValue, 0, long.MaxValue }, true);
-            TestScenario(new long?[] { long.MinValue, null, long.MaxValue }, true);
-            
+            TestScenario(new long?[] { long.MinValue, 0, long.MaxValue });
+            TestScenario(new long?[] { long.MinValue, null, long.MaxValue });
+
             // Large deltas
-            TestScenario(new long?[] { 0, 1000000000, 2000000000, 3000000000 }, true);
-            
+            TestScenario(new long?[] { 0, 1000000000, 2000000000, 3000000000 });
+
             // Values requiring maximum bit width
-            TestScenario(new long?[] { long.MinValue, long.MinValue / 2, 0, 
-                long.MaxValue / 2, long.MaxValue }, true);
+            TestScenario(new long?[] { long.MinValue, long.MinValue / 2, 0,
+                long.MaxValue / 2, long.MaxValue });
         }
 
         [Fact]
         public void BitmapEdgeCases()
         {
             // Exactly 8 items (one byte bitmap)
-            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null }, true);
-            
+            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null });
+
             // 9 items (spans two bytes)
-            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null, 5 }, true);
-            
+            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null, 5 });
+
             // Null at byte boundary
-            TestScenario(new long?[] { 1, 2, 3, 4, 5, 6, 7, null, 9, 10 }, true);
+            TestScenario(new long?[] { 1, 2, 3, 4, 5, 6, 7, null, 9, 10 });
         }
 
         [Fact]
         public void CompressionEfficiency()
         {
             // Small deltas
-            TestScenario(new long?[] { 1000, 1001, 1002, 1003, 1004 }, true);
-            
+            TestScenario(new long?[] { 1000, 1001, 1002, 1003, 1004 });
+
             // Large deltas
-            TestScenario(new long?[] { 1000, 2000, 3000, 4000, 5000 }, true);
-            
+            TestScenario(new long?[] { 1000, 2000, 3000, 4000, 5000 });
+
             // Alternating pattern
-            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null }, true);
-            
+            TestScenario(new long?[] { 1, null, 2, null, 3, null, 4, null });
+
             // Mostly null
-            TestScenario(new long?[] { null, null, null, 42, null, null }, true);
-            
+            TestScenario(new long?[] { null, null, null, 42, null, null });
+
             // Mostly values
-            TestScenario(new long?[] { 1, 2, 3, null, 4, 5, 6 }, true);
+            TestScenario(new long?[] { 1, 2, 3, null, 4, 5, 6 });
         }
 
-        private static void TestScenario(IEnumerable<long?> data, bool doExpectPayload)
+        private static void TestScenario(IEnumerable<long?> data)
         {
-            var bundle = Int64Codec.Compress(data);
-            var decodedArray = Int64Codec.Decompress(bundle)
+            var package = Int64Codec.Compress(data);
+            var decodedArray = Int64Codec.Decompress(
+                package.ItemCount,
+                package.HasNulls,
+                package.Payload)
                 .ToImmutableArray();
 
-            Assert.Equal(doExpectPayload, bundle.Payload.Length != 0);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());

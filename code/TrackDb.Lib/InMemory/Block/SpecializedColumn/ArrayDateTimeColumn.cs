@@ -85,19 +85,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            //  Convert min and max to int-64 (from DateTime)
-            var intSerializedColumn = new LongCompressedPackage(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
-                ? null
-                : ((DateTime?)column.ColumnMinimum)!.Value.Ticks,
-                column.ColumnMaximum == null
-                ? null
-                : ((DateTime?)column.ColumnMaximum)!.Value.Ticks,
-                column.Payload);
-
-            return Int64Codec.Decompress(intSerializedColumn)
+            return Int64Codec.Decompress(column.ItemCount, column.HasNulls, column.Payload)
                 .Select(l => l == null ? (DateTime?)null : new DateTime(l.Value))
                 .Cast<object?>();
         }

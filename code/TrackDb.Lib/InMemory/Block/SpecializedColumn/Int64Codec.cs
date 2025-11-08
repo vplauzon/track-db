@@ -73,23 +73,29 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
 
             var extremeNullRegime = nonNull == itemCount || nonNull == 0;
-            var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
+            var nonNullSize = sizeof(UInt16);
+            var extremaSize = nonNull == 0 ? 0 : 2 * sizeof(long);
             var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
             var packedDeltas = nonNull == 0 || min == max ? Array.Empty<byte>() : BitPacker.Pack(
                 values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
                 nonNull,
                 ToZeroBase(max, min));
-            var payloadSize = nonNullSize + bitmapSize + packedDeltas.Length * sizeof(byte);
+            var payloadSize = nonNullSize + extremaSize + bitmapSize + packedDeltas.Length * sizeof(byte);
             var payload = new byte[payloadSize];
             var payloadSpan = payload.AsSpan();
             var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
-            var bitmapSpan = payloadSpan.Slice(nonNullSize, bitmapSize);
-            var packedDeltaSpan = payloadSpan.Slice(nonNullSize + bitmapSize);
+            var extremaSpan = payloadSpan.Slice(nonNullSize, extremaSize);
+            var bitmapSpan = payloadSpan.Slice(nonNullSize + extremaSize, bitmapSize);
+            var packedDeltaSpan = payloadSpan.Slice(nonNullSize + extremaSize + bitmapSize);
 
-            //  Non-Null
-            if (nonNullSpan.Length != 0)
+            BinaryPrimitives.WriteUInt16LittleEndian(nonNullSpan, (UInt16)nonNull);
+            if (extremaSpan.Length != 0)
             {
-                BinaryPrimitives.WriteUInt16LittleEndian(nonNullSpan.Slice(0, sizeof(UInt16)), (UInt16)nonNull);
+                var minSpan = extremaSpan.Slice(0, sizeof(long));
+                var maxSpan = extremaSpan.Slice(sizeof(long));
+
+                BinaryPrimitives.WriteInt64LittleEndian(minSpan, min);
+                BinaryPrimitives.WriteInt64LittleEndian(maxSpan, max);
             }
             //  bitmap
             if (bitmapSpan.Length != 0)
@@ -125,47 +131,54 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         #endregion
 
         #region Decompress
-        public static IEnumerable<long?> Decompress(LongCompressedPackage package)
+        public static IEnumerable<long?> Decompress(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            if (!package.HasNulls && object.Equals(package.ColumnMinimum, package.ColumnMaximum))
+            var payloadSpan = payload.Span;
+            var nonNullSize = sizeof(UInt16);
+            var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
+            var nonNull = BinaryPrimitives.ReadUInt16LittleEndian(nonNullSpan);
+            var extremeNullRegime = !hasNulls || nonNull == 0;
+            var extremaSize = nonNull == 0 ? 0 : 2 * sizeof(long);
+            var extremaSpan = payloadSpan.Slice(nonNullSpan.Length, extremaSize);
+            long? columnMinimum = extremaSpan.Length == 0
+                ? null
+                : BinaryPrimitives.ReadInt64LittleEndian(extremaSpan.Slice(0, sizeof(long)));
+            long? columnMaximum = extremaSpan.Length == 0
+                ? null
+                : BinaryPrimitives.ReadInt64LittleEndian(extremaSpan.Slice(sizeof(long)));
+
+            if (!hasNulls && object.Equals(columnMinimum, columnMaximum))
             {   //  Only one value
-                return Enumerable.Range(0, package.ItemCount)
-                    .Select(i => (long?)package.ColumnMinimum);
+                return Enumerable.Range(0, itemCount)
+                    .Select(i => (long?)columnMinimum);
             }
-            else
-            if (package.ColumnMinimum == null)
+            else if (columnMinimum == null)
             {   //  Only nulls
-                return Enumerable.Range(0, package.ItemCount)
+                return Enumerable.Range(0, itemCount)
                     .Select(i => (long?)null);
             }
             else
             {
-                var extremeNullRegime = !package.HasNulls || package.ColumnMinimum == null;
-                var hasDeltas = !object.Equals(package.ColumnMinimum, package.ColumnMaximum);
-                var payloadSpan = package.Payload.Span;
-                var nonNullSize = extremeNullRegime ? 0 : sizeof(UInt16);
-                var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
-                var nonNull = nonNullSpan.Length != 0
-                    ? BinaryPrimitives.ReadUInt16LittleEndian(nonNullSpan.Slice(0, sizeof(UInt16)))
-                    : package.HasNulls
-                    ? 0
-                    : package.ItemCount;
-                var bitmapBytes = (package.ItemCount + 7) / 8;
+                var hasDeltas = !object.Equals(columnMinimum, columnMaximum);
+                var bitmapBytes = (itemCount + 7) / 8;
                 var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
-                var bitmapSpan = payloadSpan.Slice(nonNullSize, bitmapSize);
-                var packedDeltaSpan = payloadSpan.Slice(nonNullSize + bitmapSize);
-                var min = (long)package.ColumnMinimum!;
-                var max = (long)package.ColumnMaximum!;
+                var bitmapSpan = payloadSpan.Slice(nonNullSize + extremaSize, bitmapSize);
+                var packedDeltaSpan = payloadSpan.Slice(nonNullSize + extremaSize + bitmapSize);
+                var min = (long)columnMinimum!;
+                var max = (long)columnMaximum!;
                 var deltas = hasDeltas
                     ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
                     : Array.Empty<ulong>();
-                var values = new long?[package.ItemCount];
+                var values = new long?[itemCount];
                 var deltaI = 0;
 
                 //  Read deltas back
-                for (var i = 0; i < package.ItemCount; i++)
+                for (var i = 0; i < itemCount; i++)
                 {
-                    var valid = package.HasNulls
+                    var valid = hasNulls
                         ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
                         : true;
 

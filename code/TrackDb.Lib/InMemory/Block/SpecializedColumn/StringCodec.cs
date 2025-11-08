@@ -201,24 +201,20 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         var valuesSequencePayloadLength = decodingMemory.ReadShort();
                         var valuesSequenceLength = decodingMemory.ReadShort();
                         var valuesSequencePayload = decodingMemory.ReadArray(valuesSequencePayloadLength);
-                        var valuesSequence = Int64Codec.Decompress(new LongCompressedPackage(
+                        var valuesSequence = Int64Codec.Decompress(
                             valuesSequenceLength,
                             true,
-                            (long)valuesSequenceMinimum,
-                            (long)valuesSequenceMaximum,
-                            valuesSequencePayload));
+                            valuesSequencePayload);
                         var uniqueValues = BreakStrings(valuesSequence.Select(c => (char?)((short?)c)))
                             .Prepend(minValue)
                             .Append(maxValue)
                             .ToImmutableArray();
                         var indexColumnPayloadLength = decodingMemory.ReadShort();
                         var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(new LongCompressedPackage(
+                        var indexes = Int64Codec.Decompress(
                             column.ItemCount,
                             false,
-                            (long)(column.HasNulls ? -1 : 0),
-                            (long)(uniqueValuesCount - 1),
-                            indexColumnPayload));
+                            indexColumnPayload);
                         var values = indexes
                             .Select(i => (short)i!)
                             .Select(i => i == -1 ? null : uniqueValues[i]);
@@ -229,12 +225,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     {   //  2 or 1 unique values, can be deduced from column, but still need to serialize indexes
                         var indexColumnPayloadLength = decodingMemory.ReadShort();
                         var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(new LongCompressedPackage(
+                        var indexes = Int64Codec.Decompress(
                             column.ItemCount,
                             false,
-                            (long)(column.HasNulls ? -1 : 0),
-                            (long)(uniqueValuesCount - 1),
-                            indexColumnPayload));
+                            indexColumnPayload);
                         var uniqueValues = new[] { minValue, maxValue };
                         var values = indexes
                             .Select(i => (short)i!)

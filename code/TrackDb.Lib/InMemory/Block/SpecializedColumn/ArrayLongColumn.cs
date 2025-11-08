@@ -82,12 +82,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            return Int64Codec.Decompress(new(
+            return Int64Codec.Decompress(
                 column.ItemCount,
                 column.HasNulls,
-                (long?)column.ColumnMinimum,
-                (long?)column.ColumnMaximum,
-                column.Payload))
+                column.Payload)
                 .Cast<object?>();
         }
     }
