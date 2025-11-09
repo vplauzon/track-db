@@ -170,26 +170,17 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
-        /// <summary>
-        /// A block is serialized with the following items:
-        /// For each column we persist a UInt16 for the column payload size.
-        /// Then for each column, we persist its payload.
-        /// Everything else is metadata outside the block, captured in
-        /// <see cref="SerializedBlock"/>.
-        /// </summary>
-        /// <param name="blockId"></param>
-        /// <returns></returns>
-        public SerializedBlock Serialize(int blockId)
+        public StatsSerializedBlock Serialize()
         {
-            return Serialize(blockId, null);
+            return Serialize(null);
         }
 
         private int GetSerializeSize(int rowCount)
         {
-            return Serialize(0, rowCount).Payload.Length;
+            return Serialize(rowCount).Payload.Length;
         }
 
-        private SerializedBlock Serialize(int blockId, int? rowCount)
+        private StatsSerializedBlock Serialize(int? rowCount)
         {
             if ((rowCount ?? 1) > ((IBlock)this).RecordCount)
             {
@@ -202,7 +193,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .Select(c => c.Serialize(rowCount))
                 .ToImmutableArray();
 
-            return SerializedBlock.Create(blockId, serializedColumns);
+            return StatsSerializedBlock.Create(serializedColumns);
         }
 
 

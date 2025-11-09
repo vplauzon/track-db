@@ -92,8 +92,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 using (var tx = Database.CreateTransaction())
                 {
                     var metadataRecord = GetMetadataRecord(tableName, blockId.Value, tx);
+                    var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
+                        metadataRecord.Record);
+                    var block = Database.GetOrLoadBlock(blockId.Value, table.Schema);
 
-                    LoadBlock(table, metadataRecord, blockId.Value, tx);
+                    tx.TransactionState.UncommittedTransactionLog.AppendBlock(block);
                     DeleteMetadataRecord(metadataRecord, tx);
                     DiscardBlock(blockId.Value);
 
@@ -102,22 +105,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 MergeTableTransactionLogs(tableName);
             }
             else
-            {   //  Missing record:  likely 2 transaction (snapshot) in parallel
+            {   //  Missing record:  likely 2 transactions (snapshot) in parallel
                 DeleteTombstoneRecord(tableName, recordId);
             }
-        }
-
-        private void LoadBlock(
-            Table table,
-            MetadataRecord metadataRecord,
-            int blockId,
-            TransactionContext tx)
-        {
-            var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
-                metadataRecord.Record);
-            var block = Database.GetOrLoadBlock(table.Schema, serializedBlockMetadata);
-
-            tx.TransactionState.UncommittedTransactionLog.AppendBlock(block);
         }
 
         private void DeleteMetadataRecord(MetadataRecord metadataRecord, TransactionContext tx)

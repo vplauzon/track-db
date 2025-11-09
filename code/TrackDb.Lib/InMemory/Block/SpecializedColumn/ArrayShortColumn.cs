@@ -64,7 +64,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<short> storedValues)
+        protected override StatsSerializedColumn Serialize(ReadOnlyMemory<short> storedValues)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
@@ -72,7 +72,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             var column = Int64Codec.Compress(values);
 
             //  Convert min and max to int-16 (from int-64)
-            return new SerializedColumn(
+            return new(
                 column.ItemCount,
                 column.HasNulls,
                 column.ColumnMinimum == null ? null : Convert.ToInt16(column.ColumnMinimum),

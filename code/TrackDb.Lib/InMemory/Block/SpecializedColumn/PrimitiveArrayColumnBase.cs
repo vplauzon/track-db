@@ -85,7 +85,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
-        SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
         {
             if (_itemCount == 0)
             {
@@ -206,7 +206,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder);
 
-        protected abstract SerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
+        protected abstract StatsSerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
 
         protected abstract IEnumerable<object?> Deserialize(SerializedColumn serializedColumn);
 

@@ -18,7 +18,7 @@ namespace TrackDb.Lib
         private readonly TableSchema _parentSchema;
 
         #region Constructor
-        internal static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
+        public static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
         {
             var metaDataColumns = parentSchema.Columns
                 //  For each column we create a min, max & hasNulls column
@@ -71,5 +71,28 @@ namespace TrackDb.Lib
 
         public int BlockIdColumnIndex => Columns.Count - 1;
         #endregion
+
+        public ReadOnlySpan<object?> CreateMetadataRecord(
+            int itemCount,
+            int size,
+            int blockId,
+            IImmutableList<object?> columnMinima,
+            IImmutableList<object?> columnMaxima)
+        {
+            var metaData = columnMinima
+                .Zip(columnMaxima)
+                .Select(o => new object?[]
+                {
+                    o.First,
+                    o.Second
+                })
+                .SelectMany(c => c)
+                .Append(itemCount)
+                .Append(size)
+                .Append(blockId)
+                .ToArray();
+
+            return metaData;
+        }
     }
 }

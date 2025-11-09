@@ -35,6 +35,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var newTableBlock = new BlockBuilder(tableBlock.TableSchema);
                     var metadataTable =
                         Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
+                    var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                     var metadataBlock = new BlockBuilder(metadataTable.Schema);
                     var isFirstBlockToPersist = true;
 
@@ -57,13 +58,18 @@ namespace TrackDb.Lib.DataLifeCycle
                         if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
                         {
                             var blockId = Database.GetFreeBlockId();
-                            var serializedBlock = blockToPersist.Serialize(blockId);
+                            var statsSerializedBlock = blockToPersist.Serialize();
 
-                            StorageManager.WriteBlock(blockId, serializedBlock.Payload.Span);
+                            StorageManager.WriteBlock(blockId, statsSerializedBlock.Payload.Span);
                             newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
-                                serializedBlock.MetaData.CreateMetaDataRecord());
+                                metaSchema.CreateMetadataRecord(
+                                    statsSerializedBlock.ItemCount,
+                                    statsSerializedBlock.Size,
+                                    blockId,
+                                    statsSerializedBlock.ColumnMinima,
+                                    statsSerializedBlock.ColumnMinima));
                             isFirstBlockToPersist = false;
                         }
                         else

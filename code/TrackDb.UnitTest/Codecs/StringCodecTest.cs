@@ -108,6 +108,9 @@ namespace TrackDb.UnitTest.Codecs
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
             var column = StringCodec.Compress(data);
+
+            throw new NotImplementedException();
+            /*
             var decodedArray = StringCodec.Decompress(column)
                 .ToImmutableArray();
 
@@ -115,6 +118,7 @@ namespace TrackDb.UnitTest.Codecs
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());
+            */
         }
     }
 }

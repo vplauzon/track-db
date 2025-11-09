@@ -23,7 +23,7 @@ namespace TrackDb.Lib.InMemory.Block
         protected abstract object? OutToInValue(object? value);
 
         protected abstract object? InToOutValue(object? value);
-        
+
         protected abstract JsonElement InToLogValue(object? value);
 
         protected abstract object? LogValueToIn(JsonElement logValue);
@@ -57,11 +57,11 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
         {
             var innerColumn = _innerColumn.Serialize(rowCount);
 
-            return new SerializedColumn(
+            return new(
                 innerColumn.ItemCount,
                 innerColumn.HasNulls,
                 InToOutValue(innerColumn.ColumnMinimum),
@@ -78,7 +78,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         void IDataColumn.AppendLogValues(IEnumerable<JsonElement> values)
         {
-            foreach(var logValue in values)
+            foreach (var logValue in values)
             {
                 _innerColumn.AppendValue(OutToInValue(LogValueToIn(logValue)));
             }
@@ -99,8 +99,6 @@ namespace TrackDb.Lib.InMemory.Block
             var innerSerializedColumn = new SerializedColumn(
                 serializedColumn.ItemCount,
                 serializedColumn.HasNulls,
-                OutToInValue(serializedColumn.ColumnMinimum),
-                OutToInValue(serializedColumn.ColumnMaximum),
                 serializedColumn.Payload);
 
             _innerColumn.Deserialize(innerSerializedColumn);

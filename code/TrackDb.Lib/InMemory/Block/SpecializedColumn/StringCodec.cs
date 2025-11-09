@@ -25,15 +25,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
     /// </summary>
     internal static class StringCodec
     {
-        #region Inner Types
-        #endregion
-
         #region Compress
         /// <summary>
         /// <paramref name="values"/> is enumerated into multiple times.
-        /// 
         /// The general payload format is the following:
-        /// 
         /// <list type="bullet">
         /// <item>Unique value count (short).</item>
         /// <item>Min character value (short).</item>
@@ -59,7 +54,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         /// <param name="values"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public static SerializedColumn Compress(IEnumerable<string?> values)
+        public static StatsSerializedColumn Compress(IEnumerable<string?> values)
         {
             if (values == null || !values.Any())
             {
@@ -107,7 +102,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
                     encodingMemory.Write(indexColumn.Payload);
 
-                    return new SerializedColumn(
+                    return new(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
@@ -122,7 +117,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
                     encodingMemory.Write(indexColumn.Payload);
 
-                    return new SerializedColumn(
+                    return new(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
@@ -131,7 +126,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 }
                 else
                 {   //  Unique repeated value
-                    return new SerializedColumn(
+                    return new(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
@@ -141,7 +136,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
             else
             {   //  Only nulls
-                return new SerializedColumn(
+                return new(
                     values.Count(),
                     true,
                     null,
@@ -154,6 +149,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         #region Decompress
         public static IEnumerable<string?> Decompress(SerializedColumn column)
         {
+            throw new NotImplementedException();
+            /*
             IEnumerable<string> BreakStrings(IEnumerable<char?> valueSequence)
             {
                 var charList = new List<char>();
@@ -171,6 +168,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     }
                 }
             }
+
 
             if (column.ColumnMinimum == null)
             {   //  All nulls
@@ -238,6 +236,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     }
                 }
             }
+            */
         }
         #endregion
     }

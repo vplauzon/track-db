@@ -16,20 +16,18 @@ namespace TrackDb.Lib.InMemory.Block
         public ReadOnlyBlock(TableSchema schema, SerializedBlock serializedBlock)
             : base(schema)
         {
-            var serializedColumns = serializedBlock.CreateSerializedColumns();
-
             _dataColumns = schema.Columns
                 .Select(c => c.ColumnType)
                 //  Append the Record ID column
                 .Append(typeof(long))
-                .Zip(serializedColumns, (ColumnType, SerializedColumn) => new
+                .Zip(serializedBlock.Columns, (ColumnType, SerializedColumn) => new
                 {
                     ColumnType,
                     SerializedColumn
                 })
                 .Select(o => CreateColumn(o.ColumnType, o.SerializedColumn))
                 .ToImmutableArray();
-            _recordCount = serializedBlock.MetaData.ItemCount;
+            _recordCount = serializedBlock.ItemCount;
         }
 
         private static Lazy<IReadOnlyDataColumn> CreateColumn(

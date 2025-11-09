@@ -398,20 +398,19 @@ namespace TrackDb.Lib
             if (_table.Database.HasMetaDataTable(_table.Schema.TableName))
             {
                 var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
+                var metaSchema = (MetadataTableSchema)metaDataTable.Schema;
                 var metaDataQuery = metaDataTable.Query(tc)
+                    .WithProjection([metaSchema.BlockIdColumnIndex])
                     //  Must be optimize to filter only blocks with relevant data
                     .WithPredicate(AllInPredicate.Instance);
 
                 foreach (var metaDataRow in metaDataQuery)
                 {
-                    var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
-                        metaDataRow);
+                    var blockId = (int)metaDataRow.Span[0]!;
 
                     yield return new IdentifiedBlock(
-                        serializedBlockMetaData.BlockId,
-                        _table.Database.GetOrLoadBlock(
-                            _table.Schema,
-                            serializedBlockMetaData));
+                        blockId,
+                        _table.Database.GetOrLoadBlock(blockId, _table.Schema));
                 }
             }
         }
@@ -427,21 +426,7 @@ namespace TrackDb.Lib
             }
             else
             {
-                var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
-                var metaDataQuery = metaDataTable.Query(tc)
-                    .WithPredicate(
-                    new BinaryOperatorPredicate(
-                        //  Block ID
-                        metaDataTable.Schema.Columns.Count - 1,
-                        blockId,
-                        BinaryOperator.Equal));
-                var metaDataRow = metaDataQuery.First();
-                var serializedBlockMetaData = SerializedBlockMetaData.FromMetaDataRecord(
-                    metaDataRow);
-
-                return _table.Database.GetOrLoadBlock(
-                    _table.Schema,
-                    serializedBlockMetaData);
+                return _table.Database.GetOrLoadBlock(blockId, _table.Schema);
             }
         }
         #endregion

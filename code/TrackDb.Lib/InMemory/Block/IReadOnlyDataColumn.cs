@@ -24,6 +24,6 @@ namespace TrackDb.Lib.InMemory.Block
         /// <summary>Serialize the first <paramref name="rowCount"/> items.</summary>
         /// <param name="rowCount">If <c>null</c>, serialize everything.</param>
         /// <returns></returns>
-        SerializedColumn Serialize(int? rowCount);
+        StatsSerializedColumn Serialize(int? rowCount);
     }
 }

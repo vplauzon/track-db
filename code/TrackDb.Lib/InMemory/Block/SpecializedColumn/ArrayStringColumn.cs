@@ -61,7 +61,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
+        protected override StatsSerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i]);

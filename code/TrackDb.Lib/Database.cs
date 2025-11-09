@@ -605,12 +605,10 @@ namespace TrackDb.Lib
         #endregion
 
         #region Block load
-        internal IBlock GetOrLoadBlock(
-            TableSchema schema,
-            SerializedBlockMetaData serializedBlockMetadata)
+        internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
         {
-            var payload = _dbFileManager.Value.ReadBlock(serializedBlockMetadata.BlockId);
-            var serializedBlock = new SerializedBlock(serializedBlockMetadata, payload);
+            var payload = _dbFileManager.Value.ReadBlock(blockId);
+            var serializedBlock = SerializedBlock.Load(schema, payload);
             var block = new ReadOnlyBlock(schema, serializedBlock);
 
             return block;
