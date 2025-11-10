@@ -1,12 +1,10 @@
 ﻿using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Numerics;
-using System.Text.RegularExpressions;
+using TrackDb.Lib.InMemory.Block;
 
-namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
+namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Compression of a sequence of nullable strings into a byte array.
@@ -91,38 +89,40 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
                         .SelectMany(s => s);
                     var valuesSequenceColumn = Int64Codec.Compress(valuesSequence);
-                    var encodingMemory = new EncodingMemory();
+                    var buffer = new byte[100];
+                    var writer = new ByteWriter(buffer);
 
-                    encodingMemory.Write((short)uniqueValues.Length);
-                    encodingMemory.Write((short)((long)valuesSequenceColumn.ColumnMinimum!));
-                    encodingMemory.Write((short)((long)valuesSequenceColumn.ColumnMaximum!));
-                    encodingMemory.Write((short)(valuesSequenceColumn.Payload.Length * sizeof(byte)));
-                    encodingMemory.Write((short)(valuesSequence.Count()));
-                    encodingMemory.Write(valuesSequenceColumn.Payload);
-                    encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
-                    encodingMemory.Write(indexColumn.Payload);
+                    writer.WriteInt16((short)uniqueValues.Length);
+                    writer.WriteInt16((short)((long)valuesSequenceColumn.ColumnMinimum!));
+                    writer.WriteInt16((short)((long)valuesSequenceColumn.ColumnMaximum!));
+                    writer.WriteInt16((short)(valuesSequenceColumn.Payload.Length * sizeof(byte)));
+                    writer.WriteInt16((short)(valuesSequence.Count()));
+                    writer.CopyFrom(valuesSequenceColumn.Payload.Span);
+                    writer.WriteInt16((short)(indexColumn.Payload.Length * sizeof(byte)));
+                    writer.CopyFrom(indexColumn.Payload.Span);
 
                     return new(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
                         uniqueValues.Last(),
-                        encodingMemory.Compile());
+                        writer.ToArray());
                 }
                 else if (uniqueValues.Length == 2 || hasNulls)
                 {   //  2 unique values, can be deduced from column, but still need to serialize indexes
-                    var encodingMemory = new EncodingMemory();
+                    var buffer = new byte[200];
+                    var bufferWriter = new ByteWriter(buffer);
 
-                    encodingMemory.Write((short)uniqueValues.Length);
-                    encodingMemory.Write((short)(indexColumn.Payload.Length * sizeof(byte)));
-                    encodingMemory.Write(indexColumn.Payload);
+                    bufferWriter.WriteInt16((short)uniqueValues.Length);
+                    bufferWriter.WriteInt16((short)(indexColumn.Payload.Length * sizeof(byte)));
+                    bufferWriter.CopyFrom(indexColumn.Payload.Span);
 
                     return new(
                         indexes.Length,
                         hasNulls,
                         uniqueValues.First(),
                         uniqueValues.Last(),
-                        encodingMemory.Compile());
+                        bufferWriter.ToArray());
                 }
                 else
                 {   //  Unique repeated value

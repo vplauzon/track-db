@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Byte writer:  can write bytes different ways and can also emulate to write
@@ -26,7 +26,20 @@ namespace TrackDb.Lib.Storage
 
         public byte[] ToArray()
         {
-            return _span.ToArray();
+            if(IsOverflow)
+            {
+                throw new OverflowException();
+            }
+
+            return _span.Slice(0, Position).ToArray();
+        }
+
+        #region Copy
+        public void CopyFrom(ReadOnlySpan<byte> source)
+        {
+            var destination = VirtualByteSpanForward(source.Length);
+
+            destination.CopyFrom(source);
         }
 
         public void CopyFrom(VirtualByteSpan source)
@@ -35,6 +48,7 @@ namespace TrackDb.Lib.Storage
 
             source.CopyTo(destination);
         }
+        #endregion
 
         #region Into other objects
         public VirtualByteSpan VirtualByteSpanForward(int length)
@@ -63,6 +77,25 @@ namespace TrackDb.Lib.Storage
         #endregion
 
         #region Write operations
+        public void WriteInt16(short value)
+        {
+            var subSpan = SubSpanForwardInt16();
+
+            WriteInt16ToSubSpan(subSpan, value);
+        }
+
+        private static void WriteInt16ToSubSpan(Span<byte> subSpan, short value)
+        {
+            if (subSpan.Length > 0)
+            {
+                BinaryPrimitives.WriteInt16LittleEndian(subSpan, value);
+            }
+        }
+        private Span<byte> SubSpanForwardInt16()
+        {
+            return SubSpanForward(sizeof(short));
+        }
+
         public void WriteUInt16(ushort value)
         {
             var subSpan = SubSpanForwardUInt16();
@@ -76,6 +109,11 @@ namespace TrackDb.Lib.Storage
             {
                 BinaryPrimitives.WriteUInt16LittleEndian(subSpan, value);
             }
+        }
+
+        private Span<byte> SubSpanForwardUInt16()
+        {
+            return SubSpanForward(sizeof(ushort));
         }
 
         public void WriteInt64(long value)
@@ -93,6 +131,11 @@ namespace TrackDb.Lib.Storage
             }
         }
 
+        private Span<byte> SubSpanForwardInt64()
+        {
+            return SubSpanForward(sizeof(long));
+        }
+
         public void WriteBytes(ReadOnlySpan<byte> span)
         {
             var subSpan = SubSpanForward(span.Length);
@@ -101,18 +144,6 @@ namespace TrackDb.Lib.Storage
             {
                 span.CopyTo(subSpan);
             }
-        }
-        #endregion
-
-        #region Get sub spans
-        private Span<byte> SubSpanForwardUInt16()
-        {
-            return SubSpanForward(sizeof(ushort));
-        }
-
-        private Span<byte> SubSpanForwardInt64()
-        {
-            return SubSpanForward(sizeof(long));
         }
 
         private Span<byte> SubSpanForward(int length)

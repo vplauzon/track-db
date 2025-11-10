@@ -4,11 +4,10 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory.Block.SpecializedColumn;
-using TrackDb.Lib.Storage;
+using TrackDb.Lib.Encoding;
 using Xunit;
 
-namespace TrackDb.UnitTest.Codecs
+namespace TrackDb.UnitTest.Encoding
 {
     public class BitPackerTest
     {

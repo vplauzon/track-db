@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn

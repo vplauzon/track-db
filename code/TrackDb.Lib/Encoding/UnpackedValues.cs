@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     internal ref struct UnpackedValues
     {

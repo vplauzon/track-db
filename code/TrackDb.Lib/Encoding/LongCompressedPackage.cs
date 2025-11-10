@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
+namespace TrackDb.Lib.Encoding
 {
     internal record LongCompressedPackage(
         int ItemCount,

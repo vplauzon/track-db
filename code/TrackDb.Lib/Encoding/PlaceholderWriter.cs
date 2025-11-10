@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     internal ref struct PlaceholderWriter<T>
     {

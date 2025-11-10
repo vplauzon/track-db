@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {

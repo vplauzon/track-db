@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Byte reader:  can read bytes different ways.

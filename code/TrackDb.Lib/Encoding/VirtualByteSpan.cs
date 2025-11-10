@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     internal ref struct VirtualByteSpan
     {
@@ -38,6 +38,7 @@ namespace TrackDb.Lib.Storage
             }
         }
 
+        #region Copy
         public void CopyTo(VirtualByteSpan destination)
         {
             if (Length != destination.Length)
@@ -49,5 +50,18 @@ namespace TrackDb.Lib.Storage
                 _span.CopyTo(destination._span);
             }
         }
+
+        public void CopyFrom(ReadOnlySpan<byte> source)
+        {
+            if (Length != source.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(source));
+            }
+            if (HasData)
+            {
+                source.CopyTo(_span);
+            }
+        }
+        #endregion
     }
 }

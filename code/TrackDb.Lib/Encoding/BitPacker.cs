@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TrackDb.Lib.Storage
+namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Packs / unpacks <see cref="ulong"/> array in bytes by leveraging the real number of bytes

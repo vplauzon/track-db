@@ -1,12 +1,11 @@
 ﻿using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Numerics;
-using TrackDb.Lib.Storage;
+using TrackDb.Lib.Encoding;
 
-namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
+namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Compression of a sequence of nullable 64 bits integers into a byte array.
