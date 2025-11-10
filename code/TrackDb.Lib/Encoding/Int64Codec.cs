@@ -155,8 +155,7 @@ namespace TrackDb.Lib.Encoding
                     if (min != max)
                     {   //  Use delta
                         var maxDeltaValue = ToZeroBase(max, min);
-                        var packedDeltaSpan = bufferReader.SpanForward(
-                            BitPacker.PackSize(itemCount, maxDeltaValue));
+                        var packedDeltaSpan = bufferReader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue));
                         var deltas = BitPacker.Unpack(packedDeltaSpan, nonNull, maxDeltaValue);
                         var i = 0;
 
