@@ -51,10 +51,15 @@ namespace TrackDb.Lib.InMemory.Block
         private static ReadOnlyMemory<byte> CreateBlockPayload(
             IImmutableList<StatsSerializedColumn> serializedColumns)
         {
-            var hasNullsPayload = BitPacker.Pack(
+            var hasNullsPayload = new byte[BitPacker.PackSize(serializedColumns.Count, 1)];
+            var writer = new ByteWriter(hasNullsPayload);
+
+            BitPacker.Pack(
                 serializedColumns.Select(c => Convert.ToUInt64(c.HasNulls)),
                 serializedColumns.Count,
-                1);
+                1,
+                ref writer);
+
             var hasNullsPayloadSize = hasNullsPayload.Length * sizeof(byte);
             var payloadSizes = serializedColumns
                 .Select(c => c.Payload.Length)

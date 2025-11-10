@@ -90,12 +90,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
             if (nonNull != 0 && min != max)
             {
-                var packedDeltas = BitPacker.Pack(
+                BitPacker.Pack(
                     values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
                     nonNull,
-                    ToZeroBase(max, min));
-
-                bufferWriter.WriteBytes(packedDeltas);
+                    ToZeroBase(max, min),
+                    ref bufferWriter);
             }
 
             return new LongCompressedPackage(
@@ -152,30 +151,46 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     var bitmapBytes = (itemCount + 7) / 8;
                     var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
                     var bitmapSpan = bufferReader.SpanForward(bitmapSize);
-                    var packedDeltaSpan = bufferReader.RemainingSpanForward();
-                    var hasDeltas = min != max;
-                    var deltas = hasDeltas
-                        ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
-                        : Array.Empty<ulong>();
                     var values = new long?[itemCount];
-                    var deltaI = 0;
 
-                    //  Read deltas back
-                    for (var i = 0; i < itemCount; i++)
-                    {
-                        var isNotNull = hasNulls
-                            ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
-                            : true;
+                    if (min != max)
+                    {   //  Use delta
+                        var maxDeltaValue = ToZeroBase(max, min);
+                        var packedDeltaSpan = bufferReader.SpanForward(
+                            BitPacker.PackSize(itemCount, maxDeltaValue));
+                        var deltas = BitPacker.Unpack(packedDeltaSpan, nonNull, maxDeltaValue);
+                        var i = 0;
 
-                        if (isNotNull)
+                        //  Read deltas back
+                        foreach (var deltaValue in deltas)
                         {
-                            var delta = hasDeltas ? deltas[deltaI++] : 0UL;
+                            var isNotNull = false;
 
-                            values[i] = FromZeroBase(delta, min);
+                            while (!isNotNull)
+                            {
+                                isNotNull = hasNulls
+                                    ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
+                                    : true;
+
+                                if (isNotNull)
+                                {
+                                    values[i] = FromZeroBase(deltaValue, min);
+                                }
+                                else
+                                {
+                                    values[i] = null;
+                                }
+                                ++i;
+                            }
                         }
-                        else
+                    }
+                    else
+                    {   //  Constant (min=max) deltas
+                        for (var i = 0; i != itemCount; ++i)
                         {
-                            values[i] = null;
+                            values[i] = ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
+                                ? min
+                                : null;
                         }
                     }
 

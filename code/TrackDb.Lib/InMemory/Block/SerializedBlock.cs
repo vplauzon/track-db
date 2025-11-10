@@ -27,11 +27,10 @@ namespace TrackDb.Lib.InMemory.Block
         public static SerializedBlock Load(TableSchema schema, ReadOnlyMemory<byte> payload)
         {
             var columnCount = schema.Columns.Count;
-            var hasNullsPayloadSize = (columnCount + 7) / 8 * sizeof(byte); //  (N+7)/8 = ceil(N/8)
+            var hasNullsPayloadSize = BitPacker.PackSize(columnCount, 1);
             var hasNullsPayload = payload.Slice(0, hasNullsPayloadSize);
             var hasNulls = BitPacker.Unpack(hasNullsPayload.Span, columnCount, 1)
-                .Select(i => Convert.ToBoolean(i))
-                .ToImmutableArray();
+                .ToImmutableArray(i => Convert.ToBoolean(i));
             var payloadSizesSize = sizeof(short) * columnCount;
             var payloadSizesPayload = payload.Slice(hasNullsPayload.Length, payloadSizesSize);
             var columnPayloadSizes = Enumerable.Range(0, columnCount)
