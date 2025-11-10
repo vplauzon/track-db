@@ -126,65 +126,61 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             bool hasNulls,
             ReadOnlyMemory<byte> payload)
         {
-            var payloadSpan = payload.Span;
-            var nonNullSize = sizeof(UInt16);
-            var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
-            var nonNull = BinaryPrimitives.ReadUInt16LittleEndian(nonNullSpan);
+            var bufferReader = new ByteReader(payload.Span);
+            var nonNull = bufferReader.ReadUInt16();
             var extremeNullRegime = !hasNulls || nonNull == 0;
-            var extremaSize = nonNull == 0 ? 0 : 2 * sizeof(long);
-            var extremaSpan = payloadSpan.Slice(nonNullSpan.Length, extremaSize);
-            long? columnMinimum = extremaSpan.Length == 0
-                ? null
-                : BinaryPrimitives.ReadInt64LittleEndian(extremaSpan.Slice(0, sizeof(long)));
-            long? columnMaximum = extremaSpan.Length == 0
-                ? null
-                : BinaryPrimitives.ReadInt64LittleEndian(extremaSpan.Slice(sizeof(long)));
+            long? columnMinimum = nonNull == 0 ? null : bufferReader.ReadInt64();
+            long? columnMaximum = nonNull == 0 ? null : bufferReader.ReadInt64();
 
-            if (!hasNulls && object.Equals(columnMinimum, columnMaximum))
-            {   //  Only one value
-                return Enumerable.Range(0, itemCount)
-                    .Select(i => (long?)columnMinimum);
-            }
-            else if (columnMinimum == null)
+            if (columnMinimum == null)
             {   //  Only nulls
                 return Enumerable.Range(0, itemCount)
                     .Select(i => (long?)null);
             }
             else
             {
-                var bitmapBytes = (itemCount + 7) / 8;
-                var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
-                var bitmapSpan = payloadSpan.Slice(nonNullSize + extremaSize, bitmapSize);
-                var packedDeltaSpan = payloadSpan.Slice(nonNullSize + extremaSize + bitmapSize);
                 var min = (long)columnMinimum!;
                 var max = (long)columnMaximum!;
-                var hasDeltas = min != max;
-                var deltas = hasDeltas
-                    ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
-                    : Array.Empty<ulong>();
-                var values = new long?[itemCount];
-                var deltaI = 0;
 
-                //  Read deltas back
-                for (var i = 0; i < itemCount; i++)
-                {
-                    var isNotNull = hasNulls
-                        ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
-                        : true;
-
-                    if (isNotNull)
-                    {
-                        var delta = hasDeltas ? deltas[deltaI++] : 0UL;
-
-                        values[i] = FromZeroBase(delta, min);
-                    }
-                    else
-                    {
-                        values[i] = null;
-                    }
+                if (!hasNulls && min == max)
+                {   //  Only one value
+                    return Enumerable.Range(0, itemCount)
+                        .Select(i => (long?)columnMinimum);
                 }
+                else
+                {
+                    var bitmapBytes = (itemCount + 7) / 8;
+                    var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
+                    var bitmapSpan = bufferReader.SpanForward(bitmapSize);
+                    var packedDeltaSpan = bufferReader.RemainingSpanForward();
+                    var hasDeltas = min != max;
+                    var deltas = hasDeltas
+                        ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
+                        : Array.Empty<ulong>();
+                    var values = new long?[itemCount];
+                    var deltaI = 0;
 
-                return values;
+                    //  Read deltas back
+                    for (var i = 0; i < itemCount; i++)
+                    {
+                        var isNotNull = hasNulls
+                            ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
+                            : true;
+
+                        if (isNotNull)
+                        {
+                            var delta = hasDeltas ? deltas[deltaI++] : 0UL;
+
+                            values[i] = FromZeroBase(delta, min);
+                        }
+                        else
+                        {
+                            values[i] = null;
+                        }
+                    }
+
+                    return values;
+                }
             }
         }
 
