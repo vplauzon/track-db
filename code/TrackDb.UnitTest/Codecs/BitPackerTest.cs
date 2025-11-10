@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
+using TrackDb.Lib.Storage;
 using Xunit;
 
 namespace TrackDb.UnitTest.Codecs
