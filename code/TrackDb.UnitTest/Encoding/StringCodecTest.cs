@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.UnitTest.Encoding
 {
