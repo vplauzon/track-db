@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Storage
 {
+    /// <summary>
+    /// Packs / unpacks <see cref="ulong"/> array in bytes by leveraging the real number of bytes
+    /// needed given the range (min/max) of integers in the array.
+    /// </summary>
     internal static class BitPacker
     {
         /// <summary>
