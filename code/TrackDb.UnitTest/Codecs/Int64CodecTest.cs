@@ -85,9 +85,9 @@ namespace TrackDb.UnitTest.Codecs
         [Fact]
         public void TwoValueSequences()
         {
+            TestScenario(new long?[] { null, 1 });
             TestScenario(new long?[] { 1, 2 });
             TestScenario(new long?[] { 1, null });
-            TestScenario(new long?[] { null, 1 });
             TestScenario(new long?[] { 1, 1 });
         }
 

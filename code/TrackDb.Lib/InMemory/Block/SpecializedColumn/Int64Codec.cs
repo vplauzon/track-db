@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Numerics;
+using TrackDb.Lib.Storage;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -36,6 +37,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             {
                 throw new ArgumentNullException(nameof(values));
             }
+            var bufferWriter = new ByteWriter(new byte[4096]);
+            var draftWriter = new ByteWriter(new byte[4096]);
             var itemCount = values.Count();
 
             if (itemCount > UInt16.MaxValue)
@@ -47,7 +50,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
             // Build validity bitmap (1 = valid, 0 = null)
             var bitmapBytes = (itemCount + 7) / 8;
-            var bitmap = new byte[bitmapBytes];
+            //  We need to write the bitmap on a draft as we don
+            var bitmap = draftWriter.VirtualByteSpanForward(bitmapBytes);
             var nonNull = 0;
             var min = long.MaxValue;
             var max = long.MinValue;
@@ -73,39 +77,25 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
 
             var extremeNullRegime = nonNull == itemCount || nonNull == 0;
-            var nonNullSize = sizeof(UInt16);
-            var extremaSize = nonNull == 0 ? 0 : 2 * sizeof(long);
-            var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
-            var packedDeltas = nonNull == 0 || min == max ? Array.Empty<byte>() : BitPacker.Pack(
-                values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
-                nonNull,
-                ToZeroBase(max, min));
-            var payloadSize = nonNullSize + extremaSize + bitmapSize + packedDeltas.Length * sizeof(byte);
-            var payload = new byte[payloadSize];
-            var payloadSpan = payload.AsSpan();
-            var nonNullSpan = payloadSpan.Slice(0, nonNullSize);
-            var extremaSpan = payloadSpan.Slice(nonNullSize, extremaSize);
-            var bitmapSpan = payloadSpan.Slice(nonNullSize + extremaSize, bitmapSize);
-            var packedDeltaSpan = payloadSpan.Slice(nonNullSize + extremaSize + bitmapSize);
 
-            BinaryPrimitives.WriteUInt16LittleEndian(nonNullSpan, (UInt16)nonNull);
-            if (extremaSpan.Length != 0)
+            bufferWriter.WriteUInt16((ushort)nonNull);
+            if (nonNull != 0)
             {
-                var minSpan = extremaSpan.Slice(0, sizeof(long));
-                var maxSpan = extremaSpan.Slice(sizeof(long));
+                bufferWriter.WriteInt64(min);
+                bufferWriter.WriteInt64(max);
+            }
+            if (!extremeNullRegime)
+            {
+                bufferWriter.CopyFrom(bitmap);
+            }
+            if (nonNull != 0 && min != max)
+            {
+                var packedDeltas = BitPacker.Pack(
+                    values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
+                    nonNull,
+                    ToZeroBase(max, min));
 
-                BinaryPrimitives.WriteInt64LittleEndian(minSpan, min);
-                BinaryPrimitives.WriteInt64LittleEndian(maxSpan, max);
-            }
-            //  bitmap
-            if (bitmapSpan.Length != 0)
-            {
-                bitmap.AsSpan().CopyTo(bitmapSpan);
-            }
-            // deltas (value - min) for non-nulls
-            if (packedDeltaSpan.Length != 0)
-            {
-                packedDeltas.CopyTo(packedDeltaSpan);
+                bufferWriter.WriteBytes(packedDeltas);
             }
 
             return new LongCompressedPackage(
@@ -113,7 +103,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 nonNull < itemCount,
                 nonNull == 0 ? null : min,
                 nonNull == 0 ? null : max,
-                payload);
+                bufferWriter.ToArray());
         }
 
         private static ulong ToZeroBase(long value, long min)
@@ -162,13 +152,13 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
             else
             {
-                var hasDeltas = !object.Equals(columnMinimum, columnMaximum);
                 var bitmapBytes = (itemCount + 7) / 8;
                 var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
                 var bitmapSpan = payloadSpan.Slice(nonNullSize + extremaSize, bitmapSize);
                 var packedDeltaSpan = payloadSpan.Slice(nonNullSize + extremaSize + bitmapSize);
                 var min = (long)columnMinimum!;
                 var max = (long)columnMaximum!;
+                var hasDeltas = min != max;
                 var deltas = hasDeltas
                     ? BitPacker.Unpack(packedDeltaSpan, nonNull, ToZeroBase(max, min))
                     : Array.Empty<ulong>();
@@ -178,11 +168,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 //  Read deltas back
                 for (var i = 0; i < itemCount; i++)
                 {
-                    var valid = hasNulls
+                    var isNotNull = hasNulls
                         ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
                         : true;
 
-                    if (valid)
+                    if (isNotNull)
                     {
                         var delta = hasDeltas ? deltas[deltaI++] : 0UL;
 
