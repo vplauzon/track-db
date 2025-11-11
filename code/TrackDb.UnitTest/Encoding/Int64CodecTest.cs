@@ -160,7 +160,7 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<long?> data)
         {
-            var buffer = new byte[4000];
+            var buffer = new byte[50000];
             var writer = new ByteWriter(buffer, true);
             var draftWriter = new ByteWriter(new byte[4000], true);
             var package = Int64Codec.Compress(data, ref writer, draftWriter);
