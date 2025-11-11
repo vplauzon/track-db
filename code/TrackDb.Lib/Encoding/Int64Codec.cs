@@ -24,7 +24,8 @@ namespace TrackDb.Lib.Encoding
     {
         #region Compress
         /// <summary>
-        /// <paramref name="values"/> is enumerated into three times.
+        /// <paramref name="values"/> is enumerated into multiple times:  better not
+        /// involve heavy compute.
         /// Since everything is transient, we do away with sanity checks
         /// such as magic number + version.
         /// </summary>
@@ -51,21 +52,16 @@ namespace TrackDb.Lib.Encoding
                     $"Sequence is too large:  '{itemCount}'");
             }
 
-            // Build validity bitmap (1 = valid, 0 = null)
-            var bitmapBytes = (itemCount + 7) / 8;
-            //  We need to write the bitmap on a draft as we don
-            var bitmap = draftWriter.VirtualByteSpanForward(bitmapBytes);
             var nonNull = 0;
             var min = long.MaxValue;
             var max = long.MinValue;
             var i = 0;
 
-            //  Populate bitmap + compute extrema
+            //  Compute extrema & nonNull
             foreach (var v in values)
             {
                 if (v != null)
                 {
-                    bitmap[i >> 3] |= (byte)(1 << (i & 7));
                     ++nonNull;
                     if (v < min)
                     {
@@ -89,7 +85,21 @@ namespace TrackDb.Lib.Encoding
             }
             if (!extremeNullRegime)
             {
-                writer.CopyFrom(bitmap);
+                // Build validity bitmap (1 = valid, 0 = null)
+                var bitmapBytes = (itemCount + 7) / 8;
+                //  We need to write the bitmap on a draft as we don't know if we'll use it
+                var bitmap = writer.VirtualByteSpanForward(bitmapBytes);
+                var j = 0;
+
+                //  Populate bitmap
+                foreach (var v in values)
+                {
+                    if (v != null)
+                    {
+                        bitmap[j >> 3] |= (byte)(1 << (j & 7));
+                    }
+                    ++j;
+                }
             }
             if (nonNull != 0 && min != max)
             {
