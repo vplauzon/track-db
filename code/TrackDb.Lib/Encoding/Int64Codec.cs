@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using TrackDb.Lib.Encoding;
@@ -132,6 +133,11 @@ namespace TrackDb.Lib.Encoding
             long? columnMinimum = nonNull == 0 ? null : bufferReader.ReadInt64();
             long? columnMaximum = nonNull == 0 ? null : bufferReader.ReadInt64();
 
+            if (nonNull > itemCount)
+            {
+                throw new InvalidDataException(
+                    $"Non-null ({nonNull}) should be <= to item count ({itemCount})");
+            }
             if (columnMinimum == null)
             {   //  Only nulls
                 return Enumerable.Range(0, itemCount)

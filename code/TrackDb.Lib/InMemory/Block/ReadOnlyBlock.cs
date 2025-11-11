@@ -27,14 +27,15 @@ namespace TrackDb.Lib.InMemory.Block
         {
             var reader = new ByteReader(payload.Span);
             var itemCount = reader.ReadUInt16();
-            var columnCount = schema.Columns.Count;
+            var columnCount = schema.Columns.Count + 1; //  Include record-ID
+            var columnSizeArray = reader.VirtualReadonlyArrayUInt16(columnCount);
             var columnPayloads = new ReadOnlyMemory<byte>[columnCount];
             var dataColumns = new Lazy<IReadOnlyDataColumn>[columnCount];
             var columnPayloadPosition = reader.Position;
 
             for (var i = 0; i != columnCount; ++i)
             {
-                var payloadSize = reader.ReadUInt16();
+                var payloadSize = columnSizeArray.GetValue(i);
 
                 columnPayloads[i] = payload.Slice(columnPayloadPosition, payloadSize);
                 columnPayloadPosition += payloadSize;
@@ -50,11 +51,17 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 var columnPayload = columnPayloads[i];
 
-                dataColumns[i] = CreateColumn(
-                    schema.Columns[i].ColumnType,
-                    itemCount,
-                    hasNulls[i],
-                    columnPayload);
+                dataColumns[i] = i < columnCount - 1
+                    ? CreateColumn(
+                        schema.Columns[i].ColumnType,
+                        itemCount,
+                        hasNulls[i],
+                        columnPayload)
+                    : CreateColumn( //  Record ID
+                        typeof(long),
+                        itemCount,
+                        false,
+                        columnPayload);
             }
 
             return new ReadOnlyBlock(schema, itemCount, dataColumns);

@@ -62,6 +62,32 @@ namespace TrackDb.Lib.Encoding
         }
         #endregion
 
+        #region Virtual Arrays
+        public VirtualReadonlyArray<ushort> VirtualReadonlyArrayUInt16(int length)
+        {
+            var subSpan = SubSpanForward(length * sizeof(ushort));
+            var virtualArray = new VirtualReadonlyArray<ushort>(
+                subSpan,
+                length,
+                (span, i) =>
+                {
+                    if (span.Length > 0)
+                    {
+                        var subSpan = span.Slice(sizeof(ushort) * i, sizeof(ushort));
+                        
+                        return BinaryPrimitives.ReadUInt16LittleEndian(subSpan);
+                    }
+                    else
+                    {
+                        return 0;
+                    }
+                });
+
+            return virtualArray;
+        }
+        #endregion
+
+
         #region Get sub spans
         private ReadOnlySpan<byte> SubSpanForwardUInt16()
         {
