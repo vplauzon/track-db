@@ -198,6 +198,7 @@ namespace TrackDb.Lib.InMemory.Block
                     nameof(rowCount),
                     $"{rowCount} > {((IBlock)this).RecordCount}");
             }
+            rowCount = rowCount ?? ((IBlock)this).RecordCount;
             //  Item count
             writer.WriteUInt16((ushort)rowCount!.Value);
 
@@ -205,8 +206,6 @@ namespace TrackDb.Lib.InMemory.Block
             var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
             var columnStatsBuilder = ImmutableArray<ColumnStats>.Empty.ToBuilder();
             var i = 0;
-
-            rowCount = rowCount ?? ((IBlock)this).RecordCount;
 
             //  Body:  columns
             foreach (var dataColumn in _dataColumns)
