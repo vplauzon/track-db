@@ -88,8 +88,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         ColumnStats IReadOnlyDataColumn.Serialize(
             int? rowCount,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+            ref ByteWriter writer)
         {
             if (_itemCount == 0)
             {
@@ -105,8 +104,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
             return Serialize(
                 new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount),
-                ref writer,
-                draftWriter);
+                ref writer);
         }
         #endregion
 
@@ -215,8 +213,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected abstract ColumnStats Serialize(
             ReadOnlyMemory<T> storedValues,
-            ref ByteWriter writer,
-            ByteWriter draftWriter);
+            ref ByteWriter writer);
 
         protected abstract IEnumerable<object?> Deserialize(
             int itemCount,

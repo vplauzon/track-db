@@ -25,11 +25,7 @@ namespace TrackDb.Lib.InMemory.Block
         /// <summary>Serialize the first <paramref name="rowCount"/> items.</summary>
         /// <param name="rowCount">If <c>null</c>, serialize everything.</param>
         /// <param name="writer"></param>
-        /// <param name="draftWriter"></param>
         /// <returns></returns>
-        ColumnStats Serialize(
-            int? rowCount,
-            ref ByteWriter writer,
-            ByteWriter draftWriter);
+        ColumnStats Serialize(int? rowCount, ref ByteWriter writer);
     }
 }

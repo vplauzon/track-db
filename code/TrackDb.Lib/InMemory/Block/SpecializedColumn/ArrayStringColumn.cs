@@ -64,12 +64,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override ColumnStats Serialize(
             ReadOnlyMemory<string?> storedValues,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i]);
-            var package = StringCodec.Compress(values, ref writer, draftWriter);
+            var package = StringCodec.Compress(values, ref writer);
 
             return new(
                 package.ItemCount,

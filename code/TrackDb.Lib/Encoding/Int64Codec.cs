@@ -31,13 +31,9 @@ namespace TrackDb.Lib.Encoding
         /// </summary>
         /// <param name="values"></param>
         /// <param name="writer"></param>
-        /// <param name="draftWriter"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public static CompressedPackage<long?> Compress(
-            IEnumerable<long?> values,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+        public static CompressedPackage<long?> Compress(IEnumerable<long?> values, ref ByteWriter writer)
         {
             if (values == null || !values.Any())
             {

@@ -63,8 +63,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
         private int GetSerializedSize(BlockBuilder prefix)
         {
-            var draftWriter = new ByteWriter(new Span<byte>(), true);
-            var blockStats = prefix.Serialize(Array.Empty<byte>(), draftWriter);
+            var blockStats = prefix.Serialize(Array.Empty<byte>());
 
             return blockStats.SerializedSize;
         }

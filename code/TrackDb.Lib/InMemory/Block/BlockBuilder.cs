@@ -171,23 +171,20 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
-        public BlockStats Serialize(Memory<byte> buffer, ByteWriter draftWriter)
+        public BlockStats Serialize(Memory<byte> buffer)
         {
-            return Serialize(null, buffer, draftWriter);
+            return Serialize(null, buffer);
         }
 
         private int GetSerializeSize(int rowCount)
         {
             var draftWriter = new ByteWriter(new Span<Byte>(), false);
-            var blockStats = Serialize(rowCount, null, draftWriter);
+            var blockStats = Serialize(rowCount, null);
 
             return blockStats.SerializedSize;
         }
 
-        private BlockStats Serialize(
-            int? rowCount,
-            Memory<byte>? buffer,
-            ByteWriter draftWriter)
+        private BlockStats Serialize(int? rowCount, Memory<byte>? buffer)
         {
             var writer =
                 new ByteWriter(buffer != null ? buffer.Value.Span : new Span<byte>(), false);
@@ -212,7 +209,7 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 var sizeBefore = writer.Position;
 
-                columnStatsBuilder.Add(dataColumn.Serialize(rowCount, ref writer, draftWriter));
+                columnStatsBuilder.Add(dataColumn.Serialize(rowCount, ref writer));
                 columnsPayloadSizePlaceholder.SetValue(
                     i,
                     (ushort)(writer.Position - sizeBefore));

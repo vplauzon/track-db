@@ -51,13 +51,11 @@ namespace TrackDb.Lib.Encoding
         /// </summary>
         /// <param name="values"></param>
         /// <param name="writer"></param>
-        /// <param name="draftWriter"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         public static CompressedPackage<string?> Compress(
             IEnumerable<string?> values,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+            ref ByteWriter writer)
         {
             if (values == null || !values.Any())
             {
@@ -97,7 +95,7 @@ namespace TrackDb.Lib.Encoding
                 var valueSequenceSizePlaceholder = writer.PlaceholderUInt16();
                 var positionBeforeValueSequence = writer.Position;
 
-                Int64Codec.Compress(valuesSequence, ref writer, draftWriter);
+                Int64Codec.Compress(valuesSequence, ref writer);
                 valueSequenceSizePlaceholder.SetValue(
                     (ushort)(writer.Position - positionBeforeValueSequence));
 

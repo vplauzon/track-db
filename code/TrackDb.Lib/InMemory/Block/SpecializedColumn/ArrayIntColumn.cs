@@ -67,13 +67,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override ColumnStats Serialize(
             ReadOnlyMemory<int> storedValues,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v);
-            var package = Int64Codec.Compress(values, ref writer, draftWriter);
+            var package = Int64Codec.Compress(values, ref writer);
 
             //  Convert min and max to int-32 (from int-64)
             return new(

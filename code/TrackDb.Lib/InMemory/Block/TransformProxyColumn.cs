@@ -60,10 +60,9 @@ namespace TrackDb.Lib.InMemory.Block
 
         ColumnStats IReadOnlyDataColumn.Serialize(
             int? rowCount,
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+            ref ByteWriter writer)
         {
-            var package = _innerColumn.Serialize(rowCount, ref writer, draftWriter);
+            var package = _innerColumn.Serialize(rowCount, ref writer);
 
             return new(
                 package.ItemCount,

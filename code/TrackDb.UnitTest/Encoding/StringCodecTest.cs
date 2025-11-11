@@ -80,16 +80,14 @@ namespace TrackDb.UnitTest.Encoding
             Assert.Throws<ArgumentNullException>(() =>
             {
                 var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                StringCodec.Compress(null!, ref writer, draftWriter);
+                StringCodec.Compress(null!, ref writer);
             });
             Assert.Throws<ArgumentNullException>(() =>
             {
                 var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                StringCodec.Compress(Array.Empty<string?>(), ref writer, draftWriter);
+                StringCodec.Compress(Array.Empty<string?>(), ref writer);
             });
         }
 
@@ -103,9 +101,8 @@ namespace TrackDb.UnitTest.Encoding
             Assert.Throws<ArgumentOutOfRangeException>(() =>
             {
                 var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                StringCodec.Compress(data, ref writer, draftWriter);
+                StringCodec.Compress(data, ref writer);
             });
         }
 
@@ -129,8 +126,7 @@ namespace TrackDb.UnitTest.Encoding
         {
             var buffer = new byte[7000];
             var writer = new ByteWriter(buffer, true);
-            var draftWriter = new ByteWriter(new byte[1000], true);
-            var package = StringCodec.Compress(data, ref writer, draftWriter);
+            var package = StringCodec.Compress(data, ref writer);
             var decodedArray = StringCodec.Decompress(
                 data.Count(),
                 buffer.AsSpan(0, writer.Position))

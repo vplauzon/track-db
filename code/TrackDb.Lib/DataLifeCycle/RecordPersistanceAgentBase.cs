@@ -60,8 +60,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         {
                             var blockId = Database.GetFreeBlockId();
                             var buffer = new byte[StorageManager.BlockSize];
-                            var draftWriter = new ByteWriter(new byte[StorageManager.BlockSize], true);
-                            var blockStats = blockToPersist.Serialize(buffer, draftWriter);
+                            var blockStats = blockToPersist.Serialize(buffer);
 
                             if (blockStats.SerializedSize > buffer.Length)
                             {

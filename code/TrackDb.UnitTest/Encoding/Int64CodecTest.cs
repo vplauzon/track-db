@@ -66,16 +66,15 @@ namespace TrackDb.UnitTest.Encoding
             Assert.Throws<ArgumentNullException>(() =>
             {
                 var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                Int64Codec.Compress(null!, ref writer, draftWriter);
+                Int64Codec.Compress(null!, ref writer);
             });
             Assert.Throws<ArgumentNullException>(() =>
             {
                 var writer = new ByteWriter(new Span<byte>(), false);
                 var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                Int64Codec.Compress(Array.Empty<long?>(), ref writer, draftWriter);
+                Int64Codec.Compress(Array.Empty<long?>(), ref writer);
             });
         }
 
@@ -91,7 +90,7 @@ namespace TrackDb.UnitTest.Encoding
                 var writer = new ByteWriter(new Span<byte>(), false);
                 var draftWriter = new ByteWriter(new Span<byte>(), false);
 
-                Int64Codec.Compress(data, ref writer, draftWriter);
+                Int64Codec.Compress(data, ref writer);
             });
 
         }
@@ -162,8 +161,7 @@ namespace TrackDb.UnitTest.Encoding
         {
             var buffer = new byte[50000];
             var writer = new ByteWriter(buffer, true);
-            var draftWriter = new ByteWriter(new byte[4000], true);
-            var package = Int64Codec.Compress(data, ref writer, draftWriter);
+            var package = Int64Codec.Compress(data, ref writer);
             var decodedArray = Int64Codec.Decompress(
                 package.ItemCount,
                 package.HasNulls,
