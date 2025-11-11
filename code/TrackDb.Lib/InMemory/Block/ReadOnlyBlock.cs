@@ -42,7 +42,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var hasNulls = BitPacker.Unpack(
-                payload.Span.Slice(columnPayloadPosition, BitPacker.PackSize(itemCount, 1)),
+                payload.Span.Slice(columnPayloadPosition, BitPacker.PackSize(columnCount, 1)),
                 columnCount,
                 1)
                 .ToImmutableArray(i => Convert.ToBoolean(i));
