@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data.Common;
 using System.Linq;
-using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.Encoding
 {
@@ -50,15 +50,21 @@ namespace TrackDb.Lib.Encoding
         /// If there is 1 unique value and no null, no payload is required.
         /// </summary>
         /// <param name="values"></param>
+        /// <param name="writer"></param>
+        /// <param name="draftWriter"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public static StatsSerializedColumn Compress(IEnumerable<string?> values)
+        public static CompressedPackage<string?> Compress(
+            IEnumerable<string?> values,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
             if (values == null || !values.Any())
             {
                 throw new ArgumentNullException(nameof(values));
             }
 
+            var itemCount = values.Count();
             var uniqueValues = values
                 .Where(v => v != null)
                 .Select(v => v!)
@@ -66,7 +72,7 @@ namespace TrackDb.Lib.Encoding
                 .OrderBy(v => v)
                 .ToImmutableArray();
 
-            if (uniqueValues.Length > short.MaxValue)
+            if (itemCount > short.MaxValue)
             {
                 throw new ArgumentOutOfRangeException(nameof(values), "Too many values");
             }
@@ -76,81 +82,61 @@ namespace TrackDb.Lib.Encoding
                     .Index()
                     .ToImmutableDictionary(p => p.Item, p => (short)p.Index);
                 var indexes = values
-                    .Select(v => v == null ? -1 : (long?)revertDictionary[v])
+                    .Select(v => v == null ? -1 : revertDictionary[v])
                     .ToImmutableArray();
-                var indexColumn = Int64Codec.Compress(indexes);
                 var hasNulls = indexes.Any(v => v == -1);
+                //  Transform the unique values into a sequence
+                //  We punctuate the string by a null value
+                var valuesSequence = uniqueValues
+                    .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
+                    .SelectMany(s => s);
 
-                if (uniqueValues.Length > 2)
-                {   //  General case:  we publish the unique values
-                    //  Transform the unique values (excluding first & last) into a sequence
-                    //  We punctuate the string by a null value
-                    var valuesSequence = uniqueValues.Skip(1).SkipLast(1)
-                        .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
-                        .SelectMany(s => s);
-                    var valuesSequenceColumn = Int64Codec.Compress(valuesSequence);
-                    var buffer = new byte[100];
-                    var writer = new ByteWriter(buffer);
+                //  Value sequence
+                writer.WriteUInt16((ushort)(valuesSequence.Count()));
 
-                    writer.WriteInt16((short)uniqueValues.Length);
-                    writer.WriteInt16((short)((long)valuesSequenceColumn.ColumnMinimum!));
-                    writer.WriteInt16((short)((long)valuesSequenceColumn.ColumnMaximum!));
-                    writer.WriteInt16((short)(valuesSequenceColumn.Payload.Length * sizeof(byte)));
-                    writer.WriteInt16((short)(valuesSequence.Count()));
-                    writer.CopyFrom(valuesSequenceColumn.Payload.Span);
-                    writer.WriteInt16((short)(indexColumn.Payload.Length * sizeof(byte)));
-                    writer.CopyFrom(indexColumn.Payload.Span);
+                var valueSequenceSizePlaceholder = writer.PlaceholderUInt16();
+                var positionBeforeValueSequence = draftWriter.Position;
 
-                    return new(
-                        indexes.Length,
-                        hasNulls,
-                        uniqueValues.First(),
-                        uniqueValues.Last(),
-                        writer.ToArray());
-                }
-                else if (uniqueValues.Length == 2 || hasNulls)
-                {   //  2 unique values, can be deduced from column, but still need to serialize indexes
-                    var buffer = new byte[200];
-                    var bufferWriter = new ByteWriter(buffer);
+                Int64Codec.Compress(valuesSequence, ref writer, draftWriter);
+                valueSequenceSizePlaceholder.SetValue(
+                    (ushort)(draftWriter.Position - positionBeforeValueSequence));
 
-                    bufferWriter.WriteInt16((short)uniqueValues.Length);
-                    bufferWriter.WriteInt16((short)(indexColumn.Payload.Length * sizeof(byte)));
-                    bufferWriter.CopyFrom(indexColumn.Payload.Span);
+                //  Indexes
+                var indexesSizePlaceholder = writer.PlaceholderUInt16();
+                var positionBeforeIndexes = draftWriter.Position;
 
-                    return new(
-                        indexes.Length,
-                        hasNulls,
-                        uniqueValues.First(),
-                        uniqueValues.Last(),
-                        bufferWriter.ToArray());
-                }
-                else
-                {   //  Unique repeated value
-                    return new(
-                        indexes.Length,
-                        hasNulls,
-                        uniqueValues.First(),
-                        uniqueValues.Last(),
-                        Array.Empty<byte>());
-                }
+                BitPacker.Pack(
+                    indexes.Select(i => (ulong)(hasNulls ? i + 1 : i)),
+                    itemCount,
+                    (ulong)(hasNulls ? uniqueValues.Length : uniqueValues.Length - 1),
+                    ref writer);
+                indexesSizePlaceholder.SetValue(
+                    (ushort)(draftWriter.Position - positionBeforeIndexes));
+
+                return new(
+                    itemCount,
+                    hasNulls,
+                    uniqueValues.First(),
+                    uniqueValues.Last());
             }
             else
             {   //  Only nulls
+                writer.WriteUInt16((ushort)0);
+
                 return new(
-                    values.Count(),
+                    itemCount,
                     true,
                     null,
-                    null,
-                    Array.Empty<byte>());
+                    null);
             }
         }
         #endregion
 
         #region Decompress
-        public static IEnumerable<string?> Decompress(SerializedColumn column)
+        public static IEnumerable<string?> Decompress(
+            int itemCount,
+            ReadOnlySpan<byte> payload)
         {
-            throw new NotImplementedException();
-            /*
             IEnumerable<string> BreakStrings(IEnumerable<char?> valueSequence)
             {
                 var charList = new List<char>();
@@ -169,74 +155,45 @@ namespace TrackDb.Lib.Encoding
                 }
             }
 
+            var payloadReader = new ByteReader(payload);
+            var valuesSequenceCount = payloadReader.ReadUInt16();
 
-            if (column.ColumnMinimum == null)
-            {   //  All nulls
-                return Enumerable.Range(0, column.ItemCount).Select(i => (string?)null);
+            if (valuesSequenceCount > 0)
+            {
+                //  Value Sequence
+                var valuesSequenceSize = payloadReader.ReadUInt16();
+                var valuesSequence = Int64Codec.Decompress(
+                    valuesSequenceCount,
+                    true,
+                    payloadReader.SpanForward(valuesSequenceSize))
+                    .Select(l => (char?)l);
+                //  Unique values
+                var uniqueValues = BreakStrings(valuesSequence)
+                    .ToImmutableArray();
+                var hasNulls = uniqueValues.Length != itemCount;
+                //  Indexes
+                var indexSize = payloadReader.ReadUInt16();
+                var unpackedIndexes = BitPacker.Unpack(
+                    payloadReader.SpanForward(indexSize),
+                    itemCount,
+                    (ulong)(hasNulls ? uniqueValues.Length : uniqueValues.Length - 1));
+                var values = ImmutableArray<string?>.Empty.ToBuilder();
+
+                foreach (var unpackedIndex in unpackedIndexes)
+                {
+                    var index = hasNulls ? (int)unpackedIndex - 1 : (int)unpackedIndex;
+                    var value = index >= 0 ? uniqueValues[index] : null;
+
+                    values.Add(value);
+                }
+
+                return values.ToImmutable();
             }
             else
             {
-                var minValue = (string)column.ColumnMinimum!;
-                var maxValue = (string)column.ColumnMaximum!;
-
-                if (minValue == null && maxValue == null)
-                {   //  Only nulls
-                    return Enumerable.Range(0, column.ItemCount).Select(i => (string?)null);
-                }
-                else if (minValue == maxValue && !column.HasNulls)
-                {   //  Unique value
-                    return Enumerable.Range(0, column.ItemCount).Select(i => minValue);
-                }
-                else
-                {
-                    var decodingMemory = new DecodingMemory(column.Payload);
-                    var uniqueValuesCount = decodingMemory.ReadShort();
-
-                    if (uniqueValuesCount > 2)
-                    {   //  General case
-                        var valuesSequenceMinimum = decodingMemory.ReadShort();
-                        var valuesSequenceMaximum = decodingMemory.ReadShort();
-                        var valuesSequencePayloadLength = decodingMemory.ReadShort();
-                        var valuesSequenceLength = decodingMemory.ReadShort();
-                        var valuesSequencePayload = decodingMemory.ReadArray(valuesSequencePayloadLength);
-                        var valuesSequence = Int64Codec.Decompress(
-                            valuesSequenceLength,
-                            true,
-                            valuesSequencePayload);
-                        var uniqueValues = BreakStrings(valuesSequence.Select(c => (char?)((short?)c)))
-                            .Prepend(minValue)
-                            .Append(maxValue)
-                            .ToImmutableArray();
-                        var indexColumnPayloadLength = decodingMemory.ReadShort();
-                        var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(
-                            column.ItemCount,
-                            false,
-                            indexColumnPayload);
-                        var values = indexes
-                            .Select(i => (short)i!)
-                            .Select(i => i == -1 ? null : uniqueValues[i]);
-
-                        return values;
-                    }
-                    else
-                    {   //  2 or 1 unique values, can be deduced from column, but still need to serialize indexes
-                        var indexColumnPayloadLength = decodingMemory.ReadShort();
-                        var indexColumnPayload = decodingMemory.ReadArray(indexColumnPayloadLength);
-                        var indexes = Int64Codec.Decompress(
-                            column.ItemCount,
-                            false,
-                            indexColumnPayload);
-                        var uniqueValues = new[] { minValue, maxValue };
-                        var values = indexes
-                            .Select(i => (short)i!)
-                            .Select(i => i == -1 ? null : uniqueValues[i]);
-
-                        return values;
-                    }
-                }
+                return Enumerable.Range(0, itemCount)
+                    .Select(i => (string?)null);
             }
-            */
         }
         #endregion
     }

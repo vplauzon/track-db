@@ -14,10 +14,19 @@ namespace TrackDb.Lib.Encoding
     internal ref struct ByteWriter
     {
         private readonly Span<byte> _span;
+        private readonly bool _isStrict;
 
-        public ByteWriter(Span<byte> buffer)
+        /// <summary>
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="isStrict">
+        /// Is strict about managing the size of the buffer.  <c>true</c> means it throws error when
+        /// overflow.
+        /// </param>
+        public ByteWriter(Span<byte> buffer, bool isStrict)
         {
             _span = buffer;
+            _isStrict = isStrict;
         }
 
         public int Position { get; private set; } = 0;
@@ -26,7 +35,7 @@ namespace TrackDb.Lib.Encoding
 
         public byte[] ToArray()
         {
-            if(IsOverflow)
+            if (IsOverflow)
             {
                 throw new OverflowException();
             }
@@ -53,17 +62,29 @@ namespace TrackDb.Lib.Encoding
         #region Into other objects
         public VirtualByteSpan VirtualByteSpanForward(int length)
         {
-            var byteSpan = Position + length <= _span.Length
-                ? new VirtualByteSpan(_span.Slice(Position, length), length)
-                : new VirtualByteSpan();
+            var subSpan = SubSpanForward(length);
 
-            Position += length;
-
-            return byteSpan;
+            return new(subSpan, length);
         }
         #endregion
 
         #region Placeholders
+        #region Array
+        public PlaceholderArrayWriter<ushort> PlaceholderArrayUInt16(int length)
+        {
+            var subSpan = SubSpanForward(length * sizeof(ushort));
+            var placeholder = new PlaceholderArrayWriter<ushort>(
+                subSpan,
+                length,
+                (span, i, value) => WriteUInt16ToSubSpan(
+                    span.Slice(sizeof(ushort) * i, sizeof(ushort)),
+                    value));
+
+            return placeholder;
+        }
+        #endregion
+
+        #region Simple Values
         public PlaceholderWriter<ushort> PlaceholderUInt16()
         {
             var subSpan = SubSpanForwardUInt16();
@@ -73,7 +94,7 @@ namespace TrackDb.Lib.Encoding
 
             return placeholder;
         }
-
+        #endregion
         #endregion
 
         #region Write operations
@@ -148,13 +169,24 @@ namespace TrackDb.Lib.Encoding
 
         private Span<byte> SubSpanForward(int length)
         {
-            var span = Position + length <= _span.Length
-                ? _span.Slice(Position, length)
-                : new Span<byte>();
+            if (Position + length <= _span.Length)
+            {
+                var span = _span.Slice(Position, length);
 
-            Position += length;
+                Position += length;
 
-            return span;
+                return span;
+            }
+            else if (!_isStrict)
+            {
+                Position += length;
+
+                return new Span<byte>();
+            }
+            else
+            {
+                throw new OverflowException();
+            }
         }
         #endregion
     }

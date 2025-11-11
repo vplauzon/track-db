@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
@@ -85,7 +86,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
-        StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+            int? rowCount,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
             if (_itemCount == 0)
             {
@@ -99,7 +103,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     $"{rowCount} > {_itemCount}");
             }
 
-            return Serialize(new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount));
+            return Serialize(
+                new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount),
+                ref writer,
+                draftWriter);
         }
         #endregion
 
@@ -206,7 +213,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder);
 
-        protected abstract StatsSerializedColumn Serialize(ReadOnlyMemory<T> storedValues);
+        protected abstract StatsSerializedColumn Serialize(
+            ReadOnlyMemory<T> storedValues,
+            ref ByteWriter writer,
+            ByteWriter draftWriter);
 
         protected abstract IEnumerable<object?> Deserialize(SerializedColumn serializedColumn);
 

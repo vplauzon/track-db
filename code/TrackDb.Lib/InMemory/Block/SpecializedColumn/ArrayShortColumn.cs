@@ -65,25 +65,27 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override StatsSerializedColumn Serialize(ReadOnlyMemory<short> storedValues)
+        protected override StatsSerializedColumn Serialize(
+            ReadOnlyMemory<short> storedValues,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v);
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values, ref writer, draftWriter);
 
             //  Convert min and max to int-16 (from int-64)
             return new(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null ? null : Convert.ToInt16(column.ColumnMinimum),
-                column.ColumnMaximum == null ? null : Convert.ToInt16(column.ColumnMaximum),
-                column.Payload);
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum == null ? null : Convert.ToInt16(package.ColumnMinimum),
+                package.ColumnMaximum == null ? null : Convert.ToInt16(package.ColumnMaximum));
         }
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            return Int64Codec.Decompress(column.ItemCount, column.HasNulls, column.Payload)
+            return Int64Codec.Decompress(column.ItemCount, column.HasNulls, column.Payload.Span)
                 .Select(l => (short?)l)
                 .Cast<object?>();
         }

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.Json;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -23,7 +24,12 @@ namespace TrackDb.Lib.InMemory.Block
 
         /// <summary>Serialize the first <paramref name="rowCount"/> items.</summary>
         /// <param name="rowCount">If <c>null</c>, serialize everything.</param>
+        /// <param name="writer"></param>
+        /// <param name="draftWriter"></param>
         /// <returns></returns>
-        StatsSerializedColumn Serialize(int? rowCount);
+        StatsSerializedColumn Serialize(
+            int? rowCount,
+            ref ByteWriter writer,
+            ByteWriter draftWriter);
     }
 }

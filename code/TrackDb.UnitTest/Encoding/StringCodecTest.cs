@@ -77,8 +77,20 @@ namespace TrackDb.UnitTest.Encoding
         [Fact]
         public void EmptySequence()
         {
-            Assert.Throws<ArgumentNullException>(() => StringCodec.Compress(null!));
-            Assert.Throws<ArgumentNullException>(() => StringCodec.Compress(Array.Empty<string?>()));
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(null!, ref writer, draftWriter);
+            });
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(Array.Empty<string?>(), ref writer, draftWriter);
+            });
         }
 
         [Fact]
@@ -87,7 +99,14 @@ namespace TrackDb.UnitTest.Encoding
             var data = Enumerable.Range(0, UInt16.MaxValue + 1)
                 .Select(i => "Bob")
                 .ToArray();
-            Assert.Throws<ArgumentOutOfRangeException>(() => StringCodec.Compress(data));
+
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(data, ref writer, draftWriter);
+            });
         }
 
         [Fact]
@@ -108,18 +127,20 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var column = StringCodec.Compress(data);
-
-            throw new NotImplementedException();
-            /*
-            var decodedArray = StringCodec.Decompress(column)
+            var buffer = new byte[1000];
+            var writer = new ByteWriter(buffer, true);
+            var draftWriter = new ByteWriter(new byte[1000], true);
+            var package = StringCodec.Compress(data, ref writer, draftWriter);
+            var decodedArray = StringCodec.Decompress(
+                data.Count(),
+                buffer.AsSpan(0, writer.Position))
                 .ToImmutableArray();
 
-            Assert.Equal(doExpectPayload, column.Payload.Length != 0);
+            Assert.False(writer.IsOverflow);
+            Assert.Equal(doExpectPayload, writer.Position != 0);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());
-            */
         }
     }
 }

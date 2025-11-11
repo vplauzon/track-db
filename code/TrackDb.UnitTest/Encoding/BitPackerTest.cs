@@ -112,7 +112,7 @@ namespace TrackDb.UnitTest.Encoding
             {
                 var max = originalSequence.Any() ? originalSequence.Max() : 0UL;
                 var packedArray = new byte[BitPacker.PackSize(originalSequence.Count(), max)];
-                var writer = new ByteWriter(packedArray);
+                var writer = new ByteWriter(packedArray, true);
 
                 BitPacker.Pack(
                     originalSequence,

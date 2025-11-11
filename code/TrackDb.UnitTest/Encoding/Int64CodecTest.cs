@@ -63,8 +63,20 @@ namespace TrackDb.UnitTest.Encoding
         [Fact]
         public void EmptySequence()
         {
-            Assert.Throws<ArgumentNullException>(() => Int64Codec.Compress(null!));
-            Assert.Throws<ArgumentNullException>(() => Int64Codec.Compress(Array.Empty<long?>()));
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                Int64Codec.Compress(null!, ref writer, draftWriter);
+            });
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                Int64Codec.Compress(Array.Empty<long?>(), ref writer, draftWriter);
+            });
         }
 
         [Fact]
@@ -73,7 +85,15 @@ namespace TrackDb.UnitTest.Encoding
             var data = Enumerable.Range(0, UInt16.MaxValue + 1)
                 .Select(i => (long?)i)
                 .ToArray();
-            Assert.Throws<ArgumentOutOfRangeException>(() => Int64Codec.Compress(data));
+
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+                var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+                Int64Codec.Compress(data, ref writer, draftWriter);
+            });
+
         }
 
         [Fact]
@@ -140,11 +160,14 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<long?> data)
         {
-            var package = Int64Codec.Compress(data);
+            var buffer = new byte[4000];
+            var writer = new ByteWriter(buffer, true);
+            var draftWriter = new ByteWriter(new byte[4000], true);
+            var package = Int64Codec.Compress(data, ref writer, draftWriter);
             var decodedArray = Int64Codec.Decompress(
                 package.ItemCount,
                 package.HasNulls,
-                package.Payload)
+                buffer.AsSpan().Slice(0, writer.Position))
                 .ToImmutableArray();
 
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));

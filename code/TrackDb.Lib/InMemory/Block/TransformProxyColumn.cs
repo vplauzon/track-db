@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block
@@ -57,16 +58,18 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+            int? rowCount,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
-            var innerColumn = _innerColumn.Serialize(rowCount);
+            var package = _innerColumn.Serialize(rowCount, ref writer, draftWriter);
 
             return new(
-                innerColumn.ItemCount,
-                innerColumn.HasNulls,
-                InToOutValue(innerColumn.ColumnMinimum),
-                InToOutValue(innerColumn.ColumnMaximum),
-                innerColumn.Payload);
+                package.ItemCount,
+                package.HasNulls,
+                InToOutValue(package.ColumnMinimum),
+                InToOutValue(package.ColumnMaximum));
         }
         #endregion
 

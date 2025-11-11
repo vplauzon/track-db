@@ -7,10 +7,10 @@ namespace TrackDb.Lib.Encoding
         private readonly Span<byte> _span;
         private readonly Action<Span<byte>, T> _action;
 
-        public PlaceholderWriter(Span<byte> span, Action<Span<byte>, T> value)
+        public PlaceholderWriter(Span<byte> span, Action<Span<byte>, T> action)
         {
             _span = span;
-            _action = value;
+            _action = action;
         }
 
         public void SetValue(T value)

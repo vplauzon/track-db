@@ -62,17 +62,25 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override StatsSerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
+        protected override StatsSerializedColumn Serialize(
+            ReadOnlyMemory<string?> storedValues,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i]);
+            var package = StringCodec.Compress(values, ref writer, draftWriter);
 
-            return StringCodec.Compress(values);
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum,
+                package.ColumnMaximum);
         }
 
         protected override IEnumerable<object?> Deserialize(SerializedColumn column)
         {
-            return StringCodec.Decompress(column);
+            return StringCodec.Decompress(column.ItemCount, column.Payload.Span);
         }
     }
 }

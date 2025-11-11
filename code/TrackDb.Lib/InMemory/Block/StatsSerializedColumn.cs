@@ -6,6 +6,5 @@ namespace TrackDb.Lib.InMemory.Block
         int ItemCount,
         bool HasNulls,
         object? ColumnMinimum,
-        object? ColumnMaximum,
-        ReadOnlyMemory<byte> Payload);
+        object? ColumnMaximum);
 }

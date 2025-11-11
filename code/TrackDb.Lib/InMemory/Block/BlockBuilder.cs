@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Logging;
 
@@ -170,18 +171,33 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
-        public StatsSerializedBlock Serialize()
+        public IImmutableList<StatsSerializedColumn> Serialize(
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
-            return Serialize(null);
+            return Serialize(null, ref writer, draftWriter);
         }
 
         private int GetSerializeSize(int rowCount)
         {
-            return Serialize(rowCount).Payload.Length;
+            var writer = new ByteWriter(new Span<Byte>(), false);
+            var draftWriter = new ByteWriter(new Span<Byte>(), false);
+
+            Serialize(rowCount, ref writer, draftWriter);
+
+            return writer.Position;
         }
 
-        private StatsSerializedBlock Serialize(int? rowCount)
+        private IImmutableList<StatsSerializedColumn> Serialize(
+            int? rowCount,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
+            var statsColumnsBuilder = ImmutableArray<StatsSerializedColumn>.Empty.ToBuilder();
+            //  Header:  Column payload sizes
+            var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
+            var i = 0;
+
             if ((rowCount ?? 1) > ((IBlock)this).RecordCount)
             {
                 throw new ArgumentOutOfRangeException(
@@ -189,13 +205,27 @@ namespace TrackDb.Lib.InMemory.Block
                     $"{rowCount} > {((IBlock)this).RecordCount}");
             }
 
-            var serializedColumns = _dataColumns
-                .Select(c => c.Serialize(rowCount))
-                .ToImmutableArray();
+            //  Body:  columns
+            foreach (var dataColumn in _dataColumns)
+            {
+                var sizeBefore = draftWriter.Position;
 
-            return StatsSerializedBlock.Create(serializedColumns);
+                statsColumnsBuilder.Add(dataColumn.Serialize(rowCount, ref writer, draftWriter));
+                columnsPayloadSizePlaceholder.SetValue(
+                    i,
+                    (ushort)(draftWriter.Position - sizeBefore));
+                ++i;
+            }
+
+            //  Footer:  has nulls
+            BitPacker.Pack(
+                statsColumnsBuilder.Select(c => Convert.ToUInt64(c.HasNulls)),
+                statsColumnsBuilder.Count,
+                1,
+                ref writer);
+
+            return statsColumnsBuilder.ToImmutable();
         }
-
 
         /// <summary>
         /// Extract a number of rows from the block builder.  The resulting

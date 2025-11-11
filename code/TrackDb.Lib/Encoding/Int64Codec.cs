@@ -28,16 +28,19 @@ namespace TrackDb.Lib.Encoding
         /// such as magic number + version.
         /// </summary>
         /// <param name="values"></param>
+        /// <param name="writer"></param>
+        /// <param name="draftWriter"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public static LongCompressedPackage Compress(IEnumerable<long?> values)
+        public static CompressedPackage<long?> Compress(
+            IEnumerable<long?> values,
+            ref ByteWriter writer,
+            ByteWriter draftWriter)
         {
             if (values == null || !values.Any())
             {
                 throw new ArgumentNullException(nameof(values));
             }
-            var bufferWriter = new ByteWriter(new byte[4096]);
-            var draftWriter = new ByteWriter(new byte[4096]);
             var itemCount = values.Count();
 
             if (itemCount > UInt16.MaxValue)
@@ -77,15 +80,15 @@ namespace TrackDb.Lib.Encoding
 
             var extremeNullRegime = nonNull == itemCount || nonNull == 0;
 
-            bufferWriter.WriteUInt16((ushort)nonNull);
+            writer.WriteUInt16((ushort)nonNull);
             if (nonNull != 0)
             {
-                bufferWriter.WriteInt64(min);
-                bufferWriter.WriteInt64(max);
+                writer.WriteInt64(min);
+                writer.WriteInt64(max);
             }
             if (!extremeNullRegime)
             {
-                bufferWriter.CopyFrom(bitmap);
+                writer.CopyFrom(bitmap);
             }
             if (nonNull != 0 && min != max)
             {
@@ -93,15 +96,14 @@ namespace TrackDb.Lib.Encoding
                     values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
                     nonNull,
                     ToZeroBase(max, min),
-                    ref bufferWriter);
+                    ref writer);
             }
 
-            return new LongCompressedPackage(
+            return new CompressedPackage<long?>(
                 itemCount,
                 nonNull < itemCount,
                 nonNull == 0 ? null : min,
-                nonNull == 0 ? null : max,
-                bufferWriter.ToArray());
+                nonNull == 0 ? null : max);
         }
 
         private static ulong ToZeroBase(long value, long min)
@@ -122,9 +124,9 @@ namespace TrackDb.Lib.Encoding
         public static IEnumerable<long?> Decompress(
             int itemCount,
             bool hasNulls,
-            ReadOnlyMemory<byte> payload)
+            ReadOnlySpan<byte> payload)
         {
-            var bufferReader = new ByteReader(payload.Span);
+            var bufferReader = new ByteReader(payload);
             var nonNull = bufferReader.ReadUInt16();
             var extremeNullRegime = !hasNulls || nonNull == 0;
             long? columnMinimum = nonNull == 0 ? null : bufferReader.ReadInt64();

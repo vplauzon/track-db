@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Predicate;
 
@@ -39,7 +40,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+                int? rowCount,
+                ref ByteWriter writer,
+                ByteWriter draftWriter)
             {
                 throw new NotImplementedException();
             }
@@ -71,7 +75,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            StatsSerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+                int? rowCount,
+                ref ByteWriter writer,
+                ByteWriter draftWriter)
             {
                 throw new NotImplementedException();
             }

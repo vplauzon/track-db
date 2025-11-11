@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.SystemData;
@@ -58,7 +59,16 @@ namespace TrackDb.Lib.DataLifeCycle
                         if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
                         {
                             var blockId = Database.GetFreeBlockId();
-                            var statsSerializedBlock = blockToPersist.Serialize();
+                            var buffer = new byte[StorageManager.BlockSize];
+                            var writer = new ByteWriter(buffer, true);
+                            var draftWriter = new ByteWriter(buffer, true);
+                            var statsColumns = blockToPersist.Serialize(ref writer, draftWriter);
+                            var statsSerializedBlock = new StatsSerializedBlock(
+                                rowCount,
+                                writer.Position,
+                                statsColumns.Select(c => c.ColumnMinimum).ToImmutableArray(),
+                                statsColumns.Select(c => c.ColumnMaximum).ToImmutableArray(),
+                                buffer.AsMemory().Slice(0, writer.Position));
 
                             StorageManager.WriteBlock(blockId, statsSerializedBlock.Payload.Span);
                             newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));

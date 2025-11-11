@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.UnitTest.PrefixTruncate
 {
@@ -38,7 +39,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
             var prefix = block.TruncateBlock(MAX_SIZE);
 
             Assert.Equal(1, ((IBlock)prefix).RecordCount);
-            Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
+            Assert.True(GetSerializedSize(prefix) <= MAX_SIZE);
         }
 
         [Fact]
@@ -57,7 +58,17 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             Assert.True(((IBlock)prefix).RecordCount > 0);
             Assert.True(((IBlock)prefix).RecordCount < ROW_COUNT);
-            Assert.True(prefix.Serialize().Payload.Length <= MAX_SIZE);
+            Assert.True(GetSerializedSize(prefix) <= MAX_SIZE);
+        }
+
+        private int GetSerializedSize(BlockBuilder prefix)
+        {
+            var writer = new ByteWriter(new Span<byte>(), false);
+            var draftWriter = new ByteWriter(new Span<byte>(), false);
+
+            prefix.Serialize(ref writer, draftWriter);
+
+            return writer.Position;
         }
     }
 }
