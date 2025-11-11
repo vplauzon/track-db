@@ -76,9 +76,13 @@ namespace TrackDb.Lib.Encoding
             var placeholder = new PlaceholderArrayWriter<ushort>(
                 subSpan,
                 length,
-                (span, i, value) => WriteUInt16ToSubSpan(
-                    span.Slice(sizeof(ushort) * i, sizeof(ushort)),
-                    value));
+                (span, i, value) =>
+                {
+                    if (span.Length > 0)
+                    {
+                        WriteUInt16ToSubSpan(span.Slice(sizeof(ushort) * i, sizeof(ushort)), value);
+                    }
+                });
 
             return placeholder;
         }
@@ -90,7 +94,13 @@ namespace TrackDb.Lib.Encoding
             var subSpan = SubSpanForwardUInt16();
             var placeholder = new PlaceholderWriter<ushort>(
                 subSpan,
-                (span, value) => WriteUInt16ToSubSpan(span, value));
+                (span, value) =>
+                {
+                    if (span.Length > 0)
+                    {
+                        WriteUInt16ToSubSpan(span, value);
+                    }
+                });
 
             return placeholder;
         }
