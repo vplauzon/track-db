@@ -95,23 +95,23 @@ namespace TrackDb.Lib.Encoding
                 writer.WriteUInt16((ushort)(valuesSequence.Count()));
 
                 var valueSequenceSizePlaceholder = writer.PlaceholderUInt16();
-                var positionBeforeValueSequence = draftWriter.Position;
+                var positionBeforeValueSequence = writer.Position;
 
                 Int64Codec.Compress(valuesSequence, ref writer, draftWriter);
                 valueSequenceSizePlaceholder.SetValue(
-                    (ushort)(draftWriter.Position - positionBeforeValueSequence));
+                    (ushort)(writer.Position - positionBeforeValueSequence));
 
                 //  Indexes
                 var indexesSizePlaceholder = writer.PlaceholderUInt16();
-                var positionBeforeIndexes = draftWriter.Position;
+                var positionBeforeIndexes = writer.Position;
 
                 BitPacker.Pack(
-                    indexes.Select(i => (ulong)(hasNulls ? i + 1 : i)),
+                    indexes.Select(i => (ulong)(i + 1)),
                     itemCount,
-                    (ulong)(hasNulls ? uniqueValues.Length : uniqueValues.Length - 1),
+                    (ulong)(uniqueValues.Length),
                     ref writer);
                 indexesSizePlaceholder.SetValue(
-                    (ushort)(draftWriter.Position - positionBeforeIndexes));
+                    (ushort)(writer.Position - positionBeforeIndexes));
 
                 return new(
                     itemCount,
@@ -170,18 +170,17 @@ namespace TrackDb.Lib.Encoding
                 //  Unique values
                 var uniqueValues = BreakStrings(valuesSequence)
                     .ToImmutableArray();
-                var hasNulls = uniqueValues.Length != itemCount;
                 //  Indexes
                 var indexSize = payloadReader.ReadUInt16();
                 var unpackedIndexes = BitPacker.Unpack(
                     payloadReader.SpanForward(indexSize),
                     itemCount,
-                    (ulong)(hasNulls ? uniqueValues.Length : uniqueValues.Length - 1));
+                    (ulong)(uniqueValues.Length));
                 var values = ImmutableArray<string?>.Empty.ToBuilder();
 
                 foreach (var unpackedIndex in unpackedIndexes)
                 {
-                    var index = hasNulls ? (int)unpackedIndex - 1 : (int)unpackedIndex;
+                    var index = (int)unpackedIndex - 1;
                     var value = index >= 0 ? uniqueValues[index] : null;
 
                     values.Add(value);

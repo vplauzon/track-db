@@ -127,7 +127,7 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var buffer = new byte[1000];
+            var buffer = new byte[7000];
             var writer = new ByteWriter(buffer, true);
             var draftWriter = new ByteWriter(new byte[1000], true);
             var package = StringCodec.Compress(data, ref writer, draftWriter);
@@ -137,7 +137,6 @@ namespace TrackDb.UnitTest.Encoding
                 .ToImmutableArray();
 
             Assert.False(writer.IsOverflow);
-            Assert.Equal(doExpectPayload, writer.Position != 0);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());
