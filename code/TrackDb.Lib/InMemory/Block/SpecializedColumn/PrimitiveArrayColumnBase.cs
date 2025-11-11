@@ -86,7 +86,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
-        StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+        ColumnStats IReadOnlyDataColumn.Serialize(
             int? rowCount,
             ref ByteWriter writer,
             ByteWriter draftWriter)
@@ -133,7 +133,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             {
                 var objectData = GetObjectDataFromLog(logValue);
                 var primitiveData = GetPrimitiveData(objectData);
-                
+
                 column.AppendValue(primitiveData);
             }
         }
@@ -189,10 +189,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        void IDataColumn.Deserialize(SerializedColumn serializedColumn)
+        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
         {
             IDataColumn dataColumn = this;
-            var newValues = Deserialize(serializedColumn);
+            var newValues = Deserialize(itemCount, hasNulls, payload);
 
             foreach (var value in newValues)
             {
@@ -213,12 +213,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder);
 
-        protected abstract StatsSerializedColumn Serialize(
+        protected abstract ColumnStats Serialize(
             ReadOnlyMemory<T> storedValues,
             ref ByteWriter writer,
             ByteWriter draftWriter);
 
-        protected abstract IEnumerable<object?> Deserialize(SerializedColumn serializedColumn);
+        protected abstract IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload);
 
         protected virtual JsonElement GetLogValue(object? objectData)
         {

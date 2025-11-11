@@ -58,7 +58,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+        ColumnStats IReadOnlyDataColumn.Serialize(
             int? rowCount,
             ref ByteWriter writer,
             ByteWriter draftWriter)
@@ -97,14 +97,9 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        void IDataColumn.Deserialize(SerializedColumn serializedColumn)
+        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
         {
-            var innerSerializedColumn = new SerializedColumn(
-                serializedColumn.ItemCount,
-                serializedColumn.HasNulls,
-                serializedColumn.Payload);
-
-            _innerColumn.Deserialize(innerSerializedColumn);
+            _innerColumn.Deserialize(itemCount, hasNulls, payload);
         }
         #endregion
     }

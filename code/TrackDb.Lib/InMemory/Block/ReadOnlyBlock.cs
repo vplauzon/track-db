@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -13,32 +15,72 @@ namespace TrackDb.Lib.InMemory.Block
         private readonly int _recordCount;
 
         #region Constructors
-        public ReadOnlyBlock(TableSchema schema, SerializedBlock serializedBlock)
+        /// <summary>Load a block from a serialized stream.</summary>
+        /// <remarks>
+        /// Does the reverse from
+        /// <see cref="BlockBuilder.Serialize(int?, Memory{byte}, ByteWriter)"/>.
+        /// </remarks>
+        /// <param name="payload"></param>
+        /// <param name="schema"></param>
+        /// <returns></returns>
+        public static IBlock Load(ReadOnlyMemory<byte> payload, TableSchema schema)
+        {
+            var reader = new ByteReader(payload.Span);
+            var itemCount = reader.ReadUInt16();
+            var columnCount = schema.Columns.Count;
+            var columnPayloads = new ReadOnlyMemory<byte>[columnCount];
+            var dataColumns = new Lazy<IReadOnlyDataColumn>[columnCount];
+            var columnPayloadPosition = reader.Position;
+
+            for (var i = 0; i != columnCount; ++i)
+            {
+                var payloadSize = reader.ReadUInt16();
+
+                columnPayloads[i] = payload.Slice(columnPayloadPosition, payloadSize);
+                columnPayloadPosition += payloadSize;
+            }
+
+            var hasNulls = BitPacker.Unpack(
+                payload.Span.Slice(columnPayloadPosition),
+                itemCount,
+                1)
+                .ToImmutableArray(i => Convert.ToBoolean(i));
+
+            for (var i = 0; i != dataColumns.Length; ++i)
+            {
+                var columnPayload = columnPayloads[i];
+
+                dataColumns[i] = CreateColumn(
+                    schema.Columns[i].ColumnType,
+                    itemCount,
+                    hasNulls[i],
+                    columnPayload);
+            }
+
+            return new ReadOnlyBlock(schema, itemCount, dataColumns);
+        }
+
+        private ReadOnlyBlock(
+            TableSchema schema,
+            int recordCount,
+            IEnumerable<Lazy<IReadOnlyDataColumn>> dataColumns)
             : base(schema)
         {
-            _dataColumns = schema.Columns
-                .Select(c => c.ColumnType)
-                //  Append the Record ID column
-                .Append(typeof(long))
-                .Zip(serializedBlock.Columns, (ColumnType, SerializedColumn) => new
-                {
-                    ColumnType,
-                    SerializedColumn
-                })
-                .Select(o => CreateColumn(o.ColumnType, o.SerializedColumn))
-                .ToImmutableArray();
-            _recordCount = serializedBlock.ItemCount;
+            _dataColumns = dataColumns.ToImmutableArray();
+            _recordCount = recordCount;
         }
 
         private static Lazy<IReadOnlyDataColumn> CreateColumn(
             Type columnType,
-            SerializedColumn serializedColumn)
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
             return new Lazy<IReadOnlyDataColumn>(() =>
             {
-                var column = CreateDataColumn(columnType, serializedColumn.ItemCount);
+                var column = CreateDataColumn(columnType, itemCount);
 
-                column.Deserialize(serializedColumn);
+                column.Deserialize(itemCount, hasNulls, payload);
 
                 return column;
             });

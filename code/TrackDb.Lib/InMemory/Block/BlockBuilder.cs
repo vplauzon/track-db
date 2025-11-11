@@ -171,60 +171,63 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
-        public IImmutableList<StatsSerializedColumn> Serialize(
-            ref ByteWriter writer,
-            ByteWriter draftWriter)
+        public BlockStats Serialize(Memory<byte> buffer, ByteWriter draftWriter)
         {
-            return Serialize(null, ref writer, draftWriter);
+            return Serialize(null, buffer, draftWriter);
         }
 
         private int GetSerializeSize(int rowCount)
         {
-            var writer = new ByteWriter(new Span<Byte>(), false);
             var draftWriter = new ByteWriter(new Span<Byte>(), false);
+            var blockStats = Serialize(rowCount, null, draftWriter);
 
-            Serialize(rowCount, ref writer, draftWriter);
-
-            return writer.Position;
+            return blockStats.SerializedSize;
         }
 
-        private IImmutableList<StatsSerializedColumn> Serialize(
+        private BlockStats Serialize(
             int? rowCount,
-            ref ByteWriter writer,
+            Memory<byte>? buffer,
             ByteWriter draftWriter)
         {
-            var statsColumnsBuilder = ImmutableArray<StatsSerializedColumn>.Empty.ToBuilder();
-            //  Header:  Column payload sizes
-            var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
-            var i = 0;
+            var writer =
+                new ByteWriter(buffer != null ? buffer.Value.Span : new Span<byte>(), false);
 
-            if ((rowCount ?? 1) > ((IBlock)this).RecordCount)
+            if (rowCount != null && rowCount > ((IBlock)this).RecordCount)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(rowCount),
                     $"{rowCount} > {((IBlock)this).RecordCount}");
             }
+            //  Item count
+            writer.WriteUInt16((ushort)rowCount!.Value);
+
+            //  Column payload sizes
+            var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
+            var columnStatsBuilder = ImmutableArray<ColumnStats>.Empty.ToBuilder();
+            var i = 0;
+
+            rowCount = rowCount ?? ((IBlock)this).RecordCount;
 
             //  Body:  columns
             foreach (var dataColumn in _dataColumns)
             {
-                var sizeBefore = draftWriter.Position;
+                var sizeBefore = writer.Position;
 
-                statsColumnsBuilder.Add(dataColumn.Serialize(rowCount, ref writer, draftWriter));
+                columnStatsBuilder.Add(dataColumn.Serialize(rowCount, ref writer, draftWriter));
                 columnsPayloadSizePlaceholder.SetValue(
                     i,
-                    (ushort)(draftWriter.Position - sizeBefore));
+                    (ushort)(writer.Position - sizeBefore));
                 ++i;
             }
 
             //  Footer:  has nulls
             BitPacker.Pack(
-                statsColumnsBuilder.Select(c => Convert.ToUInt64(c.HasNulls)),
-                statsColumnsBuilder.Count,
+                columnStatsBuilder.Select(c => Convert.ToUInt64(c.HasNulls)),
+                columnStatsBuilder.Count,
                 1,
                 ref writer);
 
-            return statsColumnsBuilder.ToImmutable();
+            return new(rowCount!.Value, writer.Position, columnStatsBuilder.ToImmutable());
         }
 
         /// <summary>

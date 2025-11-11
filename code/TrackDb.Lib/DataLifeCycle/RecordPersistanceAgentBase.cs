@@ -60,26 +60,27 @@ namespace TrackDb.Lib.DataLifeCycle
                         {
                             var blockId = Database.GetFreeBlockId();
                             var buffer = new byte[StorageManager.BlockSize];
-                            var writer = new ByteWriter(buffer, true);
-                            var draftWriter = new ByteWriter(buffer, true);
-                            var statsColumns = blockToPersist.Serialize(ref writer, draftWriter);
-                            var statsSerializedBlock = new StatsSerializedBlock(
-                                rowCount,
-                                writer.Position,
-                                statsColumns.Select(c => c.ColumnMinimum).ToImmutableArray(),
-                                statsColumns.Select(c => c.ColumnMaximum).ToImmutableArray(),
-                                buffer.AsMemory().Slice(0, writer.Position));
+                            var draftWriter = new ByteWriter(new byte[StorageManager.BlockSize], true);
+                            var blockStats = blockToPersist.Serialize(buffer, draftWriter);
 
-                            StorageManager.WriteBlock(blockId, statsSerializedBlock.Payload.Span);
+                            if (blockStats.SerializedSize > buffer.Length)
+                            {
+                                throw new InvalidOperationException(
+                                    $"Block size ({blockStats.SerializedSize}) is bigger than planned" +
+                                    $"maximum ({buffer.Length})");
+                            }
+                            StorageManager.WriteBlock(
+                                blockId,
+                                buffer.AsSpan().Slice(0, blockStats.SerializedSize));
                             newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
                                 metaSchema.CreateMetadataRecord(
-                                    statsSerializedBlock.ItemCount,
-                                    statsSerializedBlock.Size,
+                                    blockStats.ItemCount,
+                                    blockStats.SerializedSize,
                                     blockId,
-                                    statsSerializedBlock.ColumnMinima,
-                                    statsSerializedBlock.ColumnMinima));
+                                    blockStats.Columns.Select(c=>c.ColumnMinimum),
+                                    blockStats.Columns.Select(c=>c.ColumnMaximum)));
                             isFirstBlockToPersist = false;
                         }
                         else

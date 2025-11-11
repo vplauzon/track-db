@@ -27,7 +27,7 @@ namespace TrackDb.Lib.InMemory.Block
         /// <param name="writer"></param>
         /// <param name="draftWriter"></param>
         /// <returns></returns>
-        StatsSerializedColumn Serialize(
+        ColumnStats Serialize(
             int? rowCount,
             ref ByteWriter writer,
             ByteWriter draftWriter);

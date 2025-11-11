@@ -76,8 +76,8 @@ namespace TrackDb.Lib
             int itemCount,
             int size,
             int blockId,
-            IImmutableList<object?> columnMinima,
-            IImmutableList<object?> columnMaxima)
+            IEnumerable<object?> columnMinima,
+            IEnumerable<object?> columnMaxima)
         {
             var metaData = columnMinima
                 .Zip(columnMaxima)

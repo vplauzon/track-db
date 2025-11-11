@@ -40,7 +40,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+            ColumnStats IReadOnlyDataColumn.Serialize(
                 int? rowCount,
                 ref ByteWriter writer,
                 ByteWriter draftWriter)
@@ -75,7 +75,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            StatsSerializedColumn IReadOnlyDataColumn.Serialize(
+            ColumnStats IReadOnlyDataColumn.Serialize(
                 int? rowCount,
                 ref ByteWriter writer,
                 ByteWriter draftWriter)

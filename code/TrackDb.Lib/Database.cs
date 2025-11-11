@@ -608,8 +608,7 @@ namespace TrackDb.Lib
         internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
         {
             var payload = _dbFileManager.Value.ReadBlock(blockId);
-            var serializedBlock = SerializedBlock.Load(schema, payload);
-            var block = new ReadOnlyBlock(schema, serializedBlock);
+            var block = ReadOnlyBlock.Load(payload, schema);
 
             return block;
         }

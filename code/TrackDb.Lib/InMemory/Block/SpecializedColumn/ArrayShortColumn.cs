@@ -65,7 +65,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override StatsSerializedColumn Serialize(
+        protected override ColumnStats Serialize(
             ReadOnlyMemory<short> storedValues,
             ref ByteWriter writer,
             ByteWriter draftWriter)
@@ -83,9 +83,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 package.ColumnMaximum == null ? null : Convert.ToInt16(package.ColumnMaximum));
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            return Int64Codec.Decompress(column.ItemCount, column.HasNulls, column.Payload.Span)
+            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
                 .Select(l => (short?)l)
                 .Cast<object?>();
         }
