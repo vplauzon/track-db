@@ -232,13 +232,9 @@ namespace TrackDb.Lib.InMemory.Block
             var maxSize = buffer.Length;
             var totalRowCount = block.RecordCount - skipRows;
 
-            if (skipRows > block.RecordCount)
+            if (skipRows < 0 || skipRows >= block.RecordCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(skipRows));
-            }
-            if (totalRowCount == 0)
-            {
-                throw new InvalidOperationException("Block has no records");
             }
 
             var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
@@ -386,34 +382,6 @@ namespace TrackDb.Lib.InMemory.Block
             foreach (var newRecordId in content.NewRecordIds)
             {
                 _dataColumns[Schema.Columns.Count].AppendValue(newRecordId);
-            }
-        }
-        #endregion
-
-        #region Debug View
-        /// <summary>
-        /// To be used in debugging.
-        /// </summary>
-        internal IEnumerable<IImmutableDictionary<string, object?>> DebugView
-        {
-            get
-            {
-                IBlock block = this;
-                var columnNames = block.TableSchema.Columns
-                    .Select(c => c.ColumnName)
-                    .Append("$recordId")
-                    .Append("$blockId");
-                var projection = block.Project(
-                    new object?[block.TableSchema.Columns.Count + 3],
-                    Enumerable.Range(0, block.TableSchema.Columns.Count + 3).ToImmutableArray(),
-                    Enumerable.Range(0, block.RecordCount),
-                    42)
-                    .Select(b => b.ToArray()
-                    .Zip(columnNames)
-                    .ToImmutableDictionary(p => p.Second, p => p.First))
-                    .ToImmutableArray();
-
-                return projection;
             }
         }
         #endregion

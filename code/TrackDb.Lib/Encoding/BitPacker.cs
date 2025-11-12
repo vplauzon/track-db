@@ -69,6 +69,7 @@ namespace TrackDb.Lib.Encoding
             var packed = writer.VirtualByteSpanForward(sizeInfo.TotalBytes);
             var currentBitPosition = 0;
 
+            packed.Fill(0);
             foreach (var value in data)
             {
                 // Calculate which byte(s) this value's bits will go into

@@ -38,6 +38,17 @@ namespace TrackDb.Lib.Encoding
             }
         }
 
+        public void Fill(byte value)
+        {
+            if(HasData)
+            {
+                for (var i = 0; i < Length; i++)
+                {
+                    _span[i] = value;
+                }
+            }
+        }
+
         #region Copy
         public void CopyTo(VirtualByteSpan destination)
         {
