@@ -87,6 +87,7 @@ namespace TrackDb.Lib.Encoding
                 var bitmap = writer.VirtualByteSpanForward(bitmapBytes);
                 var j = 0;
 
+                bitmap.Fill(0);
                 //  Populate bitmap
                 foreach (var v in values)
                 {
