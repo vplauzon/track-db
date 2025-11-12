@@ -39,19 +39,53 @@ namespace TrackDb.Lib.Encoding
             {
                 throw new ArgumentNullException(nameof(values));
             }
-            var itemCount = values.Count();
+
+            (var itemCount, var nonNull, var min, var max) = ComputeExtremas(values);
 
             if (itemCount > UInt16.MaxValue)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(values),
-                    $"Sequence is too large:  '{itemCount}'");
+                    $"Sequence is too large ({values.Count()})");
             }
 
-            var nonNull = 0;
-            var min = long.MaxValue;
-            var max = long.MinValue;
-            var i = 0;
+            var extremeNullRegime = nonNull == itemCount || nonNull == 0;
+
+            writer.WriteUInt16((ushort)nonNull);
+            if (nonNull != 0)
+            {
+                writer.WriteInt64(min);
+                writer.WriteInt64(max);
+            }
+            if (!extremeNullRegime)
+            {
+                BitPacker.Pack(
+                    values.Select(v => Convert.ToUInt64(v != null)),
+                    itemCount,
+                    1,
+                    ref writer);
+            }
+            if (nonNull != 0 && min != max)
+            {
+                BitPacker.Pack(
+                    values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
+                    nonNull,
+                    ToZeroBase(max, min),
+                    ref writer);
+            }
+
+            return new CompressedPackage<long?>(
+                itemCount,
+                nonNull < itemCount,
+                nonNull == 0 ? null : min,
+                nonNull == 0 ? null : max);
+        }
+
+        private static (int ItemCount, int NonNull, long Min, long Max) ComputeExtremas(
+            IEnumerable<long?> values)
+        {
+            int itemCount=0, nonNull=0;
+            long min = 0, max = 0;
 
             //  Compute extrema & nonNull
             foreach (var v in values)
@@ -68,50 +102,10 @@ namespace TrackDb.Lib.Encoding
                         max = v.Value;
                     }
                 }
-                ++i;
+                ++itemCount;
             }
 
-            var extremeNullRegime = nonNull == itemCount || nonNull == 0;
-
-            writer.WriteUInt16((ushort)nonNull);
-            if (nonNull != 0)
-            {
-                writer.WriteInt64(min);
-                writer.WriteInt64(max);
-            }
-            if (!extremeNullRegime)
-            {
-                // Build validity bitmap (1 = valid, 0 = null)
-                var bitmapBytes = (itemCount + 7) / 8;
-                //  We need to write the bitmap on a draft as we don't know if we'll use it
-                var bitmap = writer.VirtualByteSpanForward(bitmapBytes);
-                var j = 0;
-
-                bitmap.Fill(0);
-                //  Populate bitmap
-                foreach (var v in values)
-                {
-                    if (v != null)
-                    {
-                        bitmap[j >> 3] |= (byte)(1 << (j & 7));
-                    }
-                    ++j;
-                }
-            }
-            if (nonNull != 0 && min != max)
-            {
-                BitPacker.Pack(
-                    values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
-                    nonNull,
-                    ToZeroBase(max, min),
-                    ref writer);
-            }
-
-            return new CompressedPackage<long?>(
-                itemCount,
-                nonNull < itemCount,
-                nonNull == 0 ? null : min,
-                nonNull == 0 ? null : max);
+            return (itemCount, nonNull, min, max);
         }
 
         private static ulong ToZeroBase(long value, long min)
