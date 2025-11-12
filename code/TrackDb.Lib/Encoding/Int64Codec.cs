@@ -215,7 +215,6 @@ namespace TrackDb.Lib.Encoding
                         }
                     }
 
-
                     return values;
                 }
             }
