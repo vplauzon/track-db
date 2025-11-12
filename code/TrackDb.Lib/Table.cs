@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
     public class Table
     {
+        private long _recordId = 0;
+
         internal Table(Database database, TableSchema schema)
         {
             Database = database;
@@ -23,6 +25,22 @@ namespace TrackDb.Lib
         {
             return new TableQuery(this, true, transactionContext);
         }
+
+        #region Record IDs
+        internal long NewRecordId()
+        {
+            return Interlocked.Increment(ref _recordId);
+        }
+
+        internal IImmutableList<long> NewRecordIds(int recordCount)
+        {
+            var nextId = Interlocked.Add(ref _recordId, recordCount);
+
+            return Enumerable.Range(0, recordCount)
+                .Select(i => i + nextId - recordCount)
+                .ToImmutableArray();
+        }
+        #endregion
 
         #region Append
         public void AppendRecord(
@@ -71,7 +89,7 @@ namespace TrackDb.Lib
             TransactionContext transactionContext)
         {
             transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
-                Database.NewRecordId(),
+                NewRecordId(),
                 record,
                 Schema);
         }

@@ -31,7 +31,6 @@ namespace TrackDb.Lib
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly LogTransactionManager? _logManager;
-        private long _recordId = 0;
         private volatile DatabaseState _databaseState;
 
         #region Constructors
@@ -344,22 +343,6 @@ namespace TrackDb.Lib
             {
                 throw new InvalidOperationException($"Table '{tableName}' doesn't exist");
             }
-        }
-        #endregion
-
-        #region Record IDs
-        internal long NewRecordId()
-        {
-            return Interlocked.Increment(ref _recordId);
-        }
-
-        internal IImmutableList<long> NewRecordIds(int recordCount)
-        {
-            var nextId = Interlocked.Add(ref _recordId, recordCount);
-
-            return Enumerable.Range(0, recordCount)
-                .Select(i => i + nextId - recordCount)
-                .ToImmutableArray();
         }
         #endregion
 

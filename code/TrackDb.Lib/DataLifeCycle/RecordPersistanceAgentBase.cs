@@ -71,7 +71,7 @@ namespace TrackDb.Lib.DataLifeCycle
                                 blockId,
                                 buffer.AsSpan().Slice(0, blockStats.Size));
                             metadataBlock.AppendRecord(
-                                Database.NewRecordId(),
+                                metadataTable.NewRecordId(),
                                 metaSchema.CreateMetadataRecord(
                                     blockStats.ItemCount,
                                     blockStats.Size,
