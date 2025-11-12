@@ -7,5 +7,8 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
-    public readonly record struct ColumnSchema(string ColumnName, Type ColumnType);
+    public readonly record struct ColumnSchema(
+        string ColumnName,
+        Type ColumnType,
+        bool IsIndexed = true);
 }
