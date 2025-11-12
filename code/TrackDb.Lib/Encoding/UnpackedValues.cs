@@ -12,22 +12,13 @@ namespace TrackDb.Lib.Encoding
         #region Inner Types
         public ref struct UnpackedValuesEnumerator
         {
-            private readonly ReadOnlySpan<byte> _packed;
-            private readonly ulong _maximumValue;
-            private readonly int _bitsPerValue;
+            private readonly UnpackedValues _values;
             private readonly int _itemCount;
             private int _index = 0;
-            private int _currentBitPosition = 0;
 
-            public UnpackedValuesEnumerator(
-                ReadOnlySpan<byte> packed,
-                ulong maximumValue,
-                int bitsPerValue,
-                int itemCount)
+            public UnpackedValuesEnumerator(UnpackedValues values, int itemCount)
             {
-                _packed = packed;
-                _maximumValue = maximumValue;
-                _bitsPerValue = bitsPerValue;
+                _values = values;
                 _itemCount = itemCount;
             }
 
@@ -37,40 +28,7 @@ namespace TrackDb.Lib.Encoding
             {
                 if (_index < _itemCount)
                 {
-                    // Calculate which byte we start reading from
-                    var startByteIndex = _currentBitPosition / 8;
-                    var bitOffsetInStartByte = _currentBitPosition % 8;
-                    var remainingBits = _bitsPerValue;
-                    var value = 0UL;
-                    var bitsProcessed = 0;
-
-                    while (remainingBits > 0)
-                    {
-                        // Calculate how many bits we can read from current byte
-                        var bitsToRead = Math.Min(8 - bitOffsetInStartByte, remainingBits);
-
-                        // Extract bits from current byte
-                        var currentByte = _packed[startByteIndex];
-                        var mask = bitsToRead == 64 ? ulong.MaxValue : (1UL << bitsToRead) - 1;
-                        var bits = (currentByte >> bitOffsetInStartByte) & (byte)mask;
-
-                        // Add these bits to our value (ensure 64-bit operations throughout)
-                        value |= ((ulong)bits << bitsProcessed);
-
-                        // Update our trackers
-                        remainingBits -= bitsToRead;
-                        bitsProcessed += bitsToRead;
-                        startByteIndex++;
-                        bitOffsetInStartByte = 0;
-                    }
-                    if (value > _maximumValue)
-                    {
-                        throw new ArgumentOutOfRangeException(
-                            $"Unpacked value ({value}) > maximum value ({_maximumValue})");
-                    }
-                    Current = value;
-                    _currentBitPosition += _bitsPerValue;
-                    ++_index;
+                    Current = _values[_index++];
 
                     return true;
                 }
@@ -99,10 +57,50 @@ namespace TrackDb.Lib.Encoding
             _itemCount = itemCount;
         }
 
+        public ulong this[int index]
+        {
+            get
+            {
+                //  Calculate which byte we start reading from
+                var currentBitPosition = index * _bitsPerValue;
+                var startByteIndex = currentBitPosition / 8;
+                var bitOffsetInStartByte = currentBitPosition % 8;
+                var remainingBits = _bitsPerValue;
+                var value = 0UL;
+                var bitsProcessed = 0;
+
+                while (remainingBits > 0)
+                {
+                    // Calculate how many bits we can read from current byte
+                    var bitsToRead = Math.Min(8 - bitOffsetInStartByte, remainingBits);
+
+                    // Extract bits from current byte
+                    var currentByte = _packed[startByteIndex];
+                    var mask = bitsToRead == 64 ? ulong.MaxValue : (1UL << bitsToRead) - 1;
+                    var bits = (currentByte >> bitOffsetInStartByte) & (byte)mask;
+
+                    // Add these bits to our value (ensure 64-bit operations throughout)
+                    value |= ((ulong)bits << bitsProcessed);
+
+                    // Update our trackers
+                    remainingBits -= bitsToRead;
+                    bitsProcessed += bitsToRead;
+                    startByteIndex++;
+                    bitOffsetInStartByte = 0;
+                }
+                if (value > _maximumValue)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        $"Unpacked value ({value}) > maximum value ({_maximumValue})");
+                }
+
+                return value;
+            }
+        }
+
         /// <summary>This is to support for-each.</summary>
         /// <returns></returns>
-        public UnpackedValuesEnumerator GetEnumerator()
-            => new(_packed, _maximumValue, _bitsPerValue, _itemCount);
+        public UnpackedValuesEnumerator GetEnumerator() => new(this, _itemCount);
 
         public IImmutableList<T> ToImmutableArray<T>(Func<ulong, T> projection)
         {

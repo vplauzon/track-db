@@ -66,7 +66,7 @@ namespace TrackDb.Lib.Encoding
                     ref writer);
             }
             if (nonNull != 0 && min != max)
-            {
+            {   //  Pack deltas
                 BitPacker.Pack(
                     values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
                     nonNull,
@@ -84,8 +84,8 @@ namespace TrackDb.Lib.Encoding
         private static (int ItemCount, int NonNull, long Min, long Max) ComputeExtremas(
             IEnumerable<long?> values)
         {
-            int itemCount=0, nonNull=0;
-            long min = 0, max = 0;
+            int itemCount = 0, nonNull = 0;
+            long min = int.MaxValue, max = int.MinValue;
 
             //  Compute extrema & nonNull
             foreach (var v in values)
@@ -128,11 +128,11 @@ namespace TrackDb.Lib.Encoding
             bool hasNulls,
             ReadOnlySpan<byte> payload)
         {
-            var bufferReader = new ByteReader(payload);
-            var nonNull = bufferReader.ReadUInt16();
+            var reader = new ByteReader(payload);
+            var nonNull = reader.ReadUInt16();
             var extremeNullRegime = !hasNulls || nonNull == 0;
-            long? columnMinimum = nonNull == 0 ? null : bufferReader.ReadInt64();
-            long? columnMaximum = nonNull == 0 ? null : bufferReader.ReadInt64();
+            long? columnMinimum = nonNull == 0 ? null : reader.ReadInt64();
+            long? columnMaximum = nonNull == 0 ? null : reader.ReadInt64();
 
             if (nonNull > itemCount)
             {
@@ -156,50 +156,65 @@ namespace TrackDb.Lib.Encoding
                 }
                 else
                 {
-                    var bitmapBytes = (itemCount + 7) / 8;
-                    var bitmapSize = extremeNullRegime ? 0 : bitmapBytes * sizeof(byte);
-                    var bitmapSpan = bufferReader.SpanForward(bitmapSize);
                     var values = new long?[itemCount];
 
-                    if (min != max)
-                    {   //  Use delta
-                        var maxDeltaValue = ToZeroBase(max, min);
-                        var packedDeltaSpan = bufferReader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue));
-                        var deltas = BitPacker.Unpack(packedDeltaSpan, nonNull, maxDeltaValue);
-                        var i = 0;
+                    if (hasNulls)
+                    {
+                        var bitmapValues = BitPacker.Unpack(
+                            reader.SpanForward(BitPacker.PackSize(itemCount, 1)),
+                            itemCount,
+                            1);
 
-                        //  Read deltas back
-                        foreach (var deltaValue in deltas)
-                        {
-                            var isNotNull = false;
+                        if (min != max)
+                        {   //  Use delta
+                            var maxDeltaValue = ToZeroBase(max, min);
+                            var deltas = BitPacker.Unpack(
+                                reader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue)),
+                                nonNull,
+                                maxDeltaValue);
+                            var deltaIndex = 0;
 
-                            while (!isNotNull)
+                            for (var i = 0; i != itemCount; ++i)
                             {
-                                isNotNull = hasNulls
-                                    ? ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
-                                    : true;
-
-                                if (isNotNull)
-                                {
-                                    values[i] = FromZeroBase(deltaValue, min);
-                                }
-                                else
-                                {
-                                    values[i] = null;
-                                }
-                                ++i;
+                                values[i] = Convert.ToBoolean(bitmapValues[i])
+                                    ? FromZeroBase(deltas[deltaIndex++], min)
+                                    : null;
+                            }
+                        }
+                        else
+                        {   //  Constant (min=max) deltas
+                            for (var i = 0; i != itemCount; ++i)
+                            {
+                                values[i] = Convert.ToBoolean(bitmapValues[i])
+                                    ? min
+                                    : null;
                             }
                         }
                     }
                     else
-                    {   //  Constant (min=max) deltas
-                        for (var i = 0; i != itemCount; ++i)
-                        {
-                            values[i] = ((bitmapSpan[i >> 3] >> (i & 7)) & 1) != 0
-                                ? min
-                                : null;
+                    {
+                        if (min != max)
+                        {   //  Use delta
+                            var maxDeltaValue = ToZeroBase(max, min);
+                            var deltas = BitPacker.Unpack(
+                                reader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue)),
+                                nonNull,
+                                maxDeltaValue);
+
+                            for (var i = 0; i != itemCount; ++i)
+                            {
+                                values[i] = FromZeroBase(deltas[i], min);
+                            }
+                        }
+                        else
+                        {   //  Constant (min=max) deltas
+                            for (var i = 0; i != itemCount; ++i)
+                            {
+                                values[i] = min;
+                            }
                         }
                     }
+
 
                     return values;
                 }
