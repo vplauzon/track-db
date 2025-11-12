@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
-using TrackDb.Lib.Encoding;
 
 namespace TrackDb.UnitTest.PrefixTruncate
 {
@@ -21,51 +20,35 @@ namespace TrackDb.UnitTest.PrefixTruncate
             Array.Empty<int>());
 
         [Fact]
-        public void NoData()
-        {
-            var block = new BlockBuilder(_schema);
-            var prefix = block.TruncateBlock(MAX_SIZE);
-
-            Assert.Equal(0, ((IBlock)prefix).RecordCount);
-        }
-
-        [Fact]
         public void OneRowData()
         {
             var block = new BlockBuilder(_schema);
 
             block.AppendRecord(1, new[] { (object)1 });
 
-            var prefix = block.TruncateBlock(MAX_SIZE);
+            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
 
-            Assert.Equal(1, ((IBlock)prefix).RecordCount);
-            Assert.True(GetSerializedSize(prefix) <= MAX_SIZE);
+            Assert.Equal(1, blockStats.ItemCount);
+            Assert.True(blockStats.Size <= MAX_SIZE);
         }
 
         [Fact]
         public void ManyRowsData()
         {
             const int ROW_COUNT = 100000;
-            
+
             var block = new BlockBuilder(_schema);
 
             for (var i = 1; i != ROW_COUNT; ++i)
             {
-                block.AppendRecord(i, [ (object)i ]);
+                block.AppendRecord(i, [(object)i]);
             }
 
-            var prefix = block.TruncateBlock(MAX_SIZE);
+            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
 
-            Assert.True(((IBlock)prefix).RecordCount > 0);
-            Assert.True(((IBlock)prefix).RecordCount < ROW_COUNT);
-            Assert.True(GetSerializedSize(prefix) <= MAX_SIZE);
-        }
-
-        private int GetSerializedSize(BlockBuilder prefix)
-        {
-            var blockStats = prefix.Serialize(Array.Empty<byte>());
-
-            return blockStats.SerializedSize;
+            Assert.True(blockStats.ItemCount > 0);
+            Assert.True(blockStats.ItemCount < ROW_COUNT);
+            Assert.True(blockStats.Size <= MAX_SIZE);
         }
     }
 }

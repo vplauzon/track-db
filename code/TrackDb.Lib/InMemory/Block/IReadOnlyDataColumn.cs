@@ -22,10 +22,11 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<int> FilterIn(IImmutableSet<object?> values);
 
-        /// <summary>Serialize the first <paramref name="rowCount"/> items.</summary>
-        /// <param name="rowCount">If <c>null</c>, serialize everything.</param>
+        /// <summary>Serialize a segment.</summary>
         /// <param name="writer"></param>
+        /// <param name="skipRows"></param>
+        /// <param name="takeRows"></param>
         /// <returns></returns>
-        ColumnStats Serialize(int? rowCount, ref ByteWriter writer);
+        ColumnStats SerializeSegment(ref ByteWriter writer, int skipRows, int takeRows);
     }
 }

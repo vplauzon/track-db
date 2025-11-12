@@ -10,10 +10,16 @@ namespace TrackDb.Lib.InMemory.Block
     /// Represents statistics of a block.
     /// </summary>
     /// <param name="ItemCount"></param>
-    /// <param name="SerializedSize"></param>
+    /// <param name="Size"></param>
     /// <param name="Columns"></param>
     internal record BlockStats(
         int ItemCount,
-        int SerializedSize,
-        IImmutableList<ColumnStats> Columns);
+        int Size,
+        IImmutableList<ColumnStats> Columns)
+    {
+        public override string ToString()
+        {
+            return $"(Count={ItemCount}, Size={Size})";
+        }
+    }
 }

@@ -40,9 +40,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            ColumnStats IReadOnlyDataColumn.Serialize(
-                int? rowCount,
-                ref ByteWriter writer)
+            ColumnStats IReadOnlyDataColumn.SerializeSegment(
+                ref ByteWriter writer,
+                int skipRows,
+                int takeRows)
             {
                 throw new NotImplementedException();
             }
@@ -74,9 +75,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            ColumnStats IReadOnlyDataColumn.Serialize(
-                int? rowCount,
-                ref ByteWriter writer)
+            ColumnStats IReadOnlyDataColumn.SerializeSegment(
+                ref ByteWriter writer,
+                int skipRows,
+                int takeRows)
             {
                 throw new NotImplementedException();
             }

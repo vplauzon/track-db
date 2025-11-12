@@ -78,6 +78,10 @@ namespace TrackDb.Lib.Encoding
                 var remainingBits = sizeInfo.BitsPerValue;
                 var remainingValue = value;
 
+                if (value > maximumValue)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value));
+                }
                 while (remainingBits > 0)
                 {
                     // Calculate how many bits we can write to the current byte
@@ -124,7 +128,7 @@ namespace TrackDb.Lib.Encoding
                 throw new ArgumentOutOfRangeException(nameof(packed));
             }
 
-            return new(packed, sizeInfo.BitsPerValue, itemCount);
+            return new(packed, maximumValue, sizeInfo.BitsPerValue, itemCount);
         }
     }
 }

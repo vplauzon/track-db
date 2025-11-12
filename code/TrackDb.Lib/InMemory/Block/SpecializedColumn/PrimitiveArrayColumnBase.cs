@@ -86,24 +86,33 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
-        ColumnStats IReadOnlyDataColumn.Serialize(
-            int? rowCount,
-            ref ByteWriter writer)
+        ColumnStats IReadOnlyDataColumn.SerializeSegment(
+            ref ByteWriter writer,
+            int skipRows,
+            int takeRows)
         {
             if (_itemCount == 0)
             {
                 throw new InvalidOperationException(
                     "Can't serialize as there are no items in data column");
             }
-            if (rowCount > _itemCount)
+            if (skipRows < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(skipRows));
+            }
+            if (takeRows < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(takeRows));
+            }
+            if (skipRows + takeRows > _itemCount)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(rowCount),
-                    $"{rowCount} > {_itemCount}");
+                    nameof(takeRows),
+                    $"{skipRows} + {takeRows} > {_itemCount}");
             }
 
             return Serialize(
-                new ReadOnlyMemory<T>(_array, 0, rowCount ?? _itemCount),
+                new ReadOnlyMemory<T>(_array, skipRows, takeRows),
                 ref writer);
         }
         #endregion

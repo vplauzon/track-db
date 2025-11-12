@@ -39,54 +39,54 @@ namespace TrackDb.Lib.DataLifeCycle
                     var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                     var metadataBlock = new BlockBuilder(metadataTable.Schema);
                     var isFirstBlockToPersist = true;
+                    var buffer = new byte[StorageManager.BlockSize];
+                    var skipRows = 0;
 
                     newTableBlock.AppendBlock(tableBlock);
                     newTableBlock.OrderByRecordId();
-                    while (((IBlock)newTableBlock).RecordCount > 0)
+                    while (((IBlock)newTableBlock).RecordCount - skipRows > 0)
                     {
-                        var blockToPersist = newTableBlock.TruncateBlock(StorageManager.BlockSize);
-                        var rowCount = ((IBlock)blockToPersist).RecordCount;
+                        var blockStats = newTableBlock.TruncateSerialize(buffer, skipRows);
 
-                        if (rowCount == 0)
+                        if (blockStats.ItemCount == 0)
                         {
                             throw new InvalidDataException(
                                 $"A single record is too large to persist on table " +
                                 $"'{tableBlock.TableSchema.TableName}' with " +
                                 $"{tableBlock.TableSchema.Columns.Count} columns");
                         }
-
                         //  We stop before persisting the last (typically incomplete) block
-                        if (isFirstBlockToPersist || ((IBlock)newTableBlock).RecordCount > rowCount)
+                        if (isFirstBlockToPersist
+                            || ((IBlock)newTableBlock).RecordCount - skipRows > blockStats.ItemCount)
                         {
                             var blockId = Database.GetFreeBlockId();
-                            var buffer = new byte[StorageManager.BlockSize];
-                            var blockStats = blockToPersist.Serialize(buffer);
 
-                            if (blockStats.SerializedSize > buffer.Length)
+                            if (blockStats.Size > buffer.Length)
                             {
                                 throw new InvalidOperationException(
-                                    $"Block size ({blockStats.SerializedSize}) is bigger than planned" +
+                                    $"Block size ({blockStats.Size}) is bigger than planned" +
                                     $"maximum ({buffer.Length})");
                             }
                             StorageManager.WriteBlock(
                                 blockId,
-                                buffer.AsSpan().Slice(0, blockStats.SerializedSize));
-                            newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, rowCount));
+                                buffer.AsSpan().Slice(0, blockStats.Size));
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
                                 metaSchema.CreateMetadataRecord(
                                     blockStats.ItemCount,
-                                    blockStats.SerializedSize,
+                                    blockStats.Size,
                                     blockId,
-                                    blockStats.Columns.Select(c=>c.ColumnMinimum),
-                                    blockStats.Columns.Select(c=>c.ColumnMaximum)));
+                                    blockStats.Columns.Select(c => c.ColumnMinimum),
+                                    blockStats.Columns.Select(c => c.ColumnMaximum)));
                             isFirstBlockToPersist = false;
+                            skipRows += blockStats.ItemCount;
                         }
                         else
                         {   //  We're done
                             break;
                         }
                     }
+                    newTableBlock.DeleteRecordsByRecordIndex(Enumerable.Range(0, skipRows));
                     CommitPersistance(newTableBlock, metadataBlock, tx);
                 }
             }

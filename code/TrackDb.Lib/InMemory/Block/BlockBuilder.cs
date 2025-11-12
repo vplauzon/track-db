@@ -10,22 +10,8 @@ namespace TrackDb.Lib.InMemory.Block
 {
     internal class BlockBuilder : ReadOnlyBlockBase
     {
-        #region Inner types
-        private record TruncationBound(
-            //  Number of record in the block
-            int RecordCount,
-            //  Size (in bytes) of the block
-            int Size)
-        {
-            public override string ToString()
-            {
-                return $"(Count={RecordCount}, Size={Size})";
-            }
-        }
-        #endregion
-
-        private const int START_TRUNCATE_LENGTH = 100;
-        private const int MAX_TRUNCATE_NAIVE = 500;
+        private const int START_TRUNCATE_ROW_COUNT = 100;
+        private const int MAX_TRUNCATE_ROW_COUNT_NAIVE = 500;
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
 
         private readonly IImmutableList<IDataColumn> _dataColumns;
@@ -173,31 +159,37 @@ namespace TrackDb.Lib.InMemory.Block
         #region Serialization
         public BlockStats Serialize(Memory<byte> buffer)
         {
-            return Serialize(null, buffer);
+            return SerializeSegment(buffer, 0, ((IBlock)this).RecordCount);
         }
 
-        private int GetSerializeSize(int rowCount)
+        private BlockStats SerializeSegment(Memory<byte>? buffer, int skipRows, int takeRows)
         {
-            var draftWriter = new ByteWriter(new Span<Byte>(), false);
-            var blockStats = Serialize(rowCount, null);
-
-            return blockStats.SerializedSize;
-        }
-
-        private BlockStats Serialize(int? rowCount, Memory<byte>? buffer)
-        {
+            IBlock block = this;
             var writer =
                 new ByteWriter(buffer != null ? buffer.Value.Span : new Span<byte>(), false);
 
-            if (rowCount != null && rowCount > ((IBlock)this).RecordCount)
+            if (skipRows < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(skipRows));
+            }
+            if (takeRows < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(takeRows));
+            }
+            if (skipRows > block.RecordCount)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(rowCount),
-                    $"{rowCount} > {((IBlock)this).RecordCount}");
+                    nameof(skipRows),
+                    $"{skipRows} > {block.RecordCount}");
             }
-            rowCount = rowCount ?? ((IBlock)this).RecordCount;
+            if (skipRows + takeRows > block.RecordCount)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(takeRows),
+                    $"{skipRows} + {takeRows} > {block.RecordCount}");
+            }
             //  Item count
-            writer.WriteUInt16((ushort)rowCount!.Value);
+            writer.WriteUInt16((ushort)takeRows);
 
             //  Column payload sizes
             var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
@@ -209,7 +201,8 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 var sizeBefore = writer.Position;
 
-                columnStatsBuilder.Add(dataColumn.Serialize(rowCount, ref writer));
+                columnStatsBuilder.Add(
+                    dataColumn.SerializeSegment(ref writer, skipRows, takeRows));
                 columnsPayloadSizePlaceholder.SetValue(
                     i,
                     (ushort)(writer.Position - sizeBefore));
@@ -223,108 +216,113 @@ namespace TrackDb.Lib.InMemory.Block
                 1,
                 ref writer);
 
-            return new(rowCount!.Value, writer.Position, columnStatsBuilder.ToImmutable());
+            return new(takeRows, writer.Position, columnStatsBuilder.ToImmutable());
         }
 
         /// <summary>
         /// Extract a number of rows from the block builder.  The resulting
         /// block should serialize to as close to but <= <paramref name="maxSize"/>.
         /// </summary>
-        /// <param name="maxSize"></param>
+        /// <param name="buffer"></param>
+        /// <param name="skipRows">Number of rows to skip at the beginning of the block.</param>
         /// <returns></returns>
-        public BlockBuilder TruncateBlock(int maxSize)
+        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
         {
             IBlock block = this;
-            var totalRowCount = block.RecordCount;
+            var maxSize = buffer.Length;
+            var totalRowCount = block.RecordCount - skipRows;
 
+            if (skipRows > block.RecordCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(skipRows));
+            }
             if (totalRowCount == 0)
             {
-                return new BlockBuilder(block.TableSchema);
+                throw new InvalidOperationException("Block has no records");
+            }
+
+            var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
+            var startingRowCount = Math.Min(
+                maxRowCount,
+                maxRowCount <= MAX_TRUNCATE_ROW_COUNT_NAIVE
+                ? MAX_TRUNCATE_ROW_COUNT_NAIVE
+                : START_TRUNCATE_ROW_COUNT);
+            var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
+
+            if (startingUpperBound.ItemCount == maxRowCount
+                && startingUpperBound.Size <= maxSize)
+            {   //  All rows fit:  we're done
+                return startingUpperBound;
             }
             else
             {
-                var truncateRowCount = GetTruncateRowCount(maxSize);
-                var columnCount = block.TableSchema.Columns.Count;
-                var newBlock = new BlockBuilder(block.TableSchema);
-                //  Include record ID
-                var records = block.Project(
-                    new object?[columnCount + 1].AsMemory(),
-                    Enumerable.Range(0, columnCount + 1).ToImmutableArray(),
-                    Enumerable.Range(0, truncateRowCount),
-                    0);
+                (var lowerBound, var upperBound) = GrowTruncationBounds(
+                    buffer,
+                    skipRows,
+                    maxRowCount,
+                    new(0, 0, ImmutableArray<ColumnStats>.Empty),
+                    startingUpperBound);
+                var finalStats = OptimizeTruncationRowCount(
+                    buffer,
+                    skipRows,
+                    maxRowCount,
+                    lowerBound,
+                    upperBound,
+                    1);
 
-                foreach (var record in records)
-                {
-                    newBlock.AppendRecord(
-                        (long)record.Span[columnCount]!,
-                        record.Span.Slice(0, columnCount));
-                }
-
-                return newBlock;
+                return finalStats;
             }
         }
 
-        private int GetTruncateRowCount(int maxSize)
-        {
-            IBlock block = this;
-            var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, block.RecordCount);
-            var startingRowCount = Math.Min(
-                maxRowCount,
-                maxRowCount <= MAX_TRUNCATE_NAIVE ? MAX_TRUNCATE_NAIVE : START_TRUNCATE_LENGTH);
-            var startingSize = GetSerializeSize(startingRowCount);
-            (var lowerBound, var upperBound) = GrowTruncationBounds(
-                maxSize,
-                maxRowCount,
-                new TruncationBound(0, 0),
-                new TruncationBound(startingRowCount, startingSize));
-            (var optimalRowCount, var iterationCount) =
-                OptimizeTruncationRowCount(maxSize, maxRowCount, lowerBound, upperBound, 1);
-
-            return optimalRowCount;
-        }
-
-        private (TruncationBound lowerBound, TruncationBound upperBound) GrowTruncationBounds(
-            int maxSize,
+        private (BlockStats lowerBound, BlockStats upperBound) GrowTruncationBounds(
+            Memory<byte> buffer,
+            int skipRows,
             int maxRowCount,
-            TruncationBound lowerBound,
-            TruncationBound upperBound)
+            BlockStats lowerBound,
+            BlockStats upperBound)
         {
-            if (upperBound.Size >= maxSize || upperBound.RecordCount == maxRowCount)
+            var maxSize = buffer.Length;
+
+            if (upperBound.Size >= maxSize || upperBound.ItemCount == maxRowCount)
             {
                 return (lowerBound, upperBound);
             }
             else
             {
-                var newCount = Math.Min(maxRowCount, upperBound.RecordCount * 2);
+                var newCount = Math.Min(maxRowCount, upperBound.ItemCount * 2);
+                var blockStats = SerializeSegment(buffer, skipRows, newCount);
 
                 return GrowTruncationBounds(
-                    maxSize,
+                    buffer,
+                    skipRows,
                     maxRowCount,
                     upperBound,
-                    new TruncationBound(newCount, GetSerializeSize(newCount)));
+                    blockStats);
             }
         }
 
-        private (int recordCount, int iterationCount) OptimizeTruncationRowCount(
-            int maxSize,
+        private BlockStats OptimizeTruncationRowCount(
+            Memory<byte> buffer,
+            int skipRows,
             int maxRowCount,
-            TruncationBound lowerBound,
-            TruncationBound upperBound,
+            BlockStats lowerBound,
+            BlockStats upperBound,
             int iterationCount)
         {
             const int DELTA_SIZE_TOLERANCE = 10;
 
+            var maxSize = buffer.Length;
+
             if (upperBound.Size <= maxSize)
             {
-                return (upperBound.RecordCount, iterationCount);
+                return upperBound;
             }
-            else if (lowerBound.RecordCount == upperBound.RecordCount - 1)
+            else if (lowerBound.ItemCount == upperBound.ItemCount - 1)
             {
-                return (lowerBound.RecordCount, iterationCount);
+                return lowerBound;
             }
             else
             {
-                //var newCount = (lowerBound.RecordCount + upperBound.RecordCount) / 2;
                 //  Interpolate the new count
                 //  Assuming X = count & Y = size
                 //  Also assuming that Y = m.X + b (it's linear)
@@ -334,23 +332,23 @@ namespace TrackDb.Lib.InMemory.Block
                 //  => b = Y1-m.X1
                 //  Then, Y3 = m.X3 + b => X3 = (Y3-b)/m
                 var m = ((double)(upperBound.Size - lowerBound.Size))
-                    / (upperBound.RecordCount - lowerBound.RecordCount);
-                var b = lowerBound.Size - m * lowerBound.RecordCount;
+                    / (upperBound.ItemCount - lowerBound.ItemCount);
+                var b = lowerBound.Size - m * lowerBound.ItemCount;
                 var newCount = (int)((maxSize - b) / m);
-                var newSize = GetSerializeSize(newCount);
-                var newBound = new TruncationBound(newCount, newSize);
-                var newLowerBound = newSize > maxSize ? lowerBound : newBound;
-                var newUpperBound = newSize > maxSize ? newBound : upperBound;
+                var newBound = SerializeSegment(buffer, skipRows, newCount);
+                var newLowerBound = newBound.Size > maxSize ? lowerBound : newBound;
+                var newUpperBound = newBound.Size > maxSize ? newBound : upperBound;
 
-                if (Math.Abs(newSize - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    || Math.Abs(newSize - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                if (Math.Abs(newBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
+                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
                 {
-                    return (lowerBound.RecordCount, iterationCount);
+                    return lowerBound;
                 }
                 else
                 {
                     return OptimizeTruncationRowCount(
-                        maxSize,
+                        buffer,
+                        skipRows,
                         maxRowCount,
                         newLowerBound,
                         newUpperBound,

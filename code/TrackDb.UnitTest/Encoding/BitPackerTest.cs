@@ -92,6 +92,11 @@ namespace TrackDb.UnitTest.Encoding
                     .Select(i => (ulong)random.Next(0, 1000000))
                     .ToArray(),
                 
+                // Large sequence with increasing values (repro of a bug)
+                Enumerable.Range(0, 220)
+                    .Select(i => (ulong)i)
+                    .ToArray(),
+                
                 // Large sequence with small values (dense packing)
                 Enumerable.Range(0, 100000)
                     .Select(i => (ulong)random.Next(0, 8))

@@ -58,11 +58,12 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        ColumnStats IReadOnlyDataColumn.Serialize(
-            int? rowCount,
-            ref ByteWriter writer)
+        ColumnStats IReadOnlyDataColumn.SerializeSegment(
+            ref ByteWriter writer,
+            int skipRows,
+            int takeRows)
         {
-            var package = _innerColumn.Serialize(rowCount, ref writer);
+            var package = _innerColumn.SerializeSegment(ref writer, skipRows, takeRows);
 
             return new(
                 package.ItemCount,

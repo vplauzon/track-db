@@ -13,14 +13,20 @@ namespace TrackDb.Lib.Encoding
         public ref struct UnpackedValuesEnumerator
         {
             private readonly ReadOnlySpan<byte> _packed;
+            private readonly ulong _maximumValue;
             private readonly int _bitsPerValue;
             private readonly int _itemCount;
             private int _index = 0;
             private int _currentBitPosition = 0;
 
-            public UnpackedValuesEnumerator(ReadOnlySpan<byte> packed, int bitsPerValue, int itemCount)
+            public UnpackedValuesEnumerator(
+                ReadOnlySpan<byte> packed,
+                ulong maximumValue,
+                int bitsPerValue,
+                int itemCount)
             {
                 _packed = packed;
+                _maximumValue = maximumValue;
                 _bitsPerValue = bitsPerValue;
                 _itemCount = itemCount;
             }
@@ -57,6 +63,11 @@ namespace TrackDb.Lib.Encoding
                         startByteIndex++;
                         bitOffsetInStartByte = 0;
                     }
+                    if (value > _maximumValue)
+                    {
+                        throw new ArgumentOutOfRangeException(
+                            $"Unpacked value ({value}) > maximum value ({_maximumValue})");
+                    }
                     Current = value;
                     _currentBitPosition += _bitsPerValue;
                     ++_index;
@@ -72,19 +83,26 @@ namespace TrackDb.Lib.Encoding
         #endregion
 
         private readonly ReadOnlySpan<byte> _packed;
+        private readonly ulong _maximumValue;
         private readonly int _bitsPerValue;
         private readonly int _itemCount;
 
-        public UnpackedValues(ReadOnlySpan<byte> packed, int bitsPerValue, int itemCount)
+        public UnpackedValues(
+            ReadOnlySpan<byte> packed,
+            ulong maximumValue,
+            int bitsPerValue,
+            int itemCount)
         {
             _packed = packed;
+            _maximumValue = maximumValue;
             _bitsPerValue = bitsPerValue;
             _itemCount = itemCount;
         }
 
         /// <summary>This is to support for-each.</summary>
         /// <returns></returns>
-        public UnpackedValuesEnumerator GetEnumerator() => new(_packed, _bitsPerValue, _itemCount);
+        public UnpackedValuesEnumerator GetEnumerator()
+            => new(_packed, _maximumValue, _bitsPerValue, _itemCount);
 
         public IImmutableList<T> ToImmutableArray<T>(Func<ulong, T> projection)
         {
