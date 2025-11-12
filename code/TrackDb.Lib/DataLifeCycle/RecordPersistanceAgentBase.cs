@@ -70,10 +70,6 @@ namespace TrackDb.Lib.DataLifeCycle
                             StorageManager.WriteBlock(
                                 blockId,
                                 buffer.AsSpan().Slice(0, blockStats.Size));
-                            //  DEBUG!!!
-                            var qBlock = Database.GetOrLoadBlock(blockId, tableBlock.TableSchema);
-                            var qColumns = ((ReadOnlyBlock)qBlock).DebugView;
-                            //  DEBUG!!!
                             metadataBlock.AppendRecord(
                                 Database.NewRecordId(),
                                 metaSchema.CreateMetadataRecord(
