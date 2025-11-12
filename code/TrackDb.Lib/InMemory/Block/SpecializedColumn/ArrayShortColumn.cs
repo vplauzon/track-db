@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -64,33 +65,29 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<short> storedValues)
+        protected override ColumnStats Serialize(
+            ReadOnlyMemory<short> storedValues,
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v);
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values, ref writer);
 
             //  Convert min and max to int-16 (from int-64)
-            return new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null ? null : Convert.ToInt16(column.ColumnMinimum),
-                column.ColumnMaximum == null ? null : Convert.ToInt16(column.ColumnMaximum),
-                column.Payload);
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum == null ? null : Convert.ToInt16(package.ColumnMinimum),
+                package.ColumnMaximum == null ? null : Convert.ToInt16(package.ColumnMaximum));
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            //  Convert min and max to int-64 (from int-16)
-            var intSerializedColumn = new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null ? null : Convert.ToInt64(column.ColumnMinimum),
-                column.ColumnMaximum == null ? null : Convert.ToInt64(column.ColumnMaximum),
-                column.Payload);
-
-            return Int64Codec.Decompress(intSerializedColumn)
+            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
                 .Select(l => (short?)l)
                 .Cast<object?>();
         }

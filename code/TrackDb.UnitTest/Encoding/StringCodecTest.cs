@@ -6,8 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xunit;
+using TrackDb.Lib.Encoding;
 
-namespace TrackDb.UnitTest.Codecs
+namespace TrackDb.UnitTest.Encoding
 {
     public class StringCodecTest
     {
@@ -76,8 +77,18 @@ namespace TrackDb.UnitTest.Codecs
         [Fact]
         public void EmptySequence()
         {
-            Assert.Throws<ArgumentNullException>(() => StringCodec.Compress(null!));
-            Assert.Throws<ArgumentNullException>(() => StringCodec.Compress(Array.Empty<string?>()));
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(null!, ref writer);
+            });
+            Assert.Throws<ArgumentNullException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(Array.Empty<string?>(), ref writer);
+            });
         }
 
         [Fact]
@@ -86,7 +97,13 @@ namespace TrackDb.UnitTest.Codecs
             var data = Enumerable.Range(0, UInt16.MaxValue + 1)
                 .Select(i => "Bob")
                 .ToArray();
-            Assert.Throws<ArgumentOutOfRangeException>(() => StringCodec.Compress(data));
+
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                var writer = new ByteWriter(new Span<byte>(), false);
+
+                StringCodec.Compress(data, ref writer);
+            });
         }
 
         [Fact]
@@ -107,11 +124,15 @@ namespace TrackDb.UnitTest.Codecs
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var column = StringCodec.Compress(data);
-            var decodedArray = StringCodec.Decompress(column)
+            var buffer = new byte[7000];
+            var writer = new ByteWriter(buffer, true);
+            var package = StringCodec.Compress(data, ref writer);
+            var decodedArray = StringCodec.Decompress(
+                data.Count(),
+                buffer.AsSpan(0, writer.Position))
                 .ToImmutableArray();
 
-            Assert.Equal(doExpectPayload, column.Payload.Length != 0);
+            Assert.False(writer.IsOverflow);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
             Assert.Equal(data.Min(), decodedArray.Min());
             Assert.Equal(data.Max(), decodedArray.Max());

@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Predicate;
 
@@ -39,7 +40,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            ColumnStats IReadOnlyDataColumn.SerializeSegment(
+                ref ByteWriter writer,
+                int skipRows,
+                int takeRows)
             {
                 throw new NotImplementedException();
             }
@@ -71,7 +75,10 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+            ColumnStats IReadOnlyDataColumn.SerializeSegment(
+                ref ByteWriter writer,
+                int skipRows,
+                int takeRows)
             {
                 throw new NotImplementedException();
             }
@@ -312,5 +319,33 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
         #endregion
+
+        #region Debug View
+        /// <summary>
+        /// To be used in debugging.
+        /// </summary>
+        internal IEnumerable<IImmutableDictionary<string, object?>> DebugView
+        {
+            get
+            {
+                IBlock block = this;
+                var columnNames = block.TableSchema.Columns
+                    .Select(c => c.ColumnName)
+                    .Append("$recordId")
+                    .Append("$blockId");
+                var projection = block.Project(
+                    new object?[block.TableSchema.Columns.Count + 3],
+                    Enumerable.Range(0, block.TableSchema.Columns.Count + 3).ToImmutableArray(),
+                    Enumerable.Range(0, block.RecordCount),
+                    42)
+                    .Select(b => b.ToArray()
+                    .Zip(columnNames)
+                    .ToImmutableDictionary(p => p.Second, p => p.First))
+                    .ToImmutableArray();
+
+                return projection;
+            }
+        }
+        #endregion    }
     }
 }

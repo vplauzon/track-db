@@ -27,7 +27,12 @@ namespace TrackDb.Lib.InMemory.Block
         void DeleteRecords(IEnumerable<int> recordIndexes);
 
         /// <summary>Deserialize the payload and insert records in the column.</summary>
-        /// <param name="serializedColumn"></param>
-        void Deserialize(SerializedColumn serializedColumn);
+        /// <param name="itemCount"></param>
+        /// <param name="hasNulls"></param>
+        /// <paramref name="payload"></param>
+        void Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload);
     }
 }

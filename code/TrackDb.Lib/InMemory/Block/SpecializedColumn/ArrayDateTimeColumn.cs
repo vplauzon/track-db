@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
@@ -63,41 +64,33 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<DateTime> storedValues)
+        protected override ColumnStats Serialize(
+            ReadOnlyMemory<DateTime> storedValues,
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v.Ticks);
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values, ref writer);
 
             //  Convert min and max to DateTime (from int-64)
-            return new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum == null
                 ? null
-                : new DateTime(((long?)column.ColumnMinimum)!.Value),
-                column.ColumnMaximum == null
+                : new DateTime(((long?)package.ColumnMinimum)!.Value),
+                package.ColumnMaximum == null
                 ? null
-                : new DateTime(((long?)column.ColumnMaximum)!.Value),
-                column.Payload);
+                : new DateTime(((long?)package.ColumnMaximum)!.Value));
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            //  Convert min and max to int-64 (from DateTime)
-            var intSerializedColumn = new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
-                ? null
-                : ((DateTime?)column.ColumnMinimum)!.Value.Ticks,
-                column.ColumnMaximum == null
-                ? null
-                : ((DateTime?)column.ColumnMaximum)!.Value.Ticks,
-                column.Payload);
-
-            return Int64Codec.Decompress(intSerializedColumn)
+            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
                 .Select(l => l == null ? (DateTime?)null : new DateTime(l.Value))
                 .Cast<object?>();
         }

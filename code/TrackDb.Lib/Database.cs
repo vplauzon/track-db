@@ -309,8 +309,7 @@ namespace TrackDb.Lib
                 }
                 else
                 {
-                    var metaDataSchema = MetadataSchemaManager.FromTableSchema(table.Table.Schema)
-                        .MetadataSchema;
+                    var metaDataSchema = table.Table.Schema.CreateMetadataTableSchema();
                     var metaDataTable = new Table(this, metaDataSchema);
 
                     ChangeDatabaseState(state =>
@@ -606,13 +605,10 @@ namespace TrackDb.Lib
         #endregion
 
         #region Block load
-        internal IBlock GetOrLoadBlock(
-            TableSchema schema,
-            SerializedBlockMetaData serializedBlockMetadata)
+        internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
         {
-            var payload = _dbFileManager.Value.ReadBlock(serializedBlockMetadata.BlockId);
-            var serializedBlock = new SerializedBlock(serializedBlockMetadata, payload);
-            var block = new ReadOnlyBlock(schema, serializedBlock);
+            var payload = _dbFileManager.Value.ReadBlock(blockId);
+            var block = ReadOnlyBlock.Load(payload, schema);
 
             return block;
         }

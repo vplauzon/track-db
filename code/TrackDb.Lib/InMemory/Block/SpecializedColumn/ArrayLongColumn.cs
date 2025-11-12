@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -64,20 +65,29 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<long> storedValues)
+        protected override ColumnStats Serialize(
+            ReadOnlyMemory<long> storedValues,
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => v == NullValue ? null : (long?)v);
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values, ref writer);
 
             //  No need to convert min and max
-            return column;
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum,
+                package.ColumnMaximum);
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn serializedColumn)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            return Int64Codec.Decompress(serializedColumn)
+            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
                 .Cast<object?>();
         }
     }

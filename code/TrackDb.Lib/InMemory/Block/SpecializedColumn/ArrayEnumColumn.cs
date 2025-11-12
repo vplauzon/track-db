@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
@@ -68,43 +69,35 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<T> storedValues)
+        protected override ColumnStats Serialize(
+            ReadOnlyMemory<T> storedValues,
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i])
                 .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
                 ? (long?)null
                 : Convert.ToInt64(v));
-            var column = Int64Codec.Compress(values);
+            var package = Int64Codec.Compress(values, ref writer);
 
             //  Convert min and max to T (from int-64)
-            return new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum == null
                 ? null
-                : Enum.ToObject(typeof(T), (long)column.ColumnMinimum!),
-                column.ColumnMaximum == null
+                : Enum.ToObject(typeof(T), (long)package.ColumnMinimum!),
+                package.ColumnMaximum == null
                 ? null
-                : Enum.ToObject(typeof(T), (long)column.ColumnMaximum!),
-                column.Payload);
+                : Enum.ToObject(typeof(T), (long)package.ColumnMaximum!));
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            //  Convert min and max to int-64 (from T)
-            var intSerializedColumn = new SerializedColumn(
-                column.ItemCount,
-                column.HasNulls,
-                column.ColumnMinimum == null
-                ? null
-                : Convert.ToInt64(column.ColumnMinimum!),
-                column.ColumnMaximum == null
-                ? null
-                : Convert.ToInt64(column.ColumnMaximum!),
-                column.Payload);
-
-            return Int64Codec.Decompress(intSerializedColumn)
+            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
                 .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
         }
 

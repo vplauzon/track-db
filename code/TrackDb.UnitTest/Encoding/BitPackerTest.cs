@@ -4,10 +4,10 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory.Block.SpecializedColumn;
+using TrackDb.Lib.Encoding;
 using Xunit;
 
-namespace TrackDb.UnitTest.Codecs
+namespace TrackDb.UnitTest.Encoding
 {
     public class BitPackerTest
     {
@@ -17,6 +17,7 @@ namespace TrackDb.UnitTest.Codecs
             var random = new Random();
             var scenarios = new IEnumerable<ulong>[]
             {
+                new ulong[] { 0, 1 },
                 new ulong[] { 0, 0, 0, 1 },
                 new ulong[] { 0, 1, 2, 3, 4, 5, 6 },
                 new ulong[] { 0, 42 },
@@ -91,6 +92,11 @@ namespace TrackDb.UnitTest.Codecs
                     .Select(i => (ulong)random.Next(0, 1000000))
                     .ToArray(),
                 
+                // Large sequence with increasing values (repro of a bug)
+                Enumerable.Range(0, 220)
+                    .Select(i => (ulong)i)
+                    .ToArray(),
+                
                 // Large sequence with small values (dense packing)
                 Enumerable.Range(0, 100000)
                     .Select(i => (ulong)random.Next(0, 8))
@@ -110,15 +116,20 @@ namespace TrackDb.UnitTest.Codecs
             foreach (var originalSequence in scenarios)
             {
                 var max = originalSequence.Any() ? originalSequence.Max() : 0UL;
-                var packedArray = BitPacker.Pack(
+                var packedArray = new byte[BitPacker.PackSize(originalSequence.Count(), max)];
+                var writer = new ByteWriter(packedArray, true);
+
+                BitPacker.Pack(
                     originalSequence,
                     originalSequence.Count(),
-                    max);
+                    max,
+                    ref writer);
+
                 var unpackedArray = BitPacker.Unpack(
                     packedArray,
                     originalSequence.Count(),
                     max)
-                    .ToImmutableArray();
+                    .ToImmutableArray(v => v);
 
                 Assert.True(Enumerable.SequenceEqual(unpackedArray, originalSequence));
             }

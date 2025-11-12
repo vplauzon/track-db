@@ -92,8 +92,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 using (var tx = Database.CreateTransaction())
                 {
                     var metadataRecord = GetMetadataRecord(tableName, blockId.Value, tx);
+                    var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
+                        metadataRecord.Record);
+                    var block = Database.GetOrLoadBlock(blockId.Value, table.Schema);
 
-                    LoadBlock(table, metadataRecord, blockId.Value, tx);
+                    tx.TransactionState.UncommittedTransactionLog.AppendBlock(block);
                     DeleteMetadataRecord(metadataRecord, tx);
                     DiscardBlock(blockId.Value);
 
@@ -102,22 +105,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 MergeTableTransactionLogs(tableName);
             }
             else
-            {   //  Missing record:  likely 2 transaction (snapshot) in parallel
+            {   //  Missing record:  likely 2 transactions (snapshot) in parallel
                 DeleteTombstoneRecord(tableName, recordId);
             }
-        }
-
-        private void LoadBlock(
-            Table table,
-            MetadataRecord metadataRecord,
-            int blockId,
-            TransactionContext tx)
-        {
-            var serializedBlockMetadata = SerializedBlockMetaData.FromMetaDataRecord(
-                metadataRecord.Record);
-            var block = Database.GetOrLoadBlock(table.Schema, serializedBlockMetadata);
-
-            tx.TransactionState.UncommittedTransactionLog.AppendBlock(block);
         }
 
         private void DeleteMetadataRecord(MetadataRecord metadataRecord, TransactionContext tx)
@@ -161,7 +151,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         recordId,
                         BinaryOperator.Equal))
                     //  Only project the block ID
-                    .WithProjection([table.Schema.BlockIdColumnIndex])
+                    .WithProjection([table.Schema.ParentBlockIdColumnIndex])
                     .FirstOrDefault();
 
                 if (recordIdRecord.Length == 0)
@@ -183,16 +173,15 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var metaDataTable = Database.GetMetaDataTable(tableName);
-            var metadataSchemaManager =
-                MetadataSchemaManager.FromMetadataTableSchema(metaDataTable.Schema);
+            var metadataTableSchema = (MetadataTableSchema)metaDataTable.Schema;
             var projectionColumnIndexes = Enumerable.Range(0, metaDataTable.Schema.Columns.Count)
                 .Append(metaDataTable.Schema.RecordIdColumnIndex)
-                .Append(metaDataTable.Schema.BlockIdColumnIndex);
+                .Append(metaDataTable.Schema.ParentBlockIdColumnIndex);
             var metaDataRecord = metaDataTable.Query(tx)
                 //  We're looking for the block ID in the meta data table
                 .WithPredicate(
                 new BinaryOperatorPredicate(
-                    metadataSchemaManager.BlockIdColumnIndex,
+                    metadataTableSchema.BlockIdColumnIndex,
                     blockId,
                     BinaryOperator.Equal))
                 //  Return record-ID & block-ID as well

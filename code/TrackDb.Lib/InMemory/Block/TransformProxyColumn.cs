@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block
@@ -23,7 +24,7 @@ namespace TrackDb.Lib.InMemory.Block
         protected abstract object? OutToInValue(object? value);
 
         protected abstract object? InToOutValue(object? value);
-        
+
         protected abstract JsonElement InToLogValue(object? value);
 
         protected abstract object? LogValueToIn(JsonElement logValue);
@@ -57,16 +58,18 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        SerializedColumn IReadOnlyDataColumn.Serialize(int? rowCount)
+        ColumnStats IReadOnlyDataColumn.SerializeSegment(
+            ref ByteWriter writer,
+            int skipRows,
+            int takeRows)
         {
-            var innerColumn = _innerColumn.Serialize(rowCount);
+            var package = _innerColumn.SerializeSegment(ref writer, skipRows, takeRows);
 
-            return new SerializedColumn(
-                innerColumn.ItemCount,
-                innerColumn.HasNulls,
-                InToOutValue(innerColumn.ColumnMinimum),
-                InToOutValue(innerColumn.ColumnMaximum),
-                innerColumn.Payload);
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                InToOutValue(package.ColumnMinimum),
+                InToOutValue(package.ColumnMaximum));
         }
         #endregion
 
@@ -78,7 +81,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         void IDataColumn.AppendLogValues(IEnumerable<JsonElement> values)
         {
-            foreach(var logValue in values)
+            foreach (var logValue in values)
             {
                 _innerColumn.AppendValue(OutToInValue(LogValueToIn(logValue)));
             }
@@ -94,16 +97,9 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        void IDataColumn.Deserialize(SerializedColumn serializedColumn)
+        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
         {
-            var innerSerializedColumn = new SerializedColumn(
-                serializedColumn.ItemCount,
-                serializedColumn.HasNulls,
-                OutToInValue(serializedColumn.ColumnMinimum),
-                OutToInValue(serializedColumn.ColumnMaximum),
-                serializedColumn.Payload);
-
-            _innerColumn.Deserialize(innerSerializedColumn);
+            _innerColumn.Deserialize(itemCount, hasNulls, payload);
         }
         #endregion
     }

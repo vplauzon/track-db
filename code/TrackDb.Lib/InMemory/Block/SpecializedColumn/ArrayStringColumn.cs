@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
@@ -61,17 +62,27 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override SerializedColumn Serialize(ReadOnlyMemory<string?> storedValues)
+        protected override ColumnStats Serialize(
+            ReadOnlyMemory<string?> storedValues,
+            ref ByteWriter writer)
         {
             var values = Enumerable.Range(0, storedValues.Length)
                 .Select(i => storedValues.Span[i]);
+            var package = StringCodec.Compress(values, ref writer);
 
-            return StringCodec.Compress(values);
+            return new(
+                package.ItemCount,
+                package.HasNulls,
+                package.ColumnMinimum,
+                package.ColumnMaximum);
         }
 
-        protected override IEnumerable<object?> Deserialize(SerializedColumn column)
+        protected override IEnumerable<object?> Deserialize(
+            int itemCount,
+            bool hasNulls,
+            ReadOnlyMemory<byte> payload)
         {
-            return StringCodec.Decompress(column);
+            return StringCodec.Decompress(itemCount, payload.Span);
         }
     }
 }

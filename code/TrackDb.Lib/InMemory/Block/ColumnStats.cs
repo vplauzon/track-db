@@ -2,10 +2,9 @@
 
 namespace TrackDb.Lib.InMemory.Block
 {
-    internal record SerializedColumn(
+    internal record ColumnStats(
         int ItemCount,
         bool HasNulls,
         object? ColumnMinimum,
-        object? ColumnMaximum,
-        ReadOnlyMemory<byte> Payload);
+        object? ColumnMaximum);
 }
