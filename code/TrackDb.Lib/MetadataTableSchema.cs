@@ -21,7 +21,7 @@ namespace TrackDb.Lib
         public static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
         {
             var dataColumns = parentSchema.ColumnProperties
-                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat != ColumnSchemaStat.Data)
+                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat == ColumnSchemaStat.Data)
                 //  For each column we create a min, max & hasNulls column
                 .Select(c => new[]
                 {
@@ -84,6 +84,15 @@ namespace TrackDb.Lib
         public int BlockIdColumnIndex => Columns.Count - 1;
         #endregion
 
+        /// <summary>
+        /// Create a metadata record from statistics about records from the parent schema.
+        /// </summary>
+        /// <param name="itemCount"></param>
+        /// <param name="size"></param>
+        /// <param name="blockId"></param>
+        /// <param name="columnMinima"></param>
+        /// <param name="columnMaxima"></param>
+        /// <returns></returns>
         public ReadOnlySpan<object?> CreateMetadataRecord(
             int itemCount,
             int size,
@@ -91,20 +100,49 @@ namespace TrackDb.Lib
             IEnumerable<object?> columnMinima,
             IEnumerable<object?> columnMaxima)
         {
-            var metaData = columnMinima
-                .Zip(columnMaxima)
-                .Select(o => new object?[]
+            object?[] CreateMetaColumns(
+                ColumnSchemaProperties properties,
+                object? minimum,
+                object? maximum)
+            {
+                switch (properties.ColumnSchemaStat)
                 {
-                    o.First,
-                    o.Second
+                    case ColumnSchemaStat.Data:
+                        return [minimum, maximum];
+                    case ColumnSchemaStat.Min:
+                        //  We take the minimum of the minima
+                        return [minimum];
+                    case ColumnSchemaStat.Max:
+                        //  We take the maximum of the maxima
+                        return [maximum];
+
+                    default:
+                        throw new NotSupportedException(
+                            $"{nameof(ColumnSchemaStat)}.{properties.ColumnSchemaStat}");
+                }
+            }
+
+            var columnPropertiesWithRecordId = _parentSchema.ColumnProperties
+                .Append(new(new("$recordId", typeof(long), true), ColumnSchemaStat.Data));
+            var stats = columnMinima
+                .Zip(columnMaxima, columnPropertiesWithRecordId)
+                .Select(b => new
+                {
+                    Properties = b.Third,
+                    Minimum = b.First,
+                    Maximum = b.Second
                 })
-                .SelectMany(c => c)
+                //  We discard columns that are not indexed
+                .Where(o => o.Properties.ColumnSchema.IsIndexed)
+                .Select(o => CreateMetaColumns(o.Properties, o.Minimum, o.Maximum))
+                .SelectMany(c => c);
+            var statsWithExtraColumns = stats
                 .Append(itemCount)
                 .Append(size)
-                .Append(blockId)
-                .ToArray();
+                .Append(blockId);
+            var record = statsWithExtraColumns.ToArray();
 
-            return metaData;
+            return record;
         }
     }
 }
