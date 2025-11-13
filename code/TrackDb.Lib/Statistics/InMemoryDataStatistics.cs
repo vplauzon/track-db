@@ -6,7 +6,5 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Statistics
 {
-    public record DataStatistics(
-        InMemoryDataStatistics InMemory,
-        PersistedDataStatistics Persisted);
+    public record InMemoryDataStatistics(int TableRecords, int TombstoneRecords);
 }
