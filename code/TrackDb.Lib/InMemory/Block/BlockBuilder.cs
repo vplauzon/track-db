@@ -355,24 +355,22 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Log
-        public TableTransactionContent ToLog()
+        public NewRecordsContent ToLog()
         {
             var recordCount = RecordCount;
             var newRecordIds = Enumerable.Range(0, recordCount)
                 .Select(i => (long)_dataColumns.Last().GetValue(i)!)
-                .ToList();
+                .ToImmutableList();
             var columns = Enumerable.Range(0, _dataColumns.Count - 1)
                 .Select(i => KeyValuePair.Create(
                     Schema.Columns[i].ColumnName,
                     _dataColumns[i].GetLogValues().ToList()))
-                .ToDictionary();
+                .ToImmutableDictionary();
 
-            return new TableTransactionContent(
-                newRecordIds,
-                columns);
+            return new (newRecordIds, columns);
         }
 
-        public void AppendLog(TableTransactionContent content)
+        public void AppendLog(NewRecordsContent content)
         {
             for (var i = 0; i != Schema.Columns.Count; ++i)
             {

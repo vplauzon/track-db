@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -38,7 +37,7 @@ namespace TrackDb.Lib.Logging
 
         private readonly LogPolicy _logPolicy;
         private readonly IImmutableDictionary<string, TableSchema> _tableSchemaMap;
-        private readonly TypedTableSchema<TombstoneRecord> _tombstoneSchema;
+        private readonly TypedTable<TombstoneRecord> _tombstoneTable;
         private readonly LogStorageManager _logStorageManager;
         private readonly Task _backgroundProcessingTask;
         private readonly TaskCompletionSource _stopBackgroundProcessingSource =
@@ -50,11 +49,11 @@ namespace TrackDb.Lib.Logging
             LogPolicy logPolicy,
             string localFolder,
             IImmutableDictionary<string, TableSchema> tableSchemaMap,
-            TypedTableSchema<TombstoneRecord> tombstoneSchema)
+			TypedTable<TombstoneRecord> tombstoneTable)
         {
             _logPolicy = logPolicy;
             _tableSchemaMap = tableSchemaMap;
-            _tombstoneSchema = tombstoneSchema;
+            _tombstoneTable = tombstoneTable;
             _logStorageManager = new LogStorageManager(logPolicy, localFolder);
             _backgroundProcessingTask = ProcessContentItemsAsync();
         }
@@ -90,7 +89,7 @@ namespace TrackDb.Lib.Logging
                 while (await enumerator.MoveNextAsync())
                 {
                     var logContent = TransactionContent.FromJson(enumerator.Current);
-                    var log = logContent.ToTransactionLog(_tombstoneSchema, _tableSchemaMap);
+                    var log = logContent.ToTransactionLog(_tombstoneTable, _tableSchemaMap);
 
                     yield return log;
                 }
@@ -181,7 +180,7 @@ namespace TrackDb.Lib.Logging
             {
                 var txContent = TransactionContent.FromTransactionLog(
                     tx,
-                    _tombstoneSchema,
+                    _tombstoneTable.Schema,
                     _tableSchemaMap);
 
                 if (txContent != null)
@@ -197,7 +196,7 @@ namespace TrackDb.Lib.Logging
         {
             var content = TransactionContent.FromTransactionLog(
                 transactionLog,
-                _tombstoneSchema,
+                _tombstoneTable.Schema,
                 _tableSchemaMap);
 
             if (content != null)
@@ -215,7 +214,7 @@ namespace TrackDb.Lib.Logging
         {
             var content = TransactionContent.FromTransactionLog(
                 transactionLog,
-                _tombstoneSchema,
+                _tombstoneTable.Schema,
                 _tableSchemaMap);
 
             if (content != null)

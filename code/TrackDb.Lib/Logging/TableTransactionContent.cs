@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
-using System.Text.Json;
+using System.Collections.Immutable;
 
 namespace TrackDb.Lib.Logging
 {
     internal record TableTransactionContent(
-        List<long> NewRecordIds,
-        Dictionary<string, List<JsonElement>> Columns);
+		NewRecordsContent? NewRecordsContent,
+		IImmutableList<long>? TombstoneRecordIds);
 }

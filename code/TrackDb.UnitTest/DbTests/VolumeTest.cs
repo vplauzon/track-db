@@ -33,10 +33,42 @@ namespace TrackDb.UnitTest.DbTests
                     .ToImmutableList();
 
                 Assert.Equal(records.Length, resultsAll.Count);
-                foreach(var r in records)
+                foreach (var r in records)
                 {
                     Assert.Contains(r, resultsAll);
                 }
+            }
+        }
+
+        [Fact]
+        public async Task AppendAndQuery()
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                const int TOTAL = 10000;
+                const int BATCH = 200;
+
+                var random = new Random();
+                var records = Enumerable.Range(0, TOTAL)
+                    .Select(i => new TestDatabase.Primitives(
+                        random.Next(20000),
+                        random.Next(2) == 1 ? 42 : null))
+                    .ToImmutableArray();
+
+                for (var i = 0; i != TOTAL / BATCH; ++i)
+                {
+                    db.PrimitiveTable.AppendRecords(records.Skip(i * BATCH).Take(BATCH));
+                    await db.Database.ForceDataManagementAsync(
+                        DataManagementActivity.PersistAllNonMetaData);
+                }
+
+                var resultsAll = db.PrimitiveTable.Query()
+                    .ToImmutableList();
+
+                Assert.Equal(records.Length, resultsAll.Count);
+                Assert.Equal(
+                    records.Sum(r => (long)r.Integer),
+                    resultsAll.Sum(r => (long)r.Integer));
             }
         }
     }

@@ -143,6 +143,19 @@ namespace TrackDb.LogTest
 
         private void CheckDb(TestDatabase db, long cycleCount)
         {
+            var completedWorkflows = db.WorkflowTable.Query()
+                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Select(w => w.WorkflowName)
+                .OrderBy(n => n)
+                .ToImmutableArray();
+            var completedWorkflowsDistinct = completedWorkflows
+                .Distinct()
+                .OrderBy(n => n)
+                .ToImmutableArray();
+
+            Assert.Equal(cycleCount, completedWorkflowsDistinct.Length);
+            Assert.Equal(cycleCount, completedWorkflows.Length);
+
             var completedWorkflowCount = db.WorkflowTable.Query()
                 .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
                 .Count();
