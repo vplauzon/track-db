@@ -140,8 +140,8 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 //  Should we persist any data given the total number of records in memory (across tables)?
                 if (IsPersistanceRequired(forcedActivity, tx))
-                {   //  Find the oldest record across tables
-                    var oldestRecordId = long.MaxValue;
+                {   //  Find the oldest record across tables (by creation time)
+                    var oldestCreationTime = DateTime.MaxValue;
                     var oldestTableName = (string?)null;
                     var buffer = new object?[1];
                     var rowIndexes = new[] { 0 };
@@ -158,15 +158,15 @@ namespace TrackDb.Lib.DataLifeCycle
                         foreach (var block in blocks)
                         {   //  Fetch the record ID
                             var projectedColumns =
-                                ImmutableArray.Create(block.TableSchema.RecordIdColumnIndex);
+                                ImmutableArray.Create(block.TableSchema.CreationTimeColumnIndex);
 
-                            var blockOldestRecordId = block.Project(buffer, projectedColumns, rowIndexes, 0)
-                                .Select(r => ((long?)r.Span[0])!.Value)
+                            var blockOldestCreationTime = block.Project(buffer, projectedColumns, rowIndexes, 0)
+                                .Select(r => (DateTime)r.Span[0]!)
                                 .Min();
 
-                            if (blockOldestRecordId < oldestRecordId)
+                            if (blockOldestCreationTime < oldestCreationTime)
                             {
-                                oldestRecordId = blockOldestRecordId;
+                                oldestCreationTime = blockOldestCreationTime;
                                 oldestTableName = tableName;
                             }
                         }
