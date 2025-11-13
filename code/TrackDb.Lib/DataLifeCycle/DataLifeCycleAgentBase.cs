@@ -79,7 +79,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var recordIds = block.Project(
                 new object?[1],
-                [block.TableSchema.Columns.Count],
+                [block.TableSchema.RecordIdColumnIndex],
                 Enumerable.Range(0, block.RecordCount),
                 0)
                 .Select(b => (long)b.Span[0]!);

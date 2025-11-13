@@ -134,6 +134,7 @@ namespace TrackDb.Lib
             }
 
             var columnPropertiesWithRecordId = _parentSchema.ColumnProperties
+                .Append(new(new("creationTime", typeof(DateTime), false), ColumnSchemaStat.Data))
                 .Append(new(new("$recordId", typeof(long), true), ColumnSchemaStat.Data));
             var stats = columnMinima
                 .Zip(columnMaxima, columnPropertiesWithRecordId)

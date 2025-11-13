@@ -157,7 +157,8 @@ namespace TrackDb.Lib.DataLifeCycle
 
                         foreach (var block in blocks)
                         {   //  Fetch the record ID
-                            var projectedColumns = ImmutableArray.Create(block.TableSchema.Columns.Count);
+                            var projectedColumns =
+                                ImmutableArray.Create(block.TableSchema.RecordIdColumnIndex);
 
                             var blockOldestRecordId = block.Project(buffer, projectedColumns, rowIndexes, 0)
                                 .Select(r => ((long?)r.Span[0])!.Value)

@@ -52,15 +52,15 @@ namespace TrackDb.Lib.InMemory.Block
 
             //  Include record ID
             var data = block.Project(
-                new object?[Schema.Columns.Count + 1].AsMemory(),
-                Enumerable.Range(0, Schema.Columns.Count + 1).ToImmutableArray(),
+                new object?[_dataColumns.Count].AsMemory(),
+                Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
                 Enumerable.Range(0, block.RecordCount),
                 0);
 
             //  Copy data
             foreach (var row in data)
             {
-                for (var columnIndex = 0; columnIndex != Schema.Columns.Count + 1; ++columnIndex)
+                for (var columnIndex = 0; columnIndex != _dataColumns.Count; ++columnIndex)
                 {
                     _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
                 }
@@ -109,9 +109,9 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 _dataColumns[i].AppendValue(record[i]);
             }
-            _dataColumns[record.Length]
+            _dataColumns[Schema.CreationTimeColumnIndex]
                 .AppendValue(creationTime);
-            _dataColumns[record.Length + 1]
+            _dataColumns[Schema.RecordIdColumnIndex]
                 .AppendValue(recordId);
         }
 
