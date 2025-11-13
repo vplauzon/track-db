@@ -146,7 +146,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .WithIgnoreDeleted()
                     //  Where recordID
                     .WithPredicate(new BinaryOperatorPredicate(
-                        table.Schema.Columns.Count,
+                        table.Schema.RecordIdColumnIndex,
                         recordId,
                         BinaryOperator.Equal))
                     //  Only project the block ID
