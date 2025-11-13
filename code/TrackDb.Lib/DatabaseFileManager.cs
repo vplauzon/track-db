@@ -10,7 +10,6 @@ namespace TrackDb.Lib
 {
     internal class DatabaseFileManager : IAsyncDisposable
     {
-        private const int BLOCK_SIZE = 4096;
         private const int INCREMENT_BLOCK_COUNT = 256;
 
         private readonly string _filePath;
@@ -19,9 +18,10 @@ namespace TrackDb.Lib
         private long _fileLength = 0;
 
         #region Constructors
-        public DatabaseFileManager(string filePath)
+        public DatabaseFileManager(string filePath, ushort blockSize)
         {
             _filePath = filePath;
+			BlockSize = blockSize;
             _fileStream = new FileStream(
                 filePath,
                 FileMode.OpenOrCreate,
@@ -39,7 +39,7 @@ namespace TrackDb.Lib
             File.Delete(_filePath);
         }
 
-        public short BlockSize => BLOCK_SIZE;
+        public ushort BlockSize { get; }
 
         #region Block read / write
         public byte[] ReadBlock(int blockId)
@@ -50,14 +50,14 @@ namespace TrackDb.Lib
 
                 _fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
 
-                var buffer = new byte[BLOCK_SIZE];
-                var readCount = _fileStream.Read(buffer, 0, BLOCK_SIZE);
+                var buffer = new byte[BlockSize];
+                var readCount = _fileStream.Read(buffer, 0, BlockSize);
 
-                if (readCount != BLOCK_SIZE)
+                if (readCount != BlockSize)
                 {
                     throw new IOException(
                         $"Block read resulted in only {readCount} " +
-                        $"bytes read instead of {BLOCK_SIZE} ; file is {_fileLength} bytes long " +
+                        $"bytes read instead of {BlockSize} ; file is {_fileLength} bytes long " +
                         $"and read started at {position}");
                 }
 
@@ -67,7 +67,7 @@ namespace TrackDb.Lib
 
         public void WriteBlock(int blockId, ReadOnlySpan<byte> buffer)
         {
-            if (buffer.Length > BLOCK_SIZE)
+            if (buffer.Length > BlockSize)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(buffer),
@@ -83,7 +83,7 @@ namespace TrackDb.Lib
 
         private long GetBlockPosition(int blockId)
         {
-            return (blockId - 1) * BLOCK_SIZE;
+            return (blockId - 1) * BlockSize;
         }
         #endregion
 
@@ -91,11 +91,11 @@ namespace TrackDb.Lib
         {
             lock (_lock)
             {
-                var currentBlockCount = (int)(_fileStream.Length / BLOCK_SIZE);
+                var currentBlockCount = (int)(_fileStream.Length / BlockSize);
                 var targetBlockCount = currentBlockCount + INCREMENT_BLOCK_COUNT;
 
-                _fileStream.SetLength((targetBlockCount + 1) * (long)BLOCK_SIZE);
-                _fileLength = (targetBlockCount + 1) * (long)BLOCK_SIZE;
+                _fileStream.SetLength((targetBlockCount + 1) * (long)BlockSize);
+                _fileLength = (targetBlockCount + 1) * (long)BlockSize;
 
                 return Enumerable.Range(currentBlockCount + 1, targetBlockCount);
             }

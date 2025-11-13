@@ -58,7 +58,9 @@ namespace TrackDb.Lib
 			}
 			Directory.CreateDirectory(localFolder);
 			_dbFileManager = new Lazy<DatabaseFileManager>(
-				() => new DatabaseFileManager(Path.Combine(localFolder, $"blocks.db")),
+				() => new DatabaseFileManager(
+					Path.Combine(localFolder, $"blocks.db"),
+					databasePolicies.StoragePolicy.BlockSize),
 				LazyThreadSafetyMode.ExecutionAndPublication);
 
 			var invalidTableName = userTables
