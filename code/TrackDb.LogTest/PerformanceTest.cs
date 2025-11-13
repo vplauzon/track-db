@@ -132,7 +132,7 @@ namespace TrackDb.LogTest
                 CheckDb(db, cycleCount);
 
                 var stats = db.Database.GetDatabaseStatistics();
-                Console.WriteLine(stats);
+                Console.WriteLine($"Cycle count = {cycleCount}:  {stats}");
             }
             //  Check final state after reloading
             await using (var db = await TestDatabase.CreateAsync(testId))
