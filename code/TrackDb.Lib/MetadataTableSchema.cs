@@ -20,45 +20,56 @@ namespace TrackDb.Lib
         #region Constructor
         public static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
         {
-            var dataColumns = parentSchema.ColumnProperties
-                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat == ColumnSchemaStat.Data)
-                //  For each column we create a min, max & hasNulls column
-                .Select(c => new[]
+            ColumnSchemaProperties[] CreateMetaColumn(ColumnSchemaProperties parentColumn)
+            {
+                var schema = parentColumn.ColumnSchema;
+
+                switch (parentColumn.ColumnSchemaStat)
                 {
-                    new ColumnSchemaProperties(
-                        new ColumnSchema($"$min-{c.ColumnSchema.ColumnName}", c.ColumnSchema.ColumnType),
-                        ColumnSchemaStat.Min),
-                    new ColumnSchemaProperties(
-                        new ColumnSchema($"$max-{c.ColumnSchema.ColumnName}", c.ColumnSchema.ColumnType),
-                        ColumnSchemaStat.Max)
-                })
-                //  We add the record-id columns
-                .Append(
-                [
-                    new ColumnSchemaProperties(
-                        new ColumnSchema("$min-$recordId", typeof(long)),
-                        ColumnSchemaStat.Min),
-                    new ColumnSchemaProperties(
-                        new ColumnSchema("$max-$recordId", typeof(long)),
-                        ColumnSchemaStat.Max)
-                ])
-                .SelectMany(c => c);
+                    case ColumnSchemaStat.Data:
+                        return [
+                            new ColumnSchemaProperties(
+                                new ColumnSchema($"$min-{schema.ColumnName}", schema.ColumnType),
+                                ColumnSchemaStat.Min),
+                            new ColumnSchemaProperties(
+                                new ColumnSchema($"$max-{schema.ColumnName}", schema.ColumnType),
+                                ColumnSchemaStat.Max)];
+                    case ColumnSchemaStat.Min:
+                        return [
+                            new ColumnSchemaProperties(
+                                new ColumnSchema($"$meta-min-{schema.ColumnName}", schema.ColumnType),
+                                ColumnSchemaStat.Min)];
+                    case ColumnSchemaStat.Max:
+                        return [
+                            new ColumnSchemaProperties(
+                                new ColumnSchema($"$meta-max-{schema.ColumnName}", schema.ColumnType),
+                                ColumnSchemaStat.Max)];
+
+                    default:
+                        throw new NotSupportedException(
+                            $"{nameof(ColumnSchemaStat)}.{parentColumn.ColumnSchemaStat}");
+                }
+            }
             var inheritedMetaDataColumns = parentSchema.ColumnProperties
-                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat != ColumnSchemaStat.Data);
-            var metaDataColumns = dataColumns
-                .Concat(inheritedMetaDataColumns)
-                //  We add a few standard meta data columns
-                .Concat([
-                    new ColumnSchemaProperties(
-                        new ColumnSchema(ITEM_COUNT, typeof(int), false),
-                        ColumnSchemaStat.Data),
-                    new ColumnSchemaProperties(
-                        new ColumnSchema(SIZE, typeof(int), false),
-                        ColumnSchemaStat.Data),
-                    new ColumnSchemaProperties(
-                        new ColumnSchema(BLOCK_ID, typeof(int), false),
-                        ColumnSchemaStat.Data)
-                    ]);
+                //  Add record ID
+                .Append(new(new("$recordId", typeof(long)), ColumnSchemaStat.Data))
+                .Where(c => c.ColumnSchema.IsIndexed)
+                .Select(c => CreateMetaColumn(c));
+            var newDataColumns = new ColumnSchemaProperties[]
+            {
+                new ColumnSchemaProperties(
+                    new ColumnSchema(ITEM_COUNT, typeof(int), false),
+                    ColumnSchemaStat.Data),
+                new ColumnSchemaProperties(
+                    new ColumnSchema(SIZE, typeof(int), false),
+                    ColumnSchemaStat.Data),
+                new ColumnSchemaProperties(
+                    new ColumnSchema(BLOCK_ID, typeof(int), false),
+                    ColumnSchemaStat.Data)
+            };
+            var metaDataColumns = inheritedMetaDataColumns
+                .Append(newDataColumns)
+                .SelectMany(c => c);
 
             return new(
                 parentSchema,
@@ -100,7 +111,7 @@ namespace TrackDb.Lib
             IEnumerable<object?> columnMinima,
             IEnumerable<object?> columnMaxima)
         {
-            object?[] CreateMetaColumns(
+            object?[] CreateMetaColumnValues(
                 ColumnSchemaProperties properties,
                 object? minimum,
                 object? maximum)
@@ -134,7 +145,7 @@ namespace TrackDb.Lib
                 })
                 //  We discard columns that are not indexed
                 .Where(o => o.Properties.ColumnSchema.IsIndexed)
-                .Select(o => CreateMetaColumns(o.Properties, o.Minimum, o.Maximum))
+                .Select(o => CreateMetaColumnValues(o.Properties, o.Minimum, o.Maximum))
                 .SelectMany(c => c);
             var statsWithExtraColumns = stats
                 .Append(itemCount)
