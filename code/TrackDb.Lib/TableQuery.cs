@@ -366,7 +366,7 @@ namespace TrackDb.Lib
         {
             foreach (var result in results)
             {
-                var recordId = (long)result.Span[result.Length - 1]!;
+                var recordId = (long)result.Span[_table.Schema.RecordIdColumnIndex]!;
 
                 if (!deletedRecordIds.Contains(recordId))
                 {
