@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -40,8 +41,10 @@ namespace TrackDb.LogTest
 
         private async Task RunPerformanceTestAsync(long cycleCount)
         {
+            var stopwatch = new Stopwatch();
             var testId = $"PerformanceTest-{cycleCount}-{Guid.NewGuid()}";
 
+            stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
                 for (int i = 0; i != cycleCount; ++i)
@@ -132,12 +135,22 @@ namespace TrackDb.LogTest
                 CheckDb(db, cycleCount);
 
                 var stats = db.Database.GetDatabaseStatistics();
-                Console.WriteLine($"Cycle count = {cycleCount}:  {stats}");
+
+                Console.WriteLine(stats);
             }
             //  Check final state after reloading
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
                 CheckDb(db, cycleCount);
+
+                var stats = db.Database.GetDatabaseStatistics();
+
+                Console.WriteLine(
+                    $"Cycle count = {cycleCount} ({stopwatch.Elapsed}):  " +
+                    $"Block Count ({stats.GlobalStatistics.Persisted.BlockCount}), " +
+                    $"Persisted Size ({stats.GlobalStatistics.Persisted.Size}), " +
+                    $"Persisted Record per block ({stats.GlobalStatistics.Persisted.RecordPerBlock}), " +
+                    $"Max Generation Table ({stats.MaxTableGeneration})");
             }
         }
 
