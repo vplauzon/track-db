@@ -312,7 +312,7 @@ namespace TrackDb.Lib
                 : ImmutableHashSet<long>.Empty;
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 //  Add Record ID at the end, so we can use it to detect deleted rows
-                .Append(_table.Schema.Columns.Count)
+                .Append(_table.Schema.RecordIdColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
             var queryId = Guid.NewGuid().ToString();
