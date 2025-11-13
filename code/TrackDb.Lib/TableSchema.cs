@@ -21,20 +21,21 @@ namespace TrackDb.Lib
             IEnumerable<int> partitionKeyColumnIndexes)
             : this(
                   tableName,
-                  columns.ToImmutableArray(),
+                  columns.Select(c => new ColumnSchemaProperties(c, ColumnSchemaStat.Data)),
                   primaryKeyColumnIndexes.ToImmutableArray(),
                   partitionKeyColumnIndexes.ToImmutableArray())
         {
         }
 
-        public TableSchema(
+        internal TableSchema(
             string tableName,
-            IImmutableList<ColumnSchema> columns,
-            IImmutableList<int> primaryKeyColumnIndexes,
-            IImmutableList<int> partitionKeyColumnIndexes)
+            IEnumerable<ColumnSchemaProperties> columnProperties,
+            IEnumerable<int> primaryKeyColumnIndexes,
+            IEnumerable<int> partitionKeyColumnIndexes)
         {
             //  Validate column types
-            var unsupportedColumns = columns
+            var unsupportedColumns = columnProperties
+                .Select(c => c.ColumnSchema)
                 .Where(c => !ReadOnlyBlockBase.IsSupportedDataColumnType(c.ColumnType));
 
             if (unsupportedColumns.Any())
@@ -47,7 +48,8 @@ namespace TrackDb.Lib
             }
 
             //  Validate column name duplicates
-            var firstDuplicatedColumnName = columns
+            var firstDuplicatedColumnName = columnProperties
+                .Select(c => c.ColumnSchema)
                 .GroupBy(c => c.ColumnName)
                 .Where(g => g.Count() > 1)
                 .Select(g => g.Key)
@@ -56,13 +58,13 @@ namespace TrackDb.Lib
             if (firstDuplicatedColumnName != null)
             {
                 throw new ArgumentException(
-                    nameof(columns),
+                    nameof(columnProperties),
                     $"Duplicated column name:  '{firstDuplicatedColumnName}'");
             }
 
             //  Validate Partition key column indexes
             var outOfRangePartitionKeyColumnIndexes = partitionKeyColumnIndexes
-                .Where(i => i < 0 || i >= columns.Count());
+                .Where(i => i < 0 || i >= columnProperties.Count());
 
             if (outOfRangePartitionKeyColumnIndexes.Any())
             {
@@ -75,7 +77,8 @@ namespace TrackDb.Lib
             }
 
             TableName = tableName;
-            Columns = columns.ToImmutableList();
+            Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
+            ColumnProperties = columnProperties.ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();
             _columnNameToColumnIndexMap = Columns
@@ -86,6 +89,8 @@ namespace TrackDb.Lib
         public string TableName { get; }
 
         public IImmutableList<ColumnSchema> Columns { get; }
+
+        internal IImmutableList<ColumnSchemaProperties> ColumnProperties { get; }
 
         #region Extra columns
         public int RecordIdColumnIndex => Columns.Count;
@@ -129,7 +134,7 @@ namespace TrackDb.Lib
             return _columnNameToColumnIndexMap.TryGetValue(columnName, out columnIndex);
         }
 
-        internal virtual MetadataTableSchema CreateMetadataTableSchema()
+        internal MetadataTableSchema CreateMetadataTableSchema()
         {
             return MetadataTableSchema.FromParentSchema(this);
         }

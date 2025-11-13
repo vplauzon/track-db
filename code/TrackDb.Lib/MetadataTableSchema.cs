@@ -20,49 +20,61 @@ namespace TrackDb.Lib
         #region Constructor
         public static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
         {
-            var metaDataColumns = parentSchema.Columns
+            var dataColumns = parentSchema.ColumnProperties
+                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat != ColumnSchemaStat.Data)
                 //  For each column we create a min, max & hasNulls column
                 .Select(c => new[]
                 {
-                    new ColumnSchema($"$min-{c.ColumnName}", c.ColumnType),
-                    new ColumnSchema($"$max-{c.ColumnName}", c.ColumnType)
+                    new ColumnSchemaProperties(
+                        new ColumnSchema($"$min-{c.ColumnSchema.ColumnName}", c.ColumnSchema.ColumnType),
+                        ColumnSchemaStat.Min),
+                    new ColumnSchemaProperties(
+                        new ColumnSchema($"$max-{c.ColumnSchema.ColumnName}", c.ColumnSchema.ColumnType),
+                        ColumnSchemaStat.Max)
                 })
                 //  We add the record-id columns
                 .Append(
                 [
-                    new ColumnSchema("$min-$recordId", typeof(long)),
-                    new ColumnSchema("$max-$recordId", typeof(long))
+                    new ColumnSchemaProperties(
+                        new ColumnSchema("$min-$recordId", typeof(long)),
+                        ColumnSchemaStat.Min),
+                    new ColumnSchemaProperties(
+                        new ColumnSchema("$max-$recordId", typeof(long)),
+                        ColumnSchemaStat.Max)
                 ])
-                //  We add the itemCount & block-id columns
-                .Append(
-                [
-                    new ColumnSchema(ITEM_COUNT, typeof(int)),
-                    new ColumnSchema(SIZE, typeof(int)),
-                    new ColumnSchema(BLOCK_ID, typeof(int))
-                ])
-                //  We fan out the columns
                 .SelectMany(c => c);
+            var inheritedMetaDataColumns = parentSchema.ColumnProperties
+                .Where(c => c.ColumnSchema.IsIndexed && c.ColumnSchemaStat != ColumnSchemaStat.Data);
+            var metaDataColumns = dataColumns
+                .Concat(inheritedMetaDataColumns)
+                //  We add a few standard meta data columns
+                .Concat([
+                    new ColumnSchemaProperties(
+                        new ColumnSchema(ITEM_COUNT, typeof(int), false),
+                        ColumnSchemaStat.Data),
+                    new ColumnSchemaProperties(
+                        new ColumnSchema(SIZE, typeof(int), false),
+                        ColumnSchemaStat.Data),
+                    new ColumnSchemaProperties(
+                        new ColumnSchema(BLOCK_ID, typeof(int), false),
+                        ColumnSchemaStat.Data)
+                    ]);
 
             return new(
                 parentSchema,
                 $"$meta-{parentSchema.TableName}",
-                metaDataColumns.ToImmutableArray());
+                metaDataColumns);
         }
 
         private MetadataTableSchema(
             TableSchema parentSchema,
             string tableName,
-            IImmutableList<ColumnSchema> columns)
-            : base(tableName, columns, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty)
+            IEnumerable<ColumnSchemaProperties> columnProperties)
+            : base(tableName, columnProperties, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty)
         {
             _parentSchema = parentSchema;
         }
         #endregion
-
-        //internal override MetadataTableSchema CreateMetadataTableSchema()
-        //{
-        //    throw new NotImplementedException();
-        //}
 
         #region Metadata Columns
         public int ItemCountColumnIndex => Columns.Count - 3;
