@@ -62,7 +62,9 @@ namespace TrackDb.Lib.Logging
 				}
 			}
 
-			return new(contentMapBuilder.ToImmutable());
+			return contentMapBuilder.Any()
+				? new(contentMapBuilder.ToImmutable())
+				: null;
 		}
 
 		public TransactionLog ToTransactionLog(
