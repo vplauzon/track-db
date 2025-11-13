@@ -226,7 +226,7 @@ namespace TrackDb.Lib
                         var deletedRecordIds = ExecuteQuery(
                             tc,
                             //  Fetch record ID & block ID
-                            [_table.Schema.Columns.Count, _table.Schema.Columns.Count + 2])
+                            [_table.Schema.RecordIdColumnIndex, _table.Schema.ParentBlockIdColumnIndex])
                         .Select(r => new
                         {
                             RecordId = (long)r.Span[0]!,
@@ -366,7 +366,7 @@ namespace TrackDb.Lib
         {
             foreach (var result in results)
             {
-                var recordId = (long)result.Span[_table.Schema.RecordIdColumnIndex]!;
+                var recordId = (long)result.Span[result.Length - 1]!;
 
                 if (!deletedRecordIds.Contains(recordId))
                 {
@@ -442,7 +442,7 @@ namespace TrackDb.Lib
                 .ToImmutableArray();
             //  Second phase:  re-query blocks to project results
             var materializedProjectionColumnIndexes = projectionColumnIndexes
-                .Append(_table.Schema.Columns.Count + 1)
+                .Append(_table.Schema.RowIndexColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
@@ -459,7 +459,7 @@ namespace TrackDb.Lib
                     rowIndexes,
                     firstBlockId)
                     .ToImmutableDictionary(
-                    r => ((int?)r.Span[materializedProjectionColumnIndexes.Length - 1])!.Value,
+                    r => ((int)(r.Span[materializedProjectionColumnIndexes.Length - 1])!),
                     r => r.Slice(0, materializedProjectionColumnIndexes.Length - 1).ToArray());
                 //  Resolve result and store them in reverse order for optimal deletion
                 var newSortedResults = sortedResults
@@ -492,12 +492,9 @@ namespace TrackDb.Lib
                 : ImmutableHashSet<long>.Empty;
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
-                //  Row index
-                .Append(_table.Schema.Columns.Count + 1)
-                //  Block ID
-                .Append(_table.Schema.Columns.Count + 2)
-                //  Record ID at the end
-                .Append(_table.Schema.Columns.Count)
+                .Append(_table.Schema.RowIndexColumnIndex)
+                .Append(_table.Schema.ParentBlockIdColumnIndex)
+                .Append(_table.Schema.RecordIdColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[projectionColumnIndexes.Length].AsMemory();
             var accumulatedSortValues = ImmutableArray<object?[]>.Empty;

@@ -203,15 +203,17 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var columns = projectionColumnIndexes
-                .Select(index => index < 0 || index > Schema.Columns.Count + 2
-                ? throw new ArgumentOutOfRangeException(
-                    nameof(projectionColumnIndexes),
-                    $"Column '{index}' is out-of-range")
-                : index <= Schema.Columns.Count
+                .Select(index => index < Schema.Columns.Count
+                || index == Schema.CreationTimeColumnIndex
+                || index == Schema.RecordIdColumnIndex
                 ? GetDataColumn(index)
-                : index == Schema.Columns.Count + 1
+                : index == Schema.Columns.Count + 2
                 ? new RowIndexColumn()
-                : new BlockIdColumn(blockId))
+                : index == Schema.Columns.Count + 3
+                ? new BlockIdColumn(blockId)
+                : throw new ArgumentOutOfRangeException(
+                    nameof(projectionColumnIndexes),
+                    $"Column '{index}' is out-of-range"))
                 .ToImmutableArray();
 
             foreach (var rowIndex in rowIndexes)
