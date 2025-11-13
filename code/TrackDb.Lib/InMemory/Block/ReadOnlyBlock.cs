@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -27,7 +26,7 @@ namespace TrackDb.Lib.InMemory.Block
         {
             var reader = new ByteReader(payload.Span);
             var itemCount = reader.ReadUInt16();
-            var columnCount = schema.Columns.Count + 1; //  Include record-ID
+            var columnCount = schema.Columns.Count + 2; //  Include creation-time & record-ID
             var columnSizeArray = reader.VirtualReadonlyArrayUInt16(columnCount);
             var columnPayloads = new ReadOnlyMemory<byte>[columnCount];
             var dataColumns = new Lazy<IReadOnlyDataColumn>[columnCount];
@@ -51,11 +50,17 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 var columnPayload = columnPayloads[i];
 
-                dataColumns[i] = i < columnCount - 1
+                dataColumns[i] = i < schema.Columns.Count
                     ? CreateColumn(
                         schema.Columns[i].ColumnType,
                         itemCount,
                         hasNulls[i],
+                        columnPayload)
+                    : i == schema.CreationTimeColumnIndex
+                    ? CreateColumn( //  Creation time
+                        typeof(DateTime),
+                        itemCount,
+                        false,
                         columnPayload)
                     : CreateColumn( //  Record ID
                         typeof(long),

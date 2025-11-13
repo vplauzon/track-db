@@ -203,13 +203,11 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var columns = projectionColumnIndexes
-                .Select(index => index < Schema.Columns.Count
-                || index == Schema.CreationTimeColumnIndex
-                || index == Schema.RecordIdColumnIndex
+                .Select(index => index <= Schema.RecordIdColumnIndex
                 ? GetDataColumn(index)
-                : index == Schema.Columns.Count + 2
+                : index == Schema.RowIndexColumnIndex
                 ? new RowIndexColumn()
-                : index == Schema.Columns.Count + 3
+                : index == Schema.ParentBlockIdColumnIndex
                 ? new BlockIdColumn(blockId)
                 : throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
