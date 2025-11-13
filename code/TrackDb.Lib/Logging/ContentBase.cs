@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TrackDb.Lib.Logging
 {
@@ -7,8 +8,9 @@ namespace TrackDb.Lib.Logging
     {
         private static readonly JsonSerializerOptions JSON_OPTIONS = new()
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+			DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+		};
 
         public static T FromJson(string json)
         {

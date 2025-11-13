@@ -102,7 +102,7 @@ namespace TrackDb.Lib
                     localFolder,
                     userTables
                     .ToImmutableDictionary(t => t.Schema.TableName, t => t.Schema),
-                    _tombstoneTable.Schema)
+                    _tombstoneTable)
                 : null;
 
             var tableMap = userTables
