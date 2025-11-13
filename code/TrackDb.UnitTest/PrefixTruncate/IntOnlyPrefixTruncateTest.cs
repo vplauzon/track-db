@@ -24,7 +24,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
         {
             var block = new BlockBuilder(_schema);
 
-            block.AppendRecord(1, new[] { (object)1 });
+            block.AppendRecord(DateTime.Now, 1, new[] { (object)1 });
 
             var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
 
@@ -41,7 +41,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             for (var i = 1; i != ROW_COUNT; ++i)
             {
-                block.AppendRecord(i, [(object)i]);
+                block.AppendRecord(DateTime.Now, i, [(object)i]);
             }
 
             var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);

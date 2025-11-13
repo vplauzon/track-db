@@ -18,13 +18,17 @@ namespace TrackDb.Lib.InMemory
             .Cast<IBlock>()
             .All(t => t.RecordCount == 0);
 
-        public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
+        public void AppendRecord(
+            DateTime creationTime,
+            long recordId,
+            ReadOnlySpan<object?> record,
+            TableSchema schema)
         {
             if (!TableBlockBuilderMap.ContainsKey(schema.TableName))
             {
                 TableBlockBuilderMap.Add(schema.TableName, new BlockBuilder(schema));
             }
-            TableBlockBuilderMap[schema.TableName].AppendRecord(recordId, record);
+            TableBlockBuilderMap[schema.TableName].AppendRecord(creationTime, recordId, record);
         }
 
         public void AppendBlock(IBlock block)

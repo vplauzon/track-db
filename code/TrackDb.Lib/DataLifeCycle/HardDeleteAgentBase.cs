@@ -5,7 +5,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
@@ -147,7 +146,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .WithIgnoreDeleted()
                     //  Where recordID
                     .WithPredicate(new BinaryOperatorPredicate(
-                        table.Schema.Columns.Count,
+                        table.Schema.RecordIdColumnIndex,
                         recordId,
                         BinaryOperator.Equal))
                     //  Only project the block ID
