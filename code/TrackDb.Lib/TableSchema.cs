@@ -93,11 +93,13 @@ namespace TrackDb.Lib
         internal IImmutableList<ColumnSchemaProperties> ColumnProperties { get; }
 
         #region Extra columns
-        public int RecordIdColumnIndex => Columns.Count;
+        public int CreationTimeColumnIndex => Columns.Count;
 
-        public int RowIndexColumnIndex => Columns.Count + 1;
+        public int RecordIdColumnIndex => Columns.Count + 1;
 
-        public int ParentBlockIdColumnIndex => Columns.Count + 2;
+        public int RowIndexColumnIndex => Columns.Count + 2;
+
+        public int ParentBlockIdColumnIndex => Columns.Count + 3;
         #endregion
 
         /// <summary>

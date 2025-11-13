@@ -94,6 +94,7 @@ namespace TrackDb.Lib
 			TransactionContext transactionContext)
 		{
 			transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
+				DateTime.Now,
 				NewRecordId(),
 				record,
 				Schema);

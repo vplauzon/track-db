@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text.Json;
 
 namespace TrackDb.Lib.Logging
 {
     internal record NewRecordsContent(
+        IImmutableList<DateTime> CreationTimes,
         IImmutableList<long> NewRecordIds,
-		IImmutableDictionary<string, List<JsonElement>> Columns);
+        IImmutableDictionary<string, List<JsonElement>> Columns);
 }
