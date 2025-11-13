@@ -385,9 +385,9 @@ namespace TrackDb.Lib.InMemory.Block
                 _dataColumns[i].AppendLogValues(content.Columns[Schema.Columns[i].ColumnName]);
             }
             //  Creation time
-            foreach (var newRecordId in content.NewRecordIds)
+            foreach (var creationTime in content.CreationTimes)
             {
-                _dataColumns[Schema.CreationTimeColumnIndex].AppendValue(newRecordId);
+                _dataColumns[Schema.CreationTimeColumnIndex].AppendValue(creationTime);
             }
             //  Record ID
             foreach (var newRecordId in content.NewRecordIds)
