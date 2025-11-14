@@ -46,7 +46,7 @@ namespace TrackDb.Lib.InMemory
 
                     //  We remove the previous committed to replace them with merged one
                     inMemoryBlocks.RemoveRange(0, existingCommittedCount);
-                    if (txTableLog.CommittedDataBlock.RecordCount != 0)
+                    if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
                     {
                         inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
                     }

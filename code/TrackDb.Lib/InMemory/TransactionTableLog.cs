@@ -8,7 +8,7 @@ namespace TrackDb.Lib.InMemory
 {
     internal record TransactionTableLog(
         BlockBuilder NewDataBlockBuilder,
-        IBlock? CommittedDataBlock = null)
+        BlockBuilder? CommittedDataBlock = null)
     {
         public TransactionTableLog(TableSchema schema)
             : this(new BlockBuilder(schema))

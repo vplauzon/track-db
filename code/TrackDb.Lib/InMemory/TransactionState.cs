@@ -41,5 +41,10 @@ namespace TrackDb.Lib.InMemory
                 }
             }
         }
+
+        public void LoadCommittedTransactionLogs(string tableName)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
