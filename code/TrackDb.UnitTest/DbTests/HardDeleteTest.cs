@@ -88,7 +88,7 @@ namespace TrackDb.UnitTest.DbTests
                 using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.False(
-                        tc.TransactionState.ListTransactionLogBlocks(
+                        tc.TransactionState.ListBlocks(
                             db.PrimitiveTable.Schema.TableName).Any());
                 }
             }

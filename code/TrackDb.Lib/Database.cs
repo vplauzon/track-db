@@ -504,8 +504,7 @@ namespace TrackDb.Lib
                 {
                     return currentDbState with
                     {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(
-                            transactionState.UncommittedTransactionLog),
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
                         TransactionMap = newTransactionMap
                     };
                 }
@@ -539,8 +538,7 @@ namespace TrackDb.Lib
                 {
                     return currentDbState with
                     {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(
-                            transactionState.UncommittedTransactionLog),
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
                         TransactionMap = newTransactionMap
                     };
                 }
@@ -608,10 +606,10 @@ namespace TrackDb.Lib
             {
                 var buffer = new object?[1];
 
-                foreach (var pair in tl.TableBlockBuilderMap)
+                foreach (var pair in tl.TransactionTableLogMap)
                 {
                     var tableName = pair.Key;
-                    IBlock block = pair.Value;
+                    IBlock block = pair.Value.NewDataBlockBuilder;
 
                     if (block.RecordCount > 0 && tableName != _tombstoneTable.Schema.TableName)
                     {
@@ -644,9 +642,11 @@ namespace TrackDb.Lib
                     UpdateLastRecordIdMap(tl, tableToLastRecordIdMap);
                     ChangeDatabaseState(currentDbState =>
                     {   //  Add transaction log to the state
+                        var txState = new TransactionState(currentDbState.InMemoryDatabase, tl);
+
                         return currentDbState with
                         {
-                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(tl)
+                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(txState)
                         };
                     });
                     _dataLifeCycleManager.TriggerDataManagement();
@@ -725,8 +725,8 @@ namespace TrackDb.Lib
                         txLog.AppendRecord(creationTime, recordId, dataRecord, table.Schema);
                     }
                     yield return txLog;
-                    doContinue = txLog.TableBlockBuilderMap.Any()
-                        && ((IBlock)txLog.TableBlockBuilderMap.First().Value).RecordCount == CHECKPOINT_TX_RECORD_COUNT;
+                    doContinue = txLog.TransactionTableLogMap.Any()
+                        && ((IBlock)txLog.TransactionTableLogMap.First().Value).RecordCount == CHECKPOINT_TX_RECORD_COUNT;
                 }
             }
         }

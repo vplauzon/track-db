@@ -17,14 +17,23 @@ namespace TrackDb.Lib.InMemory
         {
         }
 
-        public IEnumerable<IBlock> ListTransactionLogBlocks(string tableName)
+        public IEnumerable<IBlock> ListBlocks(string tableName)
         {
+            var doOverrideCommitted = false;
+
             if (UncommittedTransactionLog
-                .TableBlockBuilderMap.TryGetValue(tableName, out var ubb))
+                .TransactionTableLogMap
+                .TryGetValue(tableName, out var ttl))
             {
-                yield return ubb;
+                yield return ttl.NewDataBlockBuilder;
+                if (ttl.CommittedDataBlock != null)
+                {
+                    doOverrideCommitted = true;
+                    yield return ttl.CommittedDataBlock;
+                }
             }
-            if (InMemoryDatabase.TableTransactionLogsMap.TryGetValue(tableName, out var logs))
+            if (!doOverrideCommitted
+                && InMemoryDatabase.TableTransactionLogsMap.TryGetValue(tableName, out var logs))
             {
                 foreach (var block in logs.InMemoryBlocks)
                 {

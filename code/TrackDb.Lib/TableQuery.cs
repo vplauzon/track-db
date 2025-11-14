@@ -215,17 +215,18 @@ namespace TrackDb.Lib
 
             return _table.Database.ExecuteWithinTransactionContext(
                 _transactionContext,
-                tc =>
+                tx =>
                 {
                     if (_takeCount != 0)
                     {
-                        tc.TransactionState.UncommittedTransactionLog.TableBlockBuilderMap.TryGetValue(
+                        //  Get the transaction table log if it exists, otherwise get null
+                        tx.TransactionState.UncommittedTransactionLog.TransactionTableLogMap.TryGetValue(
                             _table.Schema.TableName,
-                            out var blockBuilder);
+                            out var transactionTableLog);
 
+                        //  Fetch record & block ID of records matching query
                         var deletedRecordIds = ExecuteQuery(
-                            tc,
-                            //  Fetch record ID & block ID
+                            tx,
                             [_table.Schema.RecordIdColumnIndex, _table.Schema.ParentBlockIdColumnIndex])
                         .Select(r => new
                         {
@@ -233,20 +234,23 @@ namespace TrackDb.Lib
                             BlockId = (int)r.Span[1]!
                         })
                         .ToImmutableList();
-                        var uncommittedDeletedRecordIds = blockBuilder
-                        ?.DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
+                        //  Hard delete the records that are uncommitted
+                        var hardDeletedRecordIds = transactionTableLog
+                        ?.NewDataBlockBuilder
+                        .DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
                         .ToImmutableHashSet();
-                        var committedDeletedRecordIds = uncommittedDeletedRecordIds == null
-                        ? deletedRecordIds
-                        : deletedRecordIds.Where(r => !uncommittedDeletedRecordIds.Contains(r.RecordId));
 
-                        foreach (var r in committedDeletedRecordIds)
+                        foreach (var r in deletedRecordIds)
                         {
-                            _table.Database.DeleteRecord(
-                                r.RecordId,
-                                r.BlockId <= 0 ? null : r.BlockId,
-                                _table.Schema.TableName,
-                                tc);
+                            if (hardDeletedRecordIds == null
+                                || !hardDeletedRecordIds.Contains(r.RecordId))
+                            {
+                                _table.Database.DeleteRecord(
+                                    r.RecordId,
+                                    r.BlockId <= 0 ? null : r.BlockId,
+                                    _table.Schema.TableName,
+                                    tx);
+                            }
                         }
 
                         return deletedRecordIds.Count;
@@ -387,7 +391,7 @@ namespace TrackDb.Lib
             var blockId = 0;
 
             foreach (var block in
-                transactionState.ListTransactionLogBlocks(_table.Schema.TableName))
+                transactionState.ListBlocks(_table.Schema.TableName))
             {
                 yield return new IdentifiedBlock(blockId--, block);
             }
