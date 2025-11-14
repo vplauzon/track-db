@@ -10,10 +10,11 @@ namespace TrackDb.Lib.InMemory
 {
     internal record TransactionState(
         InMemoryDatabase InMemoryDatabase,
-        TransactionLog UncommittedTransactionLog)
+        TransactionLog UncommittedTransactionLog,
+        string TombstoneTableName)
     {
-        public TransactionState(InMemoryDatabase inMemoryDatabase)
-            : this(inMemoryDatabase, new TransactionLog())
+        public TransactionState(InMemoryDatabase inMemoryDatabase, string tombstoneTableName)
+            : this(inMemoryDatabase, new TransactionLog(), tombstoneTableName)
         {
         }
 

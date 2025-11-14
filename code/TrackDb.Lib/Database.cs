@@ -407,7 +407,9 @@ namespace TrackDb.Lib
             {
                 var newTransactionMap = currentDbState.TransactionMap.Add(
                     transactionContext.TransactionId,
-                    new TransactionState(currentDbState.InMemoryDatabase));
+                    new TransactionState(
+                        currentDbState.InMemoryDatabase,
+                        _tombstoneTable.Schema.TableName));
 
                 return currentDbState with { TransactionMap = newTransactionMap };
             });
@@ -420,7 +422,7 @@ namespace TrackDb.Lib
             var state = _databaseState;
             var transactionContext = new TransactionContext(
                 this,
-                new TransactionState(state.InMemoryDatabase));
+                new TransactionState(state.InMemoryDatabase, _tombstoneTable.Schema.TableName));
 
             return transactionContext;
         }
@@ -642,7 +644,10 @@ namespace TrackDb.Lib
                     UpdateLastRecordIdMap(tl, tableToLastRecordIdMap);
                     ChangeDatabaseState(currentDbState =>
                     {   //  Add transaction log to the state
-                        var txState = new TransactionState(currentDbState.InMemoryDatabase, tl);
+                        var txState = new TransactionState(
+                            currentDbState.InMemoryDatabase,
+                            tl,
+                            _tombstoneTable.Schema.TableName);
 
                         return currentDbState with
                         {
