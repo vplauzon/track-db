@@ -26,13 +26,19 @@ namespace TrackDb.Lib.DataLifeCycle
             var maxInMemoryBlocksPerTable = doMergeAll
                 ? 1
                 : Database.DatabasePolicy.InMemoryPolicy.MaxBlocksPerTable;
-            var candidateTables = Database.GetDatabaseStateSnapshot().InMemoryDatabase.TransactionTableLogsMap
-                .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
-                .Select(p => p.Key);
 
-            foreach(var tableName in candidateTables)
+            using(var tx = Database.CreateTransaction(false))
             {
-                MergeTableTransactionLogs(tableName);
+                var candidateTables = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
+                    .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)
+                    .Select(p => p.Key);
+
+                foreach (var tableName in candidateTables)
+                {
+                    tx.LoadCommittedBlocksInTransaction(tableName);
+                }
+
+                tx.Complete();
             }
 
             return true;
