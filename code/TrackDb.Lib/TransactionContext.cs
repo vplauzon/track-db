@@ -1,8 +1,15 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
+using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
@@ -147,7 +154,38 @@ namespace TrackDb.Lib
 
             if (transactionState.LoadCommittedBlocksInTransaction(tableName))
             {
-                throw new NotImplementedException();
+                if (tableName != _database.TombstoneTable.Schema.TableName)
+                {
+                    var deletedRecordIds = _database.GetDeletedRecordIds(tableName, this)
+                        .ToImmutableArray();
+
+                    if (deletedRecordIds.Any())
+                    {
+                        transactionState.LoadCommittedBlocksInTransaction(
+                            _database.TombstoneTable.Schema.TableName);
+
+                        var tableBlockBuilder = transactionState.UncommittedTransactionLog
+                            .TransactionTableLogMap[tableName]
+                            .CommittedDataBlock!;
+                        var tombstoneBlockBuilder = transactionState.UncommittedTransactionLog
+                            .TransactionTableLogMap[_database.TombstoneTable.Schema.TableName]
+                            .CommittedDataBlock!;
+                        //  Hard delete in-memory records in the table
+                        var hardDeletedRecordIds = tableBlockBuilder.DeleteRecordsByRecordId(
+                            deletedRecordIds);
+                        //  Hard delete tombstone records in the tombstone table
+                        var rowIndexes = _database.TombstoneTable.Query(this)
+                            .Where(pf => pf.Equal(t => t.TableName, tableName))
+                            .Where(pf => pf.In(t => t.DeletedRecordId, deletedRecordIds))
+                            .TableQuery
+                            .WithProjection([_database.TombstoneTable.Schema.RowIndexColumnIndex])
+                            .Select(r => (int)r.Span[0]!);
+
+                        tombstoneBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                    }
+                }
+
+                return true;
             }
 
             return false;
