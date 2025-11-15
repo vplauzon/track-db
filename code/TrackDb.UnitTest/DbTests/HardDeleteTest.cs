@@ -26,18 +26,18 @@ namespace TrackDb.UnitTest.DbTests
                     .Delete();
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.Database.CreateTransaction())
+                using (var tx = db.Database.CreateTransaction())
                 {
-                    Assert.True(
-                        tc.TransactionState.InMemoryDatabase.TransactionTableLogsMap.Any());
+                    Assert.True(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
+                        db.PrimitiveTable.Schema.TableName));
                 }
 
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.Database.CreateTransaction())
+                using (var tx = db.Database.CreateTransaction())
                 {
-                    Assert.False(tc.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
+                    Assert.False(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
                         db.PrimitiveTable.Schema.TableName));
                 }
             }

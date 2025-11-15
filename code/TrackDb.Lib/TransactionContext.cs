@@ -2,14 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
@@ -161,14 +158,15 @@ namespace TrackDb.Lib
 
                     if (deletedRecordIds.Any())
                     {
-                        transactionState.LoadCommittedBlocksInTransaction(
-                            _database.TombstoneTable.Schema.TableName);
+                        var tombstoneTableName = _database.TombstoneTable.Schema.TableName;
+
+                        transactionState.LoadCommittedBlocksInTransaction(tombstoneTableName);
 
                         var tableBlockBuilder = transactionState.UncommittedTransactionLog
                             .TransactionTableLogMap[tableName]
                             .CommittedDataBlock!;
                         var tombstoneBlockBuilder = transactionState.UncommittedTransactionLog
-                            .TransactionTableLogMap[_database.TombstoneTable.Schema.TableName]
+                            .TransactionTableLogMap[tombstoneTableName]
                             .CommittedDataBlock!;
                         //  Hard delete in-memory records in the table
                         var hardDeletedRecordIds = tableBlockBuilder.DeleteRecordsByRecordId(
