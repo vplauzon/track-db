@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
@@ -142,7 +143,14 @@ namespace TrackDb.Lib
         /// <returns><c>true</c> iif something was loaded.</returns>
         internal bool LoadCommittedBlocksInTransaction(string tableName)
         {
-            throw new NotImplementedException();
+            var transactionState = TransactionState;
+
+            if (transactionState.LoadCommittedBlocksInTransaction(tableName))
+            {
+                throw new NotImplementedException();
+            }
+
+            return false;
         }
     }
 }
