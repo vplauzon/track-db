@@ -236,7 +236,7 @@ namespace TrackDb.Lib
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted
                         var hardDeletedRecordIds = transactionTableLog
-                        ?.NewDataBlockBuilder
+                        ?.NewDataBlock
                         .DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
                         .ToImmutableHashSet();
 

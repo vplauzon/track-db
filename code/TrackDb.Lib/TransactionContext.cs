@@ -69,10 +69,6 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public long TransactionId { get; }
-
-        internal TransactionState TransactionState => _stateResolutionFunc(TransactionId);
-
         void IDisposable.Dispose()
         {
             if (_status == TransactionStatus.Open)
@@ -80,6 +76,10 @@ namespace TrackDb.Lib
                 Rollback();
             }
         }
+
+        public long TransactionId { get; }
+
+        internal TransactionState TransactionState => _stateResolutionFunc(TransactionId);
 
         public void Complete()
         {
@@ -130,6 +130,19 @@ namespace TrackDb.Lib
                 throw new InvalidOperationException(
                     $"Transaction context is in terminal state of '{_status}'");
             }
+        }
+
+        /// <summary>
+        /// Load all committed transaction logs of a table, merges them, hard delete previously
+        /// deleted records and stores it in <see cref="TransactionTableLog.CommittedDataBlock"/>.
+        /// If the table is already loaded, nothing happens.
+        /// The tombstone table might get loaded as a side effect.
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <returns><c>true</c> iif something was loaded.</returns>
+        internal bool LoadCommittedBlocksInTransaction(string tableName)
+        {
+            throw new NotImplementedException();
         }
     }
 }

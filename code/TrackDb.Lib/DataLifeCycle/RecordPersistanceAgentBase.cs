@@ -31,7 +31,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
                     var tableBlock =
-                        inMemoryDatabase.TableTransactionLogsMap[tableName].InMemoryBlocks.First();
+                        inMemoryDatabase.TransactionTableLogsMap[tableName].InMemoryBlocks.First();
                     var newTableBlock = new BlockBuilder(tableBlock.TableSchema);
                     var metadataTable =
                         Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
@@ -203,7 +203,7 @@ namespace TrackDb.Lib.DataLifeCycle
             Database.ChangeDatabaseState(state =>
             {
                 var inMemoryDatabase = state.InMemoryDatabase;
-                var tableTransactionLogsMap = inMemoryDatabase.TableTransactionLogsMap;
+                var tableTransactionLogsMap = inMemoryDatabase.TransactionTableLogsMap;
                 var tableLogs = tableTransactionLogsMap[tableBlock.TableSchema.TableName];
                 var metadataTableLogs = tableTransactionLogsMap.ContainsKey(metadataBlock.TableSchema.TableName)
                 ? tableTransactionLogsMap[metadataBlock.TableSchema.TableName]
@@ -241,7 +241,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     });
                 inMemoryDatabase = inMemoryDatabase with
                 {
-                    TableTransactionLogsMap = tableTransactionLogsMap
+                    TransactionTableLogsMap = tableTransactionLogsMap
                 };
                 state = state with { InMemoryDatabase = inMemoryDatabase };
 

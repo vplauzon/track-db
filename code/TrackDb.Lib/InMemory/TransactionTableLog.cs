@@ -7,11 +7,11 @@ using System.Linq;
 namespace TrackDb.Lib.InMemory
 {
     internal record TransactionTableLog(
-        BlockBuilder NewDataBlockBuilder,
+        BlockBuilder NewDataBlock,
         BlockBuilder? CommittedDataBlock = null)
     {
-        public TransactionTableLog(TableSchema schema)
-            : this(new BlockBuilder(schema))
+        public TransactionTableLog(TableSchema schema, BlockBuilder? CommittedDataBlock = null)
+            : this(new BlockBuilder(schema), CommittedDataBlock)
         {
         }
     }

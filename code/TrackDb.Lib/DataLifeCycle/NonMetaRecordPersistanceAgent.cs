@@ -27,7 +27,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var inMemoryDb = tx.TransactionState.InMemoryDatabase;
-            var logs = inMemoryDb.TableTransactionLogsMap
+            var logs = inMemoryDb.TransactionTableLogsMap
                 .Select(p => new
                 {
                     Pair = p,

@@ -15,7 +15,7 @@ namespace TrackDb.Lib.InMemory
         }
 
         public bool IsEmpty => TransactionTableLogMap.Values
-            .Select(t => ((IBlock)t.NewDataBlockBuilder).RecordCount == 0
+            .Select(t => ((IBlock)t.NewDataBlock).RecordCount == 0
             && (t.CommittedDataBlock == null || ((IBlock)t.CommittedDataBlock).RecordCount == 0))
             .All(b => b);
 
@@ -27,7 +27,7 @@ namespace TrackDb.Lib.InMemory
         {
             EnsureTable(schema);
             TransactionTableLogMap[schema.TableName]
-                .NewDataBlockBuilder
+                .NewDataBlock
                 .AppendRecord(creationTime, recordId, record);
         }
 
@@ -35,7 +35,7 @@ namespace TrackDb.Lib.InMemory
         {
             EnsureTable(block.TableSchema);
             TransactionTableLogMap[block.TableSchema.TableName]
-                .NewDataBlockBuilder
+                .NewDataBlock
                 .AppendBlock(block);
         }
 

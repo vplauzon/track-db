@@ -29,7 +29,7 @@ namespace TrackDb.UnitTest.DbTests
                 using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.True(
-                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
+                        tc.TransactionState.InMemoryDatabase.TransactionTableLogsMap.Any());
                 }
 
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
@@ -37,7 +37,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
                 using (var tc = db.Database.CreateTransaction())
                 {
-                    Assert.False(tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.ContainsKey(
+                    Assert.False(tc.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
                         db.PrimitiveTable.Schema.TableName));
                 }
             }

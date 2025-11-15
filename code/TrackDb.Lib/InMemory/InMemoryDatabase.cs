@@ -1,16 +1,16 @@
-﻿using TrackDb.Lib.InMemory.Block;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.InMemory
 {
     internal record InMemoryDatabase(
-        IImmutableDictionary<string, ImmutableTableTransactionLogs> TableTransactionLogsMap)
+        IImmutableDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap)
     {
         public InMemoryDatabase()
             : this(ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
@@ -23,7 +23,7 @@ namespace TrackDb.Lib.InMemory
                 .Empty
                 .ToBuilder();
 
-            logs.AddRange(TableTransactionLogsMap);
+            logs.AddRange(TransactionTableLogsMap);
             foreach (var pair in transactionState.UncommittedTransactionLog.TransactionTableLogMap)
             {
                 var tableName = pair.Key;
@@ -40,7 +40,7 @@ namespace TrackDb.Lib.InMemory
                 {   //  Replace committed
                     var existingCommittedCount = transactionState
                         .InMemoryDatabase
-                        .TableTransactionLogsMap[tableName]
+                        .TransactionTableLogsMap[tableName]
                         .InMemoryBlocks
                         .Count;
 
@@ -52,9 +52,9 @@ namespace TrackDb.Lib.InMemory
                     }
                 }
                 //  New data
-                if (((IBlock)txTableLog.NewDataBlockBuilder).RecordCount != 0)
+                if (((IBlock)txTableLog.NewDataBlock).RecordCount != 0)
                 {
-                    inMemoryBlocks.Add(txTableLog.NewDataBlockBuilder);
+                    inMemoryBlocks.Add(txTableLog.NewDataBlock);
                 }
                 logs[tableName] =
                     new ImmutableTableTransactionLogs(inMemoryBlocks.ToImmutable());

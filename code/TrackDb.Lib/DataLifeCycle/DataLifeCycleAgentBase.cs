@@ -39,7 +39,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             using (var tx = Database.CreateDummyTransaction())
             {
-                var map = tx.TransactionState.InMemoryDatabase.TableTransactionLogsMap;
+                var map = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap;
 
                 if (map.ContainsKey(tableName))
                 {
@@ -131,8 +131,8 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             Database.ChangeDatabaseState(state =>
             {
-                var stateMap = state.InMemoryDatabase.TableTransactionLogsMap;
-                var txMap = tx.TransactionState.InMemoryDatabase.TableTransactionLogsMap;
+                var stateMap = state.InMemoryDatabase.TransactionTableLogsMap;
+                var txMap = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap;
                 var stateTableBlocks = stateMap[block.TableSchema.TableName].InMemoryBlocks;
                 var txTableBlocks = txMap[block.TableSchema.TableName].InMemoryBlocks;
                 var newPrefixBlocks = stateTableBlocks
@@ -185,7 +185,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     InMemoryDatabase = state.InMemoryDatabase with
                     {
-                        TableTransactionLogsMap = stateMap
+                        TransactionTableLogsMap = stateMap
                     }
                 };
             });

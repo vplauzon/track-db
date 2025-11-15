@@ -17,7 +17,7 @@ namespace TrackDb.Lib.Statistics
             TransactionContext tx)
         {
             var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
-            var tableTransactionLogsMap = inMemoryDatabase.TableTransactionLogsMap;
+            var tableTransactionLogsMap = inMemoryDatabase.TransactionTableLogsMap;
             var tombstoneTableName = tombstoneTable.Schema.TableName;
             var tableMap = state.TableMap;
             var inMemoryRecordCountMap = tableMap

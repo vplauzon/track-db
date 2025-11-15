@@ -47,13 +47,13 @@ namespace TrackDb.Lib.Logging
             var contentMapBuilder = ImmutableDictionary<string, TableTransactionContent>.Empty.ToBuilder();
             var transactionTableLogMap = transactionLog.TransactionTableLogMap;
             var tombstoneBlock = transactionTableLogMap.ContainsKey(tombstoneSchema.TableName)
-                ? transactionTableLogMap[tombstoneSchema.TableName].NewDataBlockBuilder
+                ? transactionTableLogMap[tombstoneSchema.TableName].NewDataBlock
                 : null;
 
             foreach (var tableName in tableSchemaMap.Keys)
             {
                 var newRecordsContent = transactionTableLogMap.ContainsKey(tableName)
-                    ? transactionTableLogMap[tableName].NewDataBlockBuilder.ToLog()
+                    ? transactionTableLogMap[tableName].NewDataBlock.ToLog()
                     : null;
                 var tombstoneRecordIds = GetTombstoneRecordIds(tombstoneBlock, tableName);
 

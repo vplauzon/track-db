@@ -611,7 +611,7 @@ namespace TrackDb.Lib
                 foreach (var pair in tl.TransactionTableLogMap)
                 {
                     var tableName = pair.Key;
-                    IBlock block = pair.Value.NewDataBlockBuilder;
+                    IBlock block = pair.Value.NewDataBlock;
 
                     if (block.RecordCount > 0 && tableName != _tombstoneTable.Schema.TableName)
                     {
