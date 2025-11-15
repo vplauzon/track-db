@@ -173,15 +173,18 @@ namespace TrackDb.Lib
                         //  Hard delete in-memory records in the table
                         var hardDeletedRecordIds = tableBlockBuilder.DeleteRecordsByRecordId(
                             deletedRecordIds);
-                        //  Hard delete tombstone records in the tombstone table
-                        var rowIndexes = _database.TombstoneTable.Query(this)
-                            .Where(pf => pf.Equal(t => t.TableName, tableName))
-                            .Where(pf => pf.In(t => t.DeletedRecordId, deletedRecordIds))
-                            .TableQuery
-                            .WithProjection([_database.TombstoneTable.Schema.RowIndexColumnIndex])
-                            .Select(r => (int)r.Span[0]!);
 
-                        tombstoneBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                        if (hardDeletedRecordIds.Any())
+                        {   //  Hard delete tombstone records in the tombstone table
+                            var rowIndexes = _database.TombstoneTable.Query(this)
+                                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                                .Where(pf => pf.In(t => t.DeletedRecordId, hardDeletedRecordIds))
+                                .TableQuery
+                                .WithProjection([_database.TombstoneTable.Schema.RowIndexColumnIndex])
+                                .Select(r => (int)r.Span[0]!);
+
+                            tombstoneBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                        }
                     }
                 }
 
