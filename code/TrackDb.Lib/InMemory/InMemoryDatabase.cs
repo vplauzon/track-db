@@ -32,32 +32,41 @@ namespace TrackDb.Lib.InMemory
 
                 if (logs.ContainsKey(tableName))
                 {
-                    inMemoryBlocks.AddRange(logs[tableName].InMemoryBlocks);
-                }
-
-                //  Committed data
-                if (txTableLog.CommittedDataBlock != null)
-                {   //  Replace committed
-                    var existingCommittedCount = transactionState
-                        .InMemoryDatabase
-                        .TransactionTableLogsMap[tableName]
-                        .InMemoryBlocks
-                        .Count;
-
-                    //  We remove the previous committed to replace them with merged one
-                    inMemoryBlocks.RemoveRange(0, existingCommittedCount);
-                    if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
+                    if (txTableLog.CommittedDataBlock == null)
                     {
-                        inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
+                        inMemoryBlocks.AddRange(logs[tableName].InMemoryBlocks);
+                    }
+                    else
+                    {   //  Replace committed
+                        var inTransactionCommittedCount = transactionState
+                            .InMemoryDatabase
+                            .TransactionTableLogsMap[tableName]
+                            .InMemoryBlocks
+                            .Count;
+
+                        inMemoryBlocks.AddRange(logs[tableName].InMemoryBlocks
+                            .Skip(inTransactionCommittedCount));
+                        if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
+                        {
+                            inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
+                        }
                     }
                 }
+
                 //  New data
                 if (((IBlock)txTableLog.NewDataBlock).RecordCount != 0)
                 {
                     inMemoryBlocks.Add(txTableLog.NewDataBlock);
                 }
-                logs[tableName] =
-                    new ImmutableTableTransactionLogs(inMemoryBlocks.ToImmutable());
+                if (inMemoryBlocks.Count > 0)
+                {
+                    logs[tableName] =
+                        new ImmutableTableTransactionLogs(inMemoryBlocks.ToImmutable());
+                }
+                else if(logs.ContainsKey(tableName))
+                {   //  The transaction emptied the blocks
+                    logs.Remove(tableName);
+                }
             }
 
             return new InMemoryDatabase(logs.ToImmutable());
