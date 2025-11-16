@@ -27,7 +27,6 @@ namespace TrackDb.Lib
         const int CHECKPOINT_TX_RECORD_COUNT = 10;
 
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
-        private readonly TypedTable<TombstoneRecord> _tombstoneTable;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly LogTransactionManager? _logManager;
@@ -88,7 +87,7 @@ namespace TrackDb.Lib
                     $"'{invalidColumnName.ColumnName}'",
                     nameof(schemas));
             }
-            _tombstoneTable = new TypedTable<TombstoneRecord>(
+            TombstoneTable = new TypedTable<TombstoneRecord>(
                 this,
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
             _availableBlockTable = new TypedTable<AvailableBlockRecord>(
@@ -97,19 +96,19 @@ namespace TrackDb.Lib
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
-            _dataLifeCycleManager = new DataLifeCycleManager(this, _tombstoneTable, _dbFileManager);
+            _dataLifeCycleManager = new DataLifeCycleManager(this, TombstoneTable, _dbFileManager);
             _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
                 ? new LogTransactionManager(
                     databasePolicies.LogPolicy,
                     localFolder,
                     userTables
                     .ToImmutableDictionary(t => t.Schema.TableName, t => t.Schema),
-                    _tombstoneTable)
+                    TombstoneTable)
                 : null;
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, null, true, false, false, true))
-                .Append(new TableProperties(_tombstoneTable, null, false, false, true, false))
+                .Append(new TableProperties(TombstoneTable, null, false, false, true, false))
                 .Append(new TableProperties(_availableBlockTable, null, false, false, true, true))
                 .Append(new TableProperties(QueryExecutionTable, null, false, false, true, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
@@ -219,7 +218,7 @@ namespace TrackDb.Lib
         {
             using (var tx = CreateTransaction())
             {
-                return DatabaseStatistics.Create(GetDatabaseStateSnapshot(), _tombstoneTable, tx);
+                return DatabaseStatistics.Create(GetDatabaseStateSnapshot(), TombstoneTable, tx);
             }
         }
 
@@ -504,8 +503,7 @@ namespace TrackDb.Lib
                 {
                     return currentDbState with
                     {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(
-                            transactionState.UncommittedTransactionLog),
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
                         TransactionMap = newTransactionMap
                     };
                 }
@@ -539,8 +537,7 @@ namespace TrackDb.Lib
                 {
                     return currentDbState with
                     {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(
-                            transactionState.UncommittedTransactionLog),
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
                         TransactionMap = newTransactionMap
                     };
                 }
@@ -566,13 +563,15 @@ namespace TrackDb.Lib
         #endregion
 
         #region Tombstone
+        internal TypedTable<TombstoneRecord> TombstoneTable { get; }
+
         internal void DeleteRecord(
             long recordId,
             int? blockId,
             string tableName,
             TransactionContext tc)
         {
-            _tombstoneTable.AppendRecord(
+            TombstoneTable.AppendRecord(
                 new TombstoneRecord(recordId, blockId, tableName, DateTime.Now),
                 tc);
         }
@@ -581,8 +580,8 @@ namespace TrackDb.Lib
             string tableName,
             TransactionContext transactionContext)
         {
-            return tableName != _tombstoneTable.Schema.TableName
-                ? _tombstoneTable.Query(transactionContext)
+            return tableName != TombstoneTable.Schema.TableName
+                ? TombstoneTable.Query(transactionContext)
                 .Where(ts => ts.TableName == tableName)
                 .Select(ts => ts.DeletedRecordId)
                 : Array.Empty<long>();
@@ -608,12 +607,12 @@ namespace TrackDb.Lib
             {
                 var buffer = new object?[1];
 
-                foreach (var pair in tl.TableBlockBuilderMap)
+                foreach (var pair in tl.TransactionTableLogMap)
                 {
                     var tableName = pair.Key;
-                    IBlock block = pair.Value;
+                    IBlock block = pair.Value.NewDataBlock;
 
-                    if (block.RecordCount > 0 && tableName != _tombstoneTable.Schema.TableName)
+                    if (block.RecordCount > 0 && tableName != TombstoneTable.Schema.TableName)
                     {
                         var maxRecordId = block.Project(
                             buffer,
@@ -644,9 +643,11 @@ namespace TrackDb.Lib
                     UpdateLastRecordIdMap(tl, tableToLastRecordIdMap);
                     ChangeDatabaseState(currentDbState =>
                     {   //  Add transaction log to the state
+                        var txState = new TransactionState(currentDbState.InMemoryDatabase, tl);
+
                         return currentDbState with
                         {
-                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(tl)
+                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(txState)
                         };
                     });
                     _dataLifeCycleManager.TriggerDataManagement();
@@ -725,8 +726,8 @@ namespace TrackDb.Lib
                         txLog.AppendRecord(creationTime, recordId, dataRecord, table.Schema);
                     }
                     yield return txLog;
-                    doContinue = txLog.TableBlockBuilderMap.Any()
-                        && ((IBlock)txLog.TableBlockBuilderMap.First().Value).RecordCount == CHECKPOINT_TX_RECORD_COUNT;
+                    doContinue = txLog.TransactionTableLogMap.Any()
+                        && ((IBlock)txLog.TransactionTableLogMap.First().Value).RecordCount == CHECKPOINT_TX_RECORD_COUNT;
                 }
             }
         }

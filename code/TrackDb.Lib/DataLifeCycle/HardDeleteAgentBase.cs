@@ -209,7 +209,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var inMemoryDatabase = Database.GetDatabaseStateSnapshot().InMemoryDatabase;
             //  We merged the table previously so we know the record is in the first log
             var block = inMemoryDatabase
-                .TableTransactionLogsMap[TombstoneTable.Schema.TableName]
+                .TransactionTableLogsMap[TombstoneTable.Schema.TableName]
                 .InMemoryBlocks
                 .First();
             var builder = new BlockBuilder(block.TableSchema);
@@ -233,7 +233,7 @@ namespace TrackDb.Lib.DataLifeCycle
             builder.DeleteRecordsByRecordIndex(rowIndexes);
             Database.ChangeDatabaseState(state =>
             {
-                var map = state.InMemoryDatabase.TableTransactionLogsMap;
+                var map = state.InMemoryDatabase.TransactionTableLogsMap;
                 var logs = map[TombstoneTable.Schema.TableName];
                 var newLogs = logs.InMemoryBlocks
                     .Skip(1)
@@ -248,7 +248,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     InMemoryDatabase = state.InMemoryDatabase with
                     {
-                        TableTransactionLogsMap = map
+                        TransactionTableLogsMap = map
                     }
                 };
             });

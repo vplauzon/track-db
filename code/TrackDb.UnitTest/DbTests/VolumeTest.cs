@@ -37,6 +37,8 @@ namespace TrackDb.UnitTest.DbTests
                 {
                     Assert.Contains(r, resultsAll);
                 }
+
+                Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
             }
         }
 
@@ -69,6 +71,8 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(
                     records.Sum(r => (long)r.Integer),
                     resultsAll.Sum(r => (long)r.Integer));
+             
+                Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
             }
         }
     }

@@ -7,16 +7,17 @@ using System.Linq;
 namespace TrackDb.Lib.InMemory
 {
     internal record TransactionLog(
-        ImmutableDictionary<string, BlockBuilder>.Builder TableBlockBuilderMap)
+        IDictionary<string, TransactionTableLog> TransactionTableLogMap)
     {
         public TransactionLog()
-            : this(ImmutableDictionary<string, BlockBuilder>.Empty.ToBuilder())
+            : this(new Dictionary<string, TransactionTableLog>())
         {
         }
 
-        public bool IsEmpty => TableBlockBuilderMap.Values
-            .Cast<IBlock>()
-            .All(t => t.RecordCount == 0);
+        public bool IsEmpty => TransactionTableLogMap.Values
+            .Select(t => ((IBlock)t.NewDataBlock).RecordCount == 0
+            && (t.CommittedDataBlock == null || ((IBlock)t.CommittedDataBlock).RecordCount == 0))
+            .All(b => b);
 
         public void AppendRecord(
             DateTime creationTime,
@@ -24,22 +25,26 @@ namespace TrackDb.Lib.InMemory
             ReadOnlySpan<object?> record,
             TableSchema schema)
         {
-            if (!TableBlockBuilderMap.ContainsKey(schema.TableName))
-            {
-                TableBlockBuilderMap.Add(schema.TableName, new BlockBuilder(schema));
-            }
-            TableBlockBuilderMap[schema.TableName].AppendRecord(creationTime, recordId, record);
+            EnsureTable(schema);
+            TransactionTableLogMap[schema.TableName]
+                .NewDataBlock
+                .AppendRecord(creationTime, recordId, record);
         }
 
         public void AppendBlock(IBlock block)
         {
-            if (!TableBlockBuilderMap.ContainsKey(block.TableSchema.TableName))
+            EnsureTable(block.TableSchema);
+            TransactionTableLogMap[block.TableSchema.TableName]
+                .NewDataBlock
+                .AppendBlock(block);
+        }
+
+        private void EnsureTable(TableSchema schema)
+        {
+            if (!TransactionTableLogMap.ContainsKey(schema.TableName))
             {
-                TableBlockBuilderMap.Add(
-                    block.TableSchema.TableName,
-                    new BlockBuilder(block.TableSchema));
+                TransactionTableLogMap.Add(schema.TableName, new(schema));
             }
-            TableBlockBuilderMap[block.TableSchema.TableName].AppendBlock(block);
         }
     }
 }

@@ -20,25 +20,30 @@ namespace TrackDb.UnitTest.DbTests
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 1);
+                using (var tx = db.Database.CreateTransaction())
+                {
+                    Assert.False(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
+                        db.PrimitiveTable.Schema.TableName));
+                }
 
                 db.PrimitiveTable.Query()
                     .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.Database.CreateTransaction())
+                using (var tx = db.Database.CreateTransaction())
                 {
-                    Assert.True(
-                        tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.Any());
+                    Assert.True(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
+                        db.Database.TombstoneTable.Schema.TableName));
                 }
 
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tc = db.Database.CreateTransaction())
+                using (var tx = db.Database.CreateTransaction())
                 {
-                    Assert.False(tc.TransactionState.InMemoryDatabase.TableTransactionLogsMap.ContainsKey(
-                        db.PrimitiveTable.Schema.TableName));
+                    Assert.False(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
+                        db.Database.TombstoneTable.Schema.TableName));
                 }
             }
         }
@@ -88,7 +93,7 @@ namespace TrackDb.UnitTest.DbTests
                 using (var tc = db.Database.CreateTransaction())
                 {
                     Assert.False(
-                        tc.TransactionState.ListTransactionLogBlocks(
+                        tc.TransactionState.ListBlocks(
                             db.PrimitiveTable.Schema.TableName).Any());
                 }
             }

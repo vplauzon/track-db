@@ -271,6 +271,12 @@ namespace TrackDb.Lib.InMemory.Block
                     upperBound,
                     1);
 
+                if (finalStats.Size > maxSize)
+                {
+                    throw new OverflowException(
+                        $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
+                }
+
                 return finalStats;
             }
         }
