@@ -18,7 +18,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        protected override TableCandidate? FindUnmergedRecordCandidate(
+        protected override TableCandidate? FindCandidate(
             bool doHardDeleteAll,
             TransactionContext tx)
         {

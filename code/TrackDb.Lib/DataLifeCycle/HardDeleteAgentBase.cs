@@ -37,7 +37,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var doHardDeleteAll =
                     (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
-                var candidate = FindMergedRecordCandidate(doHardDeleteAll, tx);
+                var candidate = FindTransactionMergedCandidate(doHardDeleteAll, tx);
 
                 if (candidate != null)
                 {
@@ -52,19 +52,19 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        protected abstract TableCandidate? FindUnmergedRecordCandidate(
-            bool doHardDeleteAll,
-            TransactionContext tx);
+        protected abstract TableCandidate? FindCandidate(bool doHardDeleteAll, TransactionContext tx);
 
-        private TableCandidate? FindMergedRecordCandidate(bool doHardDeleteAll, TransactionContext tx)
+        private TableCandidate? FindTransactionMergedCandidate(
+            bool doHardDeleteAll,
+            TransactionContext tx)
         {
-            TableCandidate? tableRecord = FindUnmergedRecordCandidate(doHardDeleteAll, tx);
+            TableCandidate? tableRecord = FindCandidate(doHardDeleteAll, tx);
 
             while (tableRecord != null)
             {
-                if (MergeTableTransactionLogs(tableRecord.TableName))
+                if (tx.LoadCommittedBlocksInTransaction(tableRecord.TableName))
                 {
-                    var newTableRecord = FindUnmergedRecordCandidate(doHardDeleteAll, tx);
+                    var newTableRecord = FindCandidate(doHardDeleteAll, tx);
 
                     if (newTableRecord == tableRecord)
                     {
