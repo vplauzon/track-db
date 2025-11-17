@@ -18,44 +18,29 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        protected override TableRecord? FindUnmergedRecordCandidate(bool doHardDeleteAll)
+        protected override TableCandidate? FindUnmergedRecordCandidate(
+            bool doHardDeleteAll,
+            TransactionContext tx)
         {
-            using (var tx = Database.CreateDummyTransaction())
+            var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
+
+            if (doHardDeleteAll || TombstoneTable.Query(tx).Count() > maxTombstonedRecords)
             {
-                var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
+                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                var candidate = TombstoneTable.Query(tx)
+                    .GroupBy(t => t.TableName)
+                    //  Avoid infinite loop by having system tables hard delete on command
+                    .Where(g => !doHardDeleteAll || !tableMap[g.Key].IsSystemTable)
+                    .OrderByDescending(g => g.Count())
+                    .Take(1)
+                    .Select(g => new TableCandidate(g.Key, g.First().DeletedRecordId))
+                    .FirstOrDefault();
 
-                if (doHardDeleteAll || TombstoneTable.Query(tx).Count() > maxTombstonedRecords)
-                {
-                    var tombstoneGroups = TombstoneTable.Query(tx)
-                        .GroupBy(t => new { t.TableName, t.BlockId });
-                    string? tableName = null;
-                    long recordId = -1;
-                    var maxRecordCount = 0;
-                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-
-                    tombstoneGroups = doHardDeleteAll
-                        //  Avoid infinite loop by having system tables hard delete on command
-                        ? tombstoneGroups.Where(g => !tableMap[g.Key.TableName].IsSystemTable)
-                        : tombstoneGroups;
-
-                    foreach (var group in tombstoneGroups)
-                    {
-                        if (group.Count() > maxRecordCount)
-                        {
-                            maxRecordCount = group.Count();
-                            tableName = group.Key.TableName;
-                            recordId = group.First().DeletedRecordId;
-                        }
-                    }
-
-                    return tableName != null
-                        ? new(tableName, recordId)
-                        : null;
-                }
-                else
-                {
-                    return null;
-                }
+                return candidate;
+            }
+            else
+            {
+                return null;
             }
         }
     }

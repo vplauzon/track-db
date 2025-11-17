@@ -14,7 +14,7 @@ namespace TrackDb.Lib.DataLifeCycle
     internal abstract class HardDeleteAgentBase : DataLifeCycleAgentBase
     {
         #region Inner types
-        protected record TableRecord(string TableName, long RecordId);
+        protected record TableCandidate(string TableName, long DeletedRecordId);
 
         private record MetadataRecord(
             Table MetadataTable,
@@ -33,33 +33,38 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
-            var doHardDeleteAll =
-                (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
-            var candidate = FindMergedRecordCandidate(doHardDeleteAll);
-
-            if (candidate != null)
+            using (var tx = Database.CreateTransaction())
             {
-                HardDelete(candidate.TableName, candidate.RecordId);
+                var doHardDeleteAll =
+                    (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
+                var candidate = FindMergedRecordCandidate(doHardDeleteAll, tx);
 
-                return false;
-            }
-            else
-            {
-                return true;
+                if (candidate != null)
+                {
+                    HardDelete(candidate.TableName, candidate.DeletedRecordId);
+
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
             }
         }
 
-        protected abstract TableRecord? FindUnmergedRecordCandidate(bool doHardDeleteAll);
+        protected abstract TableCandidate? FindUnmergedRecordCandidate(
+            bool doHardDeleteAll,
+            TransactionContext tx);
 
-        private TableRecord? FindMergedRecordCandidate(bool doHardDeleteAll)
+        private TableCandidate? FindMergedRecordCandidate(bool doHardDeleteAll, TransactionContext tx)
         {
-            TableRecord? tableRecord = FindUnmergedRecordCandidate(doHardDeleteAll);
+            TableCandidate? tableRecord = FindUnmergedRecordCandidate(doHardDeleteAll, tx);
 
             while (tableRecord != null)
             {
                 if (MergeTableTransactionLogs(tableRecord.TableName))
                 {
-                    var newTableRecord = FindUnmergedRecordCandidate(doHardDeleteAll);
+                    var newTableRecord = FindUnmergedRecordCandidate(doHardDeleteAll, tx);
 
                     if (newTableRecord == tableRecord)
                     {
