@@ -64,7 +64,7 @@ namespace TrackDb.Lib
                     new ColumnSchema(SIZE, typeof(int), false),
                     ColumnSchemaStat.Data),
                 new ColumnSchemaProperties(
-                    new ColumnSchema(BLOCK_ID, typeof(int), false),
+                    new ColumnSchema(BLOCK_ID, typeof(int), true),
                     ColumnSchemaStat.Data)
             };
             var metaDataColumns = inheritedMetaDataColumns

@@ -33,7 +33,12 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Where(g => !doHardDeleteAll || !tableMap[g.Key].IsSystemTable)
                     .OrderByDescending(g => g.Count())
                     .Take(1)
-                    .Select(g => new TableCandidate(g.Key, g.First().DeletedRecordId))
+                    .Select(g => new TableCandidate(
+                        g.Key,
+                        g
+                        .OrderBy(t => t.Timestamp)
+                        .First()
+                        .DeletedRecordId))
                     .FirstOrDefault();
 
                 return candidate;
