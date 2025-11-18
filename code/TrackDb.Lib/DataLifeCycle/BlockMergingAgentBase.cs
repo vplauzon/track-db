@@ -27,17 +27,44 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         /// <summary>
-        /// Merges the <paramref name="blockId"/> with all other blocks within its metablock.
+        /// Compact (remove deleted records) blocks from a data table (generation 1) and merge them
+        /// together, updating the meta blocks "in place".
         /// </summary>
-        /// <param name="metadataTableName"></param>
-        /// <param name="blockId"></param>
+        /// <param name="dataTableName"></param>
+        /// <param name="deletedRecordId">Starting record ID in the table.</param>
         /// <param name="tx"></param>
-        /// <returns><c>true</c> iif at least one block was merged or changed.</returns>
-        protected bool MergeBlock(string metadataTableName, int blockId, TransactionContext tx)
+        /// <returns></returns>
+        protected bool MergeDataBlocks(string dataTableName, long deletedRecordId, TransactionContext tx)
         {
-            var parentBlockId = FindParentBlock(metadataTableName, blockId, tx);
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var metadataTableName = tableMap[dataTableName].MetaDataTableName;
 
-            return MergeSubBlocks(metadataTableName, parentBlockId, tx);
+            if (tableMap[dataTableName].IsMetaDataTable)
+            {
+                throw new ArgumentException($"Table is metadata", nameof(dataTableName));
+            }
+            if (metadataTableName == null)
+            {
+                throw new ArgumentException($"Table has no corresponding metadata table", nameof(dataTableName));
+            }
+            var deletedRecordBlockId = FindDataBlock(dataTableName, deletedRecordId, tx);
+
+            if (deletedRecordBlockId == null)
+            {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
+                //  (should be rare)
+                Database.TombstoneTable.Query(tx)
+                    .Where(pf => pf.Equal(t => t.TableName, dataTableName))
+                    .Where(pf => pf.Equal(t => t.DeletedRecordId, deletedRecordId))
+                    .Delete();
+
+                return true;
+            }
+            else
+            {
+                var parentBlockId = FindParentBlock(metadataTableName, deletedRecordBlockId.Value, tx);
+
+                return MergeSubBlocks(metadataTableName, parentBlockId, tx);
+            }
         }
 
         /// <summary>
@@ -51,9 +78,47 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <returns></returns>
         protected bool MergeSubBlocks(string metadataTableName, int? metaBlockId, TransactionContext tx)
         {
-            var blocks = LoadBlocks(metadataTableName, metaBlockId, tx);
+            //var blocks = LoadBlocks(metadataTableName, metaBlockId, tx);
             throw new NotImplementedException();
         }
+
+        #region Find blocks
+        private int? FindDataBlock(string tableName, long deletedRecordId, TransactionContext tx)
+        {
+            var table = Database.GetAnyTable(tableName);
+            var predicate = new BinaryOperatorPredicate(
+                table.Schema.RecordIdColumnIndex,
+                deletedRecordId,
+                BinaryOperator.Equal);
+            var blockId = table.Query(tx)
+                .WithIgnoreDeleted()
+                .WithPredicate(predicate)
+                .WithProjection([table.Schema.ParentBlockIdColumnIndex])
+                .Select(r => (int?)r.Span[0])
+                .FirstOrDefault();
+
+            return blockId;
+        }
+
+        private int? FindParentBlock(
+            string metadataTableName,
+            int blockId,
+            TransactionContext tx)
+        {
+            var metadataTable = Database.GetAnyTable(metadataTableName);
+            var predicate = new BinaryOperatorPredicate(
+                ((MetadataTableSchema)metadataTable.Schema).BlockIdColumnIndex,
+                blockId,
+                BinaryOperator.Equal);
+            var parentBlockId = metadataTable.Query(tx)
+                .WithPredicate(predicate)
+                .WithProjection([metadataTable.Schema.ParentBlockIdColumnIndex])
+                .Select(r => (int)r.Span[0]!)
+                .FirstOrDefault();
+
+            return parentBlockId > 0 ? parentBlockId : null;
+        }
+        #endregion
 
         private IImmutableList<BlockInfo> LoadBlocks(
             string metadataTableName,
@@ -86,25 +151,5 @@ namespace TrackDb.Lib.DataLifeCycle
                     .First();
             }
         }
-
-        private int? FindParentBlock(
-            string metadataTableName,
-            int blockId,
-            TransactionContext tx)
-        {
-            var metadataTable = Database.GetAnyTable(metadataTableName);
-            var predicate = new BinaryOperatorPredicate(
-                ((MetadataTableSchema)metadataTable.Schema).BlockIdColumnIndex,
-                blockId,
-                BinaryOperator.Equal);
-            var parentBlockId = metadataTable.Query(tx)
-                .WithPredicate(predicate)
-                .WithProjection([metadataTable.Schema.ParentBlockIdColumnIndex])
-                .Select(r => (int)r.Span[0]!)
-                .FirstOrDefault();
-
-            return parentBlockId > 0 ? parentBlockId : null;
-        }
-
     }
 }

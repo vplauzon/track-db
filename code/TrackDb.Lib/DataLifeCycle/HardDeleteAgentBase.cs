@@ -30,16 +30,26 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var doHardDeleteAll =
                     (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
-                var candidate = FindTransactionMergedCandidate(doHardDeleteAll, tx);
+                var isCompleted = false;
 
-                if (candidate != null)
+                do
                 {
-                    MergeCandidate(candidate, tx);
+                    var candidate = FindTransactionMergedCandidate(doHardDeleteAll, tx);
+
+                    if (candidate != null)
+                    {
+                        MergeCandidate(candidate, tx);
+                    }
+                    else
+                    {
+                        isCompleted = true;
+                    }
                 }
+                while (!isCompleted);
 
                 tx.Complete();
 
-                return candidate == null;
+                return true;
             }
         }
 
@@ -61,25 +71,10 @@ namespace TrackDb.Lib.DataLifeCycle
                     $"no metadata table");
             }
 
-            //  Find block owning candidate tombstoned record
-            var candidateBlockId = FindCandidateBlock(
+            MergeDataBlocks(
                 candidate.TableName,
                 candidate.DeletedRecordId,
                 tx);
-
-            if (candidateBlockId != null)
-            {
-                //  Do a block merge
-                MergeBlock(properties.MetaDataTableName, candidateBlockId.Value, tx);
-            }
-            else
-            {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
-                //  (should be rare)
-                Database.TombstoneTable.Query(tx)
-                    .Where(pf => pf.Equal(t => t.TableName, candidate.TableName))
-                    .Where(pf => pf.Equal(t => t.DeletedRecordId, candidate.DeletedRecordId))
-                    .Delete();
-            }
         }
 
         protected abstract TableCandidate? FindCandidate(bool doHardDeleteAll, TransactionContext tx);
@@ -113,26 +108,6 @@ namespace TrackDb.Lib.DataLifeCycle
             }
 
             return null;
-        }
-
-        private int? FindCandidateBlock(
-            string tableName,
-            long candidateDeletedRecordId,
-            TransactionContext tx)
-        {
-            var table = Database.GetAnyTable(tableName);
-            var predicate = new BinaryOperatorPredicate(
-                table.Schema.RecordIdColumnIndex,
-                candidateDeletedRecordId,
-                BinaryOperator.Equal);
-            var blockId = table.Query(tx)
-                .WithIgnoreDeleted()
-                .WithPredicate(predicate)
-                .WithProjection([table.Schema.ParentBlockIdColumnIndex])
-                .Select(r => (int)r.Span[0]!)
-                .FirstOrDefault();
-
-            return blockId > 0 ? blockId : null;
         }
     }
 }
