@@ -14,8 +14,16 @@ namespace TrackDb.Lib.DataLifeCycle
     {
         #region Inner types
         protected record BlockInfo(
-            int BlockId,
-            long MinRecordId);
+            MetaDataBlock? MetaDataBlock,
+            BlockBuilder? DataBlockBuilder,
+            int MinRecordId,
+            int MaxRecordId)
+        {
+            public static BlockInfo FromMetadataBlock(MetaDataBlock metaDataBlock)
+            {
+                return new BlockInfo(metaDataBlock, null, 0, 0);
+            }
+        }
         #endregion
 
         public BlockMergingAgentBase(
@@ -68,17 +76,21 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         /// <summary>
-        /// Merges all children blocks of <paramref name="metaBlockId"/>.
+        /// Merges all children blocks of <paramref name="metaMetaBlockId"/>.
         /// </summary>
         /// <param name="metadataTableName">
-        /// Metadata table where the blocks (not <paramref name="metaBlockId"/>) live
+        /// Metadata table where the blocks (not <paramref name="metaMetaBlockId"/>) live
         /// </param>
-        /// <param name="metaBlockId"></param>
+        /// <param name="metaMetaBlockId"></param>
         /// <param name="tx"></param>
         /// <returns></returns>
-        protected bool MergeSubBlocks(string metadataTableName, int? metaBlockId, TransactionContext tx)
+        protected bool MergeSubBlocks(
+            string metadataTableName,
+            int? metaMetaBlockId,
+            TransactionContext tx)
         {
-            //var blocks = LoadBlocks(metadataTableName, metaBlockId, tx);
+            var blockInfos = LoadBlockInfos(metadataTableName, metaMetaBlockId, tx);
+
             throw new NotImplementedException();
         }
 
@@ -120,23 +132,12 @@ namespace TrackDb.Lib.DataLifeCycle
         }
         #endregion
 
-        private IImmutableList<BlockInfo> LoadBlocks(
+        #region Load block infos
+        private IImmutableList<BlockInfo> LoadBlockInfos(
             string metadataTableName,
             int? metaBlockId,
             TransactionContext tx)
         {
-            var metaBlock = LoadMetaBlock(metadataTableName, metaBlockId, tx);
-
-            throw new NotImplementedException();
-        }
-
-        private IBlock LoadMetaBlock(
-            string metadataTableName,
-            int? metaBlockId,
-            TransactionContext tx)
-        {
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-
             if (metaBlockId != null)
             {
                 throw new NotImplementedException();
@@ -145,11 +146,28 @@ namespace TrackDb.Lib.DataLifeCycle
             {   //  We merge blocks in memory
                 tx.LoadCommittedBlocksInTransaction(metadataTableName);
 
-                return tx.TransactionState.InMemoryDatabase
+                var blockInfos = tx.TransactionState.InMemoryDatabase
                     .TransactionTableLogsMap[metadataTableName]
                     .InMemoryBlocks
-                    .First();
+                    .SelectMany(b => LoadBlockInfosFromMetaBlock(b))
+                    .Select(b => b)
+                    .ToImmutableArray();
+
+                return blockInfos;
             }
         }
+
+        private IEnumerable<BlockInfo> LoadBlockInfosFromMetaBlock(IBlock metaBlock)
+        {
+            return metaBlock.Project(
+                new object?[metaBlock.TableSchema.Columns.Count],
+                Enumerable.Range(0, metaBlock.TableSchema.Columns.Count)
+                .ToImmutableArray(),
+                Enumerable.Range(0, metaBlock.RecordCount),
+                0)
+                .Select(r => BlockInfo.FromMetadataBlock(
+                    new MetaDataBlock(r.ToArray(), (MetadataTableSchema)metaBlock.TableSchema)));
+        }
+        #endregion
     }
 }
