@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.InMemory;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class MetaRecordMergeAgent : DataLifeCycleAgentBase
+    internal class MetaRecordMergeAgent : BlockMergingAgentBase
     {
         public MetaRecordMergeAgent(
             Database database,
@@ -18,25 +21,34 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             using (var tx = Database.CreateTransaction())
             {
-                if (IsPersistanceRequired(tx))
-                {
-                    tx.Complete();
+                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                var tableLogs = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
+                    .Where(p => tableMap[p.Key].IsMetaDataTable);
 
-                    throw new NotImplementedException();
-                }
-                else
+                if (IsPersistanceRequired(tableLogs.Select(p => p.Value)))
                 {
-                    return true;
+                    var tableCandidates = new Stack<string>(tableLogs
+                        .OrderBy(p => p.Value.InMemoryBlocks.Count)
+                        .Select(p => p.Key));
+
+                    do
+                    {
+                        var tableName = tableCandidates.Pop();
+
+                        MergeSubBlocks(tableName, null, tx);
+                    }
+                    while (IsPersistanceRequired(tableLogs.Select(p => p.Value))
+                    && tableCandidates.Any());
                 }
+
+                tx.Complete();
+
+                return true;
             }
         }
 
-        private bool IsPersistanceRequired(TransactionContext tx)
+        private bool IsPersistanceRequired(IEnumerable<ImmutableTableTransactionLogs> tableLogs)
         {
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var tableLogs = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
-                .Where(p => tableMap[p.Key].IsMetaDataTable)
-                .Select(p => p.Value);
             var totalRecords = tableLogs
                 .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
 

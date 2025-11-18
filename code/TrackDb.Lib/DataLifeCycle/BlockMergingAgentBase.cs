@@ -29,10 +29,16 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="metadataTableName"></param>
         /// <param name="blockId"></param>
         /// <param name="tx"></param>
-        protected void MergeBlock(string metadataTableName, int blockId, TransactionContext tx)
+        /// <returns><c>true</c> iif at least one block was merged or changed.</returns>
+        protected bool MergeBlock(string metadataTableName, int blockId, TransactionContext tx)
         {
             var parentBlockId = FindParentBlock(metadataTableName, blockId, tx);
 
+            throw new NotImplementedException();
+        }
+
+        protected bool MergeSubBlocks(string metadataTableName, int? metaBlockId, TransactionContext tx)
+        {
             throw new NotImplementedException();
         }
 
