@@ -34,48 +34,51 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (candidate != null)
                 {
-                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                    var properties = tableMap[candidate.TableName];
-
-                    if (properties.IsMetaDataTable)
-                    {
-                        throw new InvalidOperationException(
-                            $"Table '{candidate.TableName}' has tombstoned records ; " +
-                            $"this should be impossible for a metadata table");
-                    }
-                    if (properties.MetaDataTableName == null)
-                    {
-                        throw new InvalidOperationException(
-                            $"Table '{candidate.TableName}' has tombstoned records but" +
-                            $"no metadata table");
-                    }
-
-                    //  Find block owning candidate tombstoned record
-                    var candidateBlockId = FindCandidateBlock(
-                        candidate.TableName,
-                        candidate.DeletedRecordId,
-                        tx);
-
-                    if (candidateBlockId != null)
-                    {
-                        //  Do a block merge
-                        MergeBlock(properties.MetaDataTableName, candidateBlockId.Value, tx);
-                    }
-                    else
-                    {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
-                        //  (should be rare)
-                        Database.TombstoneTable.Query(tx)
-                            .Where(pf => pf.Equal(t => t.TableName, candidate.TableName))
-                            .Where(pf => pf.Equal(t => t.DeletedRecordId, candidate.DeletedRecordId))
-                            .Delete();
-                    }
-
-                    return false;
+                    MergeCandidate(candidate, tx);
                 }
-                else
-                {
-                    return true;
-                }
+
+                tx.Complete();
+
+                return candidate == null;
+            }
+        }
+
+        private void MergeCandidate(TableCandidate candidate, TransactionContext tx)
+        {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var properties = tableMap[candidate.TableName];
+
+            if (properties.IsMetaDataTable)
+            {
+                throw new InvalidOperationException(
+                    $"Table '{candidate.TableName}' has tombstoned records ; " +
+                    $"this should be impossible for a metadata table");
+            }
+            if (properties.MetaDataTableName == null)
+            {
+                throw new InvalidOperationException(
+                    $"Table '{candidate.TableName}' has tombstoned records but" +
+                    $"no metadata table");
+            }
+
+            //  Find block owning candidate tombstoned record
+            var candidateBlockId = FindCandidateBlock(
+                candidate.TableName,
+                candidate.DeletedRecordId,
+                tx);
+
+            if (candidateBlockId != null)
+            {
+                //  Do a block merge
+                MergeBlock(properties.MetaDataTableName, candidateBlockId.Value, tx);
+            }
+            else
+            {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
+                //  (should be rare)
+                Database.TombstoneTable.Query(tx)
+                    .Where(pf => pf.Equal(t => t.TableName, candidate.TableName))
+                    .Where(pf => pf.Equal(t => t.DeletedRecordId, candidate.DeletedRecordId))
+                    .Delete();
             }
         }
 

@@ -35,6 +35,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 new NonMetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
                 new RecordCountHardDeleteAgent(database, tombstoneTable, storageManager),
                 new TimeHardDeleteAgent(database, tombstoneTable, storageManager),
+                new MetaRecordMergeAgent(database, tombstoneTable, storageManager),
                 new MetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
                 new TransactionLogMergingAgent(database, tombstoneTable, storageManager));
         }
