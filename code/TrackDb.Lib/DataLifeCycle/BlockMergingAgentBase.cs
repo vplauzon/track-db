@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
@@ -30,7 +31,29 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="tx"></param>
         protected void MergeBlock(string metadataTableName, int blockId, TransactionContext tx)
         {
+            var parentBlockId = FindParentBlock(metadataTableName, blockId, tx);
+
             throw new NotImplementedException();
         }
+
+        private int? FindParentBlock(
+            string metadataTableName,
+            int blockId,
+            TransactionContext tx)
+        {
+            var metadataTable = Database.GetAnyTable(metadataTableName);
+            var predicate = new BinaryOperatorPredicate(
+                ((MetadataTableSchema)metadataTable.Schema).BlockIdColumnIndex,
+                blockId,
+                BinaryOperator.Equal);
+            var parentBlockId = metadataTable.Query(tx)
+                .WithPredicate(predicate)
+                .WithProjection([metadataTable.Schema.ParentBlockIdColumnIndex])
+                .Select(r => (int)r.Span[0]!)
+                .FirstOrDefault();
+
+            return parentBlockId > 0 ? parentBlockId : null;
+        }
+
     }
 }

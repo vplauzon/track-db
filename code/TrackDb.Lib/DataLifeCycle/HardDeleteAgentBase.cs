@@ -129,7 +129,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Select(r => (int)r.Span[0]!)
                 .FirstOrDefault();
 
-            return blockId;
+            return blockId > 0 ? blockId : null;
         }
     }
 }
