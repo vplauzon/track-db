@@ -12,7 +12,9 @@ namespace TrackDb.Lib.DataLifeCycle
     internal abstract class BlockMergingAgentBase : DataLifeCycleAgentBase
     {
         #region Inner types
-        protected record Q(long? parentBlockId, long DeletedRecordId);
+        protected record BlockInfo(
+            int BlockId,
+            long MinRecordId);
         #endregion
 
         public BlockMergingAgentBase(
@@ -34,12 +36,41 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var parentBlockId = FindParentBlock(metadataTableName, blockId, tx);
 
+            return MergeSubBlocks(metadataTableName, parentBlockId, tx);
+        }
+
+        /// <summary>
+        /// Merges all children blocks of <paramref name="metaBlockId"/>.
+        /// </summary>
+        /// <param name="metadataTableName">
+        /// Metadata table where the blocks (not <paramref name="metaBlockId"/>) live
+        /// </param>
+        /// <param name="metaBlockId"></param>
+        /// <param name="tx"></param>
+        /// <returns></returns>
+        protected bool MergeSubBlocks(string metadataTableName, int? metaBlockId, TransactionContext tx)
+        {
+            var blocks = LoadBlocks(metadataTableName, metaBlockId, tx);
             throw new NotImplementedException();
         }
 
-        protected bool MergeSubBlocks(string metadataTableName, int? metaBlockId, TransactionContext tx)
+        private IImmutableList<BlockInfo> LoadBlocks(
+            string metadataTableName,
+            int? metaBlockId,
+            TransactionContext tx)
         {
-            throw new NotImplementedException();
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+
+            if (metaBlockId != null)
+            {
+                throw new NotImplementedException();
+            }
+            else
+            {   //  We merge blocks in memory
+                tx.LoadCommittedBlocksInTransaction(metadataTableName);
+
+                throw new NotImplementedException();
+            }
         }
 
         private int? FindParentBlock(
