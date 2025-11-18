@@ -22,7 +22,13 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        protected void MergeBlocksUnder(string tableName, int metaBlockId, TransactionContext tx)
+        /// <summary>
+        /// Merges the <paramref name="blockId"/> with all other blocks within its metablock.
+        /// </summary>
+        /// <param name="metadataTableName"></param>
+        /// <param name="blockId"></param>
+        /// <param name="tx"></param>
+        protected void MergeBlock(string metadataTableName, int blockId, TransactionContext tx)
         {
             throw new NotImplementedException();
         }

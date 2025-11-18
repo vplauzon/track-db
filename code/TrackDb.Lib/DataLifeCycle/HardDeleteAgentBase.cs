@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.Predicate;
@@ -34,7 +34,41 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (candidate != null)
                 {
-                    HardDeleteCandidate(tx, candidate);
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                    var properties = tableMap[candidate.TableName];
+
+                    if (properties.IsMetaDataTable)
+                    {
+                        throw new InvalidOperationException(
+                            $"Table '{candidate.TableName}' has tombstoned records ; " +
+                            $"this should be impossible for a metadata table");
+                    }
+                    if (properties.MetaDataTableName == null)
+                    {
+                        throw new InvalidOperationException(
+                            $"Table '{candidate.TableName}' has tombstoned records but" +
+                            $"no metadata table");
+                    }
+
+                    //  Find block owning candidate tombstoned record
+                    var candidateBlockId = FindCandidateBlock(
+                        candidate.TableName,
+                        candidate.DeletedRecordId,
+                        tx);
+
+                    if (candidateBlockId != null)
+                    {
+                        //  Do a block merge
+                        MergeBlock(properties.MetaDataTableName, candidateBlockId.Value, tx);
+                    }
+                    else
+                    {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
+                        //  (should be rare)
+                        Database.TombstoneTable.Query(tx)
+                            .Where(pf => pf.Equal(t => t.TableName, candidate.TableName))
+                            .Where(pf => pf.Equal(t => t.DeletedRecordId, candidate.DeletedRecordId))
+                            .Delete();
+                    }
 
                     return false;
                 }
@@ -78,39 +112,12 @@ namespace TrackDb.Lib.DataLifeCycle
             return null;
         }
 
-
-
-        private void HardDeleteCandidate(TransactionContext tx, TableCandidate candidate)
-        {
-            //  The candidate can't be in-memory block since table was transaction merged
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var table = Database.GetAnyTable(candidate.TableName);
-            var metadataTable = Database.GetAnyTable(
-                tableMap[candidate.TableName].MetaDataTableName!);
-            //  Find block owning candidate tombstoned record
-            var candidateBlockId = FindCandidateBlock(table, candidate.DeletedRecordId, tx);
-
-            if (candidateBlockId != null)
-            {
-                //  Find meta block owning that block
-                var candidateMetaBlockId =
-                    FindCandidateMetaBlock(metadataTable, candidateBlockId.Value, tx);
-
-                //  Do a block merge on the meta block
-                MergeBlocksUnder(metadataTable.Schema.TableName, candidateMetaBlockId, tx);
-            }
-            else
-            {   //  Record doesn't exist:  likely a racing condition between 2 transactions
-                //  (should be rare)
-                throw new NotImplementedException();
-            }
-        }
-
         private int? FindCandidateBlock(
-            Table table,
+            string tableName,
             long candidateDeletedRecordId,
             TransactionContext tx)
         {
+            var table = Database.GetAnyTable(tableName);
             var predicate = new BinaryOperatorPredicate(
                 table.Schema.RecordIdColumnIndex,
                 candidateDeletedRecordId,
@@ -123,22 +130,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 .FirstOrDefault();
 
             return blockId;
-        }
-
-        private int FindCandidateMetaBlock(Table metadataTable, int blockId, TransactionContext tx)
-        {
-            var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
-            var predicate = new BinaryOperatorPredicate(
-                metadataSchema.BlockIdColumnIndex,
-                blockId,
-                BinaryOperator.Equal);
-            var metaBlockId = metadataTable.Query(tx)
-                .WithPredicate(predicate)
-                .WithProjection([metadataSchema.ParentBlockIdColumnIndex])
-                .Select(r => (int)r.Span[0]!)
-                .First();
-
-            return metaBlockId;
         }
     }
 }
