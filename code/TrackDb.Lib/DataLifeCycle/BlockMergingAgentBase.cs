@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
 
@@ -59,6 +60,16 @@ namespace TrackDb.Lib.DataLifeCycle
             int? metaBlockId,
             TransactionContext tx)
         {
+            var metaBlock = LoadMetaBlock(metadataTableName, metaBlockId, tx);
+
+            throw new NotImplementedException();
+        }
+
+        private IBlock LoadMetaBlock(
+            string metadataTableName,
+            int? metaBlockId,
+            TransactionContext tx)
+        {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
             if (metaBlockId != null)
@@ -69,7 +80,10 @@ namespace TrackDb.Lib.DataLifeCycle
             {   //  We merge blocks in memory
                 tx.LoadCommittedBlocksInTransaction(metadataTableName);
 
-                throw new NotImplementedException();
+                return tx.TransactionState.InMemoryDatabase
+                    .TransactionTableLogsMap[metadataTableName]
+                    .InMemoryBlocks
+                    .First();
             }
         }
 
