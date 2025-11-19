@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
     internal class MetadataTableSchema : TableSchema
     {
+        private const string RECORD_ID = "$recordId";
         private const string ITEM_COUNT = "$itemCount";
         private const string SIZE = "$size";
         private const string BLOCK_ID = "$blockId";
@@ -30,29 +29,29 @@ namespace TrackDb.Lib
                         return [
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$min-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Min),
+                                ColumnSchemaStat.Min,
+                                parentColumn.ColumnSchema),
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$max-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Max)];
+                                ColumnSchemaStat.Max,
+                                parentColumn.ColumnSchema)];
                     case ColumnSchemaStat.Min:
-                        return [
-                            new ColumnSchemaProperties(
-                                new ColumnSchema($"$meta-min-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Min)];
+                        return [parentColumn];
                     case ColumnSchemaStat.Max:
-                        return [
-                            new ColumnSchemaProperties(
-                                new ColumnSchema($"$meta-max-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Max)];
+                        return [parentColumn];
 
                     default:
                         throw new NotSupportedException(
                             $"{nameof(ColumnSchemaStat)}.{parentColumn.ColumnSchemaStat}");
                 }
             }
-            var inheritedMetaDataColumns = parentSchema.ColumnProperties
+            var isParentMeta = parentSchema is MetadataTableSchema;
+            var existingColumns = isParentMeta
+                ? parentSchema.ColumnProperties
+                : parentSchema.ColumnProperties
                 //  Add record ID
-                .Append(new(new("$recordId", typeof(long)), ColumnSchemaStat.Data))
+                .Append(new(new(RECORD_ID, typeof(long)), ColumnSchemaStat.Data));
+            var inheritedMetaDataColumns = existingColumns
                 .Where(c => c.ColumnSchema.IsIndexed)
                 .Select(c => CreateMetaColumn(c));
             var newDataColumns = new ColumnSchemaProperties[]
@@ -95,6 +94,22 @@ namespace TrackDb.Lib
         public int BlockIdColumnIndex => Columns.Count - 1;
         #endregion
 
+        #region Stats Column
+        public int RecordIdMinColumnIndex => ColumnProperties
+            .Index()
+            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
+            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Select(c => c.Index)
+            .First();
+
+        public int RecordIdMaxColumnIndex => ColumnProperties
+            .Index()
+            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
+            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Select(c => c.Index)
+            .First();
+        #endregion
+
         /// <summary>
         /// Create a metadata record from statistics about records from the parent schema.
         /// </summary>
@@ -105,11 +120,11 @@ namespace TrackDb.Lib
         /// <param name="columnMaxima"></param>
         /// <returns></returns>
         public ReadOnlySpan<object?> CreateMetadataRecord(
-            int itemCount,
-            int size,
-            int blockId,
-            IEnumerable<object?> columnMinima,
-            IEnumerable<object?> columnMaxima)
+    int itemCount,
+    int size,
+    int blockId,
+    IEnumerable<object?> columnMinima,
+    IEnumerable<object?> columnMaxima)
         {
             object?[] CreateMetaColumnValues(
                 ColumnSchemaProperties properties,
