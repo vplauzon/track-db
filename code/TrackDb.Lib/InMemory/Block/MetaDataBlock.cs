@@ -18,7 +18,11 @@ namespace TrackDb.Lib.InMemory.Block
         public int ItemCount => (int)MetadataRecord.Span[Schema.ItemCountColumnIndex]!;
 
         public int Size => (int)MetadataRecord.Span[Schema.SizeColumnIndex]!;
-        
+
         public int BlockId => (int)MetadataRecord.Span[Schema.BlockIdColumnIndex]!;
+
+        public long RecordIdMin => (long)MetadataRecord.Span[Schema.RecordIdMinColumnIndex]!;
+        
+        public long RecordIdMax => (long)MetadataRecord.Span[Schema.RecordIdMaxColumnIndex]!;
     }
 }

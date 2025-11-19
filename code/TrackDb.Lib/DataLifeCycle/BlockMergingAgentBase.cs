@@ -16,12 +16,16 @@ namespace TrackDb.Lib.DataLifeCycle
         protected record BlockInfo(
             MetaDataBlock? MetaDataBlock,
             BlockBuilder? DataBlockBuilder,
-            int MinRecordId,
-            int MaxRecordId)
+            long MinRecordId,
+            long MaxRecordId)
         {
             public static BlockInfo FromMetadataBlock(MetaDataBlock metaDataBlock)
             {
-                return new BlockInfo(metaDataBlock, null, 0, 0);
+                return new BlockInfo(
+                    metaDataBlock,
+                    null,
+                    metaDataBlock.RecordIdMin,
+                    metaDataBlock.RecordIdMax);
             }
         }
         #endregion
