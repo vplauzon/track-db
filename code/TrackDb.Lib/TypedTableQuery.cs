@@ -14,7 +14,6 @@ namespace TrackDb.Lib
         private readonly TypedTable<T> _table;
         private readonly bool _canDelete;
         private readonly TransactionContext? _transactionContext;
-        private readonly QueryPredicate _predicate;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
         private readonly string? _queryTag;
@@ -47,7 +46,7 @@ namespace TrackDb.Lib
             _table = table;
             _canDelete = canDelete;
             _transactionContext = transactionContext;
-            _predicate = predicate;
+            Predicate = predicate;
             _sortColumns = sortColumns.ToImmutableArray();
             _takeCount = takeCount;
             _queryTag = queryTag;
@@ -68,7 +67,7 @@ namespace TrackDb.Lib
             }
 
             var predicate = predicateFunc(_table.PredicateFactory);
-            var newPredicate = new ConjunctionPredicate(_predicate, predicate.QueryPredicate);
+            var newPredicate = new ConjunctionPredicate(Predicate, predicate.QueryPredicate);
 
             return new TypedTableQuery<T>(
                 _table,
@@ -91,7 +90,7 @@ namespace TrackDb.Lib
                 _table,
                 _canDelete,
                 _transactionContext,
-                _predicate,
+                Predicate,
                 _sortColumns,
                 count,
                 _queryTag);
@@ -145,7 +144,7 @@ namespace TrackDb.Lib
                     _table,
                     _canDelete,
                     _transactionContext,
-                    _predicate,
+                    Predicate,
                     _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
                     _takeCount,
                     _queryTag);
@@ -165,7 +164,7 @@ namespace TrackDb.Lib
                 _table,
                 _canDelete,
                 _transactionContext,
-                _predicate,
+                Predicate,
                 _sortColumns,
                 _takeCount,
                 queryTag);
@@ -184,12 +183,14 @@ namespace TrackDb.Lib
         }
         #endregion
 
+        public QueryPredicate Predicate { get; }
+
         public TableQuery TableQuery
         {
             get
             {
                 var tableQuery = ((Table)_table).Query(_transactionContext)
-                    .WithPredicate(_predicate)
+                    .WithPredicate(Predicate)
                     .WithSortColumns(_sortColumns)
                     .WithTake(_takeCount);
 

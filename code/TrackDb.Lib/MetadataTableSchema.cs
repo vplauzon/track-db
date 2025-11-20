@@ -14,8 +14,6 @@ namespace TrackDb.Lib
         private const string SIZE = "$size";
         private const string BLOCK_ID = "$blockId";
 
-        private readonly TableSchema _parentSchema;
-
         #region Constructor
         public static MetadataTableSchema FromParentSchema(TableSchema parentSchema)
         {
@@ -82,9 +80,11 @@ namespace TrackDb.Lib
             IEnumerable<ColumnSchemaProperties> columnProperties)
             : base(tableName, columnProperties, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty)
         {
-            _parentSchema = parentSchema;
+            ParentSchema = parentSchema;
         }
         #endregion
+
+        public TableSchema ParentSchema { get; }
 
         #region Metadata Columns
         public int ItemCountColumnIndex => Columns.Count - 3;
@@ -120,11 +120,11 @@ namespace TrackDb.Lib
         /// <param name="columnMaxima"></param>
         /// <returns></returns>
         public ReadOnlySpan<object?> CreateMetadataRecord(
-    int itemCount,
-    int size,
-    int blockId,
-    IEnumerable<object?> columnMinima,
-    IEnumerable<object?> columnMaxima)
+            int itemCount,
+            int size,
+            int blockId,
+            IEnumerable<object?> columnMinima,
+            IEnumerable<object?> columnMaxima)
         {
             object?[] CreateMetaColumnValues(
                 ColumnSchemaProperties properties,
@@ -148,7 +148,7 @@ namespace TrackDb.Lib
                 }
             }
 
-            var columnPropertiesWithRecordId = _parentSchema.ColumnProperties
+            var columnPropertiesWithRecordId = ParentSchema.ColumnProperties
                 .Append(new(new("creationTime", typeof(DateTime), false), ColumnSchemaStat.Data))
                 .Append(new(new("$recordId", typeof(long), true), ColumnSchemaStat.Data));
             var stats = columnMinima
