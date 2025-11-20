@@ -13,170 +13,106 @@ namespace TrackDb.Lib.DataLifeCycle
     {
         #region Inner types
         protected record BlockInfo(
+            //  Metadata only
             MetaDataBlock? MetaDataBlock,
-            ReadOnlyMemory<object?>? NewMetaRecord,
-            IBlock? ReadOnlyBlock,
-            BlockBuilder? DataBlockBuilder,
-            IImmutableList<int> DeletedBlockIds,
-            IImmutableList<long> HardDeletedRecordIds)
+            //  Signals the metadata is new and not persisted to its meta block yet
+            bool IsNew,
+            //  Data only
+            BlockBuilder? DataBlockBuilder)
         {
+            #region Constructors
             public static BlockInfo FromMetadataBlock(MetaDataBlock metaDataBlock)
             {
-                return new BlockInfo(
-                    metaDataBlock,
-                    null,
-                    null,
-                    null,
-                    ImmutableArray<int>.Empty,
-                    ImmutableArray<long>.Empty);
+                return new BlockInfo(metaDataBlock, false, null);
             }
 
-            public BlockInfo HardDeleteRecords(
-                IEnumerable<long> deletedRecordIds,
+            public static BlockInfo FromBlockId(
+                int blockId,
                 Database database,
-                TableSchema schema)
+                TableSchema schema,
+                TransactionContext tx)
             {
-                if (MetaDataBlock != null
-                    && NewMetaRecord == null
-                    && ReadOnlyBlock == null
-                    && DataBlockBuilder == null)
-                {
-                    var canHaveTombstones = DataBlockBuilder == null
-                        && deletedRecordIds
-                        .Any(id => id >= MetaDataBlock.RecordIdMin
-                        && id <= MetaDataBlock.RecordIdMax);
+                void Compact(BlockBuilder blockBuilder)
+                {   //  Find tombstoned records
+                    var allDeletedRecordIds = database.TombstoneTable.Query(tx)
+                        .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
+                        .Select(t => t.DeletedRecordId)
+                        .ToImmutableArray();
+                    //  Hard delete the ones in the block
+                    var hardDeletedRecordIds =
+                        blockBuilder.DeleteRecordsByRecordId(allDeletedRecordIds);
 
-                    if (canHaveTombstones)
-                    {
-                        var newBlockInfo = LoadReadonlyBlock(database, schema);
+                    //  Remove those records from tombstone table
+                    tx.LoadCommittedBlocksInTransaction(database.TombstoneTable.Schema.TableName);
 
-                        return newBlockInfo.HardDeleteRecords(deletedRecordIds, database, schema);
-                    }
-                    else
-                    {
-                        return this;
-                    }
-                }
-                else if (MetaDataBlock != null
-                    && NewMetaRecord == null
-                    && ReadOnlyBlock != null
-                    && DataBlockBuilder == null)
-                {
-                    var predicate = new InPredicate(
-                        schema.RecordIdColumnIndex,
-                        deletedRecordIds.Cast<object?>());
+                    var predicate = database.TombstoneTable.Query(tx)
+                        .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
+                        .Where(pf => pf.In(t => t.DeletedRecordId, hardDeletedRecordIds))
+                        .Predicate;
+                    var tombstoneBuilder = tx.TransactionState.UncommittedTransactionLog
+                        .TransactionTableLogMap[database.TombstoneTable.Schema.TableName]
+                        .CommittedDataBlock!;
+                    var hardDeleteRowIndexes = ((IBlock)tombstoneBuilder)
+                        .Filter(predicate, false)
+                        .RowIndexes;
 
-                    if (ReadOnlyBlock.Filter(predicate, false).RowIndexes.Any())
-                    {
-                        var newBlockInfo = LoadBlockBuilder(schema);
-
-                        return newBlockInfo.HardDeleteRecords(deletedRecordIds, database, schema);
-                    }
-                    else
-                    {
-                        return this;
-                    }
-                }
-                else if (NewMetaRecord != null)
-                {
-                    throw new NotSupportedException();
-                }
-                else if (DataBlockBuilder != null)
-                {
-                    var hardDeletedRecordIds = DataBlockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
-
-                    if (hardDeletedRecordIds.Any())
-                    {
-                        return this with
-                        {
-                            HardDeletedRecordIds = HardDeletedRecordIds.AddRange(hardDeletedRecordIds)
-                        };
-                    }
-                    else
-                    {
-                        return this;
-                    }
-                }
-                else
-                {
-                    return this;
-                }
-            }
-
-            public BlockInfo EnsurePersisted(Database database, MetadataTableSchema metaSchema)
-            {
-                if (DataBlockBuilder != null)
-                {
-                    if (((IBlock)DataBlockBuilder).RecordCount > 0)
-                    {
-                        var buffer = new byte[database.DatabasePolicy.StoragePolicy.BlockSize];
-                        var blockStats = DataBlockBuilder.Serialize(buffer);
-
-                        if (blockStats.Size > buffer.Length)
-                        {
-                            throw new InvalidOperationException("Block bigger than planned");
-                        }
-
-                        var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
-                        var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
-
-                        return this with
-                        {
-                            DataBlockBuilder = null,
-                            NewMetaRecord = metaRecord
-                        };
-                    }
-                    else
-                    {
-                        return this with
-                        {
-                            DataBlockBuilder = null
-                        };
-                    }
-                }
-                else
-                {
-                    return this;
-                }
-            }
-
-            #region Load methods
-            private BlockInfo LoadReadonlyBlock(Database database, TableSchema schema)
-            {
-                if (MetaDataBlock == null || ReadOnlyBlock != null)
-                {
-                    throw new InvalidOperationException();
+                    tombstoneBuilder.DeleteRecordsByRecordIndex(hardDeleteRowIndexes);
                 }
 
-                var block = database.GetOrLoadBlock(MetaDataBlock.BlockId, schema);
-
-                return this with
-                {
-                    ReadOnlyBlock = block
-                };
-            }
-
-            private BlockInfo LoadBlockBuilder(TableSchema schema)
-            {
-                if (MetaDataBlock == null || ReadOnlyBlock == null)
-                {
-                    throw new InvalidOperationException();
-                }
-
+                var block = database.GetOrLoadBlock(blockId, schema);
                 var blockBuilder = new BlockBuilder(schema);
 
-                blockBuilder.AppendBlock(ReadOnlyBlock);
+                blockBuilder.AppendBlock(block);
+                Compact(blockBuilder);
 
-                return this with
-                {
-                    MetaDataBlock = null,
-                    ReadOnlyBlock = null,
-                    DataBlockBuilder = blockBuilder,
-                    DeletedBlockIds = DeletedBlockIds.Add(MetaDataBlock.BlockId)
-                };
+                return new BlockInfo(null, false, blockBuilder);
             }
             #endregion
+
+            public long ComputeRecordIdMax()
+            {
+                if (MetaDataBlock != null)
+                {
+                    return MetaDataBlock.RecordIdMax;
+                }
+                else
+                {
+                    var block = ((IBlock)DataBlockBuilder!);
+                    var recordIdMax = block.Project(
+                        new object?[1],
+                        [block.TableSchema.RecordIdColumnIndex],
+                        Enumerable.Range(0, block.RecordCount),
+                        0)
+                        .Select(r => (long)r.Span[0]!)
+                        .Max();
+
+                    return recordIdMax;
+                }
+            }
+
+            public BlockInfo Persist(Database database, MetadataTableSchema metaSchema)
+            {
+                if (DataBlockBuilder == null || ((IBlock)DataBlockBuilder).RecordCount == 0)
+                {
+                    throw new InvalidOperationException();
+                }
+                var buffer = new byte[database.DatabasePolicy.StoragePolicy.BlockSize];
+                var blockStats = DataBlockBuilder.Serialize(buffer);
+
+                if (blockStats.Size > buffer.Length)
+                {
+                    throw new InvalidOperationException("Block bigger than planned");
+                }
+
+                var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
+                var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+                var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
+
+                return new BlockInfo(metaBlock, true, null);
+            }
         }
+
+        private record BlockReplacement(int BlockId, BlockInfo BlockInfo);
         #endregion
 
         public BlockMergingAgentBase(Database database)
@@ -186,15 +122,15 @@ namespace TrackDb.Lib.DataLifeCycle
 
         /// <summary>
         /// Compact (remove deleted records) blocks from a data table (generation 1) and merge them
-        /// together, updating the meta blocks "in place".
+        /// together, updating blocks "in place".
         /// </summary>
         /// <param name="dataTableName"></param>
         /// <param name="deletedRecordId">Starting record ID in the table.</param>
         /// <param name="tx"></param>
-        /// <returns></returns>
-        protected bool MergeDataBlocks(string dataTableName, long deletedRecordId, TransactionContext tx)
+        protected void CompactBlock(string dataTableName, long deletedRecordId, TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var schema = tableMap[dataTableName].Table.Schema;
             var metadataTableName = tableMap[dataTableName].MetaDataTableName;
 
             if (tableMap[dataTableName].IsMetaDataTable)
@@ -214,14 +150,21 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Where(pf => pf.Equal(t => t.TableName, dataTableName))
                     .Where(pf => pf.Equal(t => t.DeletedRecordId, deletedRecordId))
                     .Delete();
-
-                return true;
             }
             else
             {
+                var blockInfo = BlockInfo.FromBlockId(
+                    deletedRecordBlockId.Value,
+                    Database,
+                    schema,
+                    tx);
                 var parentBlockId = FindParentBlock(metadataTableName, deletedRecordBlockId.Value, tx);
 
-                return MergeSubBlocks(metadataTableName, parentBlockId, tx);
+                MergeSubBlocksWithReplacements(
+                    metadataTableName,
+                    parentBlockId,
+                    [new BlockReplacement(deletedRecordBlockId.Value, blockInfo)],
+                    tx);
             }
         }
 
@@ -242,33 +185,34 @@ namespace TrackDb.Lib.DataLifeCycle
             return MergeSubBlocksWithReplacements(
                 metadataTableName,
                 metaMetaBlockId,
-                Array.Empty<int>(),
+                Array.Empty<BlockReplacement>(),
                 tx);
         }
 
         private bool MergeSubBlocksWithReplacements(
             string metadataTableName,
             int? metaMetaBlockId,
-            int[] replacements,
+            IEnumerable<BlockReplacement> replacements,
             TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var blockInfoStack = new Stack<BlockInfo>(
-                LoadBlockInfos(metadataTableName, metaMetaBlockId, tx)
-                .OrderBy(b => b.MetaDataBlock!.RecordIdMax));
+                LoadBlockInfos(metadataTableName, metaMetaBlockId, replacements, tx)
+                .Where(b => b.MetaDataBlock != null || ((IBlock)b.DataBlockBuilder!).RecordCount > 0)
+                .Select(b => new
+                {
+                    BlockInfo = b,
+                    RecordIdMax = b.ComputeRecordIdMax()
+                })
+                .OrderBy(o => o.RecordIdMax)
+                .Select(o => o.BlockInfo));
             var processedBlockInfos = new List<BlockInfo>(blockInfoStack.Count);
             var metaSchema = (MetadataTableSchema)tableMap[metadataTableName].Table.Schema;
             var schema = metaSchema.ParentSchema;
-            var deletedRecordIds = GetTombstonedRecords(
-                schema.TableName,
-                blockInfoStack.Min(b => b.MetaDataBlock!.RecordIdMin),
-                blockInfoStack.Max(b => b.MetaDataBlock!.RecordIdMax),
-                tx);
-            var hardDeletedRecordIds = new List<long>(deletedRecordIds.Count);
 
             while (blockInfoStack.Any())
             {
-                var leftBlock = blockInfoStack.Pop().HardDeleteRecords(deletedRecordIds, Database, schema);
+                var leftBlock = blockInfoStack.Pop();
 
                 if (blockInfoStack.Any())
                 {
@@ -278,19 +222,19 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {   //  We're done
-                    leftBlock = leftBlock.EnsurePersisted(Database, metaSchema);
-                    processedBlockInfos.Add(leftBlock);
+                    if (leftBlock.DataBlockBuilder != null)
+                    {
+                        if (((IBlock)leftBlock.DataBlockBuilder).RecordCount > 0)
+                        {
+                            processedBlockInfos.Add(leftBlock.Persist(Database, metaSchema));
+                        }
+                    }
+                    else
+                    {
+                        processedBlockInfos.Add(leftBlock);
+                    }
                 }
             }
-
-            HardDeleteRecords(
-                schema.TableName,
-                processedBlockInfos.SelectMany(b => b.HardDeletedRecordIds),
-                tx);
-            DeleteBlocks(processedBlockInfos.SelectMany(b => b.DeletedBlockIds));
-
-            var nonEmptyBlocks = processedBlockInfos
-                .Where(bi => bi.MetaDataBlock != null || bi.NewMetaRecord != null);
 
             if (metaMetaBlockId != null)
             {
@@ -307,7 +251,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  Delete blocks in-memory
                 metaBlockBuilder.DeleteRecordsByRecordIndex(
                     Enumerable.Range(0, ((IBlock)metaBlockBuilder).RecordCount));
-                if (nonEmptyBlocks.Any())
+                if (processedBlockInfos.Any())
                 {
                     throw new NotImplementedException();
                 }
@@ -317,61 +261,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(bi => bi.DataBlockBuilder != null)
                 .Any();
         }
-
-        #region Hard Deletion
-        private void HardDeleteRecords(
-            string tableName,
-            IEnumerable<long> recordIds,
-            TransactionContext tx)
-        {
-            if (recordIds.Any())
-            {
-                var tombstoneTable = Database.TombstoneTable;
-                var tombstoneTableName = tombstoneTable.Schema.TableName;
-
-                tx.LoadCommittedBlocksInTransaction(tombstoneTableName);
-
-                var builder = tx.TransactionState
-                    .UncommittedTransactionLog
-                    .TransactionTableLogMap[tombstoneTableName]
-                    .CommittedDataBlock!;
-                var predicate = tombstoneTable.Query()
-                    .Where(pf => pf.Equal(t => t.TableName, tableName))
-                    .Where(pf => pf.In(t => t.DeletedRecordId, recordIds))
-                    .Predicate;
-                var rowIndexes = ((IBlock)builder).Filter(predicate, false)
-                    .RowIndexes;
-
-                builder.DeleteRecordsByRecordIndex(rowIndexes);
-            }
-        }
-
-        private void DeleteBlocks(IEnumerable<int> blockIds)
-        {
-            Database.ChangeDatabaseState(state => state with
-            {
-                DiscardedBlockIds = state.DiscardedBlockIds.AddRange(blockIds)
-            });
-        }
-
-        private IImmutableList<long> GetTombstonedRecords(
-            string tableName,
-            long minRecordId,
-            long maxRecordId,
-            TransactionContext tx)
-        {
-            tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
-
-            var recordIds = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, minRecordId))
-                .Where(pf => pf.LessThanOrEqual(t => t.DeletedRecordId, maxRecordId))
-                .Select(t => t.DeletedRecordId)
-                .ToImmutableArray();
-
-            return recordIds;
-        }
-        #endregion
 
         #region Find blocks
         private int? FindDataBlock(string tableName, long deletedRecordId, TransactionContext tx)
@@ -415,6 +304,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private IImmutableList<BlockInfo> LoadBlockInfos(
             string metadataTableName,
             int? metaBlockId,
+            IEnumerable<BlockReplacement> replacements,
             TransactionContext tx)
         {
             if (metaBlockId != null)
@@ -425,11 +315,15 @@ namespace TrackDb.Lib.DataLifeCycle
             {   //  We merge blocks in memory
                 tx.LoadCommittedBlocksInTransaction(metadataTableName);
 
+                var replacementMap = replacements
+                    .ToImmutableDictionary(r => r.BlockId, r => r.BlockInfo);
                 var blockInfos = tx.TransactionState.InMemoryDatabase
                     .TransactionTableLogsMap[metadataTableName]
                     .InMemoryBlocks
                     .SelectMany(b => LoadBlockInfosFromMetaBlock(b))
-                    .Select(b => b)
+                    .Select(b => replacementMap.ContainsKey(b.MetaDataBlock!.BlockId)
+                    ? replacementMap[b.MetaDataBlock!.BlockId]
+                    : b)
                     .ToImmutableArray();
 
                 return blockInfos;

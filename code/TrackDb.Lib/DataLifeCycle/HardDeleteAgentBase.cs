@@ -35,7 +35,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                     if (candidate != null)
                     {
-                        MergeCandidate(candidate, tx);
+                        HardDeleteCandidate(candidate, tx);
                     }
                     else
                     {
@@ -50,7 +50,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void MergeCandidate(TableCandidate candidate, TransactionContext tx)
+        private void HardDeleteCandidate(TableCandidate candidate, TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var properties = tableMap[candidate.TableName];
@@ -68,7 +68,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     $"no metadata table");
             }
 
-            MergeDataBlocks(
+            CompactBlock(
                 candidate.TableName,
                 candidate.DeletedRecordId,
                 tx);
