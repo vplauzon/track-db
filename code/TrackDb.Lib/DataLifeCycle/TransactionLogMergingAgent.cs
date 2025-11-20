@@ -4,18 +4,13 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class TransactionLogMergingAgent : DataLifeCycleAgentBase
     {
-
-        public TransactionLogMergingAgent(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public TransactionLogMergingAgent(Database database)
+            : base(database)
         {
         }
 
@@ -27,7 +22,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 ? 1
                 : Database.DatabasePolicy.InMemoryPolicy.MaxBlocksPerTable;
 
-            using(var tx = Database.CreateTransaction(false))
+            using (var tx = Database.CreateTransaction(false))
             {
                 var candidateTables = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
                     .Where(p => p.Value.InMemoryBlocks.Count > maxInMemoryBlocksPerTable)

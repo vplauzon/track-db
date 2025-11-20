@@ -151,11 +151,8 @@ namespace TrackDb.Lib.DataLifeCycle
         }
         #endregion
 
-        public BlockMergingAgentBase(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public BlockMergingAgentBase(Database database)
+            : base(database)
         {
         }
 

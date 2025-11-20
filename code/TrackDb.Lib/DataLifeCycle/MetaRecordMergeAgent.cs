@@ -3,17 +3,13 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using TrackDb.Lib.InMemory;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class MetaRecordMergeAgent : BlockMergingAgentBase
     {
-        public MetaRecordMergeAgent(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public MetaRecordMergeAgent(Database database)
+            : base(database)
         {
         }
 

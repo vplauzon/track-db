@@ -16,11 +16,8 @@ namespace TrackDb.Lib.DataLifeCycle
         protected record TableCandidate(string TableName, long DeletedRecordId);
         #endregion
 
-        public HardDeleteAgentBase(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public HardDeleteAgentBase(Database database)
+            : base(database)
         {
         }
 

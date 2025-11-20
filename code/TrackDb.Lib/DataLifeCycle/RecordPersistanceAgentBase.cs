@@ -13,11 +13,8 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal abstract class RecordPersistanceAgentBase : DataLifeCycleAgentBase
     {
-        protected RecordPersistanceAgentBase(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        protected RecordPersistanceAgentBase(Database database)
+            : base(database)
         {
         }
 
@@ -53,7 +50,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metadataTable = Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var isFirstBlockToPersist = true;
-            var buffer = new byte[DatabaseFileManager.BlockSize];
+            var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
             var skipRows = 0;
 
             tableBlockBuilder.OrderByRecordId();

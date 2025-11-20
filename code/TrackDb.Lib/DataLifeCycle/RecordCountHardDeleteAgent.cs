@@ -10,11 +10,8 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent : HardDeleteAgentBase
     {
-        public RecordCountHardDeleteAgent(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public RecordCountHardDeleteAgent(Database database)
+            : base(database)
         {
         }
 
@@ -24,10 +21,10 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            if (doHardDeleteAll || TombstoneTable.Query(tx).Count() > maxTombstonedRecords)
+            if (doHardDeleteAll || Database.TombstoneTable.Query(tx).Count() > maxTombstonedRecords)
             {
                 var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                var candidate = TombstoneTable.Query(tx)
+                var candidate = Database.TombstoneTable.Query(tx)
                     .GroupBy(t => t.TableName)
                     //  Avoid infinite loop by having system tables hard delete on command
                     .Where(g => !doHardDeleteAll || !tableMap[g.Key].IsSystemTable)
