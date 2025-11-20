@@ -37,6 +37,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 TableSchema schema)
             {
                 if (MetaDataBlock != null
+                    && NewMetaRecord == null
                     && ReadOnlyBlock == null
                     && DataBlockBuilder == null)
                 {
@@ -57,6 +58,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                 }
                 else if (MetaDataBlock != null
+                    && NewMetaRecord == null
                     && ReadOnlyBlock != null
                     && DataBlockBuilder == null)
                 {
@@ -74,6 +76,10 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         return this;
                     }
+                }
+                else if (NewMetaRecord != null)
+                {
+                    throw new NotSupportedException();
                 }
                 else if (DataBlockBuilder != null)
                 {
@@ -101,22 +107,32 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (DataBlockBuilder != null)
                 {
-                    var buffer = new byte[database.DatabasePolicy.StoragePolicy.BlockSize];
-                    var blockStats = DataBlockBuilder.Serialize(buffer);
-
-                    if (blockStats.Size > buffer.Length)
+                    if (((IBlock)DataBlockBuilder).RecordCount > 0)
                     {
-                        throw new InvalidOperationException("Block bigger than planned");
+                        var buffer = new byte[database.DatabasePolicy.StoragePolicy.BlockSize];
+                        var blockStats = DataBlockBuilder.Serialize(buffer);
+
+                        if (blockStats.Size > buffer.Length)
+                        {
+                            throw new InvalidOperationException("Block bigger than planned");
+                        }
+
+                        var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
+                        var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+
+                        return this with
+                        {
+                            DataBlockBuilder = null,
+                            NewMetaRecord = metaRecord
+                        };
                     }
-
-                    var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
-                    var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
-
-                    return this with
+                    else
                     {
-                        DataBlockBuilder = null,
-                        NewMetaRecord = metaRecord
-                    };
+                        return this with
+                        {
+                            DataBlockBuilder = null
+                        };
+                    }
                 }
                 else
                 {
@@ -274,8 +290,7 @@ namespace TrackDb.Lib.DataLifeCycle
             DeleteBlocks(processedBlockInfos.SelectMany(b => b.DeletedBlockIds));
 
             var nonEmptyBlocks = processedBlockInfos
-                .Where(bi => bi.DataBlockBuilder == null
-                || ((IBlock)bi.DataBlockBuilder).RecordCount > 0);
+                .Where(bi => bi.MetaDataBlock != null || bi.NewMetaRecord != null);
 
             if (metaMetaBlockId != null)
             {
