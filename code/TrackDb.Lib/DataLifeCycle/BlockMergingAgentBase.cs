@@ -266,7 +266,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  Delete blocks in-memory
                 metaBlockBuilder.DeleteRecordsByRecordIndex(
                     Enumerable.Range(0, ((IBlock)metaBlockBuilder).RecordCount));
-                if (((IBlock)metaBlockBuilder).RecordCount > 0)
+                if (nonEmptyBlocks.Any())
                 {
                     throw new NotImplementedException();
                 }

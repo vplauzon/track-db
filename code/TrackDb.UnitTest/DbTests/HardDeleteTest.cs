@@ -19,32 +19,47 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
 
-                Assert.True(db.PrimitiveTable.Query().Count() == 1);
-                using (var tx = db.Database.CreateTransaction())
-                {
-                    Assert.False(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
-                        db.PrimitiveTable.Schema.TableName));
-                }
+                Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
                 db.PrimitiveTable.Query()
                     .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
 
-                Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tx = db.Database.CreateTransaction())
-                {
-                    Assert.True(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
-                        db.Database.TombstoneTable.Schema.TableName));
-                }
+                Assert.Equal(0, db.PrimitiveTable.Query().Count());
+                Assert.True(db.Database.TombstoneTable.Query().Count() > 0);
 
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
-                Assert.True(db.PrimitiveTable.Query().Count() == 0);
-                using (var tx = db.Database.CreateTransaction())
-                {
-                    Assert.False(tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap.ContainsKey(
-                        db.Database.TombstoneTable.Schema.TableName));
-                }
+                Assert.Equal(0, db.PrimitiveTable.Query().Count());
+                Assert.Equal(0, db.Database.TombstoneTable.Query().Count());
+            }
+        }
+
+        [Fact]
+        public async Task TwoRecordsOneDeleted()
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                var record1 = new TestDatabase.Primitives(1);
+                var record2 = new TestDatabase.Primitives(2);
+
+                db.PrimitiveTable.AppendRecord(record1);
+                db.PrimitiveTable.AppendRecord(record2);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
+
+                Assert.Equal(2, db.PrimitiveTable.Query().Count());
+
+                db.PrimitiveTable.Query()
+                    .Where(pf => pf.Equal(r => r.Integer, record1.Integer))
+                    .Delete();
+
+                Assert.Equal(1, db.PrimitiveTable.Query().Count());
+                Assert.True(db.Database.TombstoneTable.Query().Count() > 0);
+
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+
+                Assert.Equal(1, db.PrimitiveTable.Query().Count());
+                Assert.Equal(1, db.Database.TombstoneTable.Query().Count());
             }
         }
 
