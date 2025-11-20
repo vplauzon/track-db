@@ -13,7 +13,7 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal abstract class RecordPersistanceAgentBase : DataLifeCycleAgentBase
     {
-        public RecordPersistanceAgentBase(
+        protected RecordPersistanceAgentBase(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
             Lazy<DatabaseFileManager> storageManager)
@@ -53,7 +53,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metadataTable = Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var isFirstBlockToPersist = true;
-            var buffer = new byte[StorageManager.BlockSize];
+            var buffer = new byte[DatabaseFileManager.BlockSize];
             var skipRows = 0;
 
             tableBlockBuilder.OrderByRecordId();
@@ -68,7 +68,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         $"'{tableBlock.TableSchema.TableName}' with " +
                         $"{tableBlock.TableSchema.Columns.Count} columns");
                 }
-                if(blockStats.Size>buffer.Length)
+                if (blockStats.Size > buffer.Length)
                 {
                     throw new IndexOutOfRangeException(
                         $"Buffer overrun:  {blockStats.Size}>{buffer.Length}");
@@ -78,17 +78,15 @@ namespace TrackDb.Lib.DataLifeCycle
                 if (isFirstBlockToPersist
                     || tableBlock.RecordCount - skipRows > blockStats.ItemCount)
                 {
-                    var blockId = Database.GetFreeBlockId();
-
                     if (blockStats.Size > buffer.Length)
                     {
                         throw new InvalidOperationException(
                             $"Block size ({blockStats.Size}) is bigger than planned" +
                             $"maximum ({buffer.Length})");
                     }
-                    StorageManager.WriteBlock(
-                        blockId,
-                        buffer.AsSpan().Slice(0, blockStats.Size));
+
+                    var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
+
                     metadataTable.AppendRecord(
                         metaSchema.CreateMetadataRecord(
                             blockStats.ItemCount,

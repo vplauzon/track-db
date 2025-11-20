@@ -26,18 +26,18 @@ namespace TrackDb.Lib.DataLifeCycle
         public DataLifeCycleManager(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
+            Lazy<DatabaseFileManager> databaseFileManager)
         {
             _database = database;
             _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new ReleaseBlockAgent(database, tombstoneTable, storageManager),
-                new NonMetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
-                new RecordCountHardDeleteAgent(database, tombstoneTable, storageManager),
-                new TimeHardDeleteAgent(database, tombstoneTable, storageManager),
-                new MetaRecordMergeAgent(database, tombstoneTable, storageManager),
-                new MetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
-                new TransactionLogMergingAgent(database, tombstoneTable, storageManager));
+                new ReleaseBlockAgent(database, tombstoneTable, databaseFileManager),
+                new NonMetaRecordPersistanceAgent(database, tombstoneTable, databaseFileManager),
+                new RecordCountHardDeleteAgent(database, tombstoneTable, databaseFileManager),
+                new TimeHardDeleteAgent(database, tombstoneTable, databaseFileManager),
+                new MetaRecordMergeAgent(database, tombstoneTable, databaseFileManager),
+                new MetaRecordPersistanceAgent(database, tombstoneTable, databaseFileManager),
+                new TransactionLogMergingAgent(database, tombstoneTable, databaseFileManager));
         }
 
         async ValueTask IAsyncDisposable.DisposeAsync()

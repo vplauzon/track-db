@@ -12,16 +12,16 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal abstract class DataLifeCycleAgentBase
     {
-        private readonly Lazy<DatabaseFileManager> _storageManager;
+        private readonly Lazy<DatabaseFileManager> _databaseFileManager;
 
         protected DataLifeCycleAgentBase(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
+            Lazy<DatabaseFileManager> databaseFileManager)
         {
             Database = database;
             TombstoneTable = tombstoneTable;
-            _storageManager = storageManager;
+            _databaseFileManager = databaseFileManager;
         }
 
         /// <summary>Runs an agent logic.</summary>
@@ -33,7 +33,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         protected TypedTable<TombstoneRecord> TombstoneTable { get; }
 
-        protected DatabaseFileManager StorageManager => _storageManager.Value;
+        protected DatabaseFileManager DatabaseFileManager => _databaseFileManager.Value;
 
         protected bool MergeTableTransactionLogs(string tableName)
         {

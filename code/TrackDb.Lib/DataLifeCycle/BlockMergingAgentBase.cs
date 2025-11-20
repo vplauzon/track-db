@@ -15,6 +15,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Inner types
         protected record BlockInfo(
             MetaDataBlock? MetaDataBlock,
+            bool isNewBlock,
             IBlock? ReadOnlyBlock,
             BlockBuilder? DataBlockBuilder,
             IImmutableList<int> DeletedBlockIds,
@@ -24,6 +25,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 return new BlockInfo(
                     metaDataBlock,
+                    false,
                     null,
                     null,
                     ImmutableArray<int>.Empty,
@@ -89,6 +91,20 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         return this;
                     }
+                }
+                else
+                {
+                    return this;
+                }
+            }
+
+            public BlockInfo EnsurePersisted()
+            {
+                if (DataBlockBuilder != null)
+                {
+                    //var buffer = new byte[];
+                    //DataBlockBuilder.Serialize();
+                    throw new NotImplementedException();
                 }
                 else
                 {
@@ -237,6 +253,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {   //  We're done
+                    leftBlock = leftBlock.EnsurePersisted();
                     processedBlockInfos.Add(leftBlock);
                 }
             }

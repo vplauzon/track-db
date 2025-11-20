@@ -230,7 +230,15 @@ namespace TrackDb.Lib
                 tc);
         }
 
-        internal int GetFreeBlockId()
+        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
+        {
+            _availableBlockTable.AppendRecords(blockIds
+                .Select(id => new AvailableBlockRecord(id)));
+        }
+
+        internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
+
+        private int GetFreeBlockId()
         {
             var availableBlock = _availableBlockTable.Query()
                 .Take(1)
@@ -256,14 +264,6 @@ namespace TrackDb.Lib
                 return blockIds.First();
             }
         }
-
-        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
-        {
-            _availableBlockTable.AppendRecords(blockIds
-                .Select(id => new AvailableBlockRecord(id)));
-        }
-
-        internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
         #endregion
         #endregion
 
@@ -595,6 +595,15 @@ namespace TrackDb.Lib
             var block = ReadOnlyBlock.Load(payload, schema);
 
             return block;
+        }
+
+        internal int PersistBlock(ReadOnlySpan<byte> buffer)
+        {
+            var blockId = GetFreeBlockId();
+
+            _dbFileManager.Value.WriteBlock(blockId, buffer);
+
+            return blockId;
         }
         #endregion
 
