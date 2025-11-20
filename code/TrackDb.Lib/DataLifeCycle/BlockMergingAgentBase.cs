@@ -90,6 +90,20 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
 
+            public int ComputeSize()
+            {
+                if (MetaDataBlock != null)
+                {
+                    return MetaDataBlock.Size;
+                }
+                else
+                {
+                    var blockStats = DataBlockBuilder!.Serialize(Array.Empty<byte>());
+
+                    return blockStats.Size;
+                }
+            }
+
             public BlockInfo Persist(Database database, MetadataTableSchema metaSchema)
             {
                 if (DataBlockBuilder == null || ((IBlock)DataBlockBuilder).RecordCount == 0)
@@ -109,6 +123,25 @@ namespace TrackDb.Lib.DataLifeCycle
                 var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
 
                 return new BlockInfo(metaBlock, true, null);
+            }
+
+            public BlockInfo? Merge(BlockInfo rightBlock, int maxBlockSize)
+            {
+                var leftBuilder = DataBlockBuilder!;
+                var rightBuilder = rightBlock.DataBlockBuilder!;
+                var mergedBuilder = new BlockBuilder(((IBlock)leftBuilder).TableSchema);
+
+                mergedBuilder.AppendBlock(leftBuilder);
+                mergedBuilder.AppendBlock(rightBuilder);
+
+                if (mergedBuilder.Serialize(Array.Empty<byte>()).Size <= maxBlockSize)
+                {
+                    return new BlockInfo(null, false, mergedBuilder);
+                }
+                else
+                {
+                    return null;
+                }
             }
         }
 
@@ -146,10 +179,19 @@ namespace TrackDb.Lib.DataLifeCycle
             if (deletedRecordBlockId == null)
             {   //  Record doesn't exist anymore:  likely a racing condition between 2 transactions
                 //  (should be rare)
-                Database.TombstoneTable.Query(tx)
+                tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
+
+                var tombstoneBuilder = tx.TransactionState
+                    .UncommittedTransactionLog
+                    .TransactionTableLogMap[Database.TombstoneTable.Schema.TableName]
+                    .CommittedDataBlock!;
+                var predicate = Database.TombstoneTable.Query(tx)
                     .Where(pf => pf.Equal(t => t.TableName, dataTableName))
                     .Where(pf => pf.Equal(t => t.DeletedRecordId, deletedRecordId))
-                    .Delete();
+                    .Predicate;
+                var rowIndexes = ((IBlock)tombstoneBuilder).Filter(predicate, false).RowIndexes;
+
+                tombstoneBuilder.DeleteRecordsByRecordIndex(rowIndexes);
             }
             else
             {
@@ -210,7 +252,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metaSchema = (MetadataTableSchema)tableMap[metadataTableName].Table.Schema;
             var schema = metaSchema.ParentSchema;
 
-            MergeBlockStack(blockInfoStack, processedBlockInfos, metaSchema);
+            MergeBlockStack(blockInfoStack, processedBlockInfos, metaSchema, tx);
             tx.LoadCommittedBlocksInTransaction(metadataTableName);
             if (metaMetaBlockId != null)
             {
@@ -252,8 +294,11 @@ namespace TrackDb.Lib.DataLifeCycle
         private void MergeBlockStack(
             Stack<BlockInfo> blockInfoStack,
             List<BlockInfo> processedBlockInfos,
-            MetadataTableSchema metaSchema)
+            MetadataTableSchema metaSchema,
+            TransactionContext tx)
         {
+            var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
+
             while (blockInfoStack.Any())
             {
                 var leftBlock = blockInfoStack.Pop();
@@ -262,7 +307,39 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var rightBlock = blockInfoStack.Pop();
 
-                    throw new NotImplementedException();
+                    if (leftBlock.ComputeSize() + rightBlock.ComputeSize() <= maxBlockSize)
+                    {
+                        leftBlock = leftBlock.DataBlockBuilder != null
+                            ? leftBlock
+                            : BlockInfo.FromBlockId(
+                                leftBlock.MetaDataBlock!.BlockId,
+                                Database,
+                                metaSchema.ParentSchema,
+                                tx);
+                        rightBlock = rightBlock.DataBlockBuilder != null
+                            ? rightBlock
+                            : BlockInfo.FromBlockId(
+                                rightBlock.MetaDataBlock!.BlockId,
+                                Database,
+                                metaSchema.ParentSchema,
+                                tx);
+
+                        var mergedBlock = leftBlock.Merge(rightBlock, maxBlockSize);
+
+                        if (mergedBlock != null)
+                        {
+                            blockInfoStack.Push(mergedBlock);
+                        }
+                        else
+                        {
+                            processedBlockInfos.Add(leftBlock.Persist(Database, metaSchema));
+                            blockInfoStack.Push(rightBlock);
+                        }
+                    }
+                    else
+                    {
+                        throw new NotImplementedException();
+                    }
                 }
                 else
                 {   //  We're done

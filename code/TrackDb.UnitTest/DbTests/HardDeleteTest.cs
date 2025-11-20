@@ -63,10 +63,56 @@ namespace TrackDb.UnitTest.DbTests
             }
         }
 
+        [Fact]
+        public async Task ManyRecords()
+        {
+            await using (var db = await TestDatabase.CreateAsync())
+            {
+                const int LOOP_SIZE = 20;
+
+                //  Create blocks of two records
+                for (var i = 0; i != LOOP_SIZE; ++i)
+                {
+                    var record1 = new TestDatabase.Primitives(2 * i);
+                    var record2 = new TestDatabase.Primitives(2 * i + 1);
+
+                    db.PrimitiveTable.AppendRecords([record1, record2]);
+                    await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
+                }
+
+                Assert.Equal(2 * LOOP_SIZE, db.PrimitiveTable.Query().Count());
+
+                //  Delete all even numbers
+                db.PrimitiveTable.Query()
+                    .Where(pf => pf.In(
+                        r => r.Integer,
+                        Enumerable.Range(0, LOOP_SIZE).Select(i => i * 2)))
+                    .Delete();
+
+                Assert.Equal(LOOP_SIZE, db.PrimitiveTable.Query().Count());
+                
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
+                
+                Assert.Equal(LOOP_SIZE, db.PrimitiveTable.Query().Count());
+
+                var metaTableName = db.Database.GetDatabaseStateSnapshot()
+                    .TableMap[db.PrimitiveTable.Schema.TableName]
+                    .MetaDataTableName;
+
+                Assert.NotNull(metaTableName);
+
+                var metaTable = db.Database.GetDatabaseStateSnapshot()
+                    .TableMap[metaTableName]
+                    .Table;
+
+                Assert.Equal(1, metaTable.Query().Count());
+            }
+        }
+
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public async Task Parallel(bool doPushPendingData)
+        public async Task RacingCondition(bool doPushPendingData)
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
