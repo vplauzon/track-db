@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -15,7 +14,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Inner types
         protected record BlockInfo(
             MetaDataBlock? MetaDataBlock,
-            bool isNewBlock,
+            ReadOnlyMemory<byte>? newMetaRecord,
             IBlock? ReadOnlyBlock,
             BlockBuilder? DataBlockBuilder,
             IImmutableList<int> DeletedBlockIds,
@@ -25,7 +24,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 return new BlockInfo(
                     metaDataBlock,
-                    false,
+                    null,
                     null,
                     null,
                     ImmutableArray<int>.Empty,
@@ -98,12 +97,21 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
 
-            public BlockInfo EnsurePersisted()
+            public BlockInfo EnsurePersisted(Database database, MetadataTableSchema metaSchema)
             {
                 if (DataBlockBuilder != null)
                 {
-                    //var buffer = new byte[];
-                    //DataBlockBuilder.Serialize();
+                    var buffer = new byte[database.DatabasePolicy.StoragePolicy.BlockSize];
+                    var blockStats = DataBlockBuilder.Serialize(buffer);
+
+                    if (blockStats.Size > buffer.Length)
+                    {
+                        throw new InvalidOperationException("Block bigger than planned");
+                    }
+
+                    var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
+                    var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+
                     throw new NotImplementedException();
                 }
                 else
@@ -250,7 +258,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {   //  We're done
-                    leftBlock = leftBlock.EnsurePersisted();
+                    leftBlock = leftBlock.EnsurePersisted(Database, metaSchema);
                     processedBlockInfos.Add(leftBlock);
                 }
             }

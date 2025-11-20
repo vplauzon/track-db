@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
@@ -113,13 +114,20 @@ namespace TrackDb.Lib
         /// <summary>
         /// Create a metadata record from statistics about records from the parent schema.
         /// </summary>
-        /// <param name="itemCount"></param>
-        /// <param name="size"></param>
         /// <param name="blockId"></param>
-        /// <param name="columnMinima"></param>
-        /// <param name="columnMaxima"></param>
+        /// <param name="blockStats"></param>
         /// <returns></returns>
-        public ReadOnlySpan<object?> CreateMetadataRecord(
+        public ReadOnlyMemory<object?> CreateMetadataRecord(int blockId, BlockStats blockStats)
+        {
+            return CreateMetadataRecord(
+                blockStats.ItemCount,
+                blockStats.Size,
+                blockId,
+                blockStats.Columns.Select(c => c.ColumnMinimum),
+                blockStats.Columns.Select(c => c.ColumnMaximum));
+        }
+
+        private ReadOnlyMemory<object?> CreateMetadataRecord(
             int itemCount,
             int size,
             int blockId,

@@ -85,12 +85,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
 
                     metadataTable.AppendRecord(
-                        metaSchema.CreateMetadataRecord(
-                            blockStats.ItemCount,
-                            blockStats.Size,
-                            blockId,
-                            blockStats.Columns.Select(c => c.ColumnMinimum),
-                            blockStats.Columns.Select(c => c.ColumnMaximum)),
+                        metaSchema.CreateMetadataRecord(blockId, blockStats).Span,
                         tx);
                     isFirstBlockToPersist = false;
                     skipRows += blockStats.ItemCount;
