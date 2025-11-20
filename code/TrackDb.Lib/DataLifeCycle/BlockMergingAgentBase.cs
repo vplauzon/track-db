@@ -176,20 +176,20 @@ namespace TrackDb.Lib.DataLifeCycle
         /// </param>
         /// <param name="metaMetaBlockId"></param>
         /// <param name="tx"></param>
-        /// <returns></returns>
-        protected bool MergeSubBlocks(
+        protected void MergeSubBlocks(
             string metadataTableName,
             int? metaMetaBlockId,
             TransactionContext tx)
         {
-            return MergeSubBlocksWithReplacements(
+            MergeSubBlocksWithReplacements(
                 metadataTableName,
                 metaMetaBlockId,
                 Array.Empty<BlockReplacement>(),
                 tx);
         }
 
-        private bool MergeSubBlocksWithReplacements(
+        #region Merge algorithm
+        private void MergeSubBlocksWithReplacements(
             string metadataTableName,
             int? metaMetaBlockId,
             IEnumerable<BlockReplacement> replacements,
@@ -210,6 +210,50 @@ namespace TrackDb.Lib.DataLifeCycle
             var metaSchema = (MetadataTableSchema)tableMap[metadataTableName].Table.Schema;
             var schema = metaSchema.ParentSchema;
 
+            MergeBlockStack(blockInfoStack, processedBlockInfos, metaSchema);
+            tx.LoadCommittedBlocksInTransaction(metadataTableName);
+            if (metaMetaBlockId != null)
+            {
+                throw new NotImplementedException();
+            }
+            else
+            {
+                PostMergeInMemoryMetaBlock(metadataTableName, processedBlockInfos, tx);
+            }
+        }
+
+        private void PostMergeInMemoryMetaBlock(
+            string metadataTableName,
+            List<BlockInfo> processedBlockInfos,
+            TransactionContext tx)
+        {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var metaBlockBuilder = tx.TransactionState.UncommittedTransactionLog
+                .TransactionTableLogMap[metadataTableName]
+                .CommittedDataBlock!;
+
+            //  Delete blocks in-memory
+            metaBlockBuilder.DeleteRecordsByRecordIndex(
+                Enumerable.Range(0, ((IBlock)metaBlockBuilder).RecordCount));
+            if (processedBlockInfos.Any())
+            {   //  Insert meta records
+                var metaTable = tableMap[metadataTableName].Table;
+
+                foreach (var blockInfo in processedBlockInfos)
+                {
+                    metaBlockBuilder.AppendRecord(
+                        DateTime.Now,
+                        metaTable.NewRecordId(),
+                        blockInfo.MetaDataBlock!.MetadataRecord.Span);
+                }
+            }
+        }
+
+        private void MergeBlockStack(
+            Stack<BlockInfo> blockInfoStack,
+            List<BlockInfo> processedBlockInfos,
+            MetadataTableSchema metaSchema)
+        {
             while (blockInfoStack.Any())
             {
                 var leftBlock = blockInfoStack.Pop();
@@ -235,32 +279,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                 }
             }
-
-            if (metaMetaBlockId != null)
-            {
-                throw new NotImplementedException();
-            }
-            else
-            {
-                tx.LoadCommittedBlocksInTransaction(metadataTableName);
-
-                var metaBlockBuilder = tx.TransactionState.UncommittedTransactionLog
-                    .TransactionTableLogMap[metadataTableName]
-                    .CommittedDataBlock!;
-
-                //  Delete blocks in-memory
-                metaBlockBuilder.DeleteRecordsByRecordIndex(
-                    Enumerable.Range(0, ((IBlock)metaBlockBuilder).RecordCount));
-                if (processedBlockInfos.Any())
-                {
-                    throw new NotImplementedException();
-                }
-            }
-
-            return processedBlockInfos
-                .Where(bi => bi.DataBlockBuilder != null)
-                .Any();
         }
+        #endregion
 
         #region Find blocks
         private int? FindDataBlock(string tableName, long deletedRecordId, TransactionContext tx)
