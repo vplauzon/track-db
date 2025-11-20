@@ -14,7 +14,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Inner types
         protected record BlockInfo(
             MetaDataBlock? MetaDataBlock,
-            ReadOnlyMemory<byte>? newMetaRecord,
+            ReadOnlyMemory<object?>? NewMetaRecord,
             IBlock? ReadOnlyBlock,
             BlockBuilder? DataBlockBuilder,
             IImmutableList<int> DeletedBlockIds,
@@ -112,7 +112,11 @@ namespace TrackDb.Lib.DataLifeCycle
                     var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
                     var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
 
-                    throw new NotImplementedException();
+                    return this with
+                    {
+                        DataBlockBuilder = null,
+                        NewMetaRecord = metaRecord
+                    };
                 }
                 else
                 {
