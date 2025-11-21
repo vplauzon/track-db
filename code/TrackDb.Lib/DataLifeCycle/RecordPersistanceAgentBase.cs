@@ -160,7 +160,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         .Where(b => b.RecordCount > 0);
 
                     foreach (var block in blocks)
-                    {   //  Fetch the record ID
+                    {   //  Fetch the creation time
                         var projectedColumns =
                             ImmutableArray.Create(block.TableSchema.CreationTimeColumnIndex);
 

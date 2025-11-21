@@ -45,18 +45,21 @@ namespace TrackDb.Lib.DataLifeCycle
                     //  Remove those records from tombstone table
                     tx.LoadCommittedBlocksInTransaction(database.TombstoneTable.Schema.TableName);
 
-                    var predicate = database.TombstoneTable.Query(tx)
-                        .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
-                        .Where(pf => pf.In(t => t.DeletedRecordId, hardDeletedRecordIds))
-                        .Predicate;
-                    var tombstoneBuilder = tx.TransactionState.UncommittedTransactionLog
-                        .TransactionTableLogMap[database.TombstoneTable.Schema.TableName]
-                        .CommittedDataBlock!;
-                    var hardDeleteRowIndexes = ((IBlock)tombstoneBuilder)
-                        .Filter(predicate, false)
-                        .RowIndexes;
+                    if (hardDeletedRecordIds.Any())
+                    {
+                        var predicate = database.TombstoneTable.Query(tx)
+                                            .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
+                                            .Where(pf => pf.In(t => t.DeletedRecordId, hardDeletedRecordIds))
+                                            .Predicate;
+                        var tombstoneBuilder = tx.TransactionState.UncommittedTransactionLog
+                            .TransactionTableLogMap[database.TombstoneTable.Schema.TableName]
+                            .CommittedDataBlock!;
+                        var hardDeleteRowIndexes = ((IBlock)tombstoneBuilder)
+                            .Filter(predicate, false)
+                            .RowIndexes;
 
-                    tombstoneBuilder.DeleteRecordsByRecordIndex(hardDeleteRowIndexes);
+                        tombstoneBuilder.DeleteRecordsByRecordIndex(hardDeleteRowIndexes);
+                    }
                 }
 
                 var block = database.GetOrLoadBlock(blockId, schema);

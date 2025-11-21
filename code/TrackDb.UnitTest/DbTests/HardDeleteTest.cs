@@ -66,10 +66,10 @@ namespace TrackDb.UnitTest.DbTests
         [Fact]
         public async Task ManyRecords()
         {
+            const int LOOP_SIZE = 20;
+
             await using (var db = await TestDatabase.CreateAsync())
             {
-                const int LOOP_SIZE = 20;
-
                 //  Create blocks of two records
                 for (var i = 0; i != LOOP_SIZE; ++i)
                 {
@@ -77,6 +77,7 @@ namespace TrackDb.UnitTest.DbTests
                     var record2 = new TestDatabase.Primitives(2 * i + 1);
 
                     db.PrimitiveTable.AppendRecords([record1, record2]);
+                    //  We just force the persistance to occur synchronously
                     await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
                 }
 
@@ -90,9 +91,9 @@ namespace TrackDb.UnitTest.DbTests
                     .Delete();
 
                 Assert.Equal(LOOP_SIZE, db.PrimitiveTable.Query().Count());
-                
+
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
-                
+
                 Assert.Equal(LOOP_SIZE, db.PrimitiveTable.Query().Count());
 
                 var metaTableName = db.Database.GetDatabaseStateSnapshot()
