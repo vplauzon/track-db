@@ -31,6 +31,7 @@ namespace TrackDb.Lib
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly LogTransactionManager? _logManager;
         private volatile DatabaseState _databaseState;
+        private volatile int _activeTransactionCount = 0;
 
         #region Constructors
         public async static Task<Database> CreateAsync(
@@ -395,6 +396,8 @@ namespace TrackDb.Lib
         #endregion
 
         #region Transaction
+        internal bool HasActiveTransaction => _activeTransactionCount != 0;
+
         public TransactionContext CreateTransaction()
         {
             return CreateTransaction(true);
@@ -406,29 +409,10 @@ namespace TrackDb.Lib
 
             var transactionContext = new TransactionContext(
                 this,
-                transactionId =>
-                {
-                    if (_databaseState.TransactionMap.TryGetValue(transactionId, out var transaction))
-                    {
-                        return transaction;
-                    }
-                    else
-                    {
-                        throw new ArgumentException(
-                            "Transaction ID can't be found in database state",
-                            nameof(transactionId));
-                    }
-                },
+                _databaseState.InMemoryDatabase,
                 doLog);
 
-            ChangeDatabaseState(currentDbState =>
-            {
-                var newTransactionMap = currentDbState.TransactionMap.Add(
-                    transactionContext.TransactionId,
-                    new TransactionState(currentDbState.InMemoryDatabase));
-
-                return currentDbState with { TransactionMap = newTransactionMap };
-            });
+            Interlocked.Increment(ref _activeTransactionCount);
 
             return transactionContext;
         }
@@ -495,73 +479,43 @@ namespace TrackDb.Lib
             }
         }
 
-        internal void CompleteTransaction(long transactionId, bool doLog)
+        internal void CompleteTransaction(TransactionState transactionState, bool doLog)
         {
-            //  Fetch transaction state
-            var transactionState = _databaseState.TransactionMap[transactionId];
-
-            ChangeDatabaseState(currentDbState =>
-            {   //  Remove it from map
-                var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
-
-                if (transactionState.UncommittedTransactionLog.IsEmpty)
-                {
-                    return currentDbState with { TransactionMap = newTransactionMap };
-                }
-                else
-                {
-                    return currentDbState with
-                    {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
-                        TransactionMap = newTransactionMap
-                    };
-                }
-            });
-            _dataLifeCycleManager.TriggerDataManagement();
+            CompleteTransaction(transactionState);
             if (doLog && _logManager != null)
             {
                 _logManager.QueueContent(transactionState.UncommittedTransactionLog);
             }
         }
 
-        internal async Task LogAndCompleteTransactionAsync(long transactionId, bool doLog)
+        internal async Task LogAndCompleteTransactionAsync(TransactionState transactionState, bool doLog)
         {
-            //  Fetch transaction state
-            var transactionState = _databaseState.TransactionMap[transactionId];
-
             if (doLog && _logManager != null)
             {
                 await _logManager.CommitContentAsync(
                     transactionState.UncommittedTransactionLog);
             }
-            ChangeDatabaseState(currentDbState =>
-            {   //  Remove it from map
-                var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
+            CompleteTransaction(transactionState);
+        }
 
-                if (transactionState.UncommittedTransactionLog.IsEmpty)
+        private void CompleteTransaction(TransactionState transactionState)
+        {
+            ChangeDatabaseState(currentDbState =>
+            {
+                return currentDbState with
                 {
-                    return currentDbState with { TransactionMap = newTransactionMap };
-                }
-                else
-                {
-                    return currentDbState with
-                    {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
-                        TransactionMap = newTransactionMap
-                    };
-                }
+                    InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
+                };
             });
             _dataLifeCycleManager.TriggerDataManagement();
         }
 
-        internal void RollbackTransaction(long transactionId)
+        internal void RollbackTransaction()
         {
-            ChangeDatabaseState(currentDbState =>
-            {   //  Remove transaction from map (and forget about it)
-                var newTransactionMap = currentDbState.TransactionMap.Remove(transactionId);
-
-                return currentDbState with { TransactionMap = newTransactionMap };
-            });
+            if (Interlocked.Decrement(ref _activeTransactionCount) == 0)
+            {
+                throw new InvalidOperationException("Transaction count is below zero");
+            }
         }
 
         internal async Task ForceDataManagementAsync(

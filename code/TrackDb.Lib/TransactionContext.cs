@@ -20,56 +20,23 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        private static long _nextTransactionId = 0;
-
         private readonly Database _database;
-        private readonly Func<long, TransactionState> _stateResolutionFunc;
         private readonly bool _doLog;
         private TransactionStatus _status = TransactionStatus.Open;
 
         #region Constructors
         /// <summary>Creates a transaction.</summary>
         /// <param name="database"></param>
-        /// <param name="stateResolutionFunc"></param>
+        /// <param name="inMemoryDatabase"></param>
+        /// <param name="doLog"></param>
         internal TransactionContext(
             Database database,
-            Func<long, TransactionState> stateResolutionFunc,
+            InMemoryDatabase inMemoryDatabase,
             bool doLog)
-            : this(
-                  database,
-                  stateResolutionFunc,
-                  doLog,
-                  Interlocked.Increment(ref _nextTransactionId))
-        {
-        }
-
-        /// <summary>
-        /// Creates a dummy transaction that will not commit.
-        /// </summary>
-        /// <remarks>This is more lightweight to use.</remarks>
-        /// <param name="database"></param>
-        /// <param name="transactionState"></param>
-        internal TransactionContext(
-            Database database,
-            TransactionState transactionState)
-            : this(
-                  database,
-                  txId => transactionState,
-                  false,
-                  0)
-        {
-        }
-
-        private TransactionContext(
-            Database database,
-            Func<long, TransactionState> stateResolutionFunc,
-            bool doLog,
-            long transactionId)
         {
             _database = database;
-            _stateResolutionFunc = stateResolutionFunc;
+            TransactionState = new TransactionState(inMemoryDatabase, new TransactionLog());
             _doLog = doLog;
-            TransactionId = transactionId;
         }
         #endregion
 
@@ -81,19 +48,14 @@ namespace TrackDb.Lib
             }
         }
 
-        public long TransactionId { get; }
-
-        internal TransactionState TransactionState => _stateResolutionFunc(TransactionId);
+        internal TransactionState TransactionState { get; }
 
         public void Complete()
         {
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                if (TransactionId != 0)
-                {
-                    _database.CompleteTransaction(TransactionId, _doLog);
-                }
+                _database.CompleteTransaction(TransactionState, _doLog);
             }
             else
             {
@@ -107,10 +69,7 @@ namespace TrackDb.Lib
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                if (TransactionId != 0)
-                {
-                    await _database.LogAndCompleteTransactionAsync(TransactionId, _doLog);
-                }
+                await _database.LogAndCompleteTransactionAsync(TransactionState, _doLog);
             }
             else
             {
@@ -124,10 +83,7 @@ namespace TrackDb.Lib
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Cancelled;
-                if (TransactionId != 0)
-                {
-                    _database.RollbackTransaction(TransactionId);
-                }
+                _database.RollbackTransaction();
             }
             else
             {
