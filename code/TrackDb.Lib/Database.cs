@@ -433,16 +433,6 @@ namespace TrackDb.Lib
             return transactionContext;
         }
 
-        internal TransactionContext CreateDummyTransaction()
-        {
-            var state = _databaseState;
-            var transactionContext = new TransactionContext(
-                this,
-                new TransactionState(state.InMemoryDatabase));
-
-            return transactionContext;
-        }
-
         internal void ExecuteWithinTransactionContext(
             TransactionContext? transactionContext,
             Action<TransactionContext> action)
@@ -683,7 +673,7 @@ namespace TrackDb.Lib
                 InitTablesRecordId(tableToLastRecordIdMap);
                 if (_logManager.IsCheckpointCreationRequired)
                 {
-                    using (var tx = CreateDummyTransaction())
+                    using (var tx = CreateTransaction())
                     {
                         await _logManager.CreateCheckpointAsync(ListCheckpointTransactions(tx, ct), ct);
                     }
@@ -711,11 +701,11 @@ namespace TrackDb.Lib
                 .Where(t => t.Value.IsUserTable)
                 .Select(t => t.Value.Table);
 
-            using (var tx = CreateDummyTransaction())
+            using (var tx = CreateTransaction())
             {
                 foreach (var table in userTables)
                 {
-
+                    throw new NotImplementedException();
                 }
             }
         }
