@@ -11,8 +11,6 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class DataLifeCycleManager : IAsyncDisposable
     {
-        private readonly Database _database;
-
         //  Task running as long as this object is alive
         private readonly Task _dataMaintenanceTask;
         //  TaskCompletionSource signaling the stop of the background task
@@ -28,7 +26,6 @@ namespace TrackDb.Lib.DataLifeCycle
             TypedTable<TombstoneRecord> tombstoneTable,
             Lazy<DatabaseFileManager> databaseFileManager)
         {
-            _database = database;
             _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new NonMetaRecordPersistanceAgent(database),
