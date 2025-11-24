@@ -18,20 +18,15 @@ namespace TrackDb.Lib.DataLifeCycle
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
             var dbState = Database.GetDatabaseStateSnapshot();
-            var discardedBlockIds = dbState.DiscardedBlockIds;
 
-            if (discardedBlockIds.Any() && !dbState.TransactionMap.Any())
+            //  No active transaction
+            if (!dbState.TransactionMap.Any())
             {
-                Database.ReleaseBlockIds(discardedBlockIds);
-                Database.ChangeDatabaseState(state =>
+                using (var tx = Database.CreateTransaction())
                 {
-                    return state with
-                    {
-                        DiscardedBlockIds = state.DiscardedBlockIds
-                        .Skip(discardedBlockIds.Count)
-                        .ToImmutableArray()
-                    };
-                });
+                    Database.ReleaseNoLongerInUsedBlocks(tx);
+                    tx.Complete();
+                }
             }
 
             return true;

@@ -82,7 +82,7 @@ namespace TrackDb.Lib.DataLifeCycle
                             $"maximum ({buffer.Length})");
                     }
 
-                    var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
+                    var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
                     metadataTable.AppendRecord(
                         metaSchema.CreateMetadataRecord(blockId, blockStats).Span,

@@ -121,11 +121,16 @@ namespace TrackDb.Lib.DataLifeCycle
                     throw new InvalidOperationException("Block bigger than planned");
                 }
 
-                var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size));
-                var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
-                var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
+                using (var tx = database.CreateTransaction())
+                {
+                    var blockId = database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
+                    var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+                    var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
 
-                return new BlockInfo(metaBlock, true, null);
+                    tx.Complete();
+
+                    return new BlockInfo(metaBlock, true, null);
+                }
             }
 
             public BlockInfo? Merge(BlockInfo rightBlock, int maxBlockSize)

@@ -6,5 +6,5 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.SystemData
 {
-    internal record AvailableBlockRecord(int BlockId);
+    internal record AvailableBlockRecord(int BlockId, BlockAvailability BlockAvailability);
 }

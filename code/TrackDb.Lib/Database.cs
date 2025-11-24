@@ -230,25 +230,43 @@ namespace TrackDb.Lib
                 tc);
         }
 
-        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
+        internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
         {
-            _availableBlockTable.AppendRecords(blockIds
-                .Select(id => new AvailableBlockRecord(id)));
+            var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                .ToImmutableArray();
+
+            if (noLongerInUsedBlocks.Any())
+            {
+                _availableBlockTable.Query(tx)
+                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                    .Delete();
+                _availableBlockTable.AppendRecords(noLongerInUsedBlocks
+                    .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
+                    tx);
+
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
 
-        private int GetFreeBlockId()
+        private int GetAvailableBlockId(TransactionContext tx)
         {
-            var availableBlock = _availableBlockTable.Query()
+            var availableBlock = _availableBlockTable.Query(tx)
                 .Take(1)
                 .FirstOrDefault();
 
             if (availableBlock != null)
             {
-                _availableBlockTable.Query()
-                    .Where(pf => pf.Equal(b => b.BlockId, availableBlock.BlockId))
-                    .Delete();
+                _availableBlockTable.UpdateRecord(
+                    availableBlock,
+                    availableBlock with { BlockAvailability = BlockAvailability.InUsed },
+                    tx);
 
                 return availableBlock.BlockId;
             }
@@ -258,10 +276,11 @@ namespace TrackDb.Lib
                     .ToImmutableArray();
 
                 _availableBlockTable.AppendRecords(blockIds
-                    .Skip(1)
-                    .Select(id => new AvailableBlockRecord(id)));
+                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available)),
+                    tx);
 
-                return blockIds.First();
+                //  Now that there are available block, let's try again
+                return GetAvailableBlockId(tx);
             }
         }
         #endregion
@@ -597,9 +616,9 @@ namespace TrackDb.Lib
             return block;
         }
 
-        internal int PersistBlock(ReadOnlySpan<byte> buffer)
+        internal int PersistBlock(ReadOnlySpan<byte> buffer, TransactionContext tx)
         {
-            var blockId = GetFreeBlockId();
+            var blockId = GetAvailableBlockId(tx);
 
             _dbFileManager.Value.WriteBlock(blockId, buffer);
 
