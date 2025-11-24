@@ -31,13 +31,13 @@ namespace TrackDb.Lib.DataLifeCycle
             _database = database;
             _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new ReleaseBlockAgent(database),
                 new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database),
                 new MetaRecordMergeAgent(database),
                 new MetaRecordPersistanceAgent(database),
-                new TransactionLogMergingAgent(database));
+                new TransactionLogMergingAgent(database),
+                new ReleaseBlockAgent(database));
         }
 
         async ValueTask IAsyncDisposable.DisposeAsync()
