@@ -15,9 +15,7 @@ namespace TrackDb.Lib.InMemory
         }
 
         public bool IsEmpty => TransactionTableLogMap.Values
-            .Select(t => ((IBlock)t.NewDataBlock).RecordCount == 0
-            && (t.CommittedDataBlock == null || ((IBlock)t.CommittedDataBlock).RecordCount == 0))
-            .All(b => b);
+            .All(t => ((IBlock)t.NewDataBlock).RecordCount == 0 && t.CommittedDataBlock == null);
 
         public void AppendRecord(
             DateTime creationTime,

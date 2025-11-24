@@ -10,12 +10,8 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class ReleaseBlockAgent : DataLifeCycleAgentBase
     {
-
-        public ReleaseBlockAgent(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
-            : base(database, tombstoneTable, storageManager)
+        public ReleaseBlockAgent(Database database)
+            : base(database)
         {
         }
 

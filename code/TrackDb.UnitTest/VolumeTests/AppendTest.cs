@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.UnitTest.DbTests
+namespace TrackDb.UnitTest.DbTests.VolumeTests
 {
-    public class VolumeTest
+    public class AppendTest
     {
         [Theory]
         [InlineData(false)]

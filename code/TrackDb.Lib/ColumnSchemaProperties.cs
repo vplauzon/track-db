@@ -9,5 +9,6 @@ namespace TrackDb.Lib
 {
     internal readonly record struct ColumnSchemaProperties(
         ColumnSchema ColumnSchema,
-        ColumnSchemaStat ColumnSchemaStat);
+        ColumnSchemaStat ColumnSchemaStat,
+        ColumnSchema? ParentColumnSchema = null);
 }

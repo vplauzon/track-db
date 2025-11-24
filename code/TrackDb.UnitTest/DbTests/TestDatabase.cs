@@ -30,10 +30,15 @@ namespace TrackDb.UnitTest.DbTests
         private const string OTHER_TYPES_TABLE = "OtherTypes";
 
         #region Constructor
-        public static async Task<TestDatabase> CreateAsync()
+        public static async Task<TestDatabase> CreateAsync(
+            Func<DatabasePolicy, DatabasePolicy>? dataPolicyChanger = null)
         {
+            var dataPolicy = DatabasePolicy.Create();
+            var modifiedDataPolicy = dataPolicyChanger != null
+                ? dataPolicyChanger(dataPolicy)
+                : dataPolicy;
             var db = await Database.CreateAsync(
-                DatabasePolicy.Create(),
+                modifiedDataPolicy,
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE)
                 .AddPrimaryKeyProperty(p => p.Integer),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)

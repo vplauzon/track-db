@@ -107,10 +107,10 @@ namespace TrackDb.Lib
                 : null;
 
             var tableMap = userTables
-                .Select(t => new TableProperties(t, null, true, false, false, true))
-                .Append(new TableProperties(TombstoneTable, null, false, false, true, false))
-                .Append(new TableProperties(_availableBlockTable, null, false, false, true, true))
-                .Append(new TableProperties(QueryExecutionTable, null, false, false, true, true))
+                .Select(t => new TableProperties(t, 1, null, false))
+                .Append(new TableProperties(TombstoneTable, 1, null, true))
+                .Append(new TableProperties(_availableBlockTable, 1, null, true))
+                .Append(new TableProperties(QueryExecutionTable, 1, null, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
@@ -230,7 +230,15 @@ namespace TrackDb.Lib
                 tc);
         }
 
-        internal int GetFreeBlockId()
+        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
+        {
+            _availableBlockTable.AppendRecords(blockIds
+                .Select(id => new AvailableBlockRecord(id)));
+        }
+
+        internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
+
+        private int GetFreeBlockId()
         {
             var availableBlock = _availableBlockTable.Query()
                 .Take(1)
@@ -256,14 +264,6 @@ namespace TrackDb.Lib
                 return blockIds.First();
             }
         }
-
-        internal void ReleaseBlockIds(IEnumerable<int> blockIds)
-        {
-            _availableBlockTable.AppendRecords(blockIds
-                .Select(id => new AvailableBlockRecord(id)));
-        }
-
-        internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
         #endregion
         #endregion
 
@@ -322,7 +322,7 @@ namespace TrackDb.Lib
                         {
                             var tableMap = state.TableMap.Add(
                                 metaDataSchema.TableName,
-                                new TableProperties(metaDataTable, null, false, true, false, true))
+                                new TableProperties(metaDataTable, table.Generation + 1, null, false))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
                                 MetaDataTableName = metaDataSchema.TableName
@@ -572,7 +572,7 @@ namespace TrackDb.Lib
             TransactionContext tc)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, blockId, tableName, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, DateTime.Now),
                 tc);
         }
 
@@ -595,6 +595,15 @@ namespace TrackDb.Lib
             var block = ReadOnlyBlock.Load(payload, schema);
 
             return block;
+        }
+
+        internal int PersistBlock(ReadOnlySpan<byte> buffer)
+        {
+            var blockId = GetFreeBlockId();
+
+            _dbFileManager.Value.WriteBlock(blockId, buffer);
+
+            return blockId;
         }
         #endregion
 

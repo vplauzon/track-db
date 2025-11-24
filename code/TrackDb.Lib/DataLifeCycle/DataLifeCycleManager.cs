@@ -26,17 +26,18 @@ namespace TrackDb.Lib.DataLifeCycle
         public DataLifeCycleManager(
             Database database,
             TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> storageManager)
+            Lazy<DatabaseFileManager> databaseFileManager)
         {
             _database = database;
             _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new ReleaseBlockAgent(database, tombstoneTable, storageManager),
-                new NonMetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
-                new RecordCountHardDeleteAgent(database, tombstoneTable, storageManager),
-                new TimeHardDeleteAgent(database, tombstoneTable, storageManager),
-                new MetaRecordPersistanceAgent(database, tombstoneTable, storageManager),
-                new TransactionLogMergingAgent(database, tombstoneTable, storageManager));
+                new ReleaseBlockAgent(database),
+                new NonMetaRecordPersistanceAgent(database),
+                new RecordCountHardDeleteAgent(database),
+                new TimeHardDeleteAgent(database),
+                new MetaRecordMergeAgent(database),
+                new MetaRecordPersistanceAgent(database),
+                new TransactionLogMergingAgent(database));
         }
 
         async ValueTask IAsyncDisposable.DisposeAsync()
@@ -54,13 +55,10 @@ namespace TrackDb.Lib.DataLifeCycle
         public async Task ForceDataManagementAsync(
             DataManagementActivity forcedDataManagementActivities = DataManagementActivity.None)
         {
-            if (forcedDataManagementActivities != DataManagementActivity.None)
-            {
-                _forceDataManagementSource = new TaskCompletionSource();
-                Interlocked.Exchange(ref _forcedDataManagementActivity, forcedDataManagementActivities);
-                _dataMaintenanceTriggerSource.TrySetResult();
-                await _forceDataManagementSource.Task;
-            }
+            _forceDataManagementSource = new TaskCompletionSource();
+            Interlocked.Exchange(ref _forcedDataManagementActivity, forcedDataManagementActivities);
+            _dataMaintenanceTriggerSource.TrySetResult();
+            await _forceDataManagementSource.Task;
         }
 
         public void ObserveBackgroundTask()
@@ -90,7 +88,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     //  Reset the trigger source (before starting the work)
                     _dataMaintenanceTriggerSource = ResetDataMaintenanceTriggerSource();
                 }
-                while (!DataMaintanceIteration(forcedDataManagementActivity)) ;
+                while (!DataMaintanceIteration(forcedDataManagementActivity));
                 _forceDataManagementSource?.TrySetResult();
             }
         }
