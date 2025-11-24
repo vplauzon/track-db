@@ -98,7 +98,7 @@ namespace TrackDb.Lib
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
-            _dataLifeCycleManager = new DataLifeCycleManager(this, TombstoneTable, _dbFileManager);
+            _dataLifeCycleManager = new DataLifeCycleManager(this);
             _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
                 ? new LogTransactionManager(
                     databasePolicies.LogPolicy,

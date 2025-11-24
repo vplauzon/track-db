@@ -21,10 +21,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private DataManagementActivity _forcedDataManagementActivity = DataManagementActivity.None;
         private TaskCompletionSource? _forceDataManagementSource = null;
 
-        public DataLifeCycleManager(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> databaseFileManager)
+        public DataLifeCycleManager(Database database)
         {
             _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
