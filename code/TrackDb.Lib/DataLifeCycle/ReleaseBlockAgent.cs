@@ -17,14 +17,13 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public override bool Run(DataManagementActivity forcedDataManagementActivity)
         {
-            var dbState = Database.GetDatabaseStateSnapshot();
-
             //  No active transaction
-            if (!dbState.TransactionMap.Any())
+            if (!Database.HasActiveTransaction)
             {
                 using (var tx = Database.CreateTransaction())
                 {
                     Database.ReleaseNoLongerInUsedBlocks(tx);
+
                     tx.Complete();
                 }
             }

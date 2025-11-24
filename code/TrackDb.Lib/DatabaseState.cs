@@ -13,18 +13,13 @@ namespace TrackDb.Lib
     /// and each transaction.
     /// </summary>
     /// <param name="InMemoryDatabase"></param>
-    /// <param name="TransactionMap"></param>
     /// <param name="TableMap"></param>
     internal record DatabaseState(
         InMemoryDatabase InMemoryDatabase,
-        IImmutableDictionary<long, TransactionState> TransactionMap,
         IImmutableDictionary<string, TableProperties> TableMap)
     {
         public DatabaseState(IImmutableDictionary<string, TableProperties> tableMap)
-            : this(
-                  new InMemoryDatabase(),
-                  ImmutableDictionary<long, TransactionState>.Empty,
-                  tableMap)
+            : this(new InMemoryDatabase(), tableMap)
         {
         }
     }
