@@ -93,7 +93,8 @@ namespace TrackDb.Lib
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
             _availableBlockTable = new TypedTable<AvailableBlockRecord>(
                 this,
-                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock"));
+                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock")
+                .AddPrimaryKeyProperty(a => a.BlockId));
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
