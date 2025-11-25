@@ -14,7 +14,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override bool Run(DataManagementActivity forcedDataManagementActivity)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
             var doMergeAll =
                 (forcedDataManagementActivity & DataManagementActivity.MergeAllInMemoryLogs) != 0;
@@ -35,8 +35,6 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 tx.Complete();
             }
-
-            return true;
         }
     }
 }

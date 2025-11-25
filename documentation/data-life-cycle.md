@@ -17,14 +17,13 @@ The details is as follow:
 
 Activity|Component|Description
 -|-|-
-Release blocks|ReleaseBlockAgent|Releases blocks that are no longer used.
-Hard deletion (record count)|RecordCountHardDeleteAgent|Triggered when too many records are tombstoned and is done to relieve memory pressure.  Merge with neighbouring block is done at the same time.
 Persist records (non-metadata)|NonMetaRecordPersistanceAgent|Triggered by too much data (non metadata) in the cache and is done to relieve memory.  The oldest data is persisted to blocks first.
+Hard deletion (record count)|RecordCountHardDeleteAgent|Triggered when too many records are tombstoned and is done to relieve memory pressure.  Merge with neighbouring block is done at the same time.
 Hard deletion (time based)|TimeHardDeleteAgent|Triggered when a record has been tombstoned for too long.
-Block merge (1st generation)|TODO|Triggered just before a group of block metadata gets persisted to maximize block size and minimize generations.
 Merge Metadata blocks|MetaRecordMergeAgent|Merges blocks before they get persisted.  In case of memory pressure, small blocks might be created.  Before this is perpetuated up the hierarchy, we try to merge those in bigger blocks.
 Persist records (metadata)|NonMetaRecordPersistanceAgent|Triggered by too much metadata (non metadata) in the cache and is done to relieve memory.  The oldest data is persisted to blocks first.
 Transaction log merge|TransactionLogMergingAgent|In-memory transaction log merges.  This is done to have a more efficient data structure.  There is a balance between efficiency and churn so we wait for time or number of logs to merge so we are not continuously merging (i.e. newing arrays and copying).
+Release blocks|ReleaseBlockAgent|Releases blocks that are no longer used.
 
 ## Block merge & Hard delete
 

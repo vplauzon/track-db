@@ -1,43 +1,45 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class DataLifeCycleManager : IAsyncDisposable
     {
-        private readonly Database _database;
+        #region Inner types
+        private record LifeCycleItem(
+            DataManagementActivity DataManagementActivity,
+            TaskCompletionSource? Source);
+        #endregion
 
+        private readonly Database _database;
+        //  List of agents responsible for data life cycle
+        private readonly IImmutableList<DataLifeCycleAgentBase> _dataLifeCycleAgents;
+        //  Channel used to push data lifecycle trigger over threads
+        private readonly Channel<LifeCycleItem> _channel = Channel.CreateUnbounded<LifeCycleItem>();
         //  Task running as long as this object is alive
         private readonly Task _dataMaintenanceTask;
         //  TaskCompletionSource signaling the stop of the background task
         private readonly TaskCompletionSource _dataMaintenanceStopSource = new TaskCompletionSource();
-        //  List of agents responsible for data life cycle
-        private readonly IImmutableList<DataLifeCycleAgentBase> _dataLifeCycleAgents;
-        private TaskCompletionSource _dataMaintenanceTriggerSource = ResetDataMaintenanceTriggerSource();
-        private DataManagementActivity _forcedDataManagementActivity = DataManagementActivity.None;
-        private TaskCompletionSource? _forceDataManagementSource = null;
 
-        public DataLifeCycleManager(
-            Database database,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            Lazy<DatabaseFileManager> databaseFileManager)
+        public DataLifeCycleManager(Database database)
         {
             _database = database;
-            _dataMaintenanceTask = DataMaintanceAsync();
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new ReleaseBlockAgent(database),
                 new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database),
                 new MetaRecordMergeAgent(database),
                 new MetaRecordPersistanceAgent(database),
-                new TransactionLogMergingAgent(database));
+                new TransactionLogMergingAgent(database),
+                new ReleaseBlockAgent(database));
+            _dataMaintenanceTask = DataMaintanceAsync();
         }
 
         async ValueTask IAsyncDisposable.DisposeAsync()
@@ -48,17 +50,17 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public void TriggerDataManagement()
         {
-            ObserveBackgroundTask();
-            _dataMaintenanceTriggerSource.TrySetResult();
+            SendLifeCycleManagementTrigger(new LifeCycleItem(DataManagementActivity.None, null));
         }
 
         public async Task ForceDataManagementAsync(
             DataManagementActivity forcedDataManagementActivities = DataManagementActivity.None)
         {
-            _forceDataManagementSource = new TaskCompletionSource();
-            Interlocked.Exchange(ref _forcedDataManagementActivity, forcedDataManagementActivities);
-            _dataMaintenanceTriggerSource.TrySetResult();
-            await _forceDataManagementSource.Task;
+            var source = new TaskCompletionSource();
+
+            SendLifeCycleManagementTrigger(
+                new LifeCycleItem(forcedDataManagementActivities, source));
+            await source.Task;
         }
 
         public void ObserveBackgroundTask()
@@ -69,59 +71,81 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
+        private void SendLifeCycleManagementTrigger(LifeCycleItem lifeCycleItem)
+        {
+            ObserveBackgroundTask();
+            if (!_channel.Writer.TryWrite(lifeCycleItem))
+            {
+                throw new InvalidOperationException("Couldn't trigger life cycle management");
+            }
+        }
+
         private async Task DataMaintanceAsync()
         {   //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
-                await Task.WhenAny(
-                    _dataMaintenanceTriggerSource.Task,
-                    _dataMaintenanceStopSource.Task);
+                var itemTask = _channel.Reader.WaitToReadAsync().AsTask();
 
-                var forcedDataManagementActivity = Interlocked.Exchange(
-                    ref _forcedDataManagementActivity,
-                    DataManagementActivity.None);
-                var iterationCount = 0;
+                //  Wait for the first item
+                await Task.WhenAny(itemTask, _dataMaintenanceStopSource.Task);
 
-                do
+                if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    ++iterationCount;
-                    //  Reset the trigger source (before starting the work)
-                    _dataMaintenanceTriggerSource = ResetDataMaintenanceTriggerSource();
-                }
-                while (!DataMaintanceIteration(forcedDataManagementActivity));
-                _forceDataManagementSource?.TrySetResult();
-            }
-        }
+                    var sourceList = new List<TaskCompletionSource>();
+                    var dataManagementActivity = DataManagementActivity.None;
 
-        private bool DataMaintanceIteration(DataManagementActivity forcedDataManagementActivity)
-        {
-            try
-            {
-                foreach (var agent in _dataLifeCycleAgents)
-                {
-                    if (_dataMaintenanceStopSource.Task.IsCompleted)
-                    {   //  We stop running agent
-                        break;
-                    }
-                    else if (!agent.Run(forcedDataManagementActivity))
+                    //  We wait a little before processing so we can catch multiple transactions at once
+                    await Task.WhenAny(
+                        Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
+                        _dataMaintenanceStopSource.Task);
+                    if (!_dataMaintenanceStopSource.Task.IsCompleted)
                     {
-                        return false;
+                        //  Read all accumulated items
+                        while (_channel.Reader.TryRead(out var item))
+                        {
+                            dataManagementActivity =
+                                dataManagementActivity | item.DataManagementActivity;
+                            if (item.Source != null)
+                            {
+                                sourceList.Add(item.Source);
+                            }
+                        }
+                        try
+                        {
+                            RunDataMaintance(dataManagementActivity);
+                            //  Signal the sources
+                            foreach (var source in sourceList)
+                            {
+                                source.TrySetResult();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            //  Signal the sources
+                            foreach (var source in sourceList)
+                            {
+                                source.TrySetException(ex);
+                            }
+                            throw;
+                        }
                     }
                 }
-                //  We're done
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _forceDataManagementSource?.TrySetException(ex);
-                throw;
             }
         }
 
-        private static TaskCompletionSource ResetDataMaintenanceTriggerSource()
+        private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
-            return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            foreach (var agent in _dataLifeCycleAgents)
+            {
+                if (!_dataMaintenanceStopSource.Task.IsCompleted)
+                {
+                    agent.Run(forcedDataManagementActivity);
+                }
+                else
+                {   //  We stop running agent
+                    return;
+                }
+            }
         }
     }
 }

@@ -33,7 +33,8 @@ namespace TrackDb.UnitTest.DbTests
         public static async Task<TestDatabase> CreateAsync(
             Func<DatabasePolicy, DatabasePolicy>? dataPolicyChanger = null)
         {
-            var dataPolicy = DatabasePolicy.Create();
+            var dataPolicy = DatabasePolicy.Create(
+                LifeCyclePolicy:LifeCyclePolicy.Create(MaxWaitPeriod:TimeSpan.FromSeconds(0)));
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
