@@ -19,8 +19,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         /// <summary>Runs an agent logic.</summary>
         /// <param name="forcedDataManagementActivity"></param>
-        /// <returns><c>true</c> iif the agent has run to completion and we can go to the next agent.</returns>
-        public abstract bool Run(DataManagementActivity forcedDataManagementActivity);
+        public abstract void Run(DataManagementActivity forcedDataManagementActivity);
 
         protected Database Database { get; }
 
