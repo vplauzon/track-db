@@ -15,7 +15,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override bool Run(DataManagementActivity forcedDataManagementActivity)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
             //  No active transaction
             if (!Database.HasActiveTransaction)
@@ -27,8 +27,6 @@ namespace TrackDb.Lib.DataLifeCycle
                     tx.Complete();
                 }
             }
-
-            return true;
         }
     }
 }

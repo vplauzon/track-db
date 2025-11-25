@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -18,20 +17,25 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override bool Run(DataManagementActivity forcedActivity)
+        public override void Run(DataManagementActivity forcedActivity)
         {
-            using (var tx = Database.CreateTransaction())
+            while (true)
             {
-                var tableName = FindMergedCandidate(forcedActivity, tx);
-
-                if (tableName != null)
+                using (var tx = Database.CreateTransaction())
                 {
-                    PersistTable(tableName, tx);
+                    var tableName = FindMergedCandidate(forcedActivity, tx);
+
+                    if (tableName != null)
+                    {
+                        PersistTable(tableName, tx);
+
+                        tx.Complete();
+                    }
+                    else
+                    {
+                        return;
+                    }
                 }
-
-                tx.Complete();
-
-                return tableName == null;
             }
         }
 

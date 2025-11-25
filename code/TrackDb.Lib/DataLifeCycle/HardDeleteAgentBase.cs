@@ -21,7 +21,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override bool Run(DataManagementActivity forcedDataManagementActivity)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
             using (var tx = Database.CreateTransaction())
             {
@@ -45,8 +45,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 while (!isCompleted);
 
                 tx.Complete();
-
-                return true;
             }
         }
 
