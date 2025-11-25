@@ -5,8 +5,6 @@ using System.Linq;
 using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Predicate;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
