@@ -101,7 +101,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         protected abstract int MaxInMemoryDataRecords { get; }
 
-        protected abstract IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+        protected abstract IEnumerable<Table> GetTables(
             DataManagementActivity forcedActivity,
             TransactionContext tx);
 
@@ -150,29 +150,25 @@ namespace TrackDb.Lib.DataLifeCycle
                 var oldestTableName = (string?)null;
                 var buffer = new object?[1];
                 var rowIndexes = new[] { 0 };
-                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
-                foreach (var pair in GetTableLogs(forcedActivity, tx))
+                foreach (var table in GetTables(forcedActivity, tx))
                 {
-                    var tableName = pair.Key;
-                    var logs = pair.Value;
-                    var table = Database.GetAnyTable(tableName);
-                    var blocks = logs.InMemoryBlocks
-                        .Where(b => b.RecordCount > 0);
+                    var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
+                    var oldestRecord = table.Query(tx)
+                        .WithInMemoryOnly()
+                        .WithSortColumns([sortColumn])
+                        .WithProjection([table.Schema.CreationTimeColumnIndex])
+                        .Take(1)
+                        .FirstOrDefault();
 
-                    foreach (var block in blocks)
-                    {   //  Fetch the creation time
-                        var projectedColumns =
-                            ImmutableArray.Create(block.TableSchema.CreationTimeColumnIndex);
+                    if (oldestRecord.Length == 1)   //  If no record, the default is an empty memory
+                    {
+                        var creationTime = (DateTime)oldestRecord.Span[0]!;
 
-                        var blockOldestCreationTime = block.Project(buffer, projectedColumns, rowIndexes, 0)
-                            .Select(r => (DateTime)r.Span[0]!)
-                            .Min();
-
-                        if (blockOldestCreationTime < oldestCreationTime)
+                        if (creationTime < oldestCreationTime)
                         {
-                            oldestCreationTime = blockOldestCreationTime;
-                            oldestTableName = tableName;
+                            oldestCreationTime = creationTime;
+                            oldestTableName = table.Schema.TableName;
                         }
                     }
                 }
@@ -189,10 +185,10 @@ namespace TrackDb.Lib.DataLifeCycle
             DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
-            var tableLogs = GetTableLogs(forcedActivity, tx);
-            var totalRecords = tableLogs
-                .Select(p => p.Value)
-                .Sum(logs => logs.InMemoryBlocks.Sum(b => b.RecordCount));
+            var tables = GetTables(forcedActivity, tx);
+            var totalRecords = tables
+                .Select(t => t.Query(tx).WithInMemoryOnly().Count())
+                .Sum();
 
             return totalRecords > MaxInMemoryDataRecords
                 || (totalRecords > 0 && DoPersistAll(forcedActivity));

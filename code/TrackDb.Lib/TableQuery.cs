@@ -26,8 +26,9 @@ namespace TrackDb.Lib
         #endregion
 
         private readonly Table _table;
+        private readonly TransactionContext? _tx;
         private readonly bool _canDelete;
-        private readonly TransactionContext? _transactionContext;
+        private readonly bool _inMemoryOnly;
         private readonly QueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
         private readonly IImmutableList<SortColumn> _sortColumns;
@@ -38,12 +39,13 @@ namespace TrackDb.Lib
         #region Constructors
         internal TableQuery(
             Table table,
-            bool canDelete,
-            TransactionContext? tc)
+            TransactionContext? tx,
+            bool canDelete)
             : this(
                   table,
+                  tx,
                   canDelete,
-                  tc,
+                  false,
                   AllInPredicate.Instance,
                   Enumerable.Range(0, table.Schema.Columns.Count),
                   Array.Empty<SortColumn>(),
@@ -55,8 +57,9 @@ namespace TrackDb.Lib
 
         private TableQuery(
             Table table,
+            TransactionContext? tx,
             bool canDelete,
-            TransactionContext? tc,
+            bool inMemoryOnly,
             QueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
             IEnumerable<SortColumn> sortColumns,
@@ -65,8 +68,9 @@ namespace TrackDb.Lib
             string? queryTag)
         {
             _table = table;
+            _tx = tx;
             _canDelete = canDelete;
-            _transactionContext = tc;
+            _inMemoryOnly = inMemoryOnly;
             _predicate = predicate.Simplify() ?? predicate;
             _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
             _sortColumns = sortColumns.ToImmutableArray();
@@ -81,8 +85,9 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -95,8 +100,9 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 _predicate,
                 projectionColumnIndexes.ToImmutableArray(),
                 _sortColumns,
@@ -109,8 +115,9 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 sortColumns,
@@ -123,8 +130,9 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -137,8 +145,9 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -151,14 +160,30 @@ namespace TrackDb.Lib
         {
             return new TableQuery(
                 _table,
+                _tx,
                 _canDelete,
-                _transactionContext,
+                _inMemoryOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
                 _takeCount,
                 true,
                 queryTag);
+        }
+
+        internal TableQuery WithInMemoryOnly()
+        {
+            return new TableQuery(
+                _table,
+                _tx,
+                _canDelete,
+                true,
+                _predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                _takeCount,
+                true,
+                _queryTag);
         }
         #endregion
 
@@ -214,7 +239,7 @@ namespace TrackDb.Lib
             }
 
             return _table.Database.ExecuteWithinTransactionContext(
-                _transactionContext,
+                _tx,
                 tx =>
                 {
                     if (_takeCount != 0)
@@ -268,7 +293,7 @@ namespace TrackDb.Lib
             IEnumerable<SortColumn> sortColumns)
         {
             var results = _table.Database.EnumeratesWithinTransactionContext(
-                _transactionContext,
+                _tx,
                 tc =>
                 {
                     if (_takeCount == 0)
