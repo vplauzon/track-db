@@ -37,8 +37,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 new TimeHardDeleteAgent(database),
                 new MetaRecordMergeAgent(database),
                 new MetaRecordPersistanceAgent(database),
-                new TransactionLogMergingAgent(database),
-                new ReleaseBlockAgent(database));
+                new TransactionLogMergingAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -81,7 +80,10 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         private async Task DataMaintanceAsync()
-        {   //  This loop is continuous as long as the object exists
+        {
+            var lastReleaseBlock = DateTime.Now;
+
+            //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
                 var itemTask = _channel.Reader.WaitToReadAsync().AsTask();
@@ -91,60 +93,98 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    var sourceList = new List<TaskCompletionSource>();
-                    var dataManagementActivity = DataManagementActivity.None;
-
                     //  We wait a little before processing so we can catch multiple transactions at once
                     await Task.WhenAny(
                         Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
                         _dataMaintenanceStopSource.Task);
                     if (!_dataMaintenanceStopSource.Task.IsCompleted)
                     {
-                        //  Read all accumulated items
-                        while (_channel.Reader.TryRead(out var item))
-                        {
-                            dataManagementActivity =
-                                dataManagementActivity | item.DataManagementActivity;
-                            if (item.Source != null)
-                            {
-                                sourceList.Add(item.Source);
-                            }
-                        }
-                        try
-                        {
-                            RunDataMaintance(dataManagementActivity);
-                            //  Signal the sources
-                            foreach (var source in sourceList)
-                            {
-                                source.TrySetResult();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            //  Signal the sources
-                            foreach (var source in sourceList)
-                            {
-                                source.TrySetException(ex);
-                            }
-                            throw;
-                        }
+                        (var dataManagementActivity, var sourceList) = ReadAccumulatedItems();
+
+                        RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList);
+                    }
+                }
+                ReleaseBlocks(ref lastReleaseBlock);
+            }
+        }
+
+        private void ReleaseBlocks(ref DateTime lastReleaseBlock)
+        {
+            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod)
+                > DateTime.Now)
+            {
+                if (!_database.HasActiveTransaction)
+                {
+                    using (var tx = _database.CreateTransaction())
+                    {
+                        _database.ReleaseNoLongerInUsedBlocks(tx);
+                        lastReleaseBlock = DateTime.Now;
+                        
+                        tx.Complete();
                     }
                 }
             }
         }
 
+        private void RunDataMaintanceAndReleaseSources(
+            DataManagementActivity dataManagementActivity,
+            IImmutableList<TaskCompletionSource> sourceList)
+        {
+            try
+            {
+                RunDataMaintance(dataManagementActivity);
+                //  Signal the sources
+                foreach (var source in sourceList)
+                {
+                    source.TrySetResult();
+                }
+            }
+            catch (Exception ex)
+            {
+                //  Signal the sources
+                foreach (var source in sourceList)
+                {
+                    source.TrySetException(ex);
+                }
+                throw;
+            }
+        }
+
+        private (DataManagementActivity, IImmutableList<TaskCompletionSource>) ReadAccumulatedItems()
+        {
+            var sourceList = ImmutableList<TaskCompletionSource>.Empty.ToBuilder();
+            var dataManagementActivity = DataManagementActivity.None;
+
+            while (_channel.Reader.TryRead(out var item))
+            {
+                dataManagementActivity =
+                    dataManagementActivity | item.DataManagementActivity;
+                if (item.Source != null)
+                {
+                    sourceList.Add(item.Source);
+                }
+            }
+
+            return (dataManagementActivity, sourceList.ToImmutable());
+        }
+
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
-            foreach (var agent in _dataLifeCycleAgents)
+            using (var tx = _database.CreateTransaction())
             {
-                if (!_dataMaintenanceStopSource.Task.IsCompleted)
+                foreach (var agent in _dataLifeCycleAgents)
                 {
-                    agent.Run(forcedDataManagementActivity);
+                    if (!_dataMaintenanceStopSource.Task.IsCompleted)
+                    {
+                        agent.Run(forcedDataManagementActivity, tx);
+                    }
+                    else
+                    {   //  We stop running agent
+                        return;
+                    }
                 }
-                else
-                {   //  We stop running agent
-                    return;
-                }
+
+                tx.Complete();
             }
         }
     }

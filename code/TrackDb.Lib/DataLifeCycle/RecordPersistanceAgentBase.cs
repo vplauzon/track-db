@@ -17,24 +17,21 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(DataManagementActivity forcedActivity)
+        public override void Run(
+            DataManagementActivity forcedActivity,
+            TransactionContext tx)
         {
             while (true)
             {
-                using (var tx = Database.CreateTransaction())
+                var tableName = FindMergedCandidate(forcedActivity, tx);
+
+                if (tableName != null)
                 {
-                    var tableName = FindMergedCandidate(forcedActivity, tx);
-
-                    if (tableName != null)
-                    {
-                        PersistTable(tableName, tx);
-
-                        tx.Complete();
-                    }
-                    else
-                    {
-                        return;
-                    }
+                    PersistTable(tableName, tx);
+                }
+                else
+                {
+                    return;
                 }
             }
         }
