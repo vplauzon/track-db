@@ -501,14 +501,17 @@ namespace TrackDb.Lib
 
         private void CompleteTransaction(TransactionState transactionState)
         {
-            ChangeDatabaseState(currentDbState =>
+            if (!transactionState.UncommittedTransactionLog.IsEmpty)
             {
-                return currentDbState with
+                ChangeDatabaseState(currentDbState =>
                 {
-                    InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
-                };
-            });
-            _dataLifeCycleManager.TriggerDataManagement();
+                    return currentDbState with
+                    {
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
+                    };
+                });
+                _dataLifeCycleManager.TriggerDataManagement();
+            }
         }
 
         internal void RollbackTransaction()
