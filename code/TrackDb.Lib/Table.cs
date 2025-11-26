@@ -21,9 +21,9 @@ namespace TrackDb.Lib
 
 		public TableSchema Schema { get; }
 
-		public TableQuery Query(TransactionContext? transactionContext = null)
+		public TableQuery Query(TransactionContext? tx = null)
 		{
-			return new TableQuery(this, true, transactionContext);
+			return new TableQuery(this, tx, true);
 		}
 
 		internal void InitRecordId(long maxRecordId)

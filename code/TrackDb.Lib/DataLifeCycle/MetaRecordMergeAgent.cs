@@ -13,31 +13,28 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(DataManagementActivity forcedDataManagementActivity)
+        public override void Run(
+            DataManagementActivity forcedDataManagementActivity,
+            TransactionContext tx)
         {
-            using (var tx = Database.CreateTransaction())
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var tableLogs = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
+                .Where(p => tableMap[p.Key].IsMetaDataTable);
+
+            if (IsPersistanceRequired(tableLogs.Select(p => p.Value)))
             {
-                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                var tableLogs = tx.TransactionState.InMemoryDatabase.TransactionTableLogsMap
-                    .Where(p => tableMap[p.Key].IsMetaDataTable);
+                var tableCandidates = new Stack<string>(tableLogs
+                    .OrderBy(p => p.Value.InMemoryBlocks.Count)
+                    .Select(p => p.Key));
 
-                if (IsPersistanceRequired(tableLogs.Select(p => p.Value)))
+                do
                 {
-                    var tableCandidates = new Stack<string>(tableLogs
-                        .OrderBy(p => p.Value.InMemoryBlocks.Count)
-                        .Select(p => p.Key));
+                    var tableName = tableCandidates.Pop();
 
-                    do
-                    {
-                        var tableName = tableCandidates.Pop();
-
-                        MergeSubBlocks(tableName, null, tx);
-                    }
-                    while (IsPersistanceRequired(tableLogs.Select(p => p.Value))
-                    && tableCandidates.Any());
+                    MergeSubBlocks(tableName, null, tx);
                 }
-
-                tx.Complete();
+                while (IsPersistanceRequired(tableLogs.Select(p => p.Value))
+                && tableCandidates.Any());
             }
         }
 

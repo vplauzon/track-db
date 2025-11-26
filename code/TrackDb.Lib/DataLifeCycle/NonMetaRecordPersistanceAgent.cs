@@ -17,23 +17,17 @@ namespace TrackDb.Lib.DataLifeCycle
         protected override int MaxInMemoryDataRecords =>
             Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
 
-        protected override IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+        protected override IEnumerable<Table> GetTables(
             DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var inMemoryDb = tx.TransactionState.InMemoryDatabase;
-            var logs = inMemoryDb.TransactionTableLogsMap
-                .Select(p => new
-                {
-                    Pair = p,
-                    TableProperties = tableMap[p.Key]
-                })
-                .Where(o => !o.TableProperties.IsMetaDataTable)
-                .Where(o => o.TableProperties.IsPersisted)
-                .Select(o => o.Pair);
+            var tables = tableMap.Values
+                .Where(tp => !tp.IsMetaDataTable)
+                .Where(tp => tp.IsPersisted)
+                .Select(tp => tp.Table);
 
-            return logs;
+            return tables;
         }
 
         protected override bool DoPersistAll(DataManagementActivity forcedActivity)
