@@ -21,31 +21,28 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(DataManagementActivity forcedDataManagementActivity)
+        public override void Run(
+            DataManagementActivity forcedDataManagementActivity,
+            TransactionContext tx)
         {
-            using (var tx = Database.CreateTransaction())
+            var doHardDeleteAll =
+                (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
+            var isCompleted = false;
+
+            do
             {
-                var doHardDeleteAll =
-                    (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll) != 0;
-                var isCompleted = false;
+                var candidate = FindTransactionMergedCandidate(doHardDeleteAll, tx);
 
-                do
+                if (candidate != null)
                 {
-                    var candidate = FindTransactionMergedCandidate(doHardDeleteAll, tx);
-
-                    if (candidate != null)
-                    {
-                        HardDeleteCandidate(candidate, tx);
-                    }
-                    else
-                    {
-                        isCompleted = true;
-                    }
+                    HardDeleteCandidate(candidate, tx);
                 }
-                while (!isCompleted);
-
-                tx.Complete();
+                else
+                {
+                    isCompleted = true;
+                }
             }
+            while (!isCompleted);
         }
 
         private void HardDeleteCandidate(TableCandidate candidate, TransactionContext tx)

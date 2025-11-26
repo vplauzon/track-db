@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 using TrackDb.Lib.DataLifeCycle;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
@@ -501,19 +502,26 @@ namespace TrackDb.Lib
 
         private void CompleteTransaction(TransactionState transactionState)
         {
-            ChangeDatabaseState(currentDbState =>
+            if (!transactionState.UncommittedTransactionLog.IsEmpty)
             {
-                return currentDbState with
+                ChangeDatabaseState(currentDbState =>
                 {
-                    InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
-                };
-            });
-            _dataLifeCycleManager.TriggerDataManagement();
+                    return currentDbState with
+                    {
+                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
+                    };
+                });
+                _dataLifeCycleManager.TriggerDataManagement();
+            }
+            if (Interlocked.Decrement(ref _activeTransactionCount) < 0)
+            {
+                throw new InvalidOperationException("Transaction count is below zero");
+            }
         }
 
         internal void RollbackTransaction()
         {
-            if (Interlocked.Decrement(ref _activeTransactionCount) == 0)
+            if (Interlocked.Decrement(ref _activeTransactionCount) < 0)
             {
                 throw new InvalidOperationException("Transaction count is below zero");
             }
@@ -549,6 +557,43 @@ namespace TrackDb.Lib
                 .Where(ts => ts.TableName == tableName)
                 .Select(ts => ts.DeletedRecordId)
                 : Array.Empty<long>();
+        }
+
+        internal void DeleteTombstoneRecords(
+            string tableName,
+            IEnumerable<long> recordIds,
+            TransactionContext tx)
+        {
+            var tombstoneTableName = TombstoneTable.Schema.TableName;
+
+            tx.LoadCommittedBlocksInTransaction(tombstoneTableName);
+
+            var transactionTableLog = tx.TransactionState
+                .UncommittedTransactionLog
+                .TransactionTableLogMap[tombstoneTableName];
+            var newBlockBuilder = transactionTableLog.NewDataBlock;
+            var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
+            var predicate = TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Where(pf => pf.In(t => t.DeletedRecordId, recordIds))
+                .Predicate;
+
+            if (newBlockBuilder != null && ((IBlock)newBlockBuilder).RecordCount > 0)
+            {
+                var rowIndexes = ((IBlock)newBlockBuilder)
+                    .Filter(predicate, false)
+                    .RowIndexes;
+
+                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+            }
+            if (committedBlockBuilder != null && ((IBlock)committedBlockBuilder).RecordCount > 0)
+            {
+                var rowIndexes = ((IBlock)committedBlockBuilder)
+                    .Filter(predicate, false)
+                    .RowIndexes;
+
+                committedBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+            }
         }
         #endregion
 

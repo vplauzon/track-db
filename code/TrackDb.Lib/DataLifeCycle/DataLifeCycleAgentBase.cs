@@ -19,7 +19,10 @@ namespace TrackDb.Lib.DataLifeCycle
 
         /// <summary>Runs an agent logic.</summary>
         /// <param name="forcedDataManagementActivity"></param>
-        public abstract void Run(DataManagementActivity forcedDataManagementActivity);
+        /// <param name="tx"></param>
+        public abstract void Run(
+            DataManagementActivity forcedDataManagementActivity,
+            TransactionContext tx);
 
         protected Database Database { get; }
 

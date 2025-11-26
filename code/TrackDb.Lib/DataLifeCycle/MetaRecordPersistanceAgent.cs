@@ -18,35 +18,25 @@ namespace TrackDb.Lib.DataLifeCycle
         protected override int MaxInMemoryDataRecords =>
             Database.DatabasePolicy.InMemoryPolicy.MaxMetaDataRecords;
 
-        protected override IEnumerable<KeyValuePair<string, ImmutableTableTransactionLogs>> GetTableLogs(
+        protected override IEnumerable<Table> GetTables(
             DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var inMemoryDb = tx.TransactionState.InMemoryDatabase;
-            var logs = inMemoryDb.TransactionTableLogsMap
-                .Select(p => new
-                {
-                    Pair = p,
-                    TableProperties = tableMap[p.Key]
-                })
-                .Where(o => o.TableProperties.IsMetaDataTable)
-                .Where(o => o.TableProperties.IsPersisted);
+            var tableProperties = tableMap.Values
+                .Where(tp => tp.IsMetaDataTable)
+                .Where(tp => tp.IsPersisted);
 
-            if (DoPersistAll(forcedActivity))
-            {   //  We limit to only 1st level metadata tables
-                var firstLevelMetadataTable = tableMap.Values
-                    .Where(t => !t.IsMetaDataTable && t.IsPersisted)
-                    .Where(t => t.MetaDataTableName != null)
-                    .Select(t => t.MetaDataTableName!)
-                    .ToImmutableHashSet();
-
-                logs = logs
-                    .Where(o => firstLevelMetadataTable.Contains(o.Pair.Key));
+            if(DoPersistAll(forcedActivity))
+            {
+                //  We limit to only 1st level metadata tables
+                tableProperties = tableProperties
+                    .Where(tp => !(((MetadataTableSchema)tp.Table.Schema).ParentSchema
+                    is MetadataTableSchema));
             }
 
-            return logs
-                .Select(o => o.Pair);
+            return tableProperties
+                .Select(tp => tp.Table);
         }
 
         protected override bool DoPersistAll(DataManagementActivity forcedActivity)
