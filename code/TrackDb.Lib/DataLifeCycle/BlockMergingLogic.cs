@@ -47,7 +47,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     nameof(dataTableName));
             }
 
-            var metadataTableProperties = tableMap[dataTableName];
+            var metadataTableProperties = tableMap[metadataTableName];
             var metadataTable = metadataTableProperties.Table;
             var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
             var predicate = new BinaryOperatorPredicate(
