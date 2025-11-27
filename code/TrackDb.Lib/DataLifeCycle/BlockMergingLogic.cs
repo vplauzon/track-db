@@ -4,7 +4,11 @@ using System.Text;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class BlockMergingLogic
+    internal class BlockMergingLogic : LogicBase
     {
+        public BlockMergingLogic(Database database)
+            : base(database)
+        {
+        }
     }
 }

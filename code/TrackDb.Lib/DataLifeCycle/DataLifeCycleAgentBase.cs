@@ -4,17 +4,14 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal abstract class DataLifeCycleAgentBase
+    internal abstract class DataLifeCycleAgentBase : LogicBase
     {
         protected DataLifeCycleAgentBase(Database database)
+            : base(database)
         {
-            Database = database;
         }
 
         /// <summary>Runs an agent logic.</summary>
@@ -23,8 +20,6 @@ namespace TrackDb.Lib.DataLifeCycle
         public abstract void Run(
             DataManagementActivity forcedDataManagementActivity,
             TransactionContext tx);
-
-        protected Database Database { get; }
 
         protected bool MergeTableTransactionLogs(string tableName)
         {
