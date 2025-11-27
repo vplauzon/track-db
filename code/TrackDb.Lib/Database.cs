@@ -544,7 +544,7 @@ namespace TrackDb.Lib
             TransactionContext tc)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
                 tc);
         }
 
