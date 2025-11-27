@@ -21,8 +21,8 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="blockId"></param>
         /// <param name="otherBlockIdsToCompact"></param>
         /// <param name="tx"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        public void Compact(
+        /// <returns><c>false</c> iif <paramref name="blockId"/> doesn't exist</returns>
+        public bool Compact(
             string dataTableName,
             int blockId,
             IEnumerable<int> otherBlockIdsToCompact,
@@ -40,7 +40,6 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="metaBlockId"></param>
         /// <param name="blockIdsToCompact"></param>
         /// <param name="tx"></param>
-        /// <exception cref="NotImplementedException"></exception>
         public void Merge(
             string metaTableName,
             int metaBlockId,
