@@ -25,11 +25,6 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private bool HardDeleteIteration(TransactionContext tx)
         {
-            bool FixNullBlockIds(string tableName, TransactionContext tx)
-            {
-                throw new NotImplementedException();
-            }
-
             var thresholdTimestamp = DateTime.Now
                 - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
             var oldTombstoneRecords = Database.TombstoneTable.Query(tx)
@@ -43,7 +38,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 var argMaxTableName = oldestRecord!.TableName;
                 var argMaxBlockId = oldestRecord!.BlockId!.Value;
                 var isNewlyLoaded = tx.LoadCommittedBlocksInTransaction(argMaxTableName);
-                var hasNullBlockIds = FixNullBlockIds(argMaxTableName, tx);
+                var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
+                var hasNullBlockIds = tombstoneBlockFixLogic.FixNullBlockIds(argMaxTableName, tx);
 
                 if (!isNewlyLoaded && !hasNullBlockIds)
                 {
@@ -55,7 +51,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         .ToImmutableArray();
                     var blockMergingLogic = new BlockMergingLogic(Database);
 
-                    if (!blockMergingLogic.Compact(
+                    if (!blockMergingLogic.CompactBlock(
                         argMaxTableName,
                         argMaxBlockId,
                         otherBlockIds,

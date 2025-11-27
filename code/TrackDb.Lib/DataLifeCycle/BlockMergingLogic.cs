@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -22,13 +25,54 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="otherBlockIdsToCompact"></param>
         /// <param name="tx"></param>
         /// <returns><c>false</c> iif <paramref name="blockId"/> doesn't exist</returns>
-        public bool Compact(
+        public bool CompactBlock(
             string dataTableName,
             int blockId,
             IEnumerable<int> otherBlockIdsToCompact,
             TransactionContext tx)
         {
-            throw new NotImplementedException();
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var tableProperties = tableMap[dataTableName];
+            var schema = tableProperties.Table.Schema;
+            var metadataTableName = tableProperties.MetaDataTableName;
+
+            if (tableProperties.IsMetaDataTable)
+            {
+                throw new ArgumentException($"Table is metadata", nameof(dataTableName));
+            }
+            if (metadataTableName == null)
+            {
+                throw new ArgumentException(
+                    $"Table has no corresponding metadata table",
+                    nameof(dataTableName));
+            }
+
+            var metadataTableProperties = tableMap[dataTableName];
+            var metadataTable = metadataTableProperties.Table;
+            var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
+            var predicate = new BinaryOperatorPredicate(
+                metadataSchema.BlockIdColumnIndex,
+                blockId,
+                BinaryOperator.Equal);
+            var metaRecord = metadataTable.Query(tx)
+                .WithPredicate(predicate)
+                .WithProjection([metadataSchema.ParentBlockIdColumnIndex])
+                .FirstOrDefault();
+
+            if (metaRecord.Length == 1)
+            {
+                MergeBlocks(
+                    metadataTableName,
+                    (int)metaRecord.Span[0]!,
+                    otherBlockIdsToCompact.Prepend(blockId),
+                    tx);
+             
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
 
         /// <summary>
@@ -40,7 +84,7 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="metaBlockId"></param>
         /// <param name="blockIdsToCompact"></param>
         /// <param name="tx"></param>
-        public void Merge(
+        public void MergeBlocks(
             string metaTableName,
             int metaBlockId,
             IEnumerable<int> blockIdsToCompact,
