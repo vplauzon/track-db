@@ -1,48 +1,93 @@
-﻿using System;
+﻿using Azure.Storage.Blobs.Models;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class RecordCountHardDeleteAgent : HardDeleteAgentBase
+    internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
         public RecordCountHardDeleteAgent(Database database)
             : base(database)
         {
         }
 
-        protected override TableCandidate? FindCandidate(
-            bool doHardDeleteAll,
+        public override void Run(
+            DataManagementActivity forcedDataManagementActivity,
             TransactionContext tx)
         {
+            var doHardDeleteAll =
+                (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll)
+                == DataManagementActivity.HardDeleteAll;
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            if (doHardDeleteAll || Database.TombstoneTable.Query(tx).Count() > maxTombstonedRecords)
+            while (HardDeleteIteration(doHardDeleteAll, maxTombstonedRecords, tx))
             {
-                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                var candidate = Database.TombstoneTable.Query(tx)
-                    .GroupBy(t => t.TableName)
-                    //  Avoid infinite loop by having system tables hard delete on command
-                    .Where(g => !doHardDeleteAll || !tableMap[g.Key].IsSystemTable)
-                    .OrderByDescending(g => g.Count())
-                    .Take(1)
-                    .Select(g => new TableCandidate(
-                        g.Key,
-                        g
-                        .OrderBy(t => t.Timestamp)
-                        .First()
-                        .DeletedRecordId))
-                    .FirstOrDefault();
+            }
+        }
 
-                return candidate;
+        private bool HardDeleteIteration(
+            bool doHardDeleteAll,
+            int maxTombstonedRecords,
+            TransactionContext tx)
+        {
+            var tombstoneCardinality = Database.TombstoneTable.Query(tx)
+                .Count();
+
+            if ((doHardDeleteAll && tombstoneCardinality > 0)
+                || tombstoneCardinality > maxTombstonedRecords)
+            {
+                HardDeleteByTable((int)(tombstoneCardinality - maxTombstonedRecords), tx);
+
+                return true;
             }
             else
             {
-                return null;
+                return false;
+            }
+        }
+
+        private void HardDeleteByTable(int recordCountToHardDelete, TransactionContext tx)
+        {
+            bool FixNullBlockIds(string tableName, TransactionContext tx)
+            {
+                throw new NotImplementedException();
+            }
+
+            var argMaxTableName = Database.TombstoneTable.Query(tx)
+                .CountBy(t => t.TableName)
+                .MaxBy(p => p.Value)
+                .Key;
+            var isNewlyLoaded = tx.LoadCommittedBlocksInTransaction(argMaxTableName);
+            var hasNullBlockIds = FixNullBlockIds(argMaxTableName, tx);
+
+            if (!isNewlyLoaded && !hasNullBlockIds)
+            {
+                HardDeleteByBlock(argMaxTableName, tx);
+            }
+        }
+
+        private void HardDeleteByBlock(string tableName, TransactionContext tx)
+        {
+            var argMaxBlockId = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .CountBy(t => t.BlockId!.Value)
+                .MaxBy(p => p.Key)
+                .Key;
+            var otherBlockIds = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Where(pf => pf.NotEqual(t => t.BlockId, argMaxBlockId))
+                .Select(t => t.BlockId!.Value)
+                .Distinct()
+                .ToImmutableArray();
+            var blockMergingLogic = new BlockMergingLogic(Database);
+
+            if (!blockMergingLogic.Compact(tableName, argMaxBlockId, otherBlockIds, tx))
+            {
+                throw new NotImplementedException();
             }
         }
     }

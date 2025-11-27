@@ -7,29 +7,70 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class TimeHardDeleteAgent : HardDeleteAgentBase
+    internal class TimeHardDeleteAgent : DataLifeCycleAgentBase
     {
         public TimeHardDeleteAgent(Database database)
             : base(database)
         {
         }
 
-        protected override TableCandidate? FindCandidate(
-            bool doHardDeleteAll,
+        public override void Run(
+            DataManagementActivity forcedDataManagementActivity,
             TransactionContext tx)
         {
-            var maxTombstonePeriod = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var query = Database.TombstoneTable.Query(tx);
-            var oldestCandidate = query
-                //  Avoid infinite loop by having system tables hard delete on command
-                .Where(t => !doHardDeleteAll || !tableMap[t.TableName].IsSystemTable)
-                .OrderBy(t => t.Timestamp)
-                .Take(1)
-                .Select(t => new TableCandidate(t.TableName, t.DeletedRecordId))
-                .FirstOrDefault();
+            while (HardDeleteIteration(tx))
+            {
+            }
+        }
 
-            return oldestCandidate;
+        private bool HardDeleteIteration(TransactionContext tx)
+        {
+            bool FixNullBlockIds(string tableName, TransactionContext tx)
+            {
+                throw new NotImplementedException();
+            }
+
+            var thresholdTimestamp = DateTime.Now
+                - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
+            var oldTombstoneRecords = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp));
+            var tombstoneCount = oldTombstoneRecords.Count();
+
+            if (tombstoneCount > 0)
+            {
+                var oldestRecord = oldTombstoneRecords
+                    .MaxBy(t => t.Timestamp);
+                var argMaxTableName = oldestRecord!.TableName;
+                var argMaxBlockId = oldestRecord!.BlockId!.Value;
+                var isNewlyLoaded = tx.LoadCommittedBlocksInTransaction(argMaxTableName);
+                var hasNullBlockIds = FixNullBlockIds(argMaxTableName, tx);
+
+                if (!isNewlyLoaded && !hasNullBlockIds)
+                {
+                    var otherBlockIds = oldTombstoneRecords
+                        .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))
+                        .Where(pf => pf.NotEqual(t => t.BlockId, argMaxBlockId))
+                        .Select(t => t.BlockId!.Value)
+                        .Distinct()
+                        .ToImmutableArray();
+                    var blockMergingLogic = new BlockMergingLogic(Database);
+
+                    if (!blockMergingLogic.Compact(
+                        argMaxTableName,
+                        argMaxBlockId,
+                        otherBlockIds,
+                        tx))
+                    {
+                        throw new NotImplementedException();
+                    }
+                }
+
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }
