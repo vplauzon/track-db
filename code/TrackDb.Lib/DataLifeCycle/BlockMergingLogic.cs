@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
@@ -88,6 +89,23 @@ namespace TrackDb.Lib.DataLifeCycle
             string metaTableName,
             int metaBlockId,
             IEnumerable<int> blockIdsToCompact,
+            TransactionContext tx)
+        {
+            MergeBlocksWithReplacements(
+                metaTableName,
+                metaBlockId,
+                blockIdsToCompact,
+                Array.Empty<int>(),
+                Array.Empty<BlockBuilder>(),
+                tx);
+        }
+
+        private void MergeBlocksWithReplacements(
+            string metaTableName,
+            int metaBlockId,
+            IEnumerable<int> blockIdsToCompact,
+            IEnumerable<int> blockIdsToRemove,
+            IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
             throw new NotImplementedException();
