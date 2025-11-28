@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Azure.Storage.Blobs.Models;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -10,6 +11,20 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class BlockMergingLogic : LogicBase
     {
+        #region Inner Types
+        private interface IBlockFacade
+        {
+        }
+
+        private record MetaDataBlockFacade(MetaDataBlock MetaDataBlock) : IBlockFacade
+        {
+        }
+
+        private record BlockBuilderFacade(BlockBuilder BlockBuilder) : IBlockFacade
+        {
+        }
+        #endregion
+
         public BlockMergingLogic(Database database)
             : base(database)
         {
@@ -62,12 +77,14 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (metaRecord.Length == 1)
             {
+                var metaBlockId = (int)metaRecord.Span[0]!;
+
                 MergeBlocks(
                     metadataTableName,
-                    (int)metaRecord.Span[0]!,
+                    metaBlockId != 0 ? metaBlockId : null,
                     otherBlockIdsToCompact.Prepend(blockId),
                     tx);
-             
+
                 return true;
             }
             else
@@ -87,7 +104,7 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="tx"></param>
         public void MergeBlocks(
             string metaTableName,
-            int metaBlockId,
+            int? metaBlockId,
             IEnumerable<int> blockIdsToCompact,
             TransactionContext tx)
         {
@@ -102,13 +119,55 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void MergeBlocksWithReplacements(
             string metaTableName,
-            int metaBlockId,
+            int? metaBlockId,
             IEnumerable<int> blockIdsToCompact,
             IEnumerable<int> blockIdsToRemove,
             IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
+            var blockStack = LoadBlockFacades(
+                metaTableName,
+                metaBlockId,
+                blockIdsToRemove,
+                blocksToAdd,
+                tx);
+
             throw new NotImplementedException();
         }
+
+        #region Load block infos
+        private Stack<IBlockFacade> LoadBlockFacades(
+            string metadataTableName,
+            int? metaBlockId,
+            IEnumerable<int> blockIdsToRemove,
+            IEnumerable<BlockBuilder> blocksToAdd,
+            TransactionContext tx)
+        {
+            if (metaBlockId != null)
+            {
+                throw new NotImplementedException();
+            }
+            else
+            {
+                var metadataTable = Database.GetDatabaseStateSnapshot()
+                    .TableMap[metadataTableName]
+                    .Table;
+                var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
+                var blockIdsToRemoveSet = blockIdsToRemove.ToImmutableHashSet();
+                var metaDataBlockFacades = metadataTable.Query(tx)
+                    .WithInMemoryOnly()
+                    .Select(r => new MetaDataBlock(r, metadataTableSchema))
+                    .Where(b => !blockIdsToRemoveSet.Contains(b.BlockId))
+                    .Select(b => new MetaDataBlockFacade(b));
+                var blockBuilderFacades = blocksToAdd
+                    .Select(b => new BlockBuilderFacade(b));
+                var allFacades = metaDataBlockFacades
+                    .Cast<IBlockFacade>()
+                    .Concat(blockBuilderFacades);
+
+                return new Stack<IBlockFacade>(allFacades);
+            }
+        }
+        #endregion
     }
 }
