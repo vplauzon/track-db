@@ -29,19 +29,27 @@ namespace TrackDb.Lib.DataLifeCycle
                 - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
             var oldTombstoneRecords = Database.TombstoneTable.Query(tx)
                 .Where(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp));
-            var tombstoneCount = oldTombstoneRecords.Count();
 
-            if (tombstoneCount > 0)
+            if (oldTombstoneRecords.Any())
             {
                 var oldestRecord = oldTombstoneRecords
-                    .MaxBy(t => t.Timestamp);
+                    .OrderBy(t => t.Timestamp)
+                    .Take(1)
+                    .First();
                 var argMaxTableName = oldestRecord!.TableName;
                 var argMaxBlockId = oldestRecord!.BlockId!.Value;
-                var isNewlyLoaded = tx.LoadCommittedBlocksInTransaction(argMaxTableName);
-                var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
-                var hasNullBlockIds = tombstoneBlockFixLogic.FixNullBlockIds(argMaxTableName, tx);
+                var hasNullBlockIds = oldTombstoneRecords
+                    .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))
+                    .Where(pf => pf.Equal(t => t.BlockId, null))
+                    .Any();
 
-                if (!isNewlyLoaded && !hasNullBlockIds)
+                if (hasNullBlockIds)
+                {
+                    var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
+                    
+                    tombstoneBlockFixLogic.FixNullBlockIds(argMaxTableName, tx);
+                }
+                else
                 {
                     var otherBlockIds = oldTombstoneRecords
                         .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))

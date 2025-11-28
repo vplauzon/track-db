@@ -23,12 +23,12 @@ namespace TrackDb.Lib.DataLifeCycle
                 == DataManagementActivity.HardDeleteAll;
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            while (HardDeleteIteration(doHardDeleteAll, maxTombstonedRecords, tx))
+            while (Iteration(doHardDeleteAll, maxTombstonedRecords, tx))
             {
             }
         }
 
-        private bool HardDeleteIteration(
+        private bool Iteration(
             bool doHardDeleteAll,
             int maxTombstonedRecords,
             TransactionContext tx)
@@ -36,10 +36,15 @@ namespace TrackDb.Lib.DataLifeCycle
             var tombstoneCardinality = Database.TombstoneTable.Query(tx)
                 .Count();
 
-            if ((doHardDeleteAll && tombstoneCardinality > 0)
-                || tombstoneCardinality > maxTombstonedRecords)
+            if (doHardDeleteAll && tombstoneCardinality > 0)
             {
-                HardDeleteByTable((int)(tombstoneCardinality - maxTombstonedRecords), tx);
+                FindBlock((int)tombstoneCardinality, tx);
+
+                return true;
+            }
+            else if (tombstoneCardinality > maxTombstonedRecords)
+            {
+                FindBlock((int)(tombstoneCardinality - maxTombstonedRecords), tx);
 
                 return true;
             }
@@ -49,38 +54,55 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void HardDeleteByTable(int recordCountToHardDelete, TransactionContext tx)
+        private void FindBlock(int recordCountToHardDelete, TransactionContext tx)
         {
-            var argMaxTableName = Database.TombstoneTable.Query(tx)
-                .CountBy(t => t.TableName)
-                .MaxBy(p => p.Value)
-                .Key;
-            var isNewlyLoaded = tx.LoadCommittedBlocksInTransaction(argMaxTableName);
-            var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
-            var hasNullBlockIds = tombstoneBlockFixLogic.FixNullBlockIds(argMaxTableName, tx);
+            var topBlocks = Database.TombstoneTable.Query(tx)
+                //  Count records per block
+                .CountBy(t => (t.TableName, t.BlockId ?? 0))
+                .Select(p => new
+                {
+                    p.Key.TableName,
+                    BlockId = p.Key.Item2,
+                    RecordCount = p.Value
+                })
+                .OrderBy(o => o.RecordCount)
+                //  Cap the collection to required item count
+                .CapSumValues(o => o.RecordCount, recordCountToHardDelete);
+            var tableName = topBlocks.First().TableName;
+            var hasNullBlocks = topBlocks
+                .Where(o => o.TableName == tableName)
+                .Where(o => o.BlockId == 0)
+                .Any();
+            var blockId = topBlocks.First().BlockId;
+            var otherBlockIds = topBlocks
+                .Skip(1)
+                .Where(o => o.TableName == tableName)
+                .Select(o => o.BlockId)
+                .ToImmutableArray();
 
-            if (!isNewlyLoaded && !hasNullBlockIds)
+            //  GC
+            topBlocks = topBlocks.Take(0).ToImmutableArray();
+            if (hasNullBlocks)
             {
-                HardDeleteByBlock(argMaxTableName, tx);
+                var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
+
+                tombstoneBlockFixLogic.FixNullBlockIds(tableName, tx);
+            }
+            else
+            {
+                CompactBlock(tableName, blockId, otherBlockIds, tx);
             }
         }
 
-        private void HardDeleteByBlock(string tableName, TransactionContext tx)
+        private void CompactBlock(
+            string tableName,
+            int blockId,
+            IEnumerable<int> otherBlockIds,
+            TransactionContext tx)
         {
-            var argMaxBlockId = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .CountBy(t => t.BlockId!.Value)
-                .MaxBy(p => p.Key)
-                .Key;
-            var otherBlockIds = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.NotEqual(t => t.BlockId, argMaxBlockId))
-                .Select(t => t.BlockId!.Value)
-                .Distinct()
-                .ToImmutableArray();
             var blockMergingLogic = new BlockMergingLogic(Database);
 
-            if (!blockMergingLogic.CompactBlock(tableName, argMaxBlockId, otherBlockIds, tx))
+            if (blockMergingLogic.CompactBlock(tableName, blockId, otherBlockIds, tx))
             {
                 throw new NotImplementedException();
             }
