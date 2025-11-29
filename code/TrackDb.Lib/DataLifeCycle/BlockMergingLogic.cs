@@ -14,14 +14,29 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Inner Types
         private interface IBlockFacade
         {
+            long ComputeRecordIdMax();
         }
 
         private record MetaDataBlockFacade(MetaDataBlock MetaDataBlock) : IBlockFacade
         {
+            long IBlockFacade.ComputeRecordIdMax() => MetaDataBlock.RecordIdMin;
         }
 
         private record BlockBuilderFacade(BlockBuilder BlockBuilder) : IBlockFacade
         {
+            long IBlockFacade.ComputeRecordIdMax()
+            {
+                var block = ((IBlock)BlockBuilder);
+                var recordIdMax = block.Project(
+                    new object?[1],
+                    [block.TableSchema.RecordIdColumnIndex],
+                    Enumerable.Range(0, block.RecordCount),
+                    0)
+                    .Select(r => (long)r.Span[0]!)
+                    .Max();
+
+                return recordIdMax;
+            }
         }
         #endregion
 
@@ -163,7 +178,15 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Select(b => new BlockBuilderFacade(b));
                 var allFacades = metaDataBlockFacades
                     .Cast<IBlockFacade>()
-                    .Concat(blockBuilderFacades);
+                    .Concat(blockBuilderFacades)
+                    .Select(f => new
+                    {
+                        Facade = f,
+                        RecordIdMax = f.ComputeRecordIdMax()
+                    })
+                    //  Order by record ID to keep monotonity of record IDs
+                    .OrderBy(f => f.RecordIdMax)
+                    .Select(f => f.Facade);
 
                 return new Stack<IBlockFacade>(allFacades);
             }
