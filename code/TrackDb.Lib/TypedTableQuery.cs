@@ -200,6 +200,11 @@ namespace TrackDb.Lib
             }
         }
 
+        public bool Any()
+        {
+            return TableQuery.Any();
+        }
+
         public long Count()
         {
             return TableQuery.Count();

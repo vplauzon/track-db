@@ -94,7 +94,7 @@ namespace TrackDb.Lib.Logging
                 {
                     var recordIds = pair.Value;
                     var tombstoneRecords = tableTransactionContent.TombstoneRecordIds
-                        .Select(id => new TombstoneRecord(id, tableName, DateTime.Now));
+                        .Select(id => new TombstoneRecord(id, tableName, null, DateTime.Now));
 
                     foreach (var tombstoneRecord in tombstoneRecords)
                     {

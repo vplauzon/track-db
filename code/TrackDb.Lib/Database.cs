@@ -233,31 +233,9 @@ namespace TrackDb.Lib
                 tc);
         }
 
-        internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
-        {
-            var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
-                .ToImmutableArray();
-
-            if (noLongerInUsedBlocks.Any())
-            {
-                _availableBlockTable.Query(tx)
-                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
-                    .Delete();
-                _availableBlockTable.AppendRecords(noLongerInUsedBlocks
-                    .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
-                    tx);
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
 
+        #region Available Blocks
         private int GetAvailableBlockId(TransactionContext tx)
         {
             var availableBlock = _availableBlockTable.Query(tx)
@@ -286,6 +264,47 @@ namespace TrackDb.Lib
                 return GetAvailableBlockId(tx);
             }
         }
+
+        internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
+        {
+            var deletedUsedBlocks = _availableBlockTable.Query(tx)
+                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
+                .Delete();
+
+            if (deletedUsedBlocks != blockIds.Count())
+            {
+                throw new InvalidOperationException("Corrupted available blocks");
+            }
+            _availableBlockTable.AppendRecords(
+                blockIds
+                .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
+                tx);
+        }
+
+        internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
+        {
+            var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                .ToImmutableArray();
+
+            if (noLongerInUsedBlocks.Any())
+            {
+                _availableBlockTable.Query(tx)
+                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                    .Delete();
+                _availableBlockTable.AppendRecords(noLongerInUsedBlocks
+                    .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
+                    tx);
+
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        #endregion
         #endregion
         #endregion
 
@@ -544,7 +563,7 @@ namespace TrackDb.Lib
             TransactionContext tc)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
                 tc);
         }
 

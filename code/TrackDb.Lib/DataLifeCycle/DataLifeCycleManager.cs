@@ -35,7 +35,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database),
-                new MetaRecordMergeAgent(database),
                 new MetaRecordPersistanceAgent(database),
                 new TransactionLogMergingAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
