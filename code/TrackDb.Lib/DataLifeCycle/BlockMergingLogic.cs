@@ -22,16 +22,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 IImmutableSet<int> blockIdsToCompact,
                 TransactionContext tx);
 
-            (MergeResult, IBlockFacade? resultingBlock) Merge(IBlockFacade right);
+            BlockBuilderFacade? ForceCompact(TransactionContext tx);
 
             MetaDataBlockFacade Persist(TransactionContext tx);
-        }
-
-        private enum MergeResult
-        {
-            MergeSucceeded,
-            MergeEmpty,
-            MergeFailed
         }
 
         private record MetaDataBlockFacade(Database Database, MetaDataBlock MetaDataBlock)
@@ -47,32 +40,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (blockIdsToCompact.Contains(MetaDataBlock.BlockId))
                 {
-                    var parentSchema = MetaDataBlock.Schema.ParentSchema;
-                    var block = Database.GetOrLoadBlock(MetaDataBlock.BlockId, parentSchema);
-                    //  First let's find the record IDs in the block
-                    var blockRecordIds = block.Project(
-                        new object?[1],
-                        [parentSchema.RecordIdColumnIndex],
-                        Enumerable.Range(0, block.RecordCount),
-                        0)
-                        .Select(r => (long)r.Span[0]!)
-                        .ToImmutableArray();
-                    //  Then, let's find which ones are deleted
-                    var deletedRecordIds = Database.TombstoneTable.Query(tx)
-                        .Where(pf => pf.Equal(t => t.TableName, parentSchema.TableName))
-                        .Where(pf => pf.In(t => t.DeletedRecordId, blockRecordIds))
-                        .Select(t => t.DeletedRecordId)
-                        .ToImmutableArray();
-                    var blockBuilder = new BlockBuilder(parentSchema);
-
-                    //  Hard delete those records
-                    blockBuilder.AppendBlock(block);
-                    blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
-                    Database.DeleteTombstoneRecords(parentSchema.TableName, deletedRecordIds, tx);
-
-                    return ((IBlock)blockBuilder).RecordCount > 0
-                        ? new BlockBuilderFacade(Database, blockBuilder)
-                        : null;
+                    return ((IBlockFacade)this).ForceCompact(tx);
                 }
                 else
                 {
@@ -80,9 +48,34 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
 
-            (MergeResult, IBlockFacade? resultingBlock) IBlockFacade.Merge(IBlockFacade right)
+            BlockBuilderFacade? IBlockFacade.ForceCompact(TransactionContext tx)
             {
-                throw new NotImplementedException();
+                var parentSchema = MetaDataBlock.Schema.ParentSchema;
+                var block = Database.GetOrLoadBlock(MetaDataBlock.BlockId, parentSchema);
+                //  First let's find the record IDs in the block
+                var blockRecordIds = block.Project(
+                    new object?[1],
+                    [parentSchema.RecordIdColumnIndex],
+                    Enumerable.Range(0, block.RecordCount),
+                    0)
+                    .Select(r => (long)r.Span[0]!)
+                    .ToImmutableArray();
+                //  Then, let's find which ones are deleted
+                var deletedRecordIds = Database.TombstoneTable.Query(tx)
+                    .Where(pf => pf.Equal(t => t.TableName, parentSchema.TableName))
+                    .Where(pf => pf.In(t => t.DeletedRecordId, blockRecordIds))
+                    .Select(t => t.DeletedRecordId)
+                    .ToImmutableArray();
+                var blockBuilder = new BlockBuilder(parentSchema);
+
+                //  Hard delete those records
+                blockBuilder.AppendBlock(block);
+                blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
+                Database.DeleteTombstoneRecords(parentSchema.TableName, deletedRecordIds, tx);
+
+                return ((IBlock)blockBuilder).RecordCount > 0
+                    ? new BlockBuilderFacade(Database, blockBuilder)
+                    : null;
             }
 
             MetaDataBlockFacade IBlockFacade.Persist(TransactionContext tx)
@@ -122,9 +115,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 return this;
             }
 
-            (MergeResult, IBlockFacade? resultingBlock) IBlockFacade.Merge(IBlockFacade right)
+            BlockBuilderFacade? IBlockFacade.ForceCompact(TransactionContext tx)
             {
-                throw new NotImplementedException();
+                return this;
             }
 
             MetaDataBlockFacade IBlockFacade.Persist(TransactionContext tx)
@@ -146,6 +139,19 @@ namespace TrackDb.Lib.DataLifeCycle
                 var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
 
                 return new MetaDataBlockFacade(Database, metaBlock);
+            }
+
+            public BlockBuilderFacade Merge(
+                BlockBuilderFacade right,
+                TransactionContext tx)
+            {
+                var newBlockBuilder =
+                    new BlockBuilder(((IBlock)BlockBuilder).TableSchema);
+
+                newBlockBuilder.AppendBlock(BlockBuilder);
+                newBlockBuilder.AppendBlock(right.BlockBuilder);
+
+                return new BlockBuilderFacade(Database, newBlockBuilder);
             }
         }
         #endregion
@@ -311,12 +317,13 @@ namespace TrackDb.Lib.DataLifeCycle
             var newBlockIds = mergedMetaBlocks
                 .Select(m => m.BlockId)
                 .ToImmutableArray();
-            var hasChanged = !new HashSet<int>(originalBlockIds).SetEquals(newBlockIds);
+            var removedBlockIds = originalBlockIds.Except(newBlockIds);
 
-            if (hasChanged)
+            if (removedBlockIds.Any())
             {
                 var newMetadataBlockBuilder = new BlockBuilder(metaSchema);
 
+                Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
                 foreach (var metaBlock in mergedMetaBlocks)
                 {
                     newMetadataBlockBuilder.AppendRecord(
@@ -415,23 +422,33 @@ namespace TrackDb.Lib.DataLifeCycle
                         {
                             if (leftBlock.ComputeSize() + rightBlock.ComputeSize() <= maxBlockSize)
                             {
-                                (var result, var resultingBlock) = leftBlock.Merge(rightBlock);
+                                var leftCompacted = leftBlock.ForceCompact(tx);
+                                var rightCompacted = rightBlock.ForceCompact(tx);
 
-                                switch (result)
+                                if (leftCompacted == null && rightCompacted != null)
                                 {
-                                    case MergeResult.MergeSucceeded:
-                                        blockStack.Push(resultingBlock!);
-                                        break;
-                                    case MergeResult.MergeEmpty:
-                                        //  Both blocks disappeared
-                                        break;
-                                    case MergeResult.MergeFailed:
-                                        //  Blocks can't be merged
+                                    blockStack.Push(rightCompacted);
+                                }
+                                else if (leftCompacted != null && rightCompacted == null)
+                                {
+                                    blockStack.Push(leftCompacted);
+                                }
+                                else if (leftCompacted != null && rightCompacted != null)
+                                {
+                                    var resultingBlock = leftCompacted.Merge(rightCompacted, tx);
+
+                                    if (((IBlockFacade)resultingBlock).ComputeSize() <= maxBlockSize)
+                                    {
+                                        blockStack.Push(leftCompacted);
+                                    }
+                                    else
+                                    {   //  Blocks can't be merged
                                         processedBlocks.Add(leftBlock.Persist(tx).MetaDataBlock);
                                         blockStack.Push(rightBlock);
-                                        break;
-                                    default:
-                                        throw new NotSupportedException(result.ToString());
+                                    }
+                                }
+                                else
+                                {   //  Nothing:  both blocks disappeared
                                 }
                             }
                             else
