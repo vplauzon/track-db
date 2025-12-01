@@ -284,6 +284,8 @@ namespace TrackDb.Lib.DataLifeCycle
                             .TransactionTableLogMap[metadataTable.Schema.TableName]
                             .NewDataBlock
                             .AppendBlock(newBlockBuilder);
+
+                        return true;
                     }
                     else
                     {
@@ -358,7 +360,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
                 var metaDataBlocks = metadataTable.Query(tx)
                     .WithInMemoryOnly()
-                    .Select(r => new MetaDataBlock(r, metadataTableSchema))
+                    .Select(r => new MetaDataBlock(r.ToArray(), metadataTableSchema))
                     .ToImmutableArray();
 
                 return metaDataBlocks;

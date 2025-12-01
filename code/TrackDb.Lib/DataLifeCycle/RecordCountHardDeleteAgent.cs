@@ -33,18 +33,24 @@ namespace TrackDb.Lib.DataLifeCycle
             int maxTombstonedRecords,
             TransactionContext tx)
         {
+            var doIncludeSystemTables = !doHardDeleteAll;
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var tombstoneCardinality = Database.TombstoneTable.Query(tx)
+                .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .Count();
 
             if (doHardDeleteAll && tombstoneCardinality > 0)
             {
-                FindBlock((int)tombstoneCardinality, tx);
+                CleanOneBlock((int)tombstoneCardinality, doIncludeSystemTables, tx);
 
                 return true;
             }
             else if (tombstoneCardinality > maxTombstonedRecords)
             {
-                FindBlock((int)(tombstoneCardinality - maxTombstonedRecords), tx);
+                CleanOneBlock(
+                    (int)(tombstoneCardinality - maxTombstonedRecords),
+                    doIncludeSystemTables,
+                    tx);
 
                 return true;
             }
@@ -54,9 +60,14 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void FindBlock(int recordCountToHardDelete, TransactionContext tx)
+        private void CleanOneBlock(
+            int recordCountToHardDelete,
+            bool doIncludeSystemTables,
+            TransactionContext tx)
         {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var topBlocks = Database.TombstoneTable.Query(tx)
+                .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 //  Count records per block
                 .CountBy(t => (t.TableName, t.BlockId ?? 0))
                 .Select(p => new
@@ -102,7 +113,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var blockMergingLogic = new BlockMergingLogic(Database);
 
-            if (blockMergingLogic.CompactBlock(tableName, blockId, otherBlockIds, tx))
+            if (!blockMergingLogic.CompactBlock(tableName, blockId, otherBlockIds, tx))
             {
                 throw new NotImplementedException();
             }
