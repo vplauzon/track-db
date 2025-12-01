@@ -288,8 +288,34 @@ namespace TrackDb.Lib.DataLifeCycle
                         return true;
                     }
                     else
-                    {
-                        throw new NotImplementedException();
+                    {   //  Climb the hierarchy
+                        var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                        var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
+                        var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
+                        var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
+                        var predicate = new BinaryOperatorPredicate(
+                            schema.BlockIdColumnIndex,
+                            metaBlockId,
+                            BinaryOperator.Equal);
+                        var result = metaMetaDataTable.Query(tx)
+                            .WithPredicate(predicate)
+                            .WithProjection([schema.ParentBlockIdColumnIndex])
+                            .FirstOrDefault();
+
+                        if (result.Length == 0)
+                        {
+                            throw new InvalidOperationException($"Can't query meta block");
+                        }
+
+                        var metaMetaBlockId = (int)result.Span[0]!;
+
+                        return MergeBlocksWithReplacements(
+                            metaMetaDataTableName,
+                            metaMetaBlockId != 0 ? metaMetaBlockId : null,
+                            Array.Empty<int>(),
+                            [metaBlockId.Value],
+                            [newBlockBuilder],
+                            tx);
                     }
                 }
             }
@@ -350,13 +376,26 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             if (metaBlockId != null)
             {
-                throw new NotImplementedException();
+                var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                var metaMetadataTableName = tableMap[metadataTableName].MetaDataTableName;
+                var metaMetadataTable = Database.GetAnyTable(metaMetadataTableName!);
+                var metadataTable = Database.GetAnyTable(metadataTableName!);
+                var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
+                var block = Database.GetOrLoadBlock(metaBlockId.Value, metadataTable.Schema);
+                var results = block.Project(
+                    new object?[metadataTable.Schema.Columns.Count],
+                    Enumerable.Range(0, metadataTable.Schema.Columns.Count).ToImmutableArray(),
+                    Enumerable.Range(0, block.RecordCount),
+                    0);
+                var metaDataBlocks = results
+                    .Select(r => new MetaDataBlock(r.ToArray(), metadataTableSchema))
+                    .ToImmutableArray();
+
+                return metaDataBlocks;
             }
             else
             {
-                var metadataTable = Database.GetDatabaseStateSnapshot()
-                .TableMap[metadataTableName]
-                .Table;
+                var metadataTable = Database.GetAnyTable(metadataTableName);
                 var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
                 var metaDataBlocks = metadataTable.Query(tx)
                     .WithInMemoryOnly()
