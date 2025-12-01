@@ -29,6 +29,7 @@ namespace TrackDb.Lib
         private readonly TransactionContext? _tx;
         private readonly bool _canDelete;
         private readonly bool _inMemoryOnly;
+        private readonly bool _committedOnly;
         private readonly QueryPredicate _predicate;
         private readonly IImmutableList<int> _projectionColumnIndexes;
         private readonly IImmutableList<SortColumn> _sortColumns;
@@ -46,6 +47,7 @@ namespace TrackDb.Lib
                   tx,
                   canDelete,
                   false,
+                  false,
                   AllInPredicate.Instance,
                   Enumerable.Range(0, table.Schema.Columns.Count),
                   Array.Empty<SortColumn>(),
@@ -60,6 +62,7 @@ namespace TrackDb.Lib
             TransactionContext? tx,
             bool canDelete,
             bool inMemoryOnly,
+            bool notInTransactionOnly,
             QueryPredicate predicate,
             IEnumerable<int> projectionColumnIndexes,
             IEnumerable<SortColumn> sortColumns,
@@ -71,6 +74,7 @@ namespace TrackDb.Lib
             _tx = tx;
             _canDelete = canDelete;
             _inMemoryOnly = inMemoryOnly;
+            _committedOnly = notInTransactionOnly;
             _predicate = predicate.Simplify() ?? predicate;
             _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
             _sortColumns = sortColumns.ToImmutableArray();
@@ -88,6 +92,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -103,6 +108,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 _predicate,
                 projectionColumnIndexes.ToImmutableArray(),
                 _sortColumns,
@@ -118,6 +124,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 sortColumns,
@@ -133,6 +140,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -148,6 +156,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -163,6 +172,7 @@ namespace TrackDb.Lib
                 _tx,
                 _canDelete,
                 _inMemoryOnly,
+                _committedOnly,
                 _predicate,
                 _projectionColumnIndexes,
                 _sortColumns,
@@ -177,6 +187,23 @@ namespace TrackDb.Lib
                 _table,
                 _tx,
                 _canDelete,
+                true,
+                _committedOnly,
+                _predicate,
+                _projectionColumnIndexes,
+                _sortColumns,
+                _takeCount,
+                true,
+                _queryTag);
+        }
+
+        internal TableQuery WithCommittedOnly()
+        {
+            return new TableQuery(
+                _table,
+                _tx,
+                _canDelete,
+                _inMemoryOnly,
                 true,
                 _predicate,
                 _projectionColumnIndexes,
@@ -431,7 +458,7 @@ namespace TrackDb.Lib
             var blockId = 0;
 
             foreach (var block in
-                transactionState.ListBlocks(_table.Schema.TableName))
+                transactionState.ListBlocks(_table.Schema.TableName, _committedOnly))
             {
                 yield return new IdentifiedBlock(blockId--, block);
             }

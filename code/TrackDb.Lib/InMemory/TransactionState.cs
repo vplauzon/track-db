@@ -17,7 +17,7 @@ namespace TrackDb.Lib.InMemory
         {
         }
 
-        public IEnumerable<IBlock> ListBlocks(string tableName)
+        public IEnumerable<IBlock> ListBlocks(string tableName, bool isCommittedOnly)
         {
             var doOverrideCommitted = false;
 
@@ -25,7 +25,10 @@ namespace TrackDb.Lib.InMemory
                 .TransactionTableLogMap
                 .TryGetValue(tableName, out var ttl))
             {
-                yield return ttl.NewDataBlock;
+                if (!isCommittedOnly)
+                {
+                    yield return ttl.NewDataBlock;
+                }
                 if (ttl.CommittedDataBlock != null)
                 {
                     doOverrideCommitted = true;

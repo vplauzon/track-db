@@ -153,6 +153,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
                     var oldestRecord = table.Query(tx)
                         .WithInMemoryOnly()
+                        .WithCommittedOnly()
                         .WithSortColumns([sortColumn])
                         .WithProjection([table.Schema.CreationTimeColumnIndex])
                         .Take(1)

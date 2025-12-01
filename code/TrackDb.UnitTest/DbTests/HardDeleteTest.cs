@@ -164,7 +164,7 @@ namespace TrackDb.UnitTest.DbTests
                 {
                     Assert.False(
                         tc.TransactionState.ListBlocks(
-                            db.PrimitiveTable.Schema.TableName).Any());
+                            db.PrimitiveTable.Schema.TableName, false).Any());
                 }
             }
         }
