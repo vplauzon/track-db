@@ -63,7 +63,11 @@ namespace TrackDb.UnitTest.DbTests
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
-                Assert.Equal(1, db.Database.TombstoneTable.Query().Count());
+                Assert.Equal(
+                    0,
+                    db.Database.TombstoneTable.Query()
+                    .Where(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
+                    .Count());
             }
         }
 
@@ -91,7 +95,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.Query()
                     .Where(pf => pf.In(
                         r => r.Integer,
-                        Enumerable.Range(0, LOOP_SIZE).Select(i => i * 2)))
+                        Enumerable.Range(0, LOOP_SIZE).Select(i => 2 * i)))
                     .Delete();
 
                 Assert.Equal(LOOP_SIZE, db.PrimitiveTable.Query().Count());

@@ -441,7 +441,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                                     if (((IBlockFacade)resultingBlock).ComputeSize() <= maxBlockSize)
                                     {
-                                        blockStack.Push(leftCompacted);
+                                        blockStack.Push(resultingBlock);
                                     }
                                     else
                                     {   //  Blocks can't be merged
