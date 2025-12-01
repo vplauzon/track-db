@@ -239,6 +239,7 @@ namespace TrackDb.Lib
         private int GetAvailableBlockId(TransactionContext tx)
         {
             var availableBlock = _availableBlockTable.Query(tx)
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(1)
                 .FirstOrDefault();
 

@@ -37,16 +37,16 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Take(1)
                     .First();
                 var argMaxTableName = oldestRecord!.TableName;
-                var argMaxBlockId = oldestRecord!.BlockId!.Value;
+                var argMaxBlockId = oldestRecord!.BlockId;
                 var hasNullBlockIds = oldTombstoneRecords
                     .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))
                     .Where(pf => pf.Equal(t => t.BlockId, null))
                     .Any();
 
-                if (hasNullBlockIds)
+                if (argMaxBlockId == null || hasNullBlockIds)
                 {
                     var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
-                    
+
                     tombstoneBlockFixLogic.FixNullBlockIds(argMaxTableName, tx);
                 }
                 else
@@ -61,7 +61,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                     if (!blockMergingLogic.CompactBlock(
                         argMaxTableName,
-                        argMaxBlockId,
+                        argMaxBlockId.Value,
                         otherBlockIds,
                         tx))
                     {

@@ -14,12 +14,11 @@ namespace TrackDb.UnitTest.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
-                var forcedActivity = DataManagementActivity.PersistAllNonMetaData
-                    | DataManagementActivity.PersistAllMetaDataFirstLevel;
                 var record = new TestDatabase.Primitives(1);
 
                 db.PrimitiveTable.AppendRecord(record);
-                await db.Database.ForceDataManagementAsync(forcedActivity);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
 
                 var state = db.Database.GetDatabaseStateSnapshot();
                 var map = state.TableMap;
