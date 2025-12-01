@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.Predicate;
+using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -17,7 +19,8 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="tableName"></param>
         /// <param name="tx"></param>
         public void FixNullBlockIds(string tableName, TransactionContext tx)
-        {
+        {   //  First eliminate the nulls being from in-memory blocks by
+            //  merging in-memory blocks together
             tx.LoadCommittedBlocksInTransaction(tableName);
 
             var orphansDeletedRecordId = Database.TombstoneTable.Query(tx)
@@ -30,6 +33,46 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 throw new NotImplementedException();
             }
+        }
+
+        /// <summary>
+        /// Fix block ID in tombstone which isn't valid anymore by searching for the
+        /// record IDs directly.
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="blockId"></param>
+        /// <param name="tx"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        public void FixBlockId(string tableName, int blockId, TransactionContext tx)
+        {   //  Load the tombstone table in-memory so we can delete in-place
+            tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
+
+            var orphansDeletedRecordIdMap = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Where(pf => pf.Equal(t => t.BlockId, blockId))
+                .ToImmutableDictionary(t => t.DeletedRecordId, t => t.Timestamp);
+            var table = Database.GetAnyTable(tableName);
+            var predicate = new InPredicate(
+                table.Schema.RecordIdColumnIndex,
+                orphansDeletedRecordIdMap.Keys.Cast<object?>());
+            var projectionColumnIndexes = new[]
+            {
+                table.Schema.RecordIdColumnIndex,
+                table.Schema.ParentBlockIdColumnIndex
+            };
+            var newTombstoneRecords = table.Query(tx)
+                .WithIgnoreDeleted()
+                .WithPredicate(predicate)
+                .WithProjection(projectionColumnIndexes)
+                .Select(r => new TombstoneRecord(
+                    (long)r.Span[0]!,
+                    tableName,
+                    (int)r.Span[1]!,
+                    orphansDeletedRecordIdMap[(long)r.Span[0]!]));
+
+            //  Delete those records in tombstone table
+            Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordIdMap.Keys, tx);
+            Database.TombstoneTable.AppendRecords(newTombstoneRecords, tx);
         }
     }
 }
