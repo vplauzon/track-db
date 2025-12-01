@@ -16,9 +16,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(
-            DataManagementActivity forcedActivity,
-            TransactionContext tx)
+        public override void Run(DataManagementActivity forcedActivity, TransactionContext tx)
         {
             while (true)
             {
