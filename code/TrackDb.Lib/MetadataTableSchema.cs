@@ -10,7 +10,6 @@ namespace TrackDb.Lib
 {
     internal class MetadataTableSchema : TableSchema
     {
-        private const string RECORD_ID = "$recordId";
         private const string ITEM_COUNT = "$itemCount";
         private const string SIZE = "$size";
         private const string BLOCK_ID = "$blockId";
@@ -45,12 +44,7 @@ namespace TrackDb.Lib
                 }
             }
             var isParentMeta = parentSchema is MetadataTableSchema;
-            var existingColumns = isParentMeta
-                ? parentSchema.ColumnProperties
-                : parentSchema.ColumnProperties
-                //  Add record ID
-                .Append(new(new(RECORD_ID, typeof(long)), ColumnSchemaStat.Data));
-            var inheritedMetaDataColumns = existingColumns
+            var inheritedMetaDataColumns = parentSchema.ColumnProperties
                 .Where(c => c.ColumnSchema.IsIndexed)
                 .Select(c => CreateMetaColumn(c));
             var newDataColumns = new ColumnSchemaProperties[]
@@ -79,7 +73,7 @@ namespace TrackDb.Lib
             TableSchema parentSchema,
             string tableName,
             IEnumerable<ColumnSchemaProperties> columnProperties)
-            : base(tableName, columnProperties, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty)
+            : base(tableName, columnProperties, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty, false)
         {
             ParentSchema = parentSchema;
         }
@@ -156,11 +150,8 @@ namespace TrackDb.Lib
                 }
             }
 
-            var columnPropertiesWithRecordId = ParentSchema.ColumnProperties
-                .Append(new(new("creationTime", typeof(DateTime), false), ColumnSchemaStat.Data))
-                .Append(new(new("$recordId", typeof(long), true), ColumnSchemaStat.Data));
-            var stats = columnMinima
-                .Zip(columnMaxima, columnPropertiesWithRecordId)
+            var indexedColumns = columnMinima
+                .Zip(columnMaxima, ParentSchema.ColumnProperties)
                 .Select(b => new
                 {
                     Properties = b.Third,
@@ -168,7 +159,8 @@ namespace TrackDb.Lib
                     Maximum = b.Second
                 })
                 //  We discard columns that are not indexed
-                .Where(o => o.Properties.ColumnSchema.IsIndexed)
+                .Where(o => o.Properties.ColumnSchema.IsIndexed);
+            var stats = indexedColumns
                 .Select(o => CreateMetaColumnValues(o.Properties, o.Minimum, o.Maximum))
                 .SelectMany(c => c);
             var statsWithExtraColumns = stats
@@ -176,6 +168,14 @@ namespace TrackDb.Lib
                 .Append(size)
                 .Append(blockId);
             var record = statsWithExtraColumns.ToArray();
+
+            #region DEBUG
+            if (record.Length != Columns.Count)
+            {
+                throw new InvalidOperationException(
+                    $"Meta schema should be {Columns.Count} but is {record.Length} columns");
+            }
+            #endregion
 
             return record;
         }

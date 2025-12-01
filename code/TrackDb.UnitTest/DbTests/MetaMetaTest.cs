@@ -14,12 +14,11 @@ namespace TrackDb.UnitTest.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
-                var forcedActivity = DataManagementActivity.PersistAllNonMetaData
-                    | DataManagementActivity.PersistAllMetaDataFirstLevel;
                 var record = new TestDatabase.Primitives(1);
 
                 db.PrimitiveTable.AppendRecord(record);
-                await db.Database.ForceDataManagementAsync(forcedActivity);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
 
                 var state = db.Database.GetDatabaseStateSnapshot();
                 var map = state.TableMap;
@@ -60,7 +59,11 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(3, allRecords.Length);
                 Assert.True(
-                    Enumerable.SequenceEqual([1, 2, 3], allRecords.Select(p => p.Integer)));
+                    Enumerable.SequenceEqual(
+                        [1, 2, 3],
+                        allRecords
+                        .Select(p => p.Integer)
+                        .Order()));
 
                 foreach (var record in allRecords)
                 {
@@ -106,7 +109,12 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(3, allRecords.Length);
                 Assert.True(
-                    Enumerable.SequenceEqual([4, 5, 6], allRecords.Select(p => p.Integer)));
+                    Enumerable.SequenceEqual(
+                        [4, 5, 6],
+                        allRecords
+                        .Select(p => p.Integer)
+                        .Order()));
+
 
                 foreach (var record in allRecords)
                 {

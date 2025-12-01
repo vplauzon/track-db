@@ -14,6 +14,9 @@ namespace TrackDb.Lib
     {
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
 
+        internal protected const string CREATION_TIME = "$creationTime";
+        internal protected const string RECORD_ID = "$recordId";
+
         public TableSchema(
             string tableName,
             IEnumerable<ColumnSchema> columns,
@@ -23,7 +26,8 @@ namespace TrackDb.Lib
                   tableName,
                   columns.Select(c => new ColumnSchemaProperties(c, ColumnSchemaStat.Data)),
                   primaryKeyColumnIndexes.ToImmutableArray(),
-                  partitionKeyColumnIndexes.ToImmutableArray())
+                  partitionKeyColumnIndexes.ToImmutableArray(),
+                  true)
         {
         }
 
@@ -31,7 +35,8 @@ namespace TrackDb.Lib
             string tableName,
             IEnumerable<ColumnSchemaProperties> columnProperties,
             IEnumerable<int> primaryKeyColumnIndexes,
-            IEnumerable<int> partitionKeyColumnIndexes)
+            IEnumerable<int> partitionKeyColumnIndexes,
+            bool areExtraColumnsIndexed)
         {
             //  Validate column types
             var unsupportedColumns = columnProperties
@@ -78,7 +83,10 @@ namespace TrackDb.Lib
 
             TableName = tableName;
             Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
-            ColumnProperties = columnProperties.ToImmutableArray();
+            ColumnProperties = columnProperties
+                .Append(new(new(CREATION_TIME, typeof(DateTime), areExtraColumnsIndexed), ColumnSchemaStat.Data))
+                .Append(new(new(RECORD_ID, typeof(long), areExtraColumnsIndexed), ColumnSchemaStat.Data))
+                .ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();
             _columnNameToColumnIndexMap = Columns

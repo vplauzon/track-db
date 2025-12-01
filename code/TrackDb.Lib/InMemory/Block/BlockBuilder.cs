@@ -208,9 +208,7 @@ namespace TrackDb.Lib.InMemory.Block
 
                 columnStatsBuilder.Add(
                     dataColumn.SerializeSegment(ref writer, skipRows, takeRows));
-                columnsPayloadSizePlaceholder.SetValue(
-                    i,
-                    (ushort)(writer.Position - sizeBefore));
+                columnsPayloadSizePlaceholder.SetValue(i, (ushort)(writer.Position - sizeBefore));
                 ++i;
             }
 
