@@ -59,7 +59,11 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Equal(3, allRecords.Length);
                 Assert.True(
-                    Enumerable.SequenceEqual([1, 2, 3], allRecords.Select(p => p.Integer)));
+                    Enumerable.SequenceEqual(
+                        [1, 2, 3],
+                        allRecords
+                        .Select(p => p.Integer)
+                        .Order()));
 
                 foreach (var record in allRecords)
                 {
