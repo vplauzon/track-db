@@ -115,7 +115,9 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (!blockMergingLogic.CompactBlock(tableName, blockId, otherBlockIds, tx))
             {
-                throw new NotImplementedException();
+                var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
+
+                tombstoneBlockFixLogic.FixBlockId(tableName, blockId, tx);
             }
         }
     }
