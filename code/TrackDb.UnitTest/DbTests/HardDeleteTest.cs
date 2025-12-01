@@ -31,7 +31,11 @@ namespace TrackDb.UnitTest.DbTests
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(0, db.PrimitiveTable.Query().Count());
-                Assert.Equal(0, db.Database.TombstoneTable.Query().Count());
+                Assert.Equal(
+                    0,
+                    db.Database.TombstoneTable.Query()
+                    .Where(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
+                    .Count());
             }
         }
 

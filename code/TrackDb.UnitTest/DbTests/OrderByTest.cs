@@ -153,7 +153,7 @@ namespace TrackDb.UnitTest.DbTests
                     ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
-                //  Delete bunch of records
+                //  Delete bunch of records (all greater than 90)
                 db.MultiIntegerTable.Query()
                     .Where(pf => pf.GreaterThan(m => m.Integer1, 90))
                     .Delete();
