@@ -25,10 +25,12 @@ namespace TrackDb.UnitTest.VolumeTests
             int RequestCode,
             RequestStatus RequestStatus);
         
-        public record RequestDocument(int EmployeeId, int RequestCode, string Document);
+        public record Document(int EmployeeId, int RequestCode, string DocumentContent);
         #endregion
 
         private const string EMPLOYEE_TABLE = "Employee";
+        private const string REQUEST_TABLE = "Request";
+        private const string DOCUMENT_TABLE = "Document";
 
         #region Constructor
         public static async Task<VolumeTestDatabase> CreateAsync(
@@ -42,7 +44,11 @@ namespace TrackDb.UnitTest.VolumeTests
             var db = await Database.CreateAsync(
                 modifiedDataPolicy,
                 TypedTableSchema<Employee>.FromConstructor(EMPLOYEE_TABLE)
-                .AddPrimaryKeyProperty(p => p.Id));
+                .AddPrimaryKeyProperty(p => p.Id),
+                TypedTableSchema<Request>.FromConstructor(REQUEST_TABLE)
+                .AddPrimaryKeyProperty(p => p.RequestCode),
+                TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE)
+                .AddPrimaryKeyProperty(p => p.RequestCode));
 
             return new VolumeTestDatabase(db);
         }
@@ -62,5 +68,11 @@ namespace TrackDb.UnitTest.VolumeTests
 
         public TypedTable<Employee> EmployeeTable
             => Database.GetTypedTable<Employee>(EMPLOYEE_TABLE);
+
+        public TypedTable<Request> RequestTable
+            => Database.GetTypedTable<Request>(REQUEST_TABLE);
+
+        public TypedTable<Document> DocumentTable
+            => Database.GetTypedTable<Document>(DOCUMENT_TABLE);
     }
 }
