@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.UnitTest.DbTests.VolumeTests
+namespace TrackDb.UnitTest.VolumeTests
 {
     public class AppendTest
     {
@@ -14,22 +14,19 @@ namespace TrackDb.UnitTest.DbTests.VolumeTests
         [InlineData(true)]
         public async Task AppendBunch(bool doPushPendingData)
         {
-            await using (var db = await TestDatabase.CreateAsync())
+            await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 var random = new Random();
                 var records = Enumerable.Range(0, 5000)
-                    .Select(i => new TestDatabase.CompoundKeys(
-                        new TestDatabase.VersionedName(i, new TestDatabase.FullName(
-                            $"Bob{i}", $"Smith{i + 50}")),
-                        (short)random.Next(10000)))
+                    .Select(i => new VolumeTestDatabase.Employee(i, $"Bob{i} Smith{i + 50}"))
                     .ToImmutableArray();
 
-                db.CompoundKeyTable.AppendRecords(records);
+                db.EmployeeTable.AppendRecords(records);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
 
-                var resultsAll = db.CompoundKeyTable.Query()
+                var resultsAll = db.EmployeeTable.Query()
                     .ToImmutableList();
 
                 Assert.Equal(records.Length, resultsAll.Count);
@@ -45,32 +42,32 @@ namespace TrackDb.UnitTest.DbTests.VolumeTests
         [Fact]
         public async Task AppendAndQuery()
         {
-            await using (var db = await TestDatabase.CreateAsync())
+            await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 const int TOTAL = 10000;
                 const int BATCH = 200;
 
                 var random = new Random();
                 var records = Enumerable.Range(0, TOTAL)
-                    .Select(i => new TestDatabase.Primitives(
+                    .Select(i => new VolumeTestDatabase.Employee(
                         random.Next(20000),
-                        random.Next(2) == 1 ? 42 : null))
+                        $"Bob-{random.Next(100)}"))
                     .ToImmutableArray();
 
                 for (var i = 0; i != TOTAL / BATCH; ++i)
                 {
-                    db.PrimitiveTable.AppendRecords(records.Skip(i * BATCH).Take(BATCH));
+                    db.EmployeeTable.AppendRecords(records.Skip(i * BATCH).Take(BATCH));
                     await db.Database.ForceDataManagementAsync(
                         DataManagementActivity.PersistAllNonMetaData);
                 }
 
-                var resultsAll = db.PrimitiveTable.Query()
+                var resultsAll = db.EmployeeTable.Query()
                     .ToImmutableList();
 
                 Assert.Equal(records.Length, resultsAll.Count);
                 Assert.Equal(
-                    records.Sum(r => (long)r.Integer),
-                    resultsAll.Sum(r => (long)r.Integer));
+                    records.Sum(r => (long)r.Id),
+                    resultsAll.Sum(r => (long)r.Id));
              
                 Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
             }
