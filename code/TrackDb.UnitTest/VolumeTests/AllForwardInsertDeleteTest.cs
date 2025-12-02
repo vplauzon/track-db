@@ -10,9 +10,33 @@ namespace TrackDb.UnitTest.VolumeTests
     public class AllForwardInsertDeleteTest
     {
         [Fact]
-        public async Task Test00010()
+        public async Task Test000010()
         {
             await RunPerformanceTestAsync(10);
+        }
+
+        [Fact]
+        public async Task Test000100()
+        {
+            await RunPerformanceTestAsync(100);
+        }
+
+        [Fact]
+        public async Task Test001000()
+        {
+            await RunPerformanceTestAsync(1000);
+        }
+
+        [Fact]
+        public async Task Test010000()
+        {
+            await RunPerformanceTestAsync(10000);
+        }
+
+        [Fact]
+        public async Task Test100000()
+        {
+            await RunPerformanceTestAsync(100000);
         }
 
         private async Task RunPerformanceTestAsync(long cycleCount)
