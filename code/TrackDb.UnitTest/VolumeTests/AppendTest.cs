@@ -18,7 +18,9 @@ namespace TrackDb.UnitTest.VolumeTests
             {
                 var random = new Random();
                 var records = Enumerable.Range(0, 5000)
-                    .Select(i => new VolumeTestDatabase.Employee(i, $"Bob{i} Smith{i + 50}"))
+                    .Select(i => new VolumeTestDatabase.Employee(
+                        $"Emp-{i}",
+                        $"Bob{i} Smith{i + 50}"))
                     .ToImmutableArray();
 
                 db.EmployeeTable.AppendRecords(records);
@@ -50,7 +52,7 @@ namespace TrackDb.UnitTest.VolumeTests
                 var random = new Random();
                 var records = Enumerable.Range(0, TOTAL)
                     .Select(i => new VolumeTestDatabase.Employee(
-                        random.Next(20000),
+                        $"Emp-{random.Next(20000)}",
                         $"Bob-{random.Next(100)}"))
                     .ToImmutableArray();
 
@@ -66,8 +68,8 @@ namespace TrackDb.UnitTest.VolumeTests
 
                 Assert.Equal(records.Length, resultsAll.Count);
                 Assert.Equal(
-                    records.Sum(r => (long)r.Id),
-                    resultsAll.Sum(r => (long)r.Id));
+                    records.Sum(r => long.Parse(r.EmployeeId.Split('-')[1])),
+                    resultsAll.Sum(r => long.Parse(r.EmployeeId.Split('-')[1])));
              
                 Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
             }

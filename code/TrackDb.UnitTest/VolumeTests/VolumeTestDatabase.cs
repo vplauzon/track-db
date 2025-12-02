@@ -11,7 +11,7 @@ namespace TrackDb.UnitTest.VolumeTests
     internal class VolumeTestDatabase : IAsyncDisposable
     {
         #region Entity types
-        public record Employee(int Id, string Name);
+        public record Employee(string EmployeeId, string Name);
         
         public enum RequestStatus
         {
@@ -21,11 +21,11 @@ namespace TrackDb.UnitTest.VolumeTests
         }
 
         public record Request(
-            int EmployeeId,
-            int RequestCode,
+            string EmployeeId,
+            string RequestCode,
             RequestStatus RequestStatus);
         
-        public record Document(int EmployeeId, int RequestCode, string DocumentContent);
+        public record Document(string RequestCode, string DocumentContent);
         #endregion
 
         private const string EMPLOYEE_TABLE = "Employee";
@@ -44,11 +44,10 @@ namespace TrackDb.UnitTest.VolumeTests
             var db = await Database.CreateAsync(
                 modifiedDataPolicy,
                 TypedTableSchema<Employee>.FromConstructor(EMPLOYEE_TABLE)
-                .AddPrimaryKeyProperty(p => p.Id),
+                .AddPrimaryKeyProperty(p => p.EmployeeId),
                 TypedTableSchema<Request>.FromConstructor(REQUEST_TABLE)
                 .AddPrimaryKeyProperty(p => p.RequestCode),
-                TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE)
-                .AddPrimaryKeyProperty(p => p.RequestCode));
+                TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE));
 
             return new VolumeTestDatabase(db);
         }
