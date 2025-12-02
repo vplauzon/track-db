@@ -212,7 +212,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 return MergeBlocks(
                     metadataTableName,
-                    metaBlockId != 0 ? metaBlockId : null,
+                    metaBlockId > 0 ? metaBlockId : null,
                     otherBlockIdsToCompact.Prepend(blockId),
                     tx);
             }
@@ -311,7 +311,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                         return MergeBlocksWithReplacements(
                             metaMetaDataTableName,
-                            metaMetaBlockId != 0 ? metaMetaBlockId : null,
+                            metaMetaBlockId > 0 ? metaMetaBlockId : null,
                             Array.Empty<int>(),
                             [metaBlockId.Value],
                             [newBlockBuilder],
