@@ -12,6 +12,20 @@ namespace TrackDb.UnitTest.VolumeTests
     {
         #region Entity types
         public record Employee(int Id, string Name);
+        
+        public enum RequestStatus
+        {
+            Initiated,
+            Treating,
+            Completed
+        }
+
+        public record Request(
+            int EmployeeId,
+            int RequestCode,
+            RequestStatus RequestStatus);
+        
+        public record RequestDocument(int EmployeeId, int RequestCode, string Document);
         #endregion
 
         private const string EMPLOYEE_TABLE = "Employee";
