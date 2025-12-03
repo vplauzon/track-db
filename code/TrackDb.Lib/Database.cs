@@ -50,7 +50,7 @@ namespace TrackDb.Lib
             var userTables = schemas
                 .Select(s => CreateTable(s))
                 .ToImmutableArray();
-            var localFolder = Path.Combine(Path.GetTempPath(), $"track-db-{Guid.NewGuid()}");
+            var localFolder = Path.Combine(Path.GetTempPath(), "track-db", Guid.NewGuid().ToString());
 
             if (Directory.Exists(localFolder))
             {
@@ -237,9 +237,6 @@ namespace TrackDb.Lib
         #region Available Blocks
         private int GetAvailableBlockId(TransactionContext tx)
         {
-            var availableBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                .ToImmutableArray();
             var availableBlock = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(1)

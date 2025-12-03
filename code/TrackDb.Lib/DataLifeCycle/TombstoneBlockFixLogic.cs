@@ -36,6 +36,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     table.Schema.RecordIdColumnIndex,
                     orphansDeletedRecordMap.Keys.Cast<object?>());
                 var foundRecords = table.Query(tx)
+                    .WithIgnoreDeleted()
                     .WithPredicate(predicate)
                     .WithProjection([
                         table.Schema.RecordIdColumnIndex,
