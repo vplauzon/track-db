@@ -237,6 +237,9 @@ namespace TrackDb.Lib
         #region Available Blocks
         private int GetAvailableBlockId(TransactionContext tx)
         {
+            var availableBlocks = _availableBlockTable.Query(tx)
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
+                .ToImmutableArray();
             var availableBlock = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(1)
@@ -274,7 +277,9 @@ namespace TrackDb.Lib
 
             if (deletedUsedBlocks != blockIds.Count())
             {
-                throw new InvalidOperationException("Corrupted available blocks");
+                throw new InvalidOperationException(
+                    $"Corrupted available blocks:  {blockIds.Count()} to release from use, " +
+                    $"{deletedUsedBlocks} found");
             }
             _availableBlockTable.AppendRecords(
                 blockIds

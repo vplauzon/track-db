@@ -101,7 +101,7 @@ namespace TrackDb.Lib
                 _queryTag);
         }
 
-        public TableQuery WithProjection(IEnumerable<int> projectionColumnIndexes)
+        public TableQuery WithProjection(params IEnumerable<int> projectionColumnIndexes)
         {
             return new TableQuery(
                 _table,
@@ -294,20 +294,11 @@ namespace TrackDb.Lib
                             BlockId = (int)r.Span[1]!
                         })
                         .ToImmutableList();
-                        //  Hard delete the records that are uncommitted
-                        var committedHardDeletedRecordIds = transactionTableLog
-                        ?.CommittedDataBlock
-                        ?.DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
-                        .ToArray();
-                        //  Hard delete the records that are uncommitted
-                        var uncommittedHardDeletedRecordIds = transactionTableLog
+                        //  Hard delete the records that are uncommitted ONLY
+                        var hardDeletedRecordIds = transactionTableLog
                         ?.NewDataBlock
                         .DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
                         .ToArray();
-                        var hardDeletedRecordIds =
-                        (committedHardDeletedRecordIds ?? Array.Empty<long>())
-                        .Concat(uncommittedHardDeletedRecordIds ?? Array.Empty<long>())
-                        .ToImmutableHashSet();
 
                         foreach (var r in deletedRecordIds)
                         {
