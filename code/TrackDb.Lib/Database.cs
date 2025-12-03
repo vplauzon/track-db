@@ -8,7 +8,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Transactions;
 using TrackDb.Lib.DataLifeCycle;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
@@ -566,11 +565,11 @@ namespace TrackDb.Lib
             long recordId,
             int? blockId,
             string tableName,
-            TransactionContext tc)
+            TransactionContext tx)
         {
             TombstoneTable.AppendRecord(
                 new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
-                tc);
+                tx);
         }
 
         internal IEnumerable<long> GetDeletedRecordIds(

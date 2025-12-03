@@ -295,9 +295,18 @@ namespace TrackDb.Lib
                         })
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted
-                        var hardDeletedRecordIds = transactionTableLog
+                        var committedHardDeletedRecordIds = transactionTableLog
+                        ?.CommittedDataBlock
+                        ?.DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
+                        .ToArray();
+                        //  Hard delete the records that are uncommitted
+                        var uncommittedHardDeletedRecordIds = transactionTableLog
                         ?.NewDataBlock
                         .DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
+                        .ToArray();
+                        var hardDeletedRecordIds =
+                        (committedHardDeletedRecordIds ?? Array.Empty<long>())
+                        .Concat(uncommittedHardDeletedRecordIds ?? Array.Empty<long>())
                         .ToImmutableHashSet();
 
                         foreach (var r in deletedRecordIds)

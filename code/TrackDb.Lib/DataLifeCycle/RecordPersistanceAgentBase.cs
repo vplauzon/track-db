@@ -16,12 +16,15 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(DataManagementActivity forcedActivity, TransactionContext tx)
+        protected void RunPersistence(DataManagementActivity forcedActivity, TransactionContext tx)
         {
             while (true)
             {
                 var tableName = FindMergedCandidate(forcedActivity, tx);
 
+                if (tableName == "$availableBlock")
+                {
+                }
                 if (tableName != null)
                 {
                     PersistTable(tableName, tx);
