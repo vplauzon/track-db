@@ -71,7 +71,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  Hard delete those records
                 blockBuilder.AppendBlock(block);
                 blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
-                Database.DeleteTombstoneRecords(parentSchema.TableName, deletedRecordIds, tx);
 
                 return ((IBlock)blockBuilder).RecordCount > 0
                     ? new BlockBuilderFacade(Database, blockBuilder)
@@ -255,73 +254,83 @@ namespace TrackDb.Lib.DataLifeCycle
             IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
-            while (true)
+            var cumulatedRemovedBlockIds = new List<int>();
+
+            try
             {
-                var newBlockBuilder = MergeBlocksWithReplacementsOneLayer(
-                    metadataTableName,
-                    metaBlockId,
-                    blockIdsToCompact,
-                    blockIdsToRemove,
-                    blocksToAdd,
-                    tx);
-
-                if (newBlockBuilder == null)
-                {   //  Nothing changed
-                    return false;
-                }
-                else
+                while (true)
                 {
-                    if (metaBlockId == null)
-                    {   //  The top of the hierarchy
-                        var metadataTable = Database.GetAnyTable(metadataTableName);
+                    (var newBlockBuilder, var removedBlockIds) = MergeBlocksWithReplacementsOneLayer(
+                        metadataTableName,
+                        metaBlockId,
+                        blockIdsToCompact,
+                        blockIdsToRemove,
+                        blocksToAdd,
+                        tx);
 
-                        //  Delete all in-memory meta records
-                        metadataTable.Query(tx)
-                            .WithInMemoryOnly()
-                            .Delete();
-                        tx.LoadCommittedBlocksInTransaction(metadataTable.Schema.TableName);
-                        tx.TransactionState.UncommittedTransactionLog
-                            .TransactionTableLogMap[metadataTable.Schema.TableName]
-                            .NewDataBlock
-                            .AppendBlock(newBlockBuilder);
-
-                        return true;
+                    cumulatedRemovedBlockIds.AddRange(removedBlockIds);
+                    if (newBlockBuilder == null)
+                    {   //  Nothing changed
+                        return false;
                     }
                     else
-                    {   //  Climb the hierarchy
-                        var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                        var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
-                        var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
-                        var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
-                        var predicate = new BinaryOperatorPredicate(
-                            schema.BlockIdColumnIndex,
-                            metaBlockId,
-                            BinaryOperator.Equal);
-                        var result = metaMetaDataTable.Query(tx)
-                            .WithPredicate(predicate)
-                            .WithProjection([schema.ParentBlockIdColumnIndex])
-                            .FirstOrDefault();
+                    {
+                        if (metaBlockId == null)
+                        {   //  The top of the hierarchy
+                            var metadataTable = Database.GetAnyTable(metadataTableName);
 
-                        if (result.Length == 0)
-                        {
-                            throw new InvalidOperationException($"Can't query meta block");
+                            //  Delete all in-memory meta records
+                            metadataTable.Query(tx)
+                                .WithInMemoryOnly()
+                                .Delete();
+                            tx.LoadCommittedBlocksInTransaction(metadataTable.Schema.TableName);
+                            tx.TransactionState.UncommittedTransactionLog
+                                .TransactionTableLogMap[metadataTable.Schema.TableName]
+                                .NewDataBlock
+                                .AppendBlock(newBlockBuilder);
+
+                            return true;
                         }
+                        else
+                        {   //  Climb the hierarchy
+                            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                            var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
+                            var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
+                            var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
+                            var predicate = new BinaryOperatorPredicate(
+                                schema.BlockIdColumnIndex,
+                                metaBlockId,
+                                BinaryOperator.Equal);
+                            var result = metaMetaDataTable.Query(tx)
+                                .WithPredicate(predicate)
+                                .WithProjection([schema.ParentBlockIdColumnIndex])
+                                .FirstOrDefault();
 
-                        var metaMetaBlockId = (int)result.Span[0]!;
+                            if (result.Length == 0)
+                            {
+                                throw new InvalidOperationException($"Can't query meta block");
+                            }
 
-                        return MergeBlocksWithReplacements(
-                            metaMetaDataTableName,
-                            metaMetaBlockId > 0 ? metaMetaBlockId : null,
-                            Array.Empty<int>(),
-                            [metaBlockId.Value],
-                            [newBlockBuilder],
-                            tx);
+                            var metaMetaBlockId = (int)result.Span[0]!;
+
+                            return MergeBlocksWithReplacements(
+                                metaMetaDataTableName,
+                                metaMetaBlockId > 0 ? metaMetaBlockId : null,
+                                Array.Empty<int>(),
+                                [metaBlockId.Value],
+                                [newBlockBuilder],
+                                tx);
+                        }
                     }
                 }
             }
+            finally
+            {
+                Database.SetNoLongerInUsedBlockIds(cumulatedRemovedBlockIds, tx);
+            }
         }
 
-        private BlockBuilder? MergeBlocksWithReplacementsOneLayer(
+        private (BlockBuilder? NewBlock, IEnumerable<int> RemovedBlockIds) MergeBlocksWithReplacementsOneLayer(
             string metadataTableName,
             int? metaBlockId,
             IEnumerable<int> blockIdsToCompact,
@@ -351,7 +360,6 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var newMetadataBlockBuilder = new BlockBuilder(metaSchema);
 
-                Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
                 foreach (var metaBlock in mergedMetaBlocks)
                 {
                     newMetadataBlockBuilder.AppendRecord(
@@ -360,11 +368,11 @@ namespace TrackDb.Lib.DataLifeCycle
                         metaBlock.MetadataRecord.Span);
                 }
 
-                return newMetadataBlockBuilder;
+                return (newMetadataBlockBuilder, removedBlockIds);
             }
             else
             {
-                return null;
+                return (null, Array.Empty<int>());
             }
         }
 
