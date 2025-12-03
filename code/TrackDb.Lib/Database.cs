@@ -241,6 +241,14 @@ namespace TrackDb.Lib
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(1)
                 .FirstOrDefault();
+            var q = _availableBlockTable.Query(tx)
+                .GroupBy(a => a.BlockId)
+                .Where(g => g.Count() > 1)
+                .ToImmutableArray();
+
+            if (q.Any())
+            {
+            }
 
             if (availableBlock != null)
             {

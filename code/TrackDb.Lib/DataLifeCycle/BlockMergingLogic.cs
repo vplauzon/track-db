@@ -256,77 +256,68 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var cumulatedRemovedBlockIds = new List<int>();
 
-            try
+            while (true)
             {
-                while (true)
-                {
-                    (var newBlockBuilder, var removedBlockIds) = MergeBlocksWithReplacementsOneLayer(
-                        metadataTableName,
-                        metaBlockId,
-                        blockIdsToCompact,
-                        blockIdsToRemove,
-                        blocksToAdd,
-                        tx);
+                (var newBlockBuilder, var removedBlockIds) = MergeBlocksWithReplacementsOneLayer(
+                    metadataTableName,
+                    metaBlockId,
+                    blockIdsToCompact,
+                    blockIdsToRemove,
+                    blocksToAdd,
+                    tx);
 
-                    cumulatedRemovedBlockIds.AddRange(removedBlockIds);
-                    if (newBlockBuilder == null)
-                    {   //  Nothing changed
-                        return false;
-                    }
-                    else
-                    {
-                        if (metaBlockId == null)
-                        {   //  The top of the hierarchy
-                            var metadataTable = Database.GetAnyTable(metadataTableName);
+                cumulatedRemovedBlockIds.AddRange(removedBlockIds);
+                if (newBlockBuilder == null)
+                {   //  Nothing changed
+                    Database.SetNoLongerInUsedBlockIds(cumulatedRemovedBlockIds, tx);
 
-                            //  Delete all in-memory meta records
-                            metadataTable.Query(tx)
-                                .WithInMemoryOnly()
-                                .Delete();
-                            tx.LoadCommittedBlocksInTransaction(metadataTable.Schema.TableName);
-                            tx.TransactionState.UncommittedTransactionLog
-                                .TransactionTableLogMap[metadataTable.Schema.TableName]
-                                .NewDataBlock
-                                .AppendBlock(newBlockBuilder);
-
-                            return true;
-                        }
-                        else
-                        {   //  Climb the hierarchy
-                            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                            var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
-                            var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
-                            var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
-                            var predicate = new BinaryOperatorPredicate(
-                                schema.BlockIdColumnIndex,
-                                metaBlockId,
-                                BinaryOperator.Equal);
-                            var result = metaMetaDataTable.Query(tx)
-                                .WithPredicate(predicate)
-                                .WithProjection([schema.ParentBlockIdColumnIndex])
-                                .FirstOrDefault();
-
-                            if (result.Length == 0)
-                            {
-                                throw new InvalidOperationException($"Can't query meta block");
-                            }
-
-                            var metaMetaBlockId = (int)result.Span[0]!;
-
-                            return MergeBlocksWithReplacements(
-                                metaMetaDataTableName,
-                                metaMetaBlockId > 0 ? metaMetaBlockId : null,
-                                Array.Empty<int>(),
-                                [metaBlockId.Value],
-                                [newBlockBuilder],
-                                tx);
-                        }
-                    }
+                    return false;
                 }
-            }
-            finally
-            {
-                Database.SetNoLongerInUsedBlockIds(cumulatedRemovedBlockIds, tx);
+                else if (metaBlockId == null)
+                {   //  The top of the hierarchy
+                    var metadataTable = Database.GetAnyTable(metadataTableName);
+
+                    //  Delete all in-memory meta records
+                    metadataTable.Query(tx)
+                        .WithInMemoryOnly()
+                        .Delete();
+                    tx.LoadCommittedBlocksInTransaction(metadataTable.Schema.TableName);
+                    tx.TransactionState.UncommittedTransactionLog
+                        .TransactionTableLogMap[metadataTable.Schema.TableName]
+                        .NewDataBlock
+                        .AppendBlock(newBlockBuilder);
+                    Database.SetNoLongerInUsedBlockIds(cumulatedRemovedBlockIds, tx);
+
+                    return true;
+                }
+                else
+                {   //  Climb the hierarchy
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                    var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
+                    var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
+                    var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
+                    var predicate = new BinaryOperatorPredicate(
+                        schema.BlockIdColumnIndex,
+                        metaBlockId,
+                        BinaryOperator.Equal);
+                    var result = metaMetaDataTable.Query(tx)
+                        .WithPredicate(predicate)
+                        .WithProjection([schema.ParentBlockIdColumnIndex])
+                        .FirstOrDefault();
+
+                    if (result.Length == 0)
+                    {
+                        throw new InvalidOperationException($"Can't query meta block");
+                    }
+
+                    var metaMetaBlockId = (int)result.Span[0]!;
+
+                    metadataTableName = metaMetaDataTableName;
+                    blockIdsToRemove = [metaBlockId.Value];
+                    metaBlockId = metaMetaBlockId > 0 ? metaMetaBlockId : null;
+                    blockIdsToCompact = Array.Empty<int>();
+                    blocksToAdd = [newBlockBuilder];
+                }
             }
         }
 
