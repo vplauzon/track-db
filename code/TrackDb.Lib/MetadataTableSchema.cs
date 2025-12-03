@@ -43,6 +43,7 @@ namespace TrackDb.Lib
                             $"{nameof(ColumnSchemaStat)}.{parentColumn.ColumnSchemaStat}");
                 }
             }
+            var tableName = $"$meta-{parentSchema.TableName}";
             var isParentMeta = parentSchema is MetadataTableSchema;
             var inheritedMetaDataColumns = parentSchema.ColumnProperties
                 .Where(c => c.ColumnSchema.IsIndexed)
@@ -56,7 +57,7 @@ namespace TrackDb.Lib
                     new ColumnSchema(SIZE, typeof(int), false),
                     ColumnSchemaStat.Data),
                 new ColumnSchemaProperties(
-                    new ColumnSchema(BLOCK_ID, typeof(int), true),
+                    new ColumnSchema($"{BLOCK_ID}-{tableName}", typeof(int), true),
                     ColumnSchemaStat.Data)
             };
             var metaDataColumns = inheritedMetaDataColumns
@@ -65,7 +66,7 @@ namespace TrackDb.Lib
 
             return new(
                 parentSchema,
-                $"$meta-{parentSchema.TableName}",
+                tableName,
                 metaDataColumns);
         }
 
