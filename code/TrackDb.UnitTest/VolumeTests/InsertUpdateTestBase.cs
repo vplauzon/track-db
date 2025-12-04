@@ -81,7 +81,7 @@ namespace TrackDb.UnitTest.VolumeTests
 
                 var stats = db.Database.GetDatabaseStatistics();
 
-                Console.WriteLine(stats);
+                Console.WriteLine($"{cycleCount}:  {stats}");
             }
         }
     }
