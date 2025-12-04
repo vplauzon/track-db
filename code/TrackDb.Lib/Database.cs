@@ -215,6 +215,67 @@ namespace TrackDb.Lib
             }
         }
 
+        /// <summary>
+        /// Awaits life cycle management processing committed data up to <paramref name="tolerance"/>
+        /// times the policies.
+        /// More concretely, this method looks at <see cref="DatabasePolicy.InMemoryPolicy"/>.
+        /// </summary>
+        /// <param name="tolerance"></param>
+        /// <returns></returns>
+        public async Task AwaitLifeCycleManagement(double tolerance)
+        {
+            bool IsToleranceExceeded()
+            {
+                using (var tx = CreateTransaction())
+                {
+                    var state = GetDatabaseStateSnapshot();
+                    var tableMap = state.TableMap;
+                    var policy = DatabasePolicy.InMemoryPolicy;
+                    var maxBlocksPerTable = tx.TransactionState
+                        .InMemoryDatabase
+                        .GetMaxInMemoryBlocksPerTable();
+
+                    if (maxBlocksPerTable < tolerance * policy.MaxBlocksPerTable)
+                    {
+                        var totalNonMetaDataRecords = tableMap.Values
+                            .Where(p => p.IsPersisted)
+                            .Where(p => !p.IsMetaDataTable)
+                            .Select(p => p.Table.Query(tx).WithInMemoryOnly().Count())
+                            .Sum();
+
+                        if (totalNonMetaDataRecords < tolerance * policy.MaxNonMetaDataRecords)
+                        {
+                            var totalMetaDataRecords = tableMap.Values
+                                .Where(p => p.IsPersisted)
+                                .Where(p => p.IsMetaDataTable)
+                                .Select(p => p.Table.Query(tx).WithInMemoryOnly().Count())
+                                .Sum();
+
+                            if (totalMetaDataRecords <= tolerance * policy.MaxMetaDataRecords)
+                            {
+                                var totalTombstonedRecords = TombstoneTable.Query(tx).Count();
+
+                                if (totalTombstonedRecords < tolerance * policy.MaxTombstonedRecords)
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+
+                    return true;
+                }
+            }
+            if (tolerance <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(tolerance));
+            }
+            while (IsToleranceExceeded())
+            {
+                await Task.Delay(DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod / 4);
+            }
+        }
+
         #region System tables
         public DatabaseStatistics GetDatabaseStatistics()
         {

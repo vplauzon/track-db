@@ -73,6 +73,7 @@ namespace TrackDb.UnitTest.VolumeTests
                             request2,
                             request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
                     }
+                    await db.Database.AwaitLifeCycleManagement(3);
                 }
 
                 Assert.Equal(db.EmployeeTable.Query().Count(), cycleCount);
