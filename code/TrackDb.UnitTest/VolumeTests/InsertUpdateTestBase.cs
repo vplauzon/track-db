@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
+using static TrackDb.UnitTest.VolumeTests.VolumeTestDatabase;
 
 namespace TrackDb.UnitTest.VolumeTests
 {
@@ -16,7 +17,7 @@ namespace TrackDb.UnitTest.VolumeTests
             _doUpdate = doUpdate;
         }
 
-        protected async Task RunPerformanceTestAsync(long cycleCount)
+        protected async Task RunPerformanceTestAsync(int cycleCount)
         {
             var stopwatch = new Stopwatch();
             var random = new Random();
@@ -82,6 +83,50 @@ namespace TrackDb.UnitTest.VolumeTests
                 var stats = db.Database.GetDatabaseStatistics();
 
                 Console.WriteLine($"{cycleCount}:  {stats}");
+
+                ValidateData(cycleCount, db);
+            }
+        }
+
+        private static void ValidateData(int cycleCount, VolumeTestDatabase db)
+        {
+            var groups = db.DocumentTable.Query()
+                .Select(d => new
+                {
+                    DocNumber = int.Parse(d.DocumentContent.Split('-')[0].Trim().Substring(3)),
+                    RequestCodeParts = d.RequestCode.Split('-')
+                })
+                .Select(o => new
+                {
+                    o.DocNumber,
+                    RequestNumber = int.Parse(o.RequestCodeParts[2]),
+                    EmployeeNumber = int.Parse(o.RequestCodeParts[1]) / 2
+                })
+                .GroupBy(o => o.EmployeeNumber)
+                .ToImmutableDictionary(
+                g => g.Key,
+                g => g.GroupBy(o => o.RequestNumber).ToImmutableDictionary(
+                    g2 => g2.Key,
+                    g2 => g2.Select(o => o.DocNumber).Order().ToArray())
+                );
+
+            Assert.True(Enumerable.SequenceEqual(
+                Enumerable.Range(0, cycleCount),
+                groups.Keys.Order()));
+            foreach (var employeeNumber in groups.Keys)
+            {
+                var subGroup = groups[employeeNumber];
+
+                Assert.True(Enumerable.SequenceEqual(
+                    Enumerable.Range(1, 2),
+                    subGroup.Keys.Order()));
+
+                Assert.True(Enumerable.SequenceEqual(
+                    Enumerable.Range(1, 2),
+                    subGroup[1]));
+                Assert.True(Enumerable.SequenceEqual(
+                    Enumerable.Range(3, 1),
+                    subGroup[2]));
             }
         }
     }
