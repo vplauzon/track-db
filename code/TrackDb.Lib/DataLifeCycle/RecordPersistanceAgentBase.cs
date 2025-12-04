@@ -22,9 +22,6 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var tableName = FindMergedCandidate(forcedActivity, tx);
 
-                if (tableName == "$availableBlock")
-                {
-                }
                 if (tableName != null)
                 {
                     PersistTable(tableName, tx);
