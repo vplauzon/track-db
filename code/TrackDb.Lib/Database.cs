@@ -241,14 +241,6 @@ namespace TrackDb.Lib
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(1)
                 .FirstOrDefault();
-            var q = _availableBlockTable.Query(tx)
-                .GroupBy(a => a.BlockId)
-                .Where(g => g.Count() > 1)
-                .ToImmutableArray();
-
-            if (q.Any())
-            {
-            }
 
             if (availableBlock != null)
             {
@@ -279,8 +271,6 @@ namespace TrackDb.Lib
                 .Where(pf => pf.In(a => a.BlockId, blockIds))
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Delete();
-            var q = TombstoneTable.Query(tx)
-                .Where(pf => pf.In(t => t.BlockId, blockIds.Cast<int?>()));
 
             if (deletedUsedBlocks != blockIds.Count())
             {
@@ -292,7 +282,6 @@ namespace TrackDb.Lib
                 blockIds
                 .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
                 tx);
-            DeleteTombstoneBlocks(blockIds, tx);
         }
 
         internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
@@ -613,41 +602,6 @@ namespace TrackDb.Lib
             var predicate = TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .Where(pf => pf.In(t => t.DeletedRecordId, recordIds))
-                .Predicate;
-
-            if (newBlockBuilder != null && ((IBlock)newBlockBuilder).RecordCount > 0)
-            {
-                var rowIndexes = ((IBlock)newBlockBuilder)
-                    .Filter(predicate, false)
-                    .RowIndexes;
-
-                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
-            }
-            if (committedBlockBuilder != null && ((IBlock)committedBlockBuilder).RecordCount > 0)
-            {
-                var rowIndexes = ((IBlock)committedBlockBuilder)
-                    .Filter(predicate, false)
-                    .RowIndexes;
-
-                committedBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
-            }
-        }
-
-        internal void DeleteTombstoneBlocks(
-            IEnumerable<int> blockIds,
-            TransactionContext tx)
-        {
-            var tombstoneTableName = TombstoneTable.Schema.TableName;
-
-            tx.LoadCommittedBlocksInTransaction(tombstoneTableName);
-
-            var transactionTableLog = tx.TransactionState
-                .UncommittedTransactionLog
-                .TransactionTableLogMap[tombstoneTableName];
-            var newBlockBuilder = transactionTableLog.NewDataBlock;
-            var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
-            var predicate = TombstoneTable.Query(tx)
-                .Where(pf => pf.In(t => t.BlockId, blockIds.Cast<int?>()))
                 .Predicate;
 
             if (newBlockBuilder != null && ((IBlock)newBlockBuilder).RecordCount > 0)

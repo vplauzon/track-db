@@ -7,39 +7,16 @@ using Xunit;
 
 namespace TrackDb.UnitTest.VolumeTests
 {
-    public class AllForwardInsertDeleteTest
+    public abstract class InsertUpdateTestBase
     {
-        [Fact]
-        public async Task Test000010()
+        private readonly bool _doUpdate;
+
+        protected InsertUpdateTestBase(bool doUpdate)
         {
-            await RunPerformanceTestAsync(10);
+            _doUpdate = doUpdate;
         }
 
-        [Fact]
-        public async Task Test000100()
-        {
-            await RunPerformanceTestAsync(100);
-        }
-
-        [Fact]
-        public async Task Test001000()
-        {
-            await RunPerformanceTestAsync(1000);
-        }
-
-        [Fact]
-        public async Task Test010000()
-        {
-            await RunPerformanceTestAsync(10000);
-        }
-
-        [Fact]
-        public async Task Test100000()
-        {
-            await RunPerformanceTestAsync(100000);
-        }
-
-        private async Task RunPerformanceTestAsync(long cycleCount)
+        protected async Task RunPerformanceTestAsync(long cycleCount)
         {
             var stopwatch = new Stopwatch();
             var random = new Random();
@@ -74,23 +51,28 @@ namespace TrackDb.UnitTest.VolumeTests
 
                     db.RequestTable.AppendRecord(request1);
                     db.RequestTable.AppendRecord(request2);
-                    db.RequestTable.UpdateRecord(
-                        request1,
-                        request1 with { RequestStatus = VolumeTestDatabase.RequestStatus.Treating });
-                    db.RequestTable.UpdateRecord(
-                        request2,
-                        request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Treating });
-
+                    if (_doUpdate)
+                    {
+                        db.RequestTable.UpdateRecord(
+                            request1,
+                            request1 with { RequestStatus = VolumeTestDatabase.RequestStatus.Treating });
+                        db.RequestTable.UpdateRecord(
+                            request2,
+                            request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Treating });
+                    }
                     db.DocumentTable.AppendRecord(document11);
                     db.DocumentTable.AppendRecord(document12);
                     db.DocumentTable.AppendRecord(document21);
 
-                    db.RequestTable.UpdateRecord(
-                        request1,
-                        request1 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
-                    db.RequestTable.UpdateRecord(
-                        request2,
-                        request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
+                    if (_doUpdate)
+                    {
+                        db.RequestTable.UpdateRecord(
+                            request1,
+                            request1 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
+                        db.RequestTable.UpdateRecord(
+                            request2,
+                            request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
+                    }
                 }
 
                 Assert.Equal(db.EmployeeTable.Query().Count(), cycleCount);
