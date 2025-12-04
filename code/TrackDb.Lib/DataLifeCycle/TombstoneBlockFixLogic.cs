@@ -23,15 +23,33 @@ namespace TrackDb.Lib.DataLifeCycle
             //  merging in-memory blocks together
             tx.LoadCommittedBlocksInTransaction(tableName);
 
-            var orphansDeletedRecordId = Database.TombstoneTable.Query(tx)
+            var orphansDeletedRecordMap = Database.TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .Where(pf => pf.Equal(t => t.BlockId, null))
-                .Select(t => t.DeletedRecordId)
-                .ToImmutableArray();
+                .GroupBy(t => t.DeletedRecordId)
+                .ToImmutableDictionary(g => g.Key, g => g.Min(t => t.Timestamp));
 
-            if (orphansDeletedRecordId.Any())
+            if (orphansDeletedRecordMap.Any())
             {
-                throw new NotImplementedException();
+                var table = Database.GetAnyTable(tableName);
+                var predicate = new InPredicate(
+                    table.Schema.RecordIdColumnIndex,
+                    orphansDeletedRecordMap.Keys.Cast<object?>());
+                var foundRecords = table.Query(tx)
+                    .WithIgnoreDeleted()
+                    .WithPredicate(predicate)
+                    .WithProjection([
+                        table.Schema.RecordIdColumnIndex,
+                        table.Schema.ParentBlockIdColumnIndex])
+                    .Select(r => new TombstoneRecord(
+                        (long)r.Span[0]!,
+                        tableName,
+                        (int)r.Span[1]!,
+                        orphansDeletedRecordMap[(long)r.Span[0]!]))
+                    .ToImmutableArray();
+
+                Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordMap.Keys, tx);
+                Database.TombstoneTable.AppendRecords(foundRecords, tx);
             }
         }
 

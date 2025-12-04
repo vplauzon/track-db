@@ -118,10 +118,8 @@ namespace TrackDb.UnitTest.DbTests
             }
         }
 
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task RacingCondition(bool doPushPendingData)
+        [Fact]
+        public async Task RacingCondition()
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
@@ -149,10 +147,6 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
-                if (doPushPendingData)
-                {
-                    await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
-                }
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 

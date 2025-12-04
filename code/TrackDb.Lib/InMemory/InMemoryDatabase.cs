@@ -17,6 +17,20 @@ namespace TrackDb.Lib.InMemory
         {
         }
 
+        public int GetMaxInMemoryBlocksPerTable()
+        {
+            return TransactionTableLogsMap.Any()
+                ? TransactionTableLogsMap
+                .Max(p => p.Value.InMemoryBlocks.Count)
+                : 0;
+        }
+
+        public IEnumerable<(string TableName, int RecordCount)> GetTotalInMemoryDataRecordsByTable()
+        {
+            return TransactionTableLogsMap
+                .Select(p => (p.Key, p.Value.InMemoryBlocks.Sum(b => b.RecordCount)));
+        }
+
         public InMemoryDatabase CommitLog(TransactionState transactionState)
         {
             var logs = ImmutableDictionary<string, ImmutableTableTransactionLogs>
@@ -63,7 +77,7 @@ namespace TrackDb.Lib.InMemory
                     logs[tableName] =
                         new ImmutableTableTransactionLogs(inMemoryBlocks.ToImmutable());
                 }
-                else if(logs.ContainsKey(tableName))
+                else if (logs.ContainsKey(tableName))
                 {   //  The transaction emptied the blocks
                     logs.Remove(tableName);
                 }

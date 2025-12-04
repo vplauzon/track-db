@@ -67,6 +67,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var topBlocks = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 //  Count records per block
                 .CountBy(t => (t.TableName, t.BlockId ?? 0))

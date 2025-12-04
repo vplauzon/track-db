@@ -118,7 +118,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         _database.ReleaseNoLongerInUsedBlocks(tx);
                         lastReleaseBlock = DateTime.Now;
-                        
+
                         tx.Complete();
                     }
                 }
@@ -182,7 +182,6 @@ namespace TrackDb.Lib.DataLifeCycle
                         return;
                     }
                 }
-
                 tx.Complete();
             }
         }

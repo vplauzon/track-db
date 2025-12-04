@@ -199,17 +199,16 @@ namespace TrackDb.Lib.InMemory.Block
             //  Column payload sizes
             var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
             var columnStatsBuilder = ImmutableArray<ColumnStats>.Empty.ToBuilder();
-            var i = 0;
 
             //  Body:  columns
-            foreach (var dataColumn in _dataColumns)
+            for (var i = 0; i != _dataColumns.Count; ++i)
             {
                 var sizeBefore = writer.Position;
+                var columnStats = _dataColumns[i].SerializeSegment(ref writer, skipRows, takeRows);
+                var columnSize = (ushort)(writer.Position - sizeBefore);
 
-                columnStatsBuilder.Add(
-                    dataColumn.SerializeSegment(ref writer, skipRows, takeRows));
-                columnsPayloadSizePlaceholder.SetValue(i, (ushort)(writer.Position - sizeBefore));
-                ++i;
+                columnStatsBuilder.Add(columnStats);
+                columnsPayloadSizePlaceholder.SetValue(i, columnSize);
             }
 
             //  Footer:  has nulls
@@ -269,13 +268,19 @@ namespace TrackDb.Lib.InMemory.Block
                     upperBound,
                     1);
 
+                if (finalStats.ItemCount <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Can't serialize zero-rows block {finalStats.ItemCount}");
+                }
                 if (finalStats.Size > maxSize)
                 {
                     throw new OverflowException(
                         $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
                 }
+                //  Reserialize so the buffer is up-to-date
 
-                return finalStats;
+                return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
             }
         }
 

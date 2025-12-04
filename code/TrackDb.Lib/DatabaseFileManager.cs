@@ -97,7 +97,7 @@ namespace TrackDb.Lib
                 _fileStream.SetLength((targetBlockCount + 1) * (long)BlockSize);
                 _fileLength = (targetBlockCount + 1) * (long)BlockSize;
 
-                return Enumerable.Range(currentBlockCount + 1, targetBlockCount);
+                return Enumerable.Range(currentBlockCount + 1, INCREMENT_BLOCK_COUNT);
             }
         }
     }

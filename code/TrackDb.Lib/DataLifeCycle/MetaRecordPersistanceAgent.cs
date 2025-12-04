@@ -14,6 +14,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
+        public override void Run(DataManagementActivity forcedActivity, TransactionContext tx)
+        {
+            RunPersistence(forcedActivity, tx);
+        }
+        
         protected override int MaxInMemoryDataRecords =>
             Database.DatabasePolicy.InMemoryPolicy.MaxMetaDataRecords;
 

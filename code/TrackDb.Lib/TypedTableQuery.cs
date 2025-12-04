@@ -13,6 +13,7 @@ namespace TrackDb.Lib
     {
         private readonly TypedTable<T> _table;
         private readonly bool _canDelete;
+        private readonly bool _committedOnly;
         private readonly TransactionContext? _transactionContext;
         private readonly IImmutableList<SortColumn> _sortColumns;
         private readonly int? _takeCount;
@@ -26,6 +27,7 @@ namespace TrackDb.Lib
             : this(
                   table,
                   canDelete,
+                  false,
                   transactionContext,
                   AllInPredicate.Instance,
                   ImmutableArray<SortColumn>.Empty,
@@ -37,6 +39,7 @@ namespace TrackDb.Lib
         internal TypedTableQuery(
             TypedTable<T> table,
             bool canDelete,
+            bool committedOnly,
             TransactionContext? transactionContext,
             QueryPredicate predicate,
             IEnumerable<SortColumn> sortColumns,
@@ -45,6 +48,7 @@ namespace TrackDb.Lib
         {
             _table = table;
             _canDelete = canDelete;
+            _committedOnly = committedOnly;
             _transactionContext = transactionContext;
             Predicate = predicate;
             _sortColumns = sortColumns.ToImmutableArray();
@@ -72,6 +76,7 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _committedOnly,
                 _transactionContext,
                 newPredicate,
                 Array.Empty<SortColumn>(),
@@ -89,6 +94,7 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _committedOnly,
                 _transactionContext,
                 Predicate,
                 _sortColumns,
@@ -143,6 +149,7 @@ namespace TrackDb.Lib
                 return new TypedTableQuery<T>(
                     _table,
                     _canDelete,
+                    _committedOnly,
                     _transactionContext,
                     Predicate,
                     _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
@@ -163,11 +170,25 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _committedOnly,
                 _transactionContext,
                 Predicate,
                 _sortColumns,
                 _takeCount,
                 queryTag);
+        }
+
+        internal TypedTableQuery<T> WithCommittedOnly()
+        {
+            return new TypedTableQuery<T>(
+                _table,
+                _canDelete,
+                true,
+                _transactionContext,
+                Predicate,
+                _sortColumns,
+                _takeCount,
+                _queryTag);
         }
         #endregion
 
