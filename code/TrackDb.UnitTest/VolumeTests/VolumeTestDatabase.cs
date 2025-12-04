@@ -36,8 +36,7 @@ namespace TrackDb.UnitTest.VolumeTests
         public static async Task<VolumeTestDatabase> CreateAsync(
             Func<DatabasePolicy, DatabasePolicy>? dataPolicyChanger = null)
         {
-            var dataPolicy = DatabasePolicy.Create(
-                LifeCyclePolicy:LifeCyclePolicy.Create(MaxWaitPeriod:TimeSpan.FromSeconds(0)));
+            var dataPolicy = DatabasePolicy.Create();
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;

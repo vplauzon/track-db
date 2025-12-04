@@ -26,7 +26,7 @@ namespace TrackDb.Lib.InMemory.Block
         {
             var reader = new ByteReader(payload.Span);
             var itemCount = reader.ReadUInt16();
-            var columnCount = schema.Columns.Count + 2; //  Include creation-time & record-ID
+            var columnCount = schema.ColumnProperties.Count;
             var columnSizeArray = reader.VirtualReadonlyArrayUInt16(columnCount);
             var columnPayloads = new ReadOnlyMemory<byte>[columnCount];
             var dataColumns = new Lazy<IReadOnlyDataColumn>[columnCount];

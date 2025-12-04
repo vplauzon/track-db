@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using static TrackDb.UnitTest.VolumeTests.VolumeTestDatabase;
 
 namespace TrackDb.UnitTest.VolumeTests
 {
@@ -84,11 +83,11 @@ namespace TrackDb.UnitTest.VolumeTests
 
                 Console.WriteLine($"{cycleCount}:  {stats}");
 
-                ValidateData(cycleCount, db);
+                ValidateData(db, cycleCount);
             }
         }
 
-        private static void ValidateData(int cycleCount, VolumeTestDatabase db)
+        private static void ValidateData(VolumeTestDatabase db, int cycleCount)
         {
             var groups = db.DocumentTable.Query()
                 .Select(d => new
