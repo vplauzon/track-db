@@ -11,6 +11,8 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal abstract class RecordPersistanceAgentBase : DataLifeCycleAgentBase
     {
+        private record Candidate(Table Table, DateTime? OldestCreationTime);
+
         protected RecordPersistanceAgentBase(Database database)
             : base(database)
         {
@@ -20,11 +22,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             while (true)
             {
-                var tableName = FindMergedCandidate(forcedActivity, tx);
+                var table = FindCandidate(forcedActivity, tx);
 
-                if (tableName != null)
+                if (table != null)
                 {
-                    PersistTable(tableName, tx);
+                    PersistTable(table, tx);
                 }
                 else
                 {
@@ -33,10 +35,10 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void PersistTable(string tableName, TransactionContext tx)
+        private void PersistTable(Table table, TransactionContext tx)
         {   //  We persist as much blocks from the table as possible
             var tableBlockBuilder = tx.TransactionState.UncommittedTransactionLog
-                .TransactionTableLogMap[tableName]
+                .TransactionTableLogMap[table.Schema.TableName]
                 .CommittedDataBlock;
 
             if (tableBlockBuilder == null)
@@ -105,78 +107,60 @@ namespace TrackDb.Lib.DataLifeCycle
         protected abstract bool DoPersistAll(DataManagementActivity forcedActivity);
 
         #region Candidates
-        private string? FindMergedCandidate(
+        private Table? FindCandidate(
             DataManagementActivity forcedActivity,
             TransactionContext tx)
         {
-            string? tableName = FindUnmergedCandidate(forcedActivity, tx);
-
-            while (tableName != null)
+            DateTime? GetOldestRecord(Table table)
             {
-                if (tx.LoadCommittedBlocksInTransaction(tableName))
-                {
-                    var newTableName = FindUnmergedCandidate(forcedActivity, tx);
+                var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
+                var oldestRecord = table.Query(tx)
+                    .WithInMemoryOnly()
+                    .WithCommittedOnly()
+                    .WithSortColumns([sortColumn])
+                    .WithProjection([table.Schema.CreationTimeColumnIndex])
+                    .Take(1);
 
-                    if (newTableName == tableName)
+                return oldestRecord.Any()
+                    ? (DateTime)oldestRecord.First().Span[0]!
+                    : null;
+            }
+
+            //  Should we persist any data given the total number of records in memory (across tables)?
+            if (IsPersistanceRequired(forcedActivity, tx))
+            {   //  Find the oldest record across tables (by creation time)
+                var candidates = GetTables(forcedActivity, tx)
+                    .Select(t => new Candidate(t, GetOldestRecord(t)))
+                    .Where(o => o.OldestCreationTime != null)
+                    .OrderBy(o => o.OldestCreationTime)
+                    .ToList();
+
+                while (candidates.Any())
+                {
+                    var candidate = candidates.First();
+
+                    candidates.RemoveAt(0);
+                    tx.LoadCommittedBlocksInTransaction(candidate.Table.Schema.TableName);
+
+                    var newOldestCreationTime = GetOldestRecord(candidate.Table);
+
+                    if (newOldestCreationTime == candidate.OldestCreationTime)
                     {
-                        return tableName;
+                        return candidate.Table;
+                    }
+                    else if (newOldestCreationTime != null)
+                    {
+                        candidates.Add(new Candidate(candidate.Table, newOldestCreationTime));
+                        candidates.Sort();
                     }
                     else
-                    {
-                        tableName = newTableName;
-                        //  Re-loop if null, otherwise will return null
+                    {   //  newOldestCreationTime == null
+                        //  Nothing, candidate is gone
                     }
-                }
-                else
-                {
-                    return tableName;
                 }
             }
 
             return null;
-        }
-
-        private string? FindUnmergedCandidate(
-            DataManagementActivity forcedActivity,
-            TransactionContext tx)
-        {
-            //  Should we persist any data given the total number of records in memory (across tables)?
-            if (IsPersistanceRequired(forcedActivity, tx))
-            {   //  Find the oldest record across tables (by creation time)
-                var oldestCreationTime = DateTime.MaxValue;
-                var oldestTableName = (string?)null;
-                var buffer = new object?[1];
-                var rowIndexes = new[] { 0 };
-
-                foreach (var table in GetTables(forcedActivity, tx))
-                {
-                    var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
-                    var oldestRecord = table.Query(tx)
-                        .WithInMemoryOnly()
-                        .WithCommittedOnly()
-                        .WithSortColumns([sortColumn])
-                        .WithProjection([table.Schema.CreationTimeColumnIndex])
-                        .Take(1)
-                        .FirstOrDefault();
-
-                    if (oldestRecord.Length == 1)   //  If no record, the default is an empty memory
-                    {
-                        var creationTime = (DateTime)oldestRecord.Span[0]!;
-
-                        if (creationTime < oldestCreationTime)
-                        {
-                            oldestCreationTime = creationTime;
-                            oldestTableName = table.Schema.TableName;
-                        }
-                    }
-                }
-
-                return oldestTableName;
-            }
-            else
-            {
-                return null;
-            }
         }
 
         private bool IsPersistanceRequired(
