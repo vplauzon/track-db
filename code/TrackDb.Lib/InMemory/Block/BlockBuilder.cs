@@ -277,7 +277,8 @@ namespace TrackDb.Lib.InMemory.Block
                 if (finalStats.ItemCount <= 0)
                 {
                     throw new InvalidOperationException(
-                        $"Can't serialize zero-rows block {finalStats.ItemCount}");
+                        $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
+                        $"table '{Schema.TableName}'");
                 }
                 if (finalStats.Size > maxSize)
                 {
@@ -356,7 +357,7 @@ namespace TrackDb.Lib.InMemory.Block
                 var newUpperBound = newBound.Size > maxSize ? newBound : upperBound;
 
                 if (Math.Abs(newBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                    && Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
                 {
                     return lowerBound;
                 }
