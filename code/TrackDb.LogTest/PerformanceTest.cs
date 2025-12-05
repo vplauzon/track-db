@@ -147,9 +147,9 @@ namespace TrackDb.LogTest
 
                 Console.WriteLine(
                     $"Cycle count = {cycleCount} ({stopwatch.Elapsed}):  " +
-                    $"Block Count ({stats.GlobalStatistics.Persisted.BlockCount}), " +
-                    $"Persisted Size ({stats.GlobalStatistics.Persisted.Size}), " +
-                    $"Persisted Record per block ({stats.GlobalStatistics.Persisted.RecordPerBlock}), " +
+                    $"Block Count ({stats.GlobalStatistics.Persisted?.BlockCount}), " +
+                    $"Persisted Size ({stats.GlobalStatistics.Persisted?.Size}), " +
+                    $"Persisted Record per block ({stats.GlobalStatistics?.Persisted?.RecordPerBlock}), " +
                     $"Max Generation Table ({stats.MaxTableGeneration})");
             }
         }
