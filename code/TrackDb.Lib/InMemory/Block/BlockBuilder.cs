@@ -13,6 +13,7 @@ namespace TrackDb.Lib.InMemory.Block
         private const int START_TRUNCATE_ROW_COUNT = 100;
         private const int MAX_TRUNCATE_ROW_COUNT_NAIVE = 500;
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
+        private const int MAX_ITERATION_COUNT = 5;
 
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
@@ -357,9 +358,10 @@ namespace TrackDb.Lib.InMemory.Block
                 var newUpperBound = newBound.Size > maxSize ? newBound : upperBound;
 
                 if (Math.Abs(newBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    && Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE
+                    || iterationCount == MAX_ITERATION_COUNT)
                 {
-                    return lowerBound;
+                    return newLowerBound;
                 }
                 else
                 {

@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.Statistics
 {
@@ -11,88 +11,38 @@ namespace TrackDb.Lib.Statistics
         IImmutableDictionary<string, DataStatistics> TableStatistics)
     {
         #region Constructor
-        internal static DatabaseStatistics Create(
-            DatabaseState state,
-            TypedTable<TombstoneRecord> tombstoneTable,
-            TransactionContext tx)
+        internal static DatabaseStatistics Create(Database database)
         {
-            var inMemoryDatabase = tx.TransactionState.InMemoryDatabase;
-            var tableTransactionLogsMap = inMemoryDatabase.TransactionTableLogsMap;
-            var tombstoneTableName = tombstoneTable.Schema.TableName;
-            var tableMap = state.TableMap;
-            var inMemoryRecordCountMap = tableMap
-                .Where(p => p.Key != tombstoneTableName)
-                .Select(t => new
-                {
-                    TableName = t.Key,
-                    RecordCount = tableTransactionLogsMap.ContainsKey(t.Key)
-                    ? tableTransactionLogsMap[t.Key].InMemoryBlocks.Sum(block => block.RecordCount)
-                    : 0,
-                    TombstoneRecordCount = tombstoneTable.Query(tx)
-                    .Where(ts => ts.TableName == t.Key)
-                    .Count()
-                })
-                .ToImmutableDictionary(t => t.TableName);
-            var persistedMap = tableMap
-                .Where(p => p.Value.MetaDataTableName != null)
-                .Select(p => new
-                {
-                    p.Value.Table.Schema.TableName,
-                    MetaDataTable = tableMap[p.Value.MetaDataTableName!].Table
-                })
-                .Select(o => new
-                {
-                    o.TableName,
-                    BlockStats = o.MetaDataTable.Query(tx)
-                    .WithProjection([
-                        ((MetadataTableSchema) o.MetaDataTable.Schema).ItemCountColumnIndex,
-                        ((MetadataTableSchema) o.MetaDataTable.Schema).SizeColumnIndex])
-                    .Select(b => new
+            using (var tx = database.CreateTransaction())
+            {
+                var tableMap = database.GetDatabaseStateSnapshot().TableMap;
+                var maxTableGeneration = GetMaxTableGeneration(tableMap);
+                var tableStatistics = tableMap.Values
+                    .Select(p => new
                     {
-                        RecordCount = (long)(int)b.Span[0]!,
-                        BlockCount = 1,
-                        Size = (long)(int)b.Span[1]!
+                        p.Table,
+                        MetadataTable = p.MetaDataTableName != null
+                        ? tableMap[p.MetaDataTableName].Table
+                        : null
                     })
-                    //  Summarize all blocks
-                    .Aggregate(
-                        new
-                        {
-                            RecordCount = (long)0,
-                            BlockCount = 0,
-                            Size = (long)0
-                        },
-                        (o1, o2) => new
-                        {
-                            RecordCount = o1.RecordCount + o2.RecordCount,
-                            BlockCount = o1.BlockCount + o2.BlockCount,
-                            Size = o1.Size + o2.Size
-                        })
-                })
-                .ToImmutableDictionary(o => o.TableName, o => o.BlockStats);
-            var tableStatistics = tableMap
-                .Where(p => p.Key != tombstoneTableName)
-                .Select(t => t.Key)
-                .ToImmutableDictionary(
-                t => t,
-                tableName => new DataStatistics(
+                    .Select(o => KeyValuePair.Create(
+                        o.Table.Schema.TableName,
+                        DataStatistics.Create(database, o.Table, o.MetadataTable, tx)))
+                    .ToImmutableDictionary();
+                var persistedTableStatistics = tableStatistics
+                    .Where(t => t.Value.Persisted != null)
+                    .Select(t => t.Value.Persisted!);
+                var globalStatistics = new DataStatistics(
                     new(
-                        inMemoryRecordCountMap[tableName].RecordCount,
-                        inMemoryRecordCountMap[tableName].TombstoneRecordCount),
+                        tableStatistics.Sum(t => t.Value.InMemory.Records),
+                        tableStatistics.Sum(t => t.Value.InMemory.Tombstones)),
                     new(
-                        persistedMap.ContainsKey(tableName) ? persistedMap[tableName].BlockCount : 0,
-                        persistedMap.ContainsKey(tableName) ? persistedMap[tableName].RecordCount : 0,
-                        persistedMap.ContainsKey(tableName) ? persistedMap[tableName].Size : 0)));
-            var globalStatistics = new DataStatistics(
-                new(
-                    tableStatistics.Sum(t => t.Value.InMemory.TableRecords),
-                    tableStatistics.Sum(t => t.Value.InMemory.TombstoneRecords)),
-                new(
-                    tableStatistics.Sum(t => t.Value.Persisted.BlockCount),
-                    tableStatistics.Sum(t => t.Value.Persisted.RecordCount),
-                    tableStatistics.Sum(t => t.Value.Persisted.Size)));
-            var maxTableGeneration = GetMaxTableGeneration(tableMap);
+                        persistedTableStatistics.Sum(t => t.BlockCount),
+                        persistedTableStatistics.Sum(t => t.RecordCount),
+                        persistedTableStatistics.Sum(t => t.Size)));
 
-            return new DatabaseStatistics(maxTableGeneration, globalStatistics, tableStatistics);
+                return new DatabaseStatistics(maxTableGeneration, globalStatistics, tableStatistics);
+            }
         }
 
         private static int GetMaxTableGeneration(
