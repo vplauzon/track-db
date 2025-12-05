@@ -17,7 +17,7 @@ namespace TrackDb.Lib.Policies
             TimeSpan? MaxTombstonePeriod = null)
         {
             return new InMemoryPolicy(
-                 MaxBlocksPerTable ?? 5,
+                 MaxBlocksPerTable ?? 10,
                  MaxNonMetaDataRecords ?? 200,
                  MaxMetaDataRecords ?? 50,
                  MaxTombstonedRecords ?? 200,
