@@ -75,7 +75,7 @@ namespace TrackDb.UnitTest.VolumeTests
                     }
                     await db.Database.AwaitLifeCycleManagement(3);
 
-                    //Console.WriteLine(i);
+                    Console.WriteLine(i);
                 }
 
                 Assert.Equal(db.EmployeeTable.Query().Count(), cycleCount);

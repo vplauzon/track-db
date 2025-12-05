@@ -9,7 +9,7 @@ namespace TrackDb.Lib.Policies
             TimeSpan? MaxWaitPeriod = null)
         {
             return new LifeCyclePolicy(
-                 MaxWaitPeriod ?? TimeSpan.FromSeconds(0.5));
+                 MaxWaitPeriod ?? TimeSpan.FromSeconds(1));
         }
     }
 }
