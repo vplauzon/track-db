@@ -18,7 +18,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             RunPersistence(forcedActivity, tx);
         }
-        
+
         protected override int MaxInMemoryDataRecords =>
             Database.DatabasePolicy.InMemoryPolicy.MaxMetaDataRecords;
 
@@ -31,7 +31,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(tp => tp.IsMetaDataTable)
                 .Where(tp => tp.IsPersisted);
 
-            if(DoPersistAll(forcedActivity))
+            if (DoPersistAll(forcedActivity))
             {
                 //  We limit to only 1st level metadata tables
                 tableProperties = tableProperties
@@ -49,6 +49,19 @@ namespace TrackDb.Lib.DataLifeCycle
                 (forcedActivity & DataManagementActivity.PersistAllMetaDataFirstLevel) != 0;
 
             return doPersistEverything;
+        }
+
+        protected override bool MergeTable(Table table, TransactionContext tx)
+        {
+            var loadedResult = tx.LoadCommittedBlocksInTransaction(table.Schema.TableName);
+            var blockMergingLogic = new BlockMergingLogic(Database);
+            var mergingResult = blockMergingLogic.MergeBlocks(
+                table.Schema.TableName,
+                null,
+                Array.Empty<int>(),
+                tx);
+
+            return loadedResult || mergingResult;
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory.Block;
@@ -34,6 +35,100 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
         }
+
+        protected abstract int MaxInMemoryDataRecords { get; }
+
+        protected abstract IEnumerable<Table> GetTables(
+            DataManagementActivity forcedActivity,
+            TransactionContext tx);
+
+        protected abstract bool DoPersistAll(DataManagementActivity forcedActivity);
+
+        protected abstract bool MergeTable(Table table, TransactionContext tx);
+
+        #region Candidates
+        private Table? FindCandidate(
+            DataManagementActivity forcedActivity,
+            TransactionContext tx)
+        {
+            DateTime? GetOldestRecord(Table table)
+            {
+                var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
+                var oldestRecord = table.Query(tx)
+                    .WithInMemoryOnly()
+                    .WithCommittedOnly()
+                    .WithSortColumns([sortColumn])
+                    .WithProjection([table.Schema.CreationTimeColumnIndex])
+                    .Take(1);
+
+                return oldestRecord.Any()
+                    ? (DateTime)oldestRecord.First().Span[0]!
+                    : null;
+            }
+
+            //  Should we persist any data given the total number of records in memory (across tables)?
+            if (IsPersistanceRequired(forcedActivity, tx))
+            {   //  Find the oldest record across tables (by creation time)
+                var candidates = GetTables(forcedActivity, tx)
+                    .Select(t => new Candidate(t, GetOldestRecord(t)))
+                    .Where(o => o.OldestCreationTime != null)
+                    .OrderBy(o => o.OldestCreationTime)
+                    .ToList();
+
+                while (candidates.Any())
+                {
+                    var candidate = candidates.First();
+
+                    candidates.RemoveAt(0);
+                    MergeTable(candidate.Table, tx);
+
+                    var newOldestCreationTime = GetOldestRecord(candidate.Table);
+
+                    if (newOldestCreationTime == candidate.OldestCreationTime)
+                    {
+                        var recordCount = candidate.Table.Query(tx)
+                            .WithInMemoryOnly()
+                            .WithCommittedOnly()
+                            .Count();
+
+                        if (recordCount > 1)
+                        {
+                            return candidate.Table;
+                        }
+                        else
+                        {   //  Nothing:  table is unelligible for persistance since
+                            //  it would be persisting one record and creating one
+                            //  meta record to track it
+                        }
+                    }
+                    else if (newOldestCreationTime != null)
+                    {
+                        candidates.Add(new Candidate(candidate.Table, newOldestCreationTime));
+                        candidates.Sort();
+                    }
+                    else
+                    {   //  newOldestCreationTime == null
+                        //  Nothing, candidate is gone
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private bool IsPersistanceRequired(
+            DataManagementActivity forcedActivity,
+            TransactionContext tx)
+        {
+            var tables = GetTables(forcedActivity, tx);
+            var totalRecords = tables
+                .Select(t => t.Query(tx).WithInMemoryOnly().Count())
+                .Sum();
+
+            return totalRecords > MaxInMemoryDataRecords
+                || (totalRecords > 0 && DoPersistAll(forcedActivity));
+        }
+        #endregion
 
         private void PersistTable(Table table, TransactionContext tx)
         {   //  We persist as much blocks from the table as possible
@@ -97,84 +192,5 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             tableBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, skipRows));
         }
-
-        protected abstract int MaxInMemoryDataRecords { get; }
-
-        protected abstract IEnumerable<Table> GetTables(
-            DataManagementActivity forcedActivity,
-            TransactionContext tx);
-
-        protected abstract bool DoPersistAll(DataManagementActivity forcedActivity);
-
-        #region Candidates
-        private Table? FindCandidate(
-            DataManagementActivity forcedActivity,
-            TransactionContext tx)
-        {
-            DateTime? GetOldestRecord(Table table)
-            {
-                var sortColumn = new SortColumn(table.Schema.CreationTimeColumnIndex, false);
-                var oldestRecord = table.Query(tx)
-                    .WithInMemoryOnly()
-                    .WithCommittedOnly()
-                    .WithSortColumns([sortColumn])
-                    .WithProjection([table.Schema.CreationTimeColumnIndex])
-                    .Take(1);
-
-                return oldestRecord.Any()
-                    ? (DateTime)oldestRecord.First().Span[0]!
-                    : null;
-            }
-
-            //  Should we persist any data given the total number of records in memory (across tables)?
-            if (IsPersistanceRequired(forcedActivity, tx))
-            {   //  Find the oldest record across tables (by creation time)
-                var candidates = GetTables(forcedActivity, tx)
-                    .Select(t => new Candidate(t, GetOldestRecord(t)))
-                    .Where(o => o.OldestCreationTime != null)
-                    .OrderBy(o => o.OldestCreationTime)
-                    .ToList();
-
-                while (candidates.Any())
-                {
-                    var candidate = candidates.First();
-
-                    candidates.RemoveAt(0);
-                    tx.LoadCommittedBlocksInTransaction(candidate.Table.Schema.TableName);
-
-                    var newOldestCreationTime = GetOldestRecord(candidate.Table);
-
-                    if (newOldestCreationTime == candidate.OldestCreationTime)
-                    {
-                        return candidate.Table;
-                    }
-                    else if (newOldestCreationTime != null)
-                    {
-                        candidates.Add(new Candidate(candidate.Table, newOldestCreationTime));
-                        candidates.Sort();
-                    }
-                    else
-                    {   //  newOldestCreationTime == null
-                        //  Nothing, candidate is gone
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private bool IsPersistanceRequired(
-            DataManagementActivity forcedActivity,
-            TransactionContext tx)
-        {
-            var tables = GetTables(forcedActivity, tx);
-            var totalRecords = tables
-                .Select(t => t.Query(tx).WithInMemoryOnly().Count())
-                .Sum();
-
-            return totalRecords > MaxInMemoryDataRecords
-                || (totalRecords > 0 && DoPersistAll(forcedActivity));
-        }
-        #endregion
     }
 }

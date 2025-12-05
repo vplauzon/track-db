@@ -41,5 +41,10 @@ namespace TrackDb.Lib.DataLifeCycle
 
             return doPersistEverything;
         }
+
+        protected override bool MergeTable(Table table, TransactionContext tx)
+        {
+            return tx.LoadCommittedBlocksInTransaction(table.Schema.TableName);
+        }
     }
 }

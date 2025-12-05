@@ -186,7 +186,9 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (tableProperties.IsMetaDataTable)
             {
-                throw new ArgumentException($"Table is metadata", nameof(dataTableName));
+                throw new ArgumentException(
+                    $"Table '{tableProperties.Table.Schema.TableName}' is metadata",
+                    nameof(dataTableName));
             }
             if (metadataTableName == null)
             {
@@ -286,16 +288,16 @@ namespace TrackDb.Lib.DataLifeCycle
                     if (metaBlockId == null)
                     {   //  The top of the hierarchy
                         //  Delete all in-memory meta records
-                        metadataTable.Query(tx)
-                            .WithInMemoryOnly()
-                            .Delete();
-                        tx.LoadCommittedBlocksInTransaction(metadataTable.Schema.TableName);
-                        tx.TransactionState.UncommittedTransactionLog
-                            .TransactionTableLogMap[metadataTable.Schema.TableName]
-                            .NewDataBlock
-                            .AppendBlock(newBlockBuilder);
+                        tx.LoadCommittedBlocksInTransaction(metadataTableName);
+                        
+                        var tableLog = tx.TransactionState.UncommittedTransactionLog
+                            .TransactionTableLogMap[metadataTableName];
+
+                        tableLog.CommittedDataBlock?.DeleteAll();
+                        tableLog.NewDataBlock.DeleteAll();
+                        tableLog.NewDataBlock.AppendBlock(newBlockBuilder);
                         //  Hard delete records
-                        foreach(var p in cumulatedHardDeletedRecordIds)
+                        foreach (var p in cumulatedHardDeletedRecordIds)
                         {
                             Database.DeleteTombstoneRecords(p.Key, p.Value, tx);
                         }

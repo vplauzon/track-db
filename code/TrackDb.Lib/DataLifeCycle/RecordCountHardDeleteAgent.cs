@@ -74,7 +74,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Select(p => new
                 {
                     p.Key.TableName,
-                    BlockId = p.Key.Item2,
+                    BlockId = p.Key.Item2 <= 0 ? null : (int?)p.Key.Item2,
                     RecordCount = p.Value
                 })
                 .OrderBy(o => o.RecordCount)
@@ -86,11 +86,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(o => o.BlockId == 0)
                 .Any();
             var blockId = topBlocks.First().BlockId;
-            var otherBlockIds = topBlocks
-                .Skip(1)
-                .Where(o => o.TableName == tableName)
-                .Select(o => o.BlockId)
-                .ToImmutableArray();
 
             //  GC
             topBlocks = topBlocks.Take(0).ToImmutableArray();
@@ -100,9 +95,17 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 tombstoneBlockFixLogic.FixNullBlockIds(tableName, tx);
             }
-            else
+            else if (!tableMap[tableName].IsMetaDataTable)
             {
-                CompactBlock(tableName, blockId, otherBlockIds, tx);
+                var otherBlockIds = topBlocks
+                    .Skip(1)
+                    .Where(o => o.TableName == tableName)
+                    .Select(o => o.BlockId)
+                    .Where(id => id != null)
+                    .Cast<int>()
+                    .ToImmutableArray();
+
+                CompactBlock(tableName, blockId!.Value, otherBlockIds, tx);
             }
         }
 
