@@ -83,9 +83,16 @@ namespace TrackDb.Lib.DataLifeCycle
             var tableName = topBlocks.First().TableName;
             var hasNullBlocks = topBlocks
                 .Where(o => o.TableName == tableName)
-                .Where(o => o.BlockId == 0)
+                .Where(o => o.BlockId == null)
                 .Any();
             var blockId = topBlocks.First().BlockId;
+            var otherBlockIds = topBlocks
+                .Skip(1)
+                .Where(o => o.TableName == tableName)
+                .Select(o => o.BlockId)
+                .Where(id => id != null)
+                .Cast<int>()
+                .ToImmutableArray();
 
             //  GC
             topBlocks = topBlocks.Take(0).ToImmutableArray();
@@ -97,14 +104,6 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else if (!tableMap[tableName].IsMetaDataTable)
             {
-                var otherBlockIds = topBlocks
-                    .Skip(1)
-                    .Where(o => o.TableName == tableName)
-                    .Select(o => o.BlockId)
-                    .Where(id => id != null)
-                    .Cast<int>()
-                    .ToImmutableArray();
-
                 CompactBlock(tableName, blockId!.Value, otherBlockIds, tx);
             }
         }
