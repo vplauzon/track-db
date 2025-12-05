@@ -85,7 +85,7 @@ namespace TrackDb.Lib.Encoding
             IEnumerable<long?> values)
         {
             int itemCount = 0, nonNull = 0;
-            long min = int.MaxValue, max = int.MinValue;
+            long min = long.MaxValue, max = long.MinValue;
 
             //  Compute extrema & nonNull
             foreach (var v in values)

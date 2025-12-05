@@ -265,13 +265,13 @@ namespace TrackDb.Lib.InMemory.Block
                 lowerBound = ShrinkTruncationLowerBound(
                     buffer,
                     skipRows,
-                    new(0, 0, ImmutableArray<ColumnStats>.Empty),
+                    lowerBound,
                     upperBound);
                 upperBound = GrowTruncationUpperBound(
                     buffer,
                     skipRows,
                     maxRowCount,
-                    new(0, 0, ImmutableArray<ColumnStats>.Empty),
+                    lowerBound,
                     upperBound);
 
                 var finalStats = OptimizeTruncationRowCount(
@@ -315,13 +315,13 @@ namespace TrackDb.Lib.InMemory.Block
             else
             {
                 var newCount = lowerBound.ItemCount / 2;
-                var blockStats = SerializeSegment(buffer, skipRows, newCount);
+                var newLowerBound = SerializeSegment(buffer, skipRows, newCount);
 
                 return ShrinkTruncationLowerBound(
                     buffer,
                     skipRows,
-                    upperBound,
-                    blockStats);
+                    newLowerBound,
+                    upperBound);
             }
         }
 
