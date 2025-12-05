@@ -77,7 +77,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     BlockId = p.Key.Item2 <= 0 ? null : (int?)p.Key.Item2,
                     RecordCount = p.Value
                 })
-                .OrderBy(o => o.RecordCount)
+                .OrderByDescending(o => o.RecordCount)
                 //  Cap the collection to required item count
                 .CapSumValues(o => o.RecordCount, recordCountToHardDelete);
             var tableName = topBlocks.First().TableName;

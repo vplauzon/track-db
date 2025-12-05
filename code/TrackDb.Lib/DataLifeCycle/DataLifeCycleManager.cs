@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -32,11 +33,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
+                new TransactionLogMergingAgent(database),
                 new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database),
-                new MetaRecordPersistanceAgent(database),
-                new TransactionLogMergingAgent(database));
+                new MetaRecordPersistanceAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -81,7 +82,9 @@ namespace TrackDb.Lib.DataLifeCycle
         private async Task DataMaintanceAsync()
         {
             var lastReleaseBlock = DateTime.Now;
+            //var stopwatch = new Stopwatch();
 
+            //stopwatch.Start();
             //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
@@ -100,7 +103,9 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         (var dataManagementActivity, var sourceList) = ReadAccumulatedItems();
 
+                        //stopwatch.Restart();
                         RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList);
+                        //Console.WriteLine(stopwatch.Elapsed);
                     }
                 }
                 ReleaseBlocks(ref lastReleaseBlock);
@@ -109,7 +114,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void ReleaseBlocks(ref DateTime lastReleaseBlock)
         {
-            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod)
+            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.BlockReleaseWaitPeriod)
                 > DateTime.Now)
             {
                 if (!_database.HasActiveTransaction)
