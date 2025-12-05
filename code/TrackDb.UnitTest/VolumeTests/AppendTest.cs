@@ -23,6 +23,7 @@ namespace TrackDb.UnitTest.VolumeTests
                         $"Bob{i} Smith{i + 50}"))
                     .ToImmutableArray();
 
+                //  Append in one transaction
                 db.EmployeeTable.AppendRecords(records);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
                     ? DataManagementActivity.PersistAllNonMetaData
