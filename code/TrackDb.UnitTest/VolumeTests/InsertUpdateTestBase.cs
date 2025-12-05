@@ -73,7 +73,7 @@ namespace TrackDb.UnitTest.VolumeTests
                             request2,
                             request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
                     }
-                    await db.Database.AwaitLifeCycleManagement(3);
+                    await db.Database.AwaitLifeCycleManagement(5);
 
                     Console.WriteLine(i);
                 }

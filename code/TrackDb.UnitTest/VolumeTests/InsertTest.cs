@@ -31,7 +31,7 @@ namespace TrackDb.UnitTest.VolumeTests
             await RunPerformanceTestAsync(1000);
         }
 
-        [Fact(Skip = "Fixing issues")]
+        [Fact]
         public async Task Test010000()
         {
             await RunPerformanceTestAsync(10000);
