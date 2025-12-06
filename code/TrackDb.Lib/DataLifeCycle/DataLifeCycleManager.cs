@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -30,11 +31,20 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public DataLifeCycleManager(Database database)
         {
+            var nonMetaTableProvider = new NonMetaTableProvider(database);
+            var metaTableProvider = new MetaTableProvider(database);
+
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new TransactionLogMergingAgent(database),
-                new NonMetaRecordPersistanceAgent(database),
-                new RecordCountHardDeleteAgent(database),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
+                //new NonMetaRecordPersistanceAgent(database),
+                //new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database),
                 new MetaRecordPersistanceAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
