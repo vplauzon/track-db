@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.Tracing;
 using System.Linq;
 using System.Text;
 
@@ -9,7 +8,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
     internal class RecordCountPersistanceCandidateProvider : LogicBase, IPersistanceCandidateProvider
     {
         #region Inner types
-        private record TableRecordCount(Table Table, long RecordCount);
+        private record TableRecordCount(Table Table, long RecordCount, bool IsMetaMerged);
         #endregion
 
         private readonly ITableProvider _tableProvider;
@@ -40,7 +39,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 if (newRecordCount == topCandidate.RecordCount)
                 {
-                    if (!MergeMetaRecords(topCandidate, tx))
+                    if (topCandidate.IsMetaMerged || !MergeMetaRecords(topCandidate, tx))
                     {
                         yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
                     }
@@ -49,14 +48,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         var newNewRecordCount = GetRecordCount(topCandidate.Table, tx);
 
                         tableRecordCounts.Add(
-                            new TableRecordCount(topCandidate.Table, newNewRecordCount));
+                            new TableRecordCount(topCandidate.Table, newNewRecordCount, true));
                         Sort(tableRecordCounts);
                     }
                 }
                 else
                 {
                     tableRecordCounts.Add(
-                        new TableRecordCount(topCandidate.Table, newRecordCount));
+                        new TableRecordCount(topCandidate.Table, newRecordCount, false));
                     Sort(tableRecordCounts);
                 }
             }
@@ -92,7 +91,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             var tables = _tableProvider.GetTables(tx);
             var initialTables = tables
-                .Select(t => new TableRecordCount(t, GetRecordCount(t, tx)))
+                .Select(t => new TableRecordCount(t, GetRecordCount(t, tx), false))
                 .ToList();
 
             Sort(initialTables);
