@@ -4,8 +4,13 @@ using System.Text;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
-    internal class NonMetaTableProvider : ITableProvider
+    internal class NonMetaTableProvider : LogicBase, ITableProvider
     {
+        public NonMetaTableProvider(Database database)
+            : base(database)
+        {
+        }
+
         IEnumerable<Table> ITableProvider.GetTables(TransactionContext tx)
         {
             throw new NotImplementedException();

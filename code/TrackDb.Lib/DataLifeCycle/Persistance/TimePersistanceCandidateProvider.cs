@@ -4,8 +4,13 @@ using System.Text;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
-    internal class TimePersistanceCandidateProvider : IPersistanceCandidateProvider
+    internal class TimePersistanceCandidateProvider : LogicBase, IPersistanceCandidateProvider
     {
+        public TimePersistanceCandidateProvider(Database database)
+            : base(database)
+        {
+        }
+
         IEnumerable<PersistanceCandidate> IPersistanceCandidateProvider.FindCandidates(
             DataManagementActivity activity, TransactionContext tx)
         {
