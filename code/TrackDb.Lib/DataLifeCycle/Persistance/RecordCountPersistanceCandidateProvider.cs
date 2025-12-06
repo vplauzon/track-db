@@ -24,24 +24,29 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         IEnumerable<PersistanceCandidate> IPersistanceCandidateProvider.FindCandidates(
             DataManagementActivity activity, TransactionContext tx)
         {
+            var doPersistAll = _tableProvider.DoPersistAll(activity);
             var tableRecordCounts = GetTableRecordCounts(tx);
 
-            while (IsPersistanceRequired(tableRecordCounts, activity, tx))
+            while (IsPersistanceRequired(tableRecordCounts, doPersistAll, tx))
             {
+                var topCandidate = tableRecordCounts.First();
+
+                tableRecordCounts.RemoveAt(0);
+
+                yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
             }
-            throw new NotImplementedException();
         }
 
         private bool IsPersistanceRequired(
             IEnumerable<TableRecordCount> tableRecordCounts,
-            DataManagementActivity activity,
+            bool doPersistAll,
             TransactionContext tx)
         {
             var totalRecords = tableRecordCounts
                 .Sum(trc => trc.RecordCount);
 
             return totalRecords > _tableProvider.MaxInMemoryDataRecords
-                || (totalRecords > 0 && _tableProvider.DoPersistAll(activity));
+                || (totalRecords > 0 && doPersistAll);
         }
 
         private List<TableRecordCount> GetTableRecordCounts(TransactionContext tx)
