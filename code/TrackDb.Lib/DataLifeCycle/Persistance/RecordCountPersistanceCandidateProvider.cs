@@ -39,7 +39,13 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 if (newRecordCount == topCandidate.RecordCount)
                 {
-                    if (topCandidate.IsMetaMerged || !MergeMetaRecords(topCandidate, tx))
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                    var isMetadataTable =
+                        tableMap[topCandidate.Table.Schema.TableName].IsMetaDataTable;
+
+                    if (!isMetadataTable
+                        || topCandidate.IsMetaMerged
+                        || !MergeMetaRecords(topCandidate, tx))
                     {
                         yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
                     }
@@ -101,7 +107,13 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private bool MergeMetaRecords(TableRecordCount topCandidate, TransactionContext tx)
         {
-            throw new NotImplementedException();
+            var blockMergingLogic = new BlockMergingLogic(Database);
+
+            return blockMergingLogic.MergeBlocks(
+                topCandidate.Table.Schema.TableName,
+                null,
+                Array.Empty<int>(),
+                tx);
         }
     }
 }
