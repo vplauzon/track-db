@@ -46,7 +46,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             IBlock tableBlock = tableBlockBuilder;
             var metadataTable = Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
-            var isFirstBlockToPersist = true;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
             var skipRows = 0;
 
@@ -64,34 +63,17 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 }
                 if (blockStats.Size > buffer.Length)
                 {
-                    throw new IndexOutOfRangeException(
-                        $"Buffer overrun:  {blockStats.Size}>{buffer.Length}");
+                    throw new InvalidOperationException(
+                        $"Block size ({blockStats.Size}) is bigger than planned" +
+                        $"maximum ({buffer.Length})");
                 }
 
-                //  We stop before persisting the last (typically incomplete) block
-                if (isFirstBlockToPersist
-                    || candidate.DoPersistAll
-                    || tableBlock.RecordCount - skipRows > blockStats.ItemCount)
-                {
-                    if (blockStats.Size > buffer.Length)
-                    {
-                        throw new InvalidOperationException(
-                            $"Block size ({blockStats.Size}) is bigger than planned" +
-                            $"maximum ({buffer.Length})");
-                    }
+                var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
-                    var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
-
-                    metadataTable.AppendRecord(
-                        metaSchema.CreateMetadataRecord(blockId, blockStats).Span,
-                        tx);
-                    isFirstBlockToPersist = false;
-                    skipRows += blockStats.ItemCount;
-                }
-                else
-                {   //  We're done
-                    break;
-                }
+                metadataTable.AppendRecord(
+                    metaSchema.CreateMetadataRecord(blockId, blockStats).Span,
+                    tx);
+                skipRows += blockStats.ItemCount;
             }
             tableBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, skipRows));
         }
