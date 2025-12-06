@@ -32,9 +32,25 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 var topCandidate = tableRecordCounts.First();
 
                 tableRecordCounts.RemoveAt(0);
+                tx.LoadCommittedBlocksInTransaction(topCandidate.Table.Schema.TableName);
 
-                yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
+                var newRecordCount = GetRecordCount(topCandidate.Table, tx);
+
+                if (newRecordCount == topCandidate.RecordCount)
+                {
+                    yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
+                }
+                else
+                {
+                    tableRecordCounts.Add(new TableRecordCount(topCandidate.Table, newRecordCount));
+                    Sort(tableRecordCounts);
+                }
             }
+        }
+
+        private void Sort(List<TableRecordCount> tableRecordCounts)
+        {
+            tableRecordCounts.Sort((trc1, trc2) => -trc1.RecordCount.CompareTo(trc2.RecordCount));
         }
 
         private bool IsPersistanceRequired(
@@ -49,13 +65,23 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 || (totalRecords > 0 && doPersistAll);
         }
 
+        private static long GetRecordCount(Table table, TransactionContext tx)
+        {
+            var count = table.Query(tx)
+                .WithInMemoryOnly()
+                .Count();
+
+            return count;
+        }
+
         private List<TableRecordCount> GetTableRecordCounts(TransactionContext tx)
         {
             var tables = _tableProvider.GetTables(tx);
             var initialTables = tables
-                .Select(t => new TableRecordCount(t, t.Query(tx).WithInMemoryOnly().Count()))
-                .OrderByDescending(trc => trc.RecordCount)
+                .Select(t => new TableRecordCount(t, GetRecordCount(t, tx)))
                 .ToList();
+
+            Sort(initialTables);
 
             return initialTables;
         }
