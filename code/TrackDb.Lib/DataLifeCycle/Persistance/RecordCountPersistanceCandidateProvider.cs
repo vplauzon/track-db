@@ -6,6 +6,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal class RecordCountPersistanceCandidateProvider : LogicBase, IPersistanceCandidateProvider
     {
+        #region Inner types
+        private record TableRecordCount(Table Table, int RecordCount);
+        #endregion
+
         public RecordCountPersistanceCandidateProvider(Database database)
             : base(database)
         {

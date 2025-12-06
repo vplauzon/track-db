@@ -12,6 +12,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
         }
 
+        bool ITableProvider.DoPersistAll(DataManagementActivity activity)
+        {
+            var doPersistEverything =
+                (activity & DataManagementActivity.PersistAllNonMetaData) != 0;
+
+            return doPersistEverything;
+        }
+
         IEnumerable<Table> ITableProvider.GetTables(TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
