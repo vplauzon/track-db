@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 
-namespace TrackDb.Lib.DataLifeCycle
+namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal interface IPersistanceCandidateProvider
     {

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.InMemory.Block;
 
-namespace TrackDb.Lib.DataLifeCycle
+namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal class RecordPersistanceAgent : DataLifeCycleAgentBase
     {

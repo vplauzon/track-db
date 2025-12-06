@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace TrackDb.Lib.DataLifeCycle
+namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal interface ITableProvider
     {
