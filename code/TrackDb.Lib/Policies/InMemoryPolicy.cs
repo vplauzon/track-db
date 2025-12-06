@@ -6,6 +6,7 @@ namespace TrackDb.Lib.Policies
         int MaxBlocksPerTable,
         int MaxNonMetaDataRecords,
         int MaxMetaDataRecords,
+        TimeSpan MaxPersistancePeriod,
         int MaxTombstonedRecords,
         TimeSpan MaxTombstonePeriod)
     {
@@ -13,6 +14,7 @@ namespace TrackDb.Lib.Policies
             int? MaxBlocksPerTable = null,
             int? MaxNonMetaDataRecords = null,
             int? MaxMetaDataRecords = null,
+            TimeSpan? MaxPersistancePeriod = null,
             int? MaxTombstonedRecords = null,
             TimeSpan? MaxTombstonePeriod = null)
         {
@@ -20,6 +22,7 @@ namespace TrackDb.Lib.Policies
                  MaxBlocksPerTable ?? 10,
                  MaxNonMetaDataRecords ?? 200,
                  MaxMetaDataRecords ?? 50,
+                 MaxPersistancePeriod ?? TimeSpan.FromSeconds(30),
                  MaxTombstonedRecords ?? 200,
                  MaxTombstonePeriod ?? TimeSpan.FromSeconds(10));
         }

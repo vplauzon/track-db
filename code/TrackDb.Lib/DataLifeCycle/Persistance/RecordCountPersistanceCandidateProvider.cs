@@ -22,7 +22,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         }
 
         IEnumerable<PersistanceCandidate> IPersistanceCandidateProvider.FindCandidates(
-            DataManagementActivity activity, TransactionContext tx)
+            DataManagementActivity activity,
+            TransactionContext tx)
         {
             var doPersistAll = _tableProvider.DoPersistAll(activity);
             var tableRecordCounts = GetTableRecordCounts(tx);
@@ -88,6 +89,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             var count = table.Query(tx)
                 .WithInMemoryOnly()
+                .WithCommittedOnly()
                 .Count();
 
             return count;
@@ -98,6 +100,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var tables = _tableProvider.GetTables(tx);
             var initialTables = tables
                 .Select(t => new TableRecordCount(t, GetRecordCount(t, tx), false))
+                .Where(t => t.RecordCount > 0)
                 .ToList();
 
             Sort(initialTables);
