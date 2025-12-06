@@ -12,6 +12,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
         }
 
+        long ITableProvider.MaxInMemoryDataRecords
+            => Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
+
         bool ITableProvider.DoPersistAll(DataManagementActivity activity)
         {
             var doPersistEverything =
