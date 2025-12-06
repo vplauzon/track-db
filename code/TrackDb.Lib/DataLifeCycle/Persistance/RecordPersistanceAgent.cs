@@ -23,28 +23,19 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             DataManagementActivity activity,
             TransactionContext tx)
         {
-            while (_persistanceCandidateProvider.IsPersistanceRequired(activity, tx))
+            foreach (var candidate in _persistanceCandidateProvider.FindCandidates(activity, tx))
             {
-                var candidates = _persistanceCandidateProvider.FindCandidates(activity, tx);
-
-                foreach (var candidate in candidates)
-                {
-                    if (_persistanceCandidateProvider.IsPersistanceRequired(activity, tx))
-                    {
-                        PersistTable(candidate, tx);
-                    }
-                    else
-                    {   //  We are done
-                        return;
-                    }
-                }
+                PersistTable(candidate, tx);
             }
         }
 
-        private void PersistTable(Table table, TransactionContext tx)
-        {   //  We persist as much blocks from the table as possible
+        private void PersistTable(PersistanceCandidate candidate, TransactionContext tx)
+        {
+            tx.LoadCommittedBlocksInTransaction(candidate.Table.Schema.TableName);
+
+            //  We persist as much blocks from the table as possible
             var tableBlockBuilder = tx.TransactionState.UncommittedTransactionLog
-                .TransactionTableLogMap[table.Schema.TableName]
+                .TransactionTableLogMap[candidate.Table.Schema.TableName]
                 .CommittedDataBlock;
 
             if (tableBlockBuilder == null)
@@ -79,6 +70,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 //  We stop before persisting the last (typically incomplete) block
                 if (isFirstBlockToPersist
+                    || candidate.DoPersistAll
                     || tableBlock.RecordCount - skipRows > blockStats.ItemCount)
                 {
                     if (blockStats.Size > buffer.Length)

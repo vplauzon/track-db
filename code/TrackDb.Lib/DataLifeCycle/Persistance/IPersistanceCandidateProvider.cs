@@ -5,8 +5,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal interface IPersistanceCandidateProvider
     {
-        bool IsPersistanceRequired(DataManagementActivity activity, TransactionContext tx);
-
-        IEnumerable<Table> FindCandidates(DataManagementActivity activity, TransactionContext tx);
+        IEnumerable<PersistanceCandidate> FindCandidates(
+            DataManagementActivity activity,
+            TransactionContext tx);
     }
 }
