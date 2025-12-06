@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
 using System.Linq;
 using System.Text;
 
@@ -34,15 +35,28 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 tableRecordCounts.RemoveAt(0);
                 tx.LoadCommittedBlocksInTransaction(topCandidate.Table.Schema.TableName);
 
+                //  Validate a log merge didn't occur which change the counts
                 var newRecordCount = GetRecordCount(topCandidate.Table, tx);
 
                 if (newRecordCount == topCandidate.RecordCount)
                 {
-                    yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
+                    if (!MergeMetaRecords(topCandidate, tx))
+                    {
+                        yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
+                    }
+                    else
+                    {
+                        var newNewRecordCount = GetRecordCount(topCandidate.Table, tx);
+
+                        tableRecordCounts.Add(
+                            new TableRecordCount(topCandidate.Table, newNewRecordCount));
+                        Sort(tableRecordCounts);
+                    }
                 }
                 else
                 {
-                    tableRecordCounts.Add(new TableRecordCount(topCandidate.Table, newRecordCount));
+                    tableRecordCounts.Add(
+                        new TableRecordCount(topCandidate.Table, newRecordCount));
                     Sort(tableRecordCounts);
                 }
             }
@@ -84,6 +98,11 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             Sort(initialTables);
 
             return initialTables;
+        }
+
+        private bool MergeMetaRecords(TableRecordCount topCandidate, TransactionContext tx)
+        {
+            throw new NotImplementedException();
         }
     }
 }
