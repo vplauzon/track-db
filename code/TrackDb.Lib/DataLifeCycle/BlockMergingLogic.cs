@@ -50,7 +50,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 IImmutableSet<int> blockIdsToCompact,
                 TransactionContext tx)
             {
-                if (!blockIdsToCompact.Any() || blockIdsToCompact.Contains(MetaDataBlock.BlockId))
+                if (blockIdsToCompact.Contains(MetaDataBlock.BlockId))
                 {
                     var parentSchema = MetaDataBlock.Schema.ParentSchema;
                     var block = Database.GetOrLoadBlock(MetaDataBlock.BlockId, parentSchema);
