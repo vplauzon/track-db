@@ -44,6 +44,24 @@ namespace TrackDb.UnitTest.VolumeTests
             await RunPerformanceTestAsync(10000, 10);
         }
 
+        [Fact]
+        public async Task Test100000by1()
+        {
+            await RunPerformanceTestAsync(100000, 1);
+        }
+
+        [Fact]
+        public async Task Test100000by10()
+        {
+            await RunPerformanceTestAsync(100000, 10);
+        }
+
+        [Fact]
+        public async Task Test100000by100()
+        {
+            await RunPerformanceTestAsync(100000, 100);
+        }
+
         protected async Task RunPerformanceTestAsync(int cycleCount, int batchCount)
         {
             var random = new Random();
@@ -89,7 +107,7 @@ namespace TrackDb.UnitTest.VolumeTests
 
                 var stats = db.Database.GetDatabaseStatistics();
 
-                Console.WriteLine($"{cycleCount}:  {stats}");
+                Console.WriteLine($"{cycleCount} by {batchCount}:  {stats}");
             }
         }
     }
