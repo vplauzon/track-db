@@ -100,7 +100,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var tables = _tableProvider.GetTables(tx);
             var initialTables = tables
                 .Select(t => new TableRecordCount(t, GetRecordCount(t, tx), false))
-                .Where(t => t.RecordCount > 0)
+                //  We put >1 because persisting a unique record creates meta record in memory
+                .Where(t => t.RecordCount > 1)
                 .ToList();
 
             Sort(initialTables);
