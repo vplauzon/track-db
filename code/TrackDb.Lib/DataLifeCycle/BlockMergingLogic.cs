@@ -159,9 +159,16 @@ namespace TrackDb.Lib.DataLifeCycle
 
             int IBlockFacade.ComputeSize()
             {
-                var blockStats = BlockBuilder.Serialize(Array.Empty<byte>());
+                if (((IBlock)BlockBuilder).RecordCount > 0)
+                {
+                    var blockStats = BlockBuilder.Serialize(Array.Empty<byte>());
 
-                return blockStats.Size;
+                    return blockStats.Size;
+                }
+                else
+                {
+                    return 0;
+                }
             }
 
             int IBlockFacade.ItemCount => ((IBlock)BlockBuilder).RecordCount;
@@ -422,7 +429,9 @@ namespace TrackDb.Lib.DataLifeCycle
                         blockIdsToRemove = [metaBlockId.Value];
                         metaBlockId = metaMetaBlockId > 0 ? metaMetaBlockId : null;
                         blockIdsToCompact = Array.Empty<int>();
-                        blocksToAdd = [newBlockBuilder];
+                        blocksToAdd = ((IBlock)newBlockBuilder).RecordCount > 0
+                            ? [newBlockBuilder]
+                            : Array.Empty<BlockBuilder>();
                     }
                 }
             }
