@@ -8,6 +8,8 @@ namespace TrackDb.UnitTest.VolumeTests
 {
     public class InsertThenDeleteAllTest
     {
+        private const int BULK_SIZE = 10000;
+
         [Fact]
         public async Task DeleteAll()
         {
@@ -20,25 +22,43 @@ namespace TrackDb.UnitTest.VolumeTests
             await InsertThenDeleteAllAsync(true);
         }
 
+        [Fact]
+        public async Task RandomDelete()
+        {
+            await using (var db = await VolumeTestDatabase.CreateAsync())
+            {
+                InsertBulk(db);
+
+                var shuffledEmployeeIds = db.EmployeeTable.Query()
+                    .Select(e => e.EmployeeId)
+                    .Shuffle()
+                    .ToImmutableArray();
+
+                //  Delete out-of-order, one at the time
+                foreach (var employeeId in shuffledEmployeeIds)
+                {
+                    db.EmployeeTable.Query()
+                        .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
+                        .Delete();
+
+                    await db.Database.AwaitLifeCycleManagement(4);
+                }
+                Assert.Equal(
+                    0,
+                    db.EmployeeTable.Query().Count());
+                Assert.Equal(
+                    0,
+                    db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
+            }
+        }
+
         private async Task InsertThenDeleteAllAsync(bool doKeepOne)
         {
-            const int N = 10000;
-
             var random = new Random();
 
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
-                using (var tx1 = db.Database.CreateTransaction())
-                {
-                    var employees = Enumerable.Range(0, N)
-                        .Select(j => new VolumeTestDatabase.Employee(
-                            $"Employee-{j}",
-                            $"EmployeeName-{j}"));
-
-                    db.EmployeeTable.AppendRecords(employees, tx1);
-
-                    tx1.Complete();
-                }
+                InsertBulk(db);
                 await db.Database.AwaitLifeCycleManagement(1);
 
                 var tableMap = db.Database.GetDatabaseStateSnapshot().TableMap;
@@ -74,6 +94,21 @@ namespace TrackDb.UnitTest.VolumeTests
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
                     db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
+            }
+        }
+
+        private static void InsertBulk(VolumeTestDatabase db)
+        {
+            using (var tx1 = db.Database.CreateTransaction())
+            {
+                var employees = Enumerable.Range(0, BULK_SIZE)
+                    .Select(j => new VolumeTestDatabase.Employee(
+                        $"Employee-{j}",
+                        $"EmployeeName-{j}"));
+
+                db.EmployeeTable.AppendRecords(employees, tx1);
+
+                tx1.Complete();
             }
         }
     }
