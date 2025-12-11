@@ -30,6 +30,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Storage.Files.DataLake" Version="12.24.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.3" />
     <PackageReference Include="Polly" Version="8.6.4" />

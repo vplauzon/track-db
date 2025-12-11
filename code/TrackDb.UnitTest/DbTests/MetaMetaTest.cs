@@ -14,9 +14,11 @@ namespace TrackDb.UnitTest.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
-                var record = new TestDatabase.Primitives(1);
+                var record1 = new TestDatabase.Primitives(1);
+                var record2 = new TestDatabase.Primitives(2);
 
-                db.PrimitiveTable.AppendRecord(record);
+                db.PrimitiveTable.AppendRecord(record1);
+                db.PrimitiveTable.AppendRecord(record2);
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
 
@@ -28,11 +30,23 @@ namespace TrackDb.UnitTest.DbTests
 
                 var metaMetadataTableName = map[metadataTableName].MetaDataTableName;
 
-                Assert.NotNull(metaMetadataTableName);
+                Assert.Null(metaMetadataTableName);
 
-                var metaMetaMetadataTableName = map[metaMetadataTableName].MetaDataTableName;
+                var record3 = new TestDatabase.Primitives(3);
+                var record4 = new TestDatabase.Primitives(4);
 
-                Assert.Null(metaMetaMetadataTableName);
+                db.PrimitiveTable.AppendRecord(record3);
+                db.PrimitiveTable.AppendRecord(record4);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
+
+                state = db.Database.GetDatabaseStateSnapshot();
+                map = state.TableMap;
+
+                metaMetadataTableName = map[metadataTableName].MetaDataTableName;
+
+                //  Meta records got merged
+                Assert.Null(metaMetadataTableName);
             }
         }
 

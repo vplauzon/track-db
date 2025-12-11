@@ -13,6 +13,7 @@ namespace TrackDb.Lib.InMemory.Block
         private const int START_TRUNCATE_ROW_COUNT = 100;
         private const int MAX_TRUNCATE_ROW_COUNT_NAIVE = 500;
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
+        private const int MAX_ITERATION_COUNT = 5;
 
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
@@ -113,6 +114,12 @@ namespace TrackDb.Lib.InMemory.Block
                 .AppendValue(creationTime);
             _dataColumns[Schema.RecordIdColumnIndex]
                 .AppendValue(recordId);
+        }
+
+        /// <summary>Deletes all records in the block.</summary>
+        public void DeleteAll()
+        {
+            DeleteRecordsByRecordIndex(Enumerable.Range(0, ((IBlock)this).RecordCount));
         }
 
         /// <summary>Tries to delete records passed in.</summary>
@@ -245,21 +252,28 @@ namespace TrackDb.Lib.InMemory.Block
                 maxRowCount <= MAX_TRUNCATE_ROW_COUNT_NAIVE
                 ? MAX_TRUNCATE_ROW_COUNT_NAIVE
                 : START_TRUNCATE_ROW_COUNT);
-            var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
+            var upperBound = SerializeSegment(buffer, skipRows, startingRowCount);
 
-            if (startingUpperBound.ItemCount == maxRowCount
-                && startingUpperBound.Size <= maxSize)
+            if (upperBound.Size <= maxSize && upperBound.ItemCount == maxRowCount)
             {   //  All rows fit:  we're done
-                return startingUpperBound;
+                return upperBound;
             }
             else
             {
-                (var lowerBound, var upperBound) = GrowTruncationBounds(
+                var lowerBound = upperBound;
+
+                lowerBound = ShrinkTruncationLowerBound(
+                    buffer,
+                    skipRows,
+                    lowerBound,
+                    upperBound);
+                upperBound = GrowTruncationUpperBound(
                     buffer,
                     skipRows,
                     maxRowCount,
-                    new(0, 0, ImmutableArray<ColumnStats>.Empty),
-                    startingUpperBound);
+                    lowerBound,
+                    upperBound);
+
                 var finalStats = OptimizeTruncationRowCount(
                     buffer,
                     skipRows,
@@ -271,7 +285,8 @@ namespace TrackDb.Lib.InMemory.Block
                 if (finalStats.ItemCount <= 0)
                 {
                     throw new InvalidOperationException(
-                        $"Can't serialize zero-rows block {finalStats.ItemCount}");
+                        $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
+                        $"table '{Schema.TableName}'");
                 }
                 if (finalStats.Size > maxSize)
                 {
@@ -284,7 +299,33 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        private (BlockStats lowerBound, BlockStats upperBound) GrowTruncationBounds(
+        #region Truncation Optimization
+        private BlockStats ShrinkTruncationLowerBound(
+            Memory<byte> buffer,
+            int skipRows,
+            BlockStats lowerBound,
+            BlockStats upperBound)
+        {
+            var maxSize = buffer.Length;
+
+            if (lowerBound.Size < upperBound.Size && lowerBound.Size <= maxSize)
+            {
+                return lowerBound;
+            }
+            else
+            {
+                var newCount = lowerBound.ItemCount / 2;
+                var newLowerBound = SerializeSegment(buffer, skipRows, newCount);
+
+                return ShrinkTruncationLowerBound(
+                    buffer,
+                    skipRows,
+                    newLowerBound,
+                    upperBound);
+            }
+        }
+
+        private BlockStats GrowTruncationUpperBound(
             Memory<byte> buffer,
             int skipRows,
             int maxRowCount,
@@ -295,14 +336,14 @@ namespace TrackDb.Lib.InMemory.Block
 
             if (upperBound.Size >= maxSize || upperBound.ItemCount == maxRowCount)
             {
-                return (lowerBound, upperBound);
+                return upperBound;
             }
             else
             {
                 var newCount = Math.Min(maxRowCount, upperBound.ItemCount * 2);
                 var blockStats = SerializeSegment(buffer, skipRows, newCount);
 
-                return GrowTruncationBounds(
+                return GrowTruncationUpperBound(
                     buffer,
                     skipRows,
                     maxRowCount,
@@ -350,9 +391,10 @@ namespace TrackDb.Lib.InMemory.Block
                 var newUpperBound = newBound.Size > maxSize ? newBound : upperBound;
 
                 if (Math.Abs(newBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE
+                    || iterationCount == MAX_ITERATION_COUNT)
                 {
-                    return lowerBound;
+                    return newLowerBound;
                 }
                 else
                 {
@@ -366,6 +408,7 @@ namespace TrackDb.Lib.InMemory.Block
                 }
             }
         }
+        #endregion
         #endregion
 
         #region Log

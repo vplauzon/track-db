@@ -18,10 +18,8 @@ namespace TrackDb.UnitTest.VolumeTests
 
         protected async Task RunPerformanceTestAsync(int cycleCount)
         {
-            var stopwatch = new Stopwatch();
             var random = new Random();
 
-            stopwatch.Start();
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 for (int i = 0; i != cycleCount; ++i)
@@ -73,8 +71,7 @@ namespace TrackDb.UnitTest.VolumeTests
                             request2,
                             request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
                     }
-                    await db.Database.AwaitLifeCycleManagement(3);
-
+                    await db.Database.AwaitLifeCycleManagement(5);
                     //Console.WriteLine(i);
                 }
 

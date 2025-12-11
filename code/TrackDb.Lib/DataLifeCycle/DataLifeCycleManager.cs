@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -30,13 +31,22 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public DataLifeCycleManager(Database database)
         {
+            var nonMetaTableProvider = new NonMetaTableProvider(database);
+            var metaTableProvider = new MetaTableProvider(database);
+
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new NonMetaRecordPersistanceAgent(database),
+                new TransactionLogMergingAgent(database),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
+                //new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
-                new TimeHardDeleteAgent(database),
-                new MetaRecordPersistanceAgent(database),
-                new TransactionLogMergingAgent(database));
+                new TimeHardDeleteAgent(database));
+                //new MetaRecordPersistanceAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -81,7 +91,9 @@ namespace TrackDb.Lib.DataLifeCycle
         private async Task DataMaintanceAsync()
         {
             var lastReleaseBlock = DateTime.Now;
+            //var stopwatch = new Stopwatch();
 
+            //stopwatch.Start();
             //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
@@ -100,7 +112,9 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         (var dataManagementActivity, var sourceList) = ReadAccumulatedItems();
 
+                        //stopwatch.Restart();
                         RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList);
+                        //Console.WriteLine(stopwatch.Elapsed);
                     }
                 }
                 ReleaseBlocks(ref lastReleaseBlock);
@@ -109,7 +123,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void ReleaseBlocks(ref DateTime lastReleaseBlock)
         {
-            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod)
+            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.BlockReleaseWaitPeriod)
                 > DateTime.Now)
             {
                 if (!_database.HasActiveTransaction)

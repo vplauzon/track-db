@@ -281,7 +281,7 @@ namespace TrackDb.Lib
         {
             using (var tx = CreateTransaction())
             {
-                return DatabaseStatistics.Create(GetDatabaseStateSnapshot(), TombstoneTable, tx);
+                return DatabaseStatistics.Create(this);
             }
         }
 

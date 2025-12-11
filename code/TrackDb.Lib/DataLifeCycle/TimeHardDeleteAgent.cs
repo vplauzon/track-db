@@ -65,7 +65,9 @@ namespace TrackDb.Lib.DataLifeCycle
                         otherBlockIds,
                         tx))
                     {
-                        throw new NotImplementedException();
+                        var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
+
+                        tombstoneBlockFixLogic.FixBlockId(argMaxTableName, argMaxBlockId.Value, tx);
                     }
                 }
 

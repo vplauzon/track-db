@@ -6,7 +6,7 @@ using Xunit;
 
 namespace TrackDb.UnitTest.VolumeTests
 {
-    public class InsertUpdateTest: InsertUpdateTestBase
+    public class InsertUpdateTest : InsertUpdateTestBase
     {
         public InsertUpdateTest()
             : base(true)
