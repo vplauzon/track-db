@@ -393,13 +393,19 @@ namespace TrackDb.Lib.DataLifeCycle
 
                         tableLog.CommittedDataBlock?.DeleteAll();
                         tableLog.NewDataBlock.DeleteAll();
+                        //  Replace with in-memory block
                         tableLog.NewDataBlock.AppendBlock(newBlockBuilder);
+
+                        var prunedBlockIds = PruneMetaTable(metadataTable, tx);
+
                         //  Hard delete records
                         foreach (var p in cumulatedHardDeletedRecordIds)
                         {
                             Database.DeleteTombstoneRecords(p.Key, p.Value, tx);
                         }
-                        Database.SetNoLongerInUsedBlockIds(cumulatedReleasedBlockIds, tx);
+                        Database.SetNoLongerInUsedBlockIds(
+                            cumulatedReleasedBlockIds.Concat(prunedBlockIds),
+                            tx);
 
                         return true;
                     }
@@ -618,5 +624,52 @@ namespace TrackDb.Lib.DataLifeCycle
             return (processedBlocks, hardDeletedRecordIds);
         }
         #endregion
+
+        private IEnumerable<int> PruneMetaTable(Table metaTable, TransactionContext tx)
+        {
+            var inMemoryRecordCount = metaTable.Query(tx)
+                .WithInMemoryOnly()
+                .Count();
+
+            if (inMemoryRecordCount == 1)
+            {   //  Unique block persisted
+                var metaSchema = (MetadataTableSchema)metaTable.Schema;
+                var inMemoryQuery = metaTable.Query(tx)
+                    .WithInMemoryOnly();
+                var uniqueBlockItem = inMemoryQuery
+                    .Select(r => new
+                    {
+                        BlockId = (int)r.Span[metaSchema.BlockIdColumnIndex]!,
+                        ItemCount = (int)r.Span[metaSchema.ItemCountColumnIndex]!
+                    })
+                    .First();
+
+                if (uniqueBlockItem.ItemCount == 1)
+                {   //  Only one record persisted in that block
+                    //  it makes better sense to prune the block and have the underlying records
+                    //  in RAM
+                    var dataTableName = metaSchema.ParentSchema.TableName;
+                    var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+                    var dataTableProperties = tableMap[dataTableName];
+                    var dataTable = dataTableProperties.Table;
+                    var dataBlock = Database.GetOrLoadBlock(
+                        uniqueBlockItem.BlockId,
+                        dataTable.Schema);
+
+                    //  Delete the meta data record
+                    inMemoryQuery.Delete();
+                    //  Insert record in data table
+                    tx.TransactionState.UncommittedTransactionLog.AppendBlock(dataBlock);
+
+                    //  Recurse
+                    return dataTableProperties.IsMetaDataTable
+                        ? PruneMetaTable(dataTable, tx)
+                        .Prepend(uniqueBlockItem.BlockId)
+                        : [uniqueBlockItem.BlockId];
+                }
+            }
+
+            return Array.Empty<int>();
+        }
     }
 }
