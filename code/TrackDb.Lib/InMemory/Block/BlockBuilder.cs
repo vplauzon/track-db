@@ -272,7 +272,6 @@ namespace TrackDb.Lib.InMemory.Block
             return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
         }
 
-        #region Truncation Optimization
         private BlockStats OptimizeTruncationRowCount(
             Memory<byte> buffer,
             int skipRows,
@@ -363,7 +362,6 @@ namespace TrackDb.Lib.InMemory.Block
 
             return (bound1, bound2, bound3);
         }
-        #endregion
         #endregion
 
         #region Log
