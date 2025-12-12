@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using TrackDb.Lib.Encoding;
 
 namespace TrackDb.Lib.Encoding
 {

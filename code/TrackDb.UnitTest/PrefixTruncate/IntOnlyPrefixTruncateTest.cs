@@ -26,7 +26,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             block.AppendRecord(DateTime.Now, 1, new[] { (object)1 });
 
-            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
+            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0, null);
 
             Assert.Equal(1, blockStats.ItemCount);
             Assert.True(blockStats.Size <= MAX_SIZE);
@@ -44,7 +44,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
                 block.AppendRecord(DateTime.Now, i, [(object)i]);
             }
 
-            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
+            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0, null);
 
             Assert.True(blockStats.ItemCount > 0);
             Assert.True(blockStats.ItemCount < ROW_COUNT);

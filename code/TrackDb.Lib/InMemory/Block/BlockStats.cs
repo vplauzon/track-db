@@ -17,6 +17,9 @@ namespace TrackDb.Lib.InMemory.Block
         int Size,
         IImmutableList<ColumnStats> Columns)
     {
+        public static BlockStats Empty { get; } =
+            new BlockStats(0, 0, ImmutableArray<ColumnStats>.Empty);
+
         public override string ToString()
         {
             return $"(Count={ItemCount}, Size={Size})";
