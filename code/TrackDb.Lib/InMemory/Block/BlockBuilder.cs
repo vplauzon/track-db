@@ -233,8 +233,12 @@ namespace TrackDb.Lib.InMemory.Block
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="skipRows">Number of rows to skip at the beginning of the block.</param>
+        /// <param name="hintRowCount">
+        /// Hint at what row count should be.  This eliminates the first iterations of guessing row
+        /// count.
+        /// </param>
         /// <returns></returns>
-        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
+        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows, int? hintRowCount)
         {
             IBlock block = this;
             var maxSize = buffer.Length;
@@ -246,13 +250,13 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
-            var startingRowCount = Math.Min(maxRowCount, START_TRUNCATE_ROW_COUNT);
+            var startingRowCount = Math.Min(maxRowCount, hintRowCount ?? START_TRUNCATE_ROW_COUNT);
             var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
             var finalStats = OptimizeTruncationRowCount(
                 buffer,
                 skipRows,
                 maxRowCount,
-                new BlockStats(0, 0, ImmutableArray<ColumnStats>.Empty),
+                BlockStats.Empty,
                 startingUpperBound,
                 1);
 
@@ -322,12 +326,13 @@ namespace TrackDb.Lib.InMemory.Block
                     : (boundB, boundC);
 
                 if ((Math.Abs(newLowerBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    && Math.Abs(newUpperBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
+                    && Math.Abs(newUpperBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE
+                    && newLowerBound.ItemCount > 0)
                     || iterationCount == MAX_ITERATION_COUNT)
                 {
-                    return boundC.Size <= maxSize
-                        ? boundC
-                        : (boundB.Size <= maxSize ? boundB : boundA);
+                    return newUpperBound.Size <= maxSize
+                        ? newUpperBound
+                        : newLowerBound;
                 }
                 else
                 {
