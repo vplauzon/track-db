@@ -11,7 +11,6 @@ namespace TrackDb.Lib.InMemory.Block
     internal class BlockBuilder : ReadOnlyBlockBase
     {
         private const int START_TRUNCATE_ROW_COUNT = 100;
-        private const int MAX_TRUNCATE_ROW_COUNT_NAIVE = 500;
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
         private const int MAX_ITERATION_COUNT = 5;
 
@@ -247,111 +246,33 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
-            var startingRowCount = Math.Min(
+            var startingRowCount = Math.Min(maxRowCount, START_TRUNCATE_ROW_COUNT);
+            var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
+            var finalStats = OptimizeTruncationRowCount(
+                buffer,
+                skipRows,
                 maxRowCount,
-                maxRowCount <= MAX_TRUNCATE_ROW_COUNT_NAIVE
-                ? MAX_TRUNCATE_ROW_COUNT_NAIVE
-                : START_TRUNCATE_ROW_COUNT);
-            var upperBound = SerializeSegment(buffer, skipRows, startingRowCount);
+                new BlockStats(0, 0, ImmutableArray<ColumnStats>.Empty),
+                startingUpperBound,
+                1);
 
-            if (upperBound.Size <= maxSize && upperBound.ItemCount == maxRowCount)
-            {   //  All rows fit:  we're done
-                return upperBound;
-            }
-            else
+            if (finalStats.ItemCount <= 0)
             {
-                var lowerBound = upperBound;
-
-                lowerBound = ShrinkTruncationLowerBound(
-                    buffer,
-                    skipRows,
-                    lowerBound,
-                    upperBound);
-                upperBound = GrowTruncationUpperBound(
-                    buffer,
-                    skipRows,
-                    maxRowCount,
-                    lowerBound,
-                    upperBound);
-
-                var finalStats = OptimizeTruncationRowCount(
-                    buffer,
-                    skipRows,
-                    maxRowCount,
-                    lowerBound,
-                    upperBound,
-                    1);
-
-                if (finalStats.ItemCount <= 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
-                        $"table '{Schema.TableName}'");
-                }
-                if (finalStats.Size > maxSize)
-                {
-                    throw new OverflowException(
-                        $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
-                }
-                //  Reserialize so the buffer is up-to-date
-
-                return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
+                throw new InvalidOperationException(
+                    $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
+                    $"table '{Schema.TableName}'");
             }
+            if (finalStats.Size > maxSize)
+            {
+                throw new OverflowException(
+                    $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
+            }
+            //  Reserialize so the buffer is up-to-date
+
+            return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
         }
 
         #region Truncation Optimization
-        private BlockStats ShrinkTruncationLowerBound(
-            Memory<byte> buffer,
-            int skipRows,
-            BlockStats lowerBound,
-            BlockStats upperBound)
-        {
-            var maxSize = buffer.Length;
-
-            if (lowerBound.Size < upperBound.Size && lowerBound.Size <= maxSize)
-            {
-                return lowerBound;
-            }
-            else
-            {
-                var newCount = lowerBound.ItemCount / 2;
-                var newLowerBound = SerializeSegment(buffer, skipRows, newCount);
-
-                return ShrinkTruncationLowerBound(
-                    buffer,
-                    skipRows,
-                    newLowerBound,
-                    upperBound);
-            }
-        }
-
-        private BlockStats GrowTruncationUpperBound(
-            Memory<byte> buffer,
-            int skipRows,
-            int maxRowCount,
-            BlockStats lowerBound,
-            BlockStats upperBound)
-        {
-            var maxSize = buffer.Length;
-
-            if (upperBound.Size >= maxSize || upperBound.ItemCount == maxRowCount)
-            {
-                return upperBound;
-            }
-            else
-            {
-                var newCount = Math.Min(maxRowCount, upperBound.ItemCount * 2);
-                var blockStats = SerializeSegment(buffer, skipRows, newCount);
-
-                return GrowTruncationUpperBound(
-                    buffer,
-                    skipRows,
-                    maxRowCount,
-                    upperBound,
-                    blockStats);
-            }
-        }
-
         private BlockStats OptimizeTruncationRowCount(
             Memory<byte> buffer,
             int skipRows,
@@ -360,41 +281,54 @@ namespace TrackDb.Lib.InMemory.Block
             BlockStats upperBound,
             int iterationCount)
         {
-            const int DELTA_SIZE_TOLERANCE = 10;
+            const int DELTA_SIZE_TOLERANCE = 25;
 
             var maxSize = buffer.Length;
 
-            if (upperBound.Size <= maxSize)
+            if (upperBound.Size <= maxSize && upperBound.Size > maxSize - DELTA_SIZE_TOLERANCE)
             {
                 return upperBound;
             }
-            else if (lowerBound.ItemCount == upperBound.ItemCount - 1)
+            else if (lowerBound.Size > maxSize - DELTA_SIZE_TOLERANCE)
+            {
+                return lowerBound;
+            }
+            else if (upperBound.ItemCount - lowerBound.ItemCount <= 1)
             {
                 return lowerBound;
             }
             else
             {
-                //  Interpolate the new count
+                //  Inter / extra-polate the new count
                 //  Assuming X = count & Y = size
-                //  Also assuming that Y = m.X + b (it's linear)
+                //  Also assuming that Y = m.X + b (relation is linear)
                 //  We want Y to converge to maxSize or Y3 = maxSize
                 //  Y1 = m.X1 + b, Y2 = m.X2 + b
                 //  => Y2-Y1 = m.(X2-X1) => m = (Y2-Y1)/(X2-X1)
                 //  => b = Y1-m.X1
                 //  Then, Y3 = m.X3 + b => X3 = (Y3-b)/m
-                var m = ((double)(upperBound.Size - lowerBound.Size))
+                var m = (double)(upperBound.Size - lowerBound.Size)
                     / (upperBound.ItemCount - lowerBound.ItemCount);
                 var b = lowerBound.Size - m * lowerBound.ItemCount;
-                var newCount = (int)((maxSize - b) / m);
+                var newCount = Math.Min(maxRowCount, (int)((maxSize - b) / m));
                 var newBound = SerializeSegment(buffer, skipRows, newCount);
-                var newLowerBound = newBound.Size > maxSize ? lowerBound : newBound;
-                var newUpperBound = newBound.Size > maxSize ? newBound : upperBound;
+                //  Now we have X1, X2 & X3 with X1<X2 but X3 could be anywhere
+                //  We'll first reorder them into XA, XB & XC with XA<XB<XC
+                (var boundA, var boundB, var boundC) =
+                    SortByItemCount(lowerBound, upperBound, newBound);
+                //  In general, we want to move up in size, but we want to keep lower bound
+                //  under max-size
+                (var newLowerBound, var newUpperBound) = boundB.Size > maxSize && boundC.Size > maxSize
+                    ? (boundA, boundB)
+                    : (boundB, boundC);
 
-                if (Math.Abs(newBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    || Math.Abs(newBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE
+                if ((Math.Abs(newLowerBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
+                    && Math.Abs(newUpperBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE)
                     || iterationCount == MAX_ITERATION_COUNT)
                 {
-                    return newLowerBound;
+                    return boundC.Size <= maxSize
+                        ? boundC
+                        : (boundB.Size <= maxSize ? boundB : boundA);
                 }
                 else
                 {
@@ -407,6 +341,27 @@ namespace TrackDb.Lib.InMemory.Block
                         iterationCount + 1);
                 }
             }
+        }
+
+        private (BlockStats boundA, BlockStats boundB, BlockStats boundC) SortByItemCount(
+            BlockStats bound1,
+            BlockStats bound2,
+            BlockStats bound3)
+        {
+            if (bound2.ItemCount < bound1.ItemCount)
+            {
+                (bound1, bound2) = (bound2, bound1);
+            }
+            if (bound3.ItemCount < bound2.ItemCount)
+            {
+                (bound2, bound3) = (bound3, bound2);
+            }
+            if (bound2.ItemCount < bound1.ItemCount)
+            {
+                (bound1, bound2) = (bound2, bound1);
+            }
+
+            return (bound1, bound2, bound3);
         }
         #endregion
         #endregion
