@@ -46,12 +46,11 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
             var skipRows = 0;
-            var lastRowCount = (int?)null;
 
             tableBlockBuilder.OrderByRecordId();
             while (tableBlock.RecordCount - skipRows > 0)
             {
-                var blockStats = tableBlockBuilder.TruncateSerialize(buffer, skipRows, lastRowCount);
+                var blockStats = tableBlockBuilder.TruncateSerialize(buffer, skipRows);
 
                 if (blockStats.ItemCount == 0)
                 {
@@ -66,7 +65,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         $"Block size ({blockStats.Size}) is bigger than planned" +
                         $"maximum ({buffer.Length})");
                 }
-                lastRowCount = blockStats.ItemCount;
 
                 var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
 

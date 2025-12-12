@@ -233,12 +233,8 @@ namespace TrackDb.Lib.InMemory.Block
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="skipRows">Number of rows to skip at the beginning of the block.</param>
-        /// <param name="hintRowCount">
-        /// Hint at what row count should be.  This eliminates the first iterations of guessing row
-        /// count.
-        /// </param>
         /// <returns></returns>
-        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows, int? hintRowCount)
+        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
         {
             IBlock block = this;
             var maxSize = buffer.Length;
@@ -250,7 +246,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
-            var startingRowCount = Math.Min(maxRowCount, hintRowCount ?? START_TRUNCATE_ROW_COUNT);
+            var startingRowCount = Math.Min(maxRowCount, START_TRUNCATE_ROW_COUNT);
             var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
             var finalStats = OptimizeTruncationRowCount(
                 buffer,
