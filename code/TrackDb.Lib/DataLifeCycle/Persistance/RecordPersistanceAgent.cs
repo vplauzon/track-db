@@ -19,9 +19,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             _persistanceCandidateProvider = persistanceCandidateProvider;
         }
 
-        public override void Run(
-            DataManagementActivity activity,
-            TransactionContext tx)
+        public override void Run(DataManagementActivity activity, TransactionContext tx)
         {
             foreach (var candidate in _persistanceCandidateProvider.FindCandidates(activity, tx))
             {
