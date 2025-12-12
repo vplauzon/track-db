@@ -294,7 +294,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
             else if (upperBound.ItemCount - lowerBound.ItemCount <= 1)
             {
-                return lowerBound;
+                return upperBound.Size <= maxSize ? upperBound : lowerBound;
             }
             else
             {
