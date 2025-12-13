@@ -14,6 +14,8 @@ namespace TrackDb.Lib.InMemory.Block
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
         private const int MAX_ITERATION_COUNT = 5;
 
+        private static readonly Stack<WeakReference<int[]>> _sizePool = new();
+
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
         protected override int RecordCount => _dataColumns.First().RecordCount;
@@ -236,41 +238,134 @@ namespace TrackDb.Lib.InMemory.Block
         /// <returns></returns>
         public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
         {
-            IBlock block = this;
-            var maxSize = buffer.Length;
-            var totalRowCount = block.RecordCount - skipRows;
+            (var itemCount, var size) = OptimizeSize(buffer.Length, skipRows);
+            var stats = SerializeSegment(buffer, skipRows, itemCount);
 
-            if (skipRows < 0 || skipRows >= block.RecordCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(skipRows));
-            }
-
-            var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
-            var startingRowCount = Math.Min(maxRowCount, START_TRUNCATE_ROW_COUNT);
-            var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
-            var finalStats = OptimizeTruncationRowCount(
-                buffer,
-                skipRows,
-                maxRowCount,
-                BlockStats.Empty,
-                startingUpperBound,
-                1);
-
-            if (finalStats.ItemCount <= 0)
+            if (stats.Size != size)
             {
                 throw new InvalidOperationException(
-                    $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
-                    $"table '{Schema.TableName}'");
+                    $"Mismatch between compute size and actual size of serialized block:" +
+                    $"{size} vs {stats.Size}");
             }
-            if (finalStats.Size > maxSize)
-            {
-                throw new OverflowException(
-                    $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
-            }
-            //  Reserialize so the buffer is up-to-date
 
-            return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
+            return stats;
         }
+
+        private (int ItemCount, int Size) OptimizeSize(int maxSize, int skipRows)
+        {
+            var recordCount = ((IBlock)this).RecordCount - skipRows;
+            var sizePackage = AcquireSizes(_dataColumns.Count, recordCount);
+
+            try
+            {
+                var columnSizes = sizePackage.ColumnSizes;
+
+                for (var i = 0; i != _dataColumns.Count; ++i)
+                {
+                    _dataColumns[i].ComputeSerializationSizes(columnSizes[i].Span, skipRows, maxSize);
+                }
+
+                var blockHeaderFooterSize =
+                    sizeof(ushort)  //  Item count
+                    + _dataColumns.Count * sizeof(ushort)  //  Column payload sizes
+                    + BitPacker.PackSize(_dataColumns.Count, 1); //  Footer
+                var matchedItemCount = 0;
+                var matchedSize = 0;
+
+                for (int i = 0; i != recordCount; ++i)
+                {
+                    var size = blockHeaderFooterSize;
+
+                    for (var j = 0; j != columnSizes.Count; ++j)
+                    {
+                        size += columnSizes[j].Span[i];
+                    }
+                    if (size > maxSize)
+                    {
+                        return (matchedItemCount, matchedSize);
+                    }
+                    else
+                    {
+                        matchedItemCount = i + 1;
+                        matchedSize = size;
+                    }
+                }
+
+                return (matchedItemCount, matchedSize);
+            }
+            finally
+            {
+                ReturnSizes(sizePackage.Array);
+            }
+        }
+
+        #region Size pool management
+        private static (IImmutableList<Memory<int>> ColumnSizes, int[] Array) AcquireSizes(
+            int columnCount,
+            int recordCount)
+        {
+            (IImmutableList<Memory<int>>, int[]) CreateSizes(
+                int[] array,
+                int columnCount,
+                int recordCount)
+            {
+                var memory = array.AsMemory();
+                var columnSizes = new Memory<int>[columnCount];
+
+                for (var i = 0; i != columnCount; ++i)
+                {
+                    columnSizes[i] = memory.Slice(0, recordCount);
+                    memory = memory.Slice(recordCount);
+                }
+
+                return (columnSizes.ToImmutableArray(), array);
+            }
+
+            var requiredLength = columnCount * recordCount;
+
+            lock (_sizePool)
+            {
+                var rejectedSizes = new List<WeakReference<int[]>>(_sizePool.Count);
+
+                while (_sizePool.Any())
+                {
+                    var reference = _sizePool.Pop();
+
+                    try
+                    {
+                        if (reference.TryGetTarget(out var array))
+                        {
+                            if (array.Length >= requiredLength)
+                            {
+                                return CreateSizes(array, columnCount, recordCount);
+                            }
+                            else
+                            {
+                                rejectedSizes.Add(reference);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        foreach (var size in rejectedSizes)
+                        {
+                            _sizePool.Push(size);
+                        }
+                    }
+                }
+            }
+            //  Didn't find any that fit
+            return CreateSizes(new int[recordCount * columnCount], columnCount, recordCount);
+        }
+
+        private static void ReturnSizes(int[] array)
+        {
+            lock (_sizePool)
+            {
+                _sizePool.Push(new WeakReference<int[]>(array));
+            }
+        }
+        #endregion
 
         private BlockStats OptimizeTruncationRowCount(
             Memory<byte> buffer,
