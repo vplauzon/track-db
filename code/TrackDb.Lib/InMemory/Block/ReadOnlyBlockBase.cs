@@ -47,11 +47,21 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 throw new NotImplementedException();
             }
+
+            void IReadOnlyDataColumn.ComputeSerializationSizes(
+                Span<int> sizes,
+                int skipRecords,
+                int maxSize)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         private record BlockIdColumn(int BlockId) : IReadOnlyDataColumn
         {
             public int RecordCount => throw new NotSupportedException();
+
+            int IReadOnlyDataColumn.RecordCount => throw new NotImplementedException();
 
             IEnumerable<int> IReadOnlyDataColumn.FilterBinary(
                 BinaryOperator binaryOperator,
@@ -79,6 +89,14 @@ namespace TrackDb.Lib.InMemory.Block
                 ref ByteWriter writer,
                 int skipRows,
                 int takeRows)
+            {
+                throw new NotImplementedException();
+            }
+
+            void IReadOnlyDataColumn.ComputeSerializationSizes(
+                Span<int> sizes,
+                int skipRecords,
+                int maxSize)
             {
                 throw new NotImplementedException();
             }
