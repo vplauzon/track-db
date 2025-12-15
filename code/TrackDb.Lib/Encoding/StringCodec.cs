@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data.Common;
+using System.Drawing;
 using System.Linq;
 
 namespace TrackDb.Lib.Encoding
@@ -24,6 +25,48 @@ namespace TrackDb.Lib.Encoding
     internal static class StringCodec
     {
         #region Compress
+        public static void ComputeSerializationSizes(
+            IEnumerable<string?> values,
+            Span<int> sizes,
+            int maxSize)
+        {
+            var uniqueValues = new HashSet<string>();
+            var i = 0;
+
+            foreach (var value in values)
+            {
+                if (value != null)
+                {
+                    uniqueValues.Add(value);
+                }
+
+                if (uniqueValues.Any())
+                {
+                    var valuesSequence = uniqueValues
+                        .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
+                        .SelectMany(s => s);
+                    var sequenceWriter = new ByteWriter();
+
+                    Int64Codec.Compress(valuesSequence, ref sequenceWriter);
+                    sizes[i] =
+                        sizeof(ushort)  //  Value sequence count
+                        + sizeof(ushort)    //  Place holder
+                        + sequenceWriter.Position   //  Sequence
+                        + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count)  //  indexes
+                        + sizeof(ushort);    //  indexesSizePlaceholder
+                    if (sizes[i] >= maxSize)
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    sizes[i] = sizeof(ushort);  //  Write 0
+                }
+                ++i;
+            }
+        }
+
         /// <summary>
         /// <paramref name="values"/> is enumerated into multiple times.
         /// The general payload format is the following:

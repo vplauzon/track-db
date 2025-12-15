@@ -86,9 +86,20 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
+        void IReadOnlyDataColumn.ComputeSerializationSizes(
+            Span<int> sizes,
+            int skipRecords,
+            int maxSize)
+        {
+            ComputeSerializationSizes(
+                _array.AsMemory().Slice(skipRecords),
+                sizes,
+                maxSize);
+        }
+
         ColumnStats IReadOnlyDataColumn.SerializeSegment(
             ref ByteWriter writer,
-            int skipRows,
+            int skipRecords,
             int takeRows)
         {
             if (_itemCount == 0)
@@ -96,23 +107,23 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 throw new InvalidOperationException(
                     "Can't serialize as there are no items in data column");
             }
-            if (skipRows < 0)
+            if (skipRecords < 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(skipRows));
+                throw new ArgumentOutOfRangeException(nameof(skipRecords));
             }
             if (takeRows < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(takeRows));
             }
-            if (skipRows + takeRows > _itemCount)
+            if (skipRecords + takeRows > _itemCount)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(takeRows),
-                    $"{skipRows} + {takeRows} > {_itemCount}");
+                    $"{skipRecords} + {takeRows} > {_itemCount}");
             }
 
             return Serialize(
-                new ReadOnlyMemory<T>(_array, skipRows, takeRows),
+                new ReadOnlyMemory<T>(_array, skipRecords, takeRows),
                 ref writer);
         }
         #endregion
@@ -219,6 +230,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder);
+
+        protected abstract void ComputeSerializationSizes(
+            ReadOnlyMemory<T> storedValues,
+            Span<int> sizes,
+            int maxSize);
 
         protected abstract ColumnStats Serialize(
             ReadOnlyMemory<T> storedValues,

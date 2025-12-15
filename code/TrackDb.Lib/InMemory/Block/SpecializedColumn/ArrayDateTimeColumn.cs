@@ -64,6 +64,18 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
+        protected override void ComputeSerializationSizes(
+            ReadOnlyMemory<DateTime> storedValues,
+            Span<int> sizes,
+            int maxSize)
+        {
+            var values = Enumerable.Range(0, storedValues.Length)
+                .Select(i => storedValues.Span[i])
+                .Select(v => v == NullValue ? null : (long?)v.Ticks);
+
+            Int64Codec.ComputeSerializationSizes(values, sizes, maxSize);
+        }
+
         protected override ColumnStats Serialize(
             ReadOnlyMemory<DateTime> storedValues,
             ref ByteWriter writer)
