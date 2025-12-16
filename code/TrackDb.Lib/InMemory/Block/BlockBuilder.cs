@@ -233,47 +233,62 @@ namespace TrackDb.Lib.InMemory.Block
         /// </summary>
         /// <param name="buffer"></param>
         /// <param name="skipRows">Number of rows to skip at the beginning of the block.</param>
-        /// <param name="hintRowCount">
-        /// Hint at what row count should be.  This eliminates the first iterations of guessing row
-        /// count.
-        /// </param>
         /// <returns></returns>
-        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows, int? hintRowCount)
+        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
         {
-            IBlock block = this;
-            var maxSize = buffer.Length;
-            var totalRowCount = block.RecordCount - skipRows;
+            (var itemCount, var size) = OptimizeSize(buffer.Length, skipRows);
+            var stats = SerializeSegment(buffer, skipRows, itemCount);
 
-            if (skipRows < 0 || skipRows >= block.RecordCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(skipRows));
-            }
-
-            var maxRowCount = Math.Min(MAX_TRUNCATE_ROW_COUNT, totalRowCount);
-            var startingRowCount = Math.Min(maxRowCount, hintRowCount ?? START_TRUNCATE_ROW_COUNT);
-            var startingUpperBound = SerializeSegment(buffer, skipRows, startingRowCount);
-            var finalStats = OptimizeTruncationRowCount(
-                buffer,
-                skipRows,
-                maxRowCount,
-                BlockStats.Empty,
-                startingUpperBound,
-                1);
-
-            if (finalStats.ItemCount <= 0)
+            if (stats.Size != size)
             {
                 throw new InvalidOperationException(
-                    $"Can't serialize zero-rows block {finalStats.ItemCount} for " +
-                    $"table '{Schema.TableName}'");
+                    $"Mismatch between compute size and actual size of serialized block:" +
+                    $"{size} vs {stats.Size}");
             }
-            if (finalStats.Size > maxSize)
-            {
-                throw new OverflowException(
-                    $"Block buffer overflow:  {finalStats.Size} > {maxSize}");
-            }
-            //  Reserialize so the buffer is up-to-date
 
-            return SerializeSegment(buffer, skipRows, finalStats.ItemCount);
+            return stats;
+        }
+
+        private (int ItemCount, int Size) OptimizeSize(int maxSize, int skipRows)
+        {
+            var recordCount = ((IBlock)this).RecordCount - skipRows;
+            var motherArray = new int[_dataColumns.Count * recordCount];
+
+            for (var i = 0; i != _dataColumns.Count; ++i)
+            {
+                _dataColumns[i].ComputeSerializationSizes(
+                    motherArray.AsSpan().Slice(i * recordCount, recordCount),
+                    skipRows,
+                    maxSize);
+            }
+
+            var blockHeaderFooterSize =
+                sizeof(ushort)  //  Item count
+                + _dataColumns.Count * sizeof(ushort)  //  Column payload sizes
+                + BitPacker.PackSize(_dataColumns.Count, 1); //  Footer
+            var matchedItemCount = 0;
+            var matchedSize = 0;
+
+            for (int i = 0; i != recordCount; ++i)
+            {
+                var size = blockHeaderFooterSize;
+
+                for (var j = 0; j != _dataColumns.Count; ++j)
+                {
+                    size += motherArray[j * recordCount + i];
+                }
+                if (size > maxSize)
+                {
+                    return (matchedItemCount, matchedSize);
+                }
+                else
+                {
+                    matchedItemCount = i + 1;
+                    matchedSize = size;
+                }
+            }
+
+            return (matchedItemCount, matchedSize);
         }
 
         private BlockStats OptimizeTruncationRowCount(

@@ -22,11 +22,19 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<int> FilterIn(IImmutableSet<object?> values);
 
+        /// <summary>
+        /// Computes the incremental column serialization size taking one element at the time.
+        /// </summary>
+        /// <param name="sizes">Array to write the sizes in</param>
+        /// <param name="skipRecords">Number of records to skip at the beginning</param>
+        /// <param name="maxSize">Maximum size, after which the array isn't expected to be completed</param>
+        void ComputeSerializationSizes(Span<int> sizes, int skipRecords, int maxSize);
+
         /// <summary>Serialize a segment.</summary>
         /// <param name="writer"></param>
-        /// <param name="skipRows"></param>
+        /// <param name="skipRecords"></param>
         /// <param name="takeRows"></param>
         /// <returns></returns>
-        ColumnStats SerializeSegment(ref ByteWriter writer, int skipRows, int takeRows);
+        ColumnStats SerializeSegment(ref ByteWriter writer, int skipRecords, int takeRows);
     }
 }

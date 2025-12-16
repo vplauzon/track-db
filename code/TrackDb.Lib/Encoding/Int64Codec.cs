@@ -22,6 +22,50 @@ namespace TrackDb.Lib.Encoding
     internal static class Int64Codec
     {
         #region Compress
+        /// <summary>Compute incremental serialization sizes.</summary>
+        /// <param name="storedValues"></param>
+        /// <param name="sizes"></param>
+        /// <param name="maxSize"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        public static void ComputeSerializationSizes(
+            IEnumerable<long?> storedValues,
+            Span<int> sizes,
+            int maxSize)
+        {
+            var minValue = long.MaxValue;
+            var maxValue = long.MinValue;
+            var nonNull = 0;
+            var i = 0;
+
+            foreach (var value in storedValues)
+            {
+                if (value != null)
+                {
+                    ++nonNull;
+                    minValue = Math.Min(minValue, value.Value);
+                    maxValue = Math.Max(maxValue, value.Value);
+                }
+
+                var extremeNullRegime = nonNull == (i + 1) || nonNull == 0;
+                var size =
+                    sizeof(short)   //  nonNull
+                    + (nonNull == 0 ? 0 : 2 * sizeof(long))  //  min+max
+                    + (extremeNullRegime    //  Bit map
+                    ? 0
+                    : BitPacker.PackSize(i + 1, 1))
+                    + (nonNull != 0 && minValue != maxValue //  Delta values
+                    ? BitPacker.PackSize(nonNull, (ulong)(maxValue - minValue))
+                    : 0);
+
+                sizes[i] = size;
+                if (size >= maxSize)
+                {
+                    return;
+                }
+                ++i;
+            }
+        }
+
         /// <summary>
         /// <paramref name="values"/> is enumerated into multiple times:  better not
         /// involve heavy compute.
