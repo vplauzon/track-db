@@ -14,8 +14,6 @@ namespace TrackDb.Lib.InMemory.Block
         private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
         private const int MAX_ITERATION_COUNT = 5;
 
-        private static readonly Stack<WeakReference<int[]>> _sizePool = new();
-
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
         protected override int RecordCount => _dataColumns.First().RecordCount;
@@ -254,118 +252,44 @@ namespace TrackDb.Lib.InMemory.Block
         private (int ItemCount, int Size) OptimizeSize(int maxSize, int skipRows)
         {
             var recordCount = ((IBlock)this).RecordCount - skipRows;
-            var sizePackage = AcquireSizes(_dataColumns.Count, recordCount);
+            var motherArray = new int[_dataColumns.Count * recordCount];
 
-            try
+            for (var i = 0; i != _dataColumns.Count; ++i)
             {
-                var columnSizes = sizePackage.ColumnSizes;
-
-                for (var i = 0; i != _dataColumns.Count; ++i)
-                {
-                    _dataColumns[i].ComputeSerializationSizes(columnSizes[i].Span, skipRows, maxSize);
-                }
-
-                var blockHeaderFooterSize =
-                    sizeof(ushort)  //  Item count
-                    + _dataColumns.Count * sizeof(ushort)  //  Column payload sizes
-                    + BitPacker.PackSize(_dataColumns.Count, 1); //  Footer
-                var matchedItemCount = 0;
-                var matchedSize = 0;
-
-                for (int i = 0; i != recordCount; ++i)
-                {
-                    var size = blockHeaderFooterSize;
-
-                    for (var j = 0; j != columnSizes.Count; ++j)
-                    {
-                        size += columnSizes[j].Span[i];
-                    }
-                    if (size > maxSize)
-                    {
-                        return (matchedItemCount, matchedSize);
-                    }
-                    else
-                    {
-                        matchedItemCount = i + 1;
-                        matchedSize = size;
-                    }
-                }
-
-                return (matchedItemCount, matchedSize);
+                _dataColumns[i].ComputeSerializationSizes(
+                    motherArray.AsSpan().Slice(i * recordCount, recordCount),
+                    skipRows,
+                    maxSize);
             }
-            finally
+
+            var blockHeaderFooterSize =
+                sizeof(ushort)  //  Item count
+                + _dataColumns.Count * sizeof(ushort)  //  Column payload sizes
+                + BitPacker.PackSize(_dataColumns.Count, 1); //  Footer
+            var matchedItemCount = 0;
+            var matchedSize = 0;
+
+            for (int i = 0; i != recordCount; ++i)
             {
-                ReturnSizes(sizePackage.Array);
+                var size = blockHeaderFooterSize;
+
+                for (var j = 0; j != _dataColumns.Count; ++j)
+                {
+                    size += motherArray[i * recordCount + j];
+                }
+                if (size > maxSize)
+                {
+                    return (matchedItemCount, matchedSize);
+                }
+                else
+                {
+                    matchedItemCount = i + 1;
+                    matchedSize = size;
+                }
             }
+
+            return (matchedItemCount, matchedSize);
         }
-
-        #region Size pool management
-        private static (IImmutableList<Memory<int>> ColumnSizes, int[] Array) AcquireSizes(
-            int columnCount,
-            int recordCount)
-        {
-            (IImmutableList<Memory<int>>, int[]) CreateSizes(
-                int[] array,
-                int columnCount,
-                int recordCount)
-            {
-                var memory = array.AsMemory();
-                var columnSizes = new Memory<int>[columnCount];
-
-                for (var i = 0; i != columnCount; ++i)
-                {
-                    columnSizes[i] = memory.Slice(0, recordCount);
-                    memory = memory.Slice(recordCount);
-                }
-
-                return (columnSizes.ToImmutableArray(), array);
-            }
-
-            var requiredLength = columnCount * recordCount;
-
-            lock (_sizePool)
-            {
-                var rejectedSizes = new List<WeakReference<int[]>>(_sizePool.Count);
-
-                while (_sizePool.Any())
-                {
-                    var reference = _sizePool.Pop();
-
-                    try
-                    {
-                        if (reference.TryGetTarget(out var array))
-                        {
-                            if (array.Length >= requiredLength)
-                            {
-                                return CreateSizes(array, columnCount, recordCount);
-                            }
-                            else
-                            {
-                                rejectedSizes.Add(reference);
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        foreach (var size in rejectedSizes)
-                        {
-                            _sizePool.Push(size);
-                        }
-                    }
-                }
-            }
-            //  Didn't find any that fit
-            return CreateSizes(new int[recordCount * columnCount], columnCount, recordCount);
-        }
-
-        private static void ReturnSizes(int[] array)
-        {
-            lock (_sizePool)
-            {
-                _sizePool.Push(new WeakReference<int[]>(array));
-            }
-        }
-        #endregion
 
         private BlockStats OptimizeTruncationRowCount(
             Memory<byte> buffer,

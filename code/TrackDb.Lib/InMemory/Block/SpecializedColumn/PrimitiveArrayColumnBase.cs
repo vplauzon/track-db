@@ -92,7 +92,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             int maxSize)
         {
             ComputeSerializationSizes(
-                _array.AsMemory().Slice(skipRecords),
+                _array.AsMemory().Slice(0, _itemCount).Slice(skipRecords),
                 sizes,
                 maxSize);
         }
