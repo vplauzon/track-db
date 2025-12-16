@@ -275,7 +275,7 @@ namespace TrackDb.Lib.InMemory.Block
 
                 for (var j = 0; j != _dataColumns.Count; ++j)
                 {
-                    size += motherArray[i * recordCount + j];
+                    size += motherArray[j * recordCount + i];
                 }
                 if (size > maxSize)
                 {
