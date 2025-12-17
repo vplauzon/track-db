@@ -106,7 +106,7 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var buffer = new byte[7000];
+            var buffer = new byte[10000];
             var writer = new ByteWriter(buffer);
             var reader = new ByteReader(buffer);
             var package = StringCodec.Compress(data.ToArray(), ref writer);

@@ -265,7 +265,7 @@ namespace TrackDb.Lib.Encoding
                     : new ulong[values.Length];
                 var indexesPackedSpan = payloadReader.SliceForward(BitPacker.PackSize(
                     indexesUnpackedSpan.Length,
-                    (ulong)(uniqueValues.Count + 1)));
+                    (ulong)uniqueValues.Count));
 
                 BitPacker.Unpack(
                     indexesPackedSpan,
