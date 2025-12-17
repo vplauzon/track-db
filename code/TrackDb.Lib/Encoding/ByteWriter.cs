@@ -44,44 +44,41 @@ namespace TrackDb.Lib.Encoding
         #region Write operations
         public void WriteByte(byte value)
         {
-            _span[0] = value;
+            _span.Slice(_position)[0] = value;
             ++_position;
         }
 
         public void WriteInt16(short value)
         {
-            var size = sizeof(short);
             //  According to ChatGpt, slightly more performant not to slice with the size
             //  as it does only one bound check instead of two
             var subSpan = _span.Slice(_position);
 
             BinaryPrimitives.WriteInt16LittleEndian(subSpan, value);
-            _position += size;
+            _position += sizeof(short);
         }
 
         public void WriteUInt16(ushort value)
         {
-            var size = sizeof(ushort);
             var subSpan = _span.Slice(_position);
 
             BinaryPrimitives.WriteUInt16LittleEndian(subSpan, value);
-            _position += size;
+            _position += sizeof(ushort);
         }
 
         public void WriteInt64(long value)
         {
-            var size = sizeof(long);
             var subSpan = _span.Slice(_position);
 
             BinaryPrimitives.WriteInt64LittleEndian(subSpan, value);
-            _position += size;
+            _position += sizeof(long);
         }
 
         public void WriteBytes(ReadOnlySpan<byte> span)
         {
-            var subSpan = _span.Slice(_position, span.Length);
+            var subSpan = _span.Slice(_position);
 
-            span.CopyTo(subSpan);
+            span.Slice(0, span.Length).CopyTo(subSpan);
             _position += subSpan.Length;
         }
         #endregion

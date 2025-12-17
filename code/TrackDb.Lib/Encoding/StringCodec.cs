@@ -47,13 +47,13 @@ namespace TrackDb.Lib.Encoding
                         }
                     }
                 }
-                if (uniqueValues.Any())
+                if (uniqueValues.Count != 0)
                 {
                     sizes[i] =
                         sizeof(ushort)  //  Value sequence count
                         + sizeof(byte)  //  Value sequence max
                         + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
-                        + BitPacker.PackSize(i + 1, (ulong)(uniqueValues.Count + 1));  //  indexes
+                        + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
                     if (sizes[i] >= maxSize)
                     {
                         return;
@@ -114,7 +114,7 @@ namespace TrackDb.Lib.Encoding
 
             (var orderedUniqueValues, var hasNulls) = ScanStats(values);
 
-            if (orderedUniqueValues.Any())
+            if (orderedUniqueValues.Count > 0)
             {
                 WriteUniqueValues(orderedUniqueValues, ref writer);
                 WriteIndexes(values, orderedUniqueValues, ref writer);
@@ -153,8 +153,10 @@ namespace TrackDb.Lib.Encoding
             {
                 foreach (var c in uniqueValues[i])
                 {
-                    valuesSequenceSpan[j++] = (ulong)c + 1;
-                    valuesSequenceMax = Math.Max(valuesSequenceMax, (ulong)c);
+                    var value = (ulong)c + 1;
+
+                    valuesSequenceSpan[j++] = value;
+                    valuesSequenceMax = Math.Max(valuesSequenceMax, value);
                 }
                 //  We punctuate the string by a value zero
                 valuesSequenceSpan[j++] = 0;
@@ -162,7 +164,7 @@ namespace TrackDb.Lib.Encoding
 
             writer.WriteUInt16((ushort)valuesSequenceLength);
             writer.WriteByte((byte)valuesSequenceMax);
-            BitPacker.Pack(valuesSequenceSpan, valuesSequenceMax + 1, ref writer);
+            BitPacker.Pack(valuesSequenceSpan, valuesSequenceMax, ref writer);
         }
 
         private static void WriteIndexes(
@@ -184,9 +186,9 @@ namespace TrackDb.Lib.Encoding
             {
                 var value = values[i];
 
-                indexesSpan[i] = value == null ? 0 : (ulong)(revertDictionary[value] + 1);
+                indexesSpan[i] = value == null ? 0 : (ulong)revertDictionary[value];
             }
-            BitPacker.Pack(indexesSpan, (ulong)(uniqueValues.Count + 1), ref writer);
+            BitPacker.Pack(indexesSpan, (ulong)uniqueValues.Count, ref writer);
         }
 
         private static (IImmutableList<string> OrderedUniqueValues, bool HasNulls) ScanStats(
@@ -267,9 +269,8 @@ namespace TrackDb.Lib.Encoding
 
                 BitPacker.Unpack(
                     indexesPackedSpan,
-                    (ulong)(uniqueValues.Count + 1),
+                    (ulong)uniqueValues.Count,
                     indexesUnpackedSpan);
-
                 for (var i = 0; i != indexesUnpackedSpan.Length; ++i)
                 {
                     if (indexesUnpackedSpan[i] == 0)
