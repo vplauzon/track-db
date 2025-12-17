@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -41,32 +42,28 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 throw new InvalidOperationException("CommittedDataBlock shouldn't be null");
             }
 
+            tableBlockBuilder.OrderByRecordId();
+
             IBlock tableBlock = tableBlockBuilder;
             var metadataTable = Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
+            var segments = tableBlockBuilder.SegmentRecords(buffer.Length);
             var skipRows = 0;
 
-            tableBlockBuilder.OrderByRecordId();
-            while (tableBlock.RecordCount - skipRows > 0)
+            foreach (var segment in segments)
             {
-                var blockStats = tableBlockBuilder.TruncateSerialize(buffer, skipRows);
+                var blockStats =
+                    tableBlockBuilder.Serialize(buffer, skipRows, segment.ItemCount);
 
-                if (blockStats.ItemCount == 0)
-                {
-                    throw new InvalidDataException(
-                        $"A single record is too large to persist on table " +
-                        $"'{tableBlock.TableSchema.TableName}' with " +
-                        $"{tableBlock.TableSchema.Columns.Count} columns");
-                }
-                if (blockStats.Size > buffer.Length)
+                if (blockStats.Size != segment.Size)
                 {
                     throw new InvalidOperationException(
                         $"Block size ({blockStats.Size}) is bigger than planned" +
-                        $"maximum ({buffer.Length})");
+                        $"maximum ({segment.Size})");
                 }
-
-                var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
+                var blockId =
+                    Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
                 metadataTable.AppendRecord(
                     metaSchema.CreateMetadataRecord(blockId, blockStats).Span,

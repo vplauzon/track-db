@@ -21,29 +21,32 @@ namespace TrackDb.Lib.Encoding
     /// </summary>
     internal static class Int64Codec
     {
-        #region Compress
+        #region Compute Size
         /// <summary>Compute incremental serialization sizes.</summary>
         /// <param name="storedValues"></param>
-        /// <param name="sizes"></param>
+        /// <param name="nullValue"></param>
         /// <param name="maxSize"></param>
+        /// <param name="sizes"></param>
         /// <exception cref="NotImplementedException"></exception>
         public static void ComputeSerializationSizes(
-            IEnumerable<long?> storedValues,
+            scoped ReadOnlySpan<long> storedValues,
+            long nullValue,
             Span<int> sizes,
             int maxSize)
         {
             var minValue = long.MaxValue;
             var maxValue = long.MinValue;
             var nonNull = 0;
-            var i = 0;
 
-            foreach (var value in storedValues)
+            for (var i = 0; i != storedValues.Length; ++i)
             {
-                if (value != null)
+                var value = storedValues[i];
+
+                if (value != nullValue)
                 {
                     ++nonNull;
-                    minValue = Math.Min(minValue, value.Value);
-                    maxValue = Math.Max(maxValue, value.Value);
+                    minValue = Math.Min(minValue, value);
+                    maxValue = Math.Max(maxValue, value);
                 }
 
                 var extremeNullRegime = nonNull == (i + 1) || nonNull == 0;
@@ -62,37 +65,38 @@ namespace TrackDb.Lib.Encoding
                 {
                     return;
                 }
-                ++i;
             }
         }
+        #endregion
 
+        #region Compress
         /// <summary>
-        /// <paramref name="values"/> is enumerated into multiple times:  better not
-        /// involve heavy compute.
         /// Since everything is transient, we do away with sanity checks
         /// such as magic number + version.
         /// </summary>
         /// <param name="values"></param>
+        /// <param name="nullValue"></param>
         /// <param name="writer"></param>
         /// <returns></returns>
-        /// <exception cref="ArgumentNullException"></exception>
-        public static CompressedPackage<long?> Compress(IEnumerable<long?> values, ref ByteWriter writer)
+        /// <exception cref="ArgumentException"></exception>
+        public static CompressedPackage<long> Compress(
+            scoped ReadOnlySpan<long> values,
+            long nullValue,
+            ref ByteWriter writer)
         {
-            if (values == null || !values.Any())
+            if (values.Length == 0)
             {
-                throw new ArgumentNullException(nameof(values));
+                throw new ArgumentException("Sequence can't be empty", nameof(values));
             }
-
-            (var itemCount, var nonNull, var min, var max) = ComputeExtremas(values);
-
-            if (itemCount > UInt16.MaxValue)
+            if (values.Length > UInt16.MaxValue)
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(values),
-                    $"Sequence is too large ({values.Count()})");
+                    $"Sequence is too large ({values.Length})");
             }
 
-            var extremeNullRegime = nonNull == itemCount || nonNull == 0;
+            (var nonNull, var min, var max) = ComputeExtremas(values, nullValue);
+            var extremeNullRegime = nonNull == values.Length || nonNull == 0;
 
             writer.WriteUInt16((ushort)nonNull);
             if (nonNull != 0)
@@ -101,54 +105,85 @@ namespace TrackDb.Lib.Encoding
                 writer.WriteInt64(max);
             }
             if (!extremeNullRegime)
-            {
-                BitPacker.Pack(
-                    values.Select(v => Convert.ToUInt64(v != null)),
-                    itemCount,
-                    1,
-                    ref writer);
+            {   //  Pack bitmap
+                Span<ulong> bitmap = values.Length <= 1024
+                    ? stackalloc ulong[values.Length]
+                    : new ulong[values.Length];
+
+                FillBitmap(values, nullValue, bitmap);
+                BitPacker.Pack(bitmap, 1, ref writer);
             }
             if (nonNull != 0 && min != max)
             {   //  Pack deltas
-                BitPacker.Pack(
-                    values.Where(v => v.HasValue).Select(v => ToZeroBase(v!.Value, min)),
-                    nonNull,
-                    ToZeroBase(max, min),
-                    ref writer);
+                Span<ulong> tempData = nonNull <= 1024
+                    ? stackalloc ulong[nonNull]
+                    : new ulong[nonNull];
+
+                FillNonNull(values, nullValue, min, tempData);
+                BitPacker.Pack(tempData, (ulong)(max - min), ref writer);
             }
 
-            return new CompressedPackage<long?>(
-                itemCount,
-                nonNull < itemCount,
-                nonNull == 0 ? null : min,
-                nonNull == 0 ? null : max);
+            return new CompressedPackage<long>(
+                values.Length,
+                nonNull < values.Length,
+                nonNull == 0 ? nullValue : min,
+                nonNull == 0 ? nullValue : max);
         }
 
-        private static (int ItemCount, int NonNull, long Min, long Max) ComputeExtremas(
-            IEnumerable<long?> values)
+        private static void FillNonNull(
+            ReadOnlySpan<long> values,
+            long nullValue,
+            long minValue,
+            Span<ulong> nonNullData)
         {
-            int itemCount = 0, nonNull = 0;
+            var i = 0;
+
+            for (var j = 0; j != values.Length; ++j)
+            {
+                if (values[j] != nullValue)
+                {
+                    nonNullData[i] = (ulong)(ToZeroBase(values[j], minValue));
+                    ++i;
+                }
+            }
+        }
+
+        private static void FillBitmap(
+            ReadOnlySpan<long> values,
+            long nullValue,
+            Span<ulong> bitmap)
+        {
+            for (var i = 0; i != values.Length; i++)
+            {
+                bitmap[i] = values[i] == nullValue ? (ulong)0 : 1;
+            }
+        }
+
+        private static (int NonNull, long Min, long Max) ComputeExtremas(
+            ReadOnlySpan<long> values,
+            long nullValue)
+        {
+            int nonNull = 0;
             long min = long.MaxValue, max = long.MinValue;
 
             //  Compute extrema & nonNull
-            foreach (var v in values)
+            for (var i = 0; i != values.Length; ++i)
             {
-                if (v != null)
+                if (values[i] != nullValue)
                 {
                     ++nonNull;
-                    if (v < min)
+                    if (values[i] < min)
                     {
-                        min = v.Value;
+                        min = values[i];
                     }
-                    if (v > max)
+                    if (values[i] > max)
                     {
-                        max = v.Value;
+                        max = values[i];
                     }
                 }
-                ++itemCount;
             }
 
-            return (itemCount, nonNull, min, max);
+            return (nonNull, min, max);
         }
 
         private static ulong ToZeroBase(long value, long min)
@@ -166,71 +201,65 @@ namespace TrackDb.Lib.Encoding
         #endregion
 
         #region Decompress
-        public static IEnumerable<long?> Decompress(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlySpan<byte> payload)
+        public static void Decompress(
+            ref ByteReader payloadReader,
+            scoped Span<long> values,
+            long nullValue)
         {
-            var reader = new ByteReader(payload);
-            var nonNull = reader.ReadUInt16();
+            var nonNull = payloadReader.ReadUInt16();
+            var hasNulls = nonNull != values.Length;
             var extremeNullRegime = !hasNulls || nonNull == 0;
-            long? columnMinimum = nonNull == 0 ? null : reader.ReadInt64();
-            long? columnMaximum = nonNull == 0 ? null : reader.ReadInt64();
 
-            if (nonNull > itemCount)
+            if (nonNull > values.Length)
             {
                 throw new InvalidDataException(
-                    $"Non-null ({nonNull}) should be <= to item count ({itemCount})");
+                    $"Non-null ({nonNull}) should be <= to item count ({values.Length})");
             }
-            if (columnMinimum == null)
+            if (nonNull == 0)
             {   //  Only nulls
-                return Enumerable.Range(0, itemCount)
-                    .Select(i => (long?)null);
+                values.Fill(nullValue);
             }
             else
             {
-                var min = (long)columnMinimum!;
-                var max = (long)columnMaximum!;
+                var min = payloadReader.ReadInt64();
+                var max = payloadReader.ReadInt64();
 
                 if (!hasNulls && min == max)
                 {   //  Only one value
-                    return Enumerable.Range(0, itemCount)
-                        .Select(i => (long?)columnMinimum);
+                    values.Fill(min);
                 }
                 else
                 {
-                    var values = new long?[itemCount];
-
                     if (hasNulls)
                     {
-                        var bitmapValues = BitPacker.Unpack(
-                            reader.SpanForward(BitPacker.PackSize(itemCount, 1)),
-                            itemCount,
-                            1);
+                        var bitmapPackedSpan = payloadReader.SliceForward(
+                            BitPacker.PackSize(values.Length, 1));
+                        Span<ulong> bitmapUnpackedSpan = stackalloc ulong[values.Length];
 
+                        BitPacker.Unpack(bitmapPackedSpan, 1, bitmapUnpackedSpan);
                         if (min != max)
                         {   //  Use delta
                             var maxDeltaValue = ToZeroBase(max, min);
-                            var deltas = BitPacker.Unpack(
-                                reader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue)),
-                                nonNull,
-                                maxDeltaValue);
+                            var deltaPackedSpan = payloadReader.SliceForward(
+                                BitPacker.PackSize(nonNull, maxDeltaValue));
+                            Span<ulong> deltaUnpackedSpan = stackalloc ulong[nonNull];
                             var deltaIndex = 0;
 
-                            for (var i = 0; i != itemCount; ++i)
+                            BitPacker.Unpack(deltaPackedSpan, maxDeltaValue, deltaUnpackedSpan);
+                            for (var i = 0; i != values.Length; ++i)
                             {
-                                values[i] = Convert.ToBoolean(bitmapValues[i])
-                                    ? FromZeroBase(deltas[deltaIndex++], min)
-                                    : null;
+                                values[i] = bitmapUnpackedSpan[i] != 0
+                                    ? FromZeroBase(deltaUnpackedSpan[deltaIndex++], min)
+                                    : nullValue;
                             }
                         }
                         else
                         {   //  Constant (min=max) deltas
-                            for (var i = 0; i != itemCount; ++i)
+                            for (var i = 0; i != values.Length; ++i)
                             {
-                                values[i] = Convert.ToBoolean(bitmapValues[i])
+                                values[i] = bitmapUnpackedSpan[i] != 0
                                     ? min
-                                    : null;
+                                    : nullValue;
                             }
                         }
                     }
@@ -239,26 +268,22 @@ namespace TrackDb.Lib.Encoding
                         if (min != max)
                         {   //  Use delta
                             var maxDeltaValue = ToZeroBase(max, min);
-                            var deltas = BitPacker.Unpack(
-                                reader.SpanForward(BitPacker.PackSize(nonNull, maxDeltaValue)),
-                                nonNull,
-                                maxDeltaValue);
+                            var deltaPackedSpan = payloadReader.SliceForward(
+                                BitPacker.PackSize(nonNull, maxDeltaValue));
+                            Span<ulong> deltaUnpackedSpan = stackalloc ulong[nonNull];
+                            var deltaIndex = 0;
 
-                            for (var i = 0; i != itemCount; ++i)
+                            BitPacker.Unpack(deltaPackedSpan, maxDeltaValue, deltaUnpackedSpan);
+                            for (var i = 0; i != values.Length; ++i)
                             {
-                                values[i] = FromZeroBase(deltas[i], min);
+                                values[i] = FromZeroBase(deltaUnpackedSpan[deltaIndex++], min);
                             }
                         }
                         else
                         {   //  Constant (min=max) deltas
-                            for (var i = 0; i != itemCount; ++i)
-                            {
-                                values[i] = min;
-                            }
+                            values.Fill(min);
                         }
                     }
-
-                    return values;
                 }
             }
         }

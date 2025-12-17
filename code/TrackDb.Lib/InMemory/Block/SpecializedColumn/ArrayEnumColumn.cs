@@ -70,49 +70,62 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         }
 
         protected override void ComputeSerializationSizes(
-            ReadOnlyMemory<T> storedValues,
+            ReadOnlySpan<T> storedValues,
             Span<int> sizes,
             int maxSize)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
-                ? (long?)null
-                : Convert.ToInt64(v));
+            var values = storedValues.Length <= 1024
+                ? stackalloc long[storedValues.Length]
+                : new long[storedValues.Length];
 
-            Int64Codec.ComputeSerializationSizes(values, sizes, maxSize);
+            for (var i = 0; i != storedValues.Length; ++i)
+            {
+                values[i] = Convert.ToInt64(storedValues[i]);
+            }
+
+            Int64Codec.ComputeSerializationSizes(
+                values,
+                Convert.ToInt64(NullValue),
+                sizes,
+                maxSize);
         }
 
         protected override ColumnStats Serialize(
-            ReadOnlyMemory<T> storedValues,
+            ReadOnlySpan<T> storedValues,
             ref ByteWriter writer)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
-                ? (long?)null
-                : Convert.ToInt64(v));
-            var package = Int64Codec.Compress(values, ref writer);
+            var values = storedValues.Length <= 1024
+                ? stackalloc long[storedValues.Length]
+                : new long[storedValues.Length];
 
-            //  Convert min and max to T (from int-64)
+            for (var i = 0; i != storedValues.Length; ++i)
+            {
+                values[i] = Convert.ToInt64(storedValues[i]);
+            }
+
+            var package = Int64Codec.Compress(values, Convert.ToInt64(NullValue), ref writer);
+
+            //  Convert min and max to int-16 (from int-64)
             return new(
                 package.ItemCount,
                 package.HasNulls,
-                package.ColumnMinimum == null
-                ? null
-                : Enum.ToObject(typeof(T), (long)package.ColumnMinimum!),
-                package.ColumnMaximum == null
-                ? null
-                : Enum.ToObject(typeof(T), (long)package.ColumnMaximum!));
+                package.ColumnMinimum == Convert.ToInt64(NullValue) ? null : package.ColumnMinimum,
+                package.ColumnMaximum == Convert.ToInt64(NullValue) ? null : package.ColumnMaximum);
         }
 
-        protected override IEnumerable<object?> Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload)
+        protected override void Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
-            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
-                .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
+            IDataColumn dataColumn = this;
+            var newValues = itemCount <= 1024
+                ? stackalloc long[itemCount]
+                : new long[itemCount];
+            var payloadReader = new ByteReader(payload);
+
+            Int64Codec.Decompress(ref payloadReader, newValues, Convert.ToInt64(NullValue));
+            for (var i = 0; i != newValues.Length; ++i)
+            {
+                dataColumn.AppendValue(Enum.ToObject(typeof(T), newValues[i]));
+            }
         }
 
         protected override JsonElement GetLogValue(object? objectData)

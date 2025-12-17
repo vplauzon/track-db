@@ -105,9 +105,9 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
+        void IDataColumn.Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
-            _innerColumn.Deserialize(itemCount, hasNulls, payload);
+            _innerColumn.Deserialize(itemCount, payload);
         }
         #endregion
     }

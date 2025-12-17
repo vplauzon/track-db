@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -27,46 +28,18 @@ namespace TrackDb.Lib.InMemory.Block
             var reader = new ByteReader(payload.Span);
             var itemCount = reader.ReadUInt16();
             var columnCount = schema.ColumnProperties.Count;
-            var columnSizeArray = reader.VirtualReadonlyArrayUInt16(columnCount);
-            var columnPayloads = new ReadOnlyMemory<byte>[columnCount];
+            var columnSizeReader = reader.SliceArrayUInt16(columnCount);
             var dataColumns = new Lazy<IReadOnlyDataColumn>[columnCount];
-            var columnPayloadPosition = reader.Position;
 
             for (var i = 0; i != columnCount; ++i)
             {
-                var payloadSize = columnSizeArray.GetValue(i);
+                var payloadSize = columnSizeReader.ReadUInt16();
+                var columnPayload = reader.SliceForward(payloadSize);
 
-                columnPayloads[i] = payload.Slice(columnPayloadPosition, payloadSize);
-                columnPayloadPosition += payloadSize;
-            }
-
-            var hasNulls = BitPacker.Unpack(
-                payload.Span.Slice(columnPayloadPosition, BitPacker.PackSize(columnCount, 1)),
-                columnCount,
-                1)
-                .ToImmutableArray(i => Convert.ToBoolean(i));
-
-            for (var i = 0; i != dataColumns.Length; ++i)
-            {
-                var columnPayload = columnPayloads[i];
-
-                dataColumns[i] = i < schema.Columns.Count
-                    ? CreateColumn(
-                        schema.Columns[i].ColumnType,
-                        itemCount,
-                        hasNulls[i],
-                        columnPayload)
-                    : i == schema.CreationTimeColumnIndex
-                    ? CreateColumn( //  Creation time
-                        typeof(DateTime),
-                        itemCount,
-                        false,
-                        columnPayload)
-                    : CreateColumn( //  Record ID
-                        typeof(long),
-                        itemCount,
-                        false,
-                        columnPayload);
+                dataColumns[i] = CreateColumn(
+                    schema.ColumnProperties[i].ColumnSchema.ColumnType,
+                    itemCount,
+                    columnPayload);
             }
 
             return new ReadOnlyBlock(schema, itemCount, dataColumns);
@@ -85,14 +58,15 @@ namespace TrackDb.Lib.InMemory.Block
         private static Lazy<IReadOnlyDataColumn> CreateColumn(
             Type columnType,
             int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload)
-        {
+            ReadOnlySpan<byte> payload)
+        {   //  We copy the payload so it can be individually GCed
+            var copy = payload.ToArray();
+
             return new Lazy<IReadOnlyDataColumn>(() =>
             {
                 var column = CreateDataColumn(columnType, itemCount);
 
-                column.Deserialize(itemCount, hasNulls, payload);
+                column.Deserialize(itemCount, copy);
 
                 return column;
             });

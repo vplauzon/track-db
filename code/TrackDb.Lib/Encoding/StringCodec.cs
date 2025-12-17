@@ -1,59 +1,59 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Data.Common;
-using System.Drawing;
 using System.Linq;
 
 namespace TrackDb.Lib.Encoding
 {
     /// <summary>
     /// Compression of a sequence of nullable strings into a byte array.
-    /// The byte array relies on the metadata carried by <see cref="SerializedColumn"/>.
     /// 
-    /// There are two different encoding that are tryed and the one consuming the least
-    /// amount of bytes is selected.
-    /// 
-    /// The first one encodes each string (<see cref="EncodeEachString(IEnumerable{string?})"/>),
-    /// the second one encodes a dictionary of strings
-    /// (<see cref="EncodeWithDictionary(IEnumerable{string?})"/> and then reference the
-    /// entries in that dictionary in a sequence of int which
-    /// is encoded with <see cref="Int64Codec"/>.
-    /// 
-    /// The first byte of the payload determines which encoding method.
+    /// This codec assumes the strings are relatively short and low cardinality of unique values.
     /// </summary>
     internal static class StringCodec
     {
-        #region Compress
+        #region Compute Size
         public static void ComputeSerializationSizes(
-            IEnumerable<string?> values,
+            ReadOnlySpan<string?> storedValues,
             Span<int> sizes,
             int maxSize)
         {
             var uniqueValues = new HashSet<string>();
-            var i = 0;
+            var valueSequenceLength = 0;
+            var valueSequenceMax = (ulong)0;
 
-            foreach (var value in values)
+            for (var i = 0; i != storedValues.Length; ++i)
             {
+                var value = storedValues[i];
+
                 if (value != null)
                 {
-                    uniqueValues.Add(value);
-                }
+                    if (uniqueValues.Add(value))
+                    {
+                        valueSequenceLength += value.Length + 1;
+                        if (value.Length != 0)
+                        {
+                            ulong localMax = 0;
 
+                            foreach (var c in value)
+                            {
+                                if ((ulong)c > localMax)
+                                {
+                                    localMax = (ulong)c;
+                                }
+                            }
+
+                            valueSequenceMax = Math.Max(valueSequenceMax, (ulong)(localMax + 1));
+                        }
+                    }
+                }
                 if (uniqueValues.Any())
                 {
-                    var valuesSequence = uniqueValues
-                        .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
-                        .SelectMany(s => s);
-                    var sequenceWriter = new ByteWriter();
-
-                    Int64Codec.Compress(valuesSequence, ref sequenceWriter);
                     sizes[i] =
                         sizeof(ushort)  //  Value sequence count
-                        + sizeof(ushort)    //  Place holder
-                        + sequenceWriter.Position   //  Sequence
-                        + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count)  //  indexes
-                        + sizeof(ushort);    //  indexesSizePlaceholder
+                        + sizeof(byte)  //  Value sequence max
+                        + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
+                        + BitPacker.PackSize(i + 1, (ulong)(uniqueValues.Count + 1));  //  indexes
                     if (sizes[i] >= maxSize)
                     {
                         return;
@@ -63,10 +63,11 @@ namespace TrackDb.Lib.Encoding
                 {
                     sizes[i] = sizeof(ushort);  //  Write 0
                 }
-                ++i;
             }
         }
+        #endregion
 
+        #region Compress
         /// <summary>
         /// <paramref name="values"/> is enumerated into multiple times.
         /// The general payload format is the following:
@@ -95,144 +96,198 @@ namespace TrackDb.Lib.Encoding
         /// <param name="values"></param>
         /// <param name="writer"></param>
         /// <returns></returns>
-        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentException"></exception>
         public static CompressedPackage<string?> Compress(
-            IEnumerable<string?> values,
+            ReadOnlySpan<string?> values,
             ref ByteWriter writer)
         {
-            if (values == null || !values.Any())
+            if (values.Length == 0)
             {
-                throw new ArgumentNullException(nameof(values));
+                throw new ArgumentException("Can't have empty sequence", nameof(values));
+            }
+            if (values.Length > UInt16.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(values),
+                    $"Sequence is too large ({values.Length})");
             }
 
-            var itemCount = values.Count();
-            var uniqueValues = values
-                .Where(v => v != null)
-                .Select(v => v!)
-                .Distinct()
-                .OrderBy(v => v)
-                .ToImmutableArray();
+            (var orderedUniqueValues, var hasNulls) = ScanStats(values);
 
-            if (itemCount > short.MaxValue)
+            if (orderedUniqueValues.Any())
             {
-                throw new ArgumentOutOfRangeException(nameof(values), "Too many values");
-            }
-            if (uniqueValues.Any())
-            {
-                var revertDictionary = uniqueValues
-                    .Index()
-                    .ToImmutableDictionary(p => p.Item, p => (short)p.Index);
-                var indexes = values
-                    .Select(v => v == null ? -1 : revertDictionary[v])
-                    .ToImmutableArray();
-                var hasNulls = indexes.Any(v => v == -1);
-                //  Transform the unique values into a sequence
-                //  We punctuate the string by a null value
-                var valuesSequence = uniqueValues
-                    .Select(v => v.Select(c => (long?)Convert.ToInt16(c)).Append(null))
-                    .SelectMany(s => s);
-
-                //  Value sequence
-                writer.WriteUInt16((ushort)(valuesSequence.Count()));
-
-                var valueSequenceSizePlaceholder = writer.PlaceholderUInt16();
-                var positionBeforeValueSequence = writer.Position;
-
-                Int64Codec.Compress(valuesSequence, ref writer);
-                valueSequenceSizePlaceholder.SetValue(
-                    (ushort)(writer.Position - positionBeforeValueSequence));
-
-                //  Indexes
-                var indexesSizePlaceholder = writer.PlaceholderUInt16();
-                var positionBeforeIndexes = writer.Position;
-
-                BitPacker.Pack(
-                    indexes.Select(i => (ulong)(i + 1)),
-                    itemCount,
-                    (ulong)(uniqueValues.Length),
-                    ref writer);
-                indexesSizePlaceholder.SetValue(
-                    (ushort)(writer.Position - positionBeforeIndexes));
+                WriteUniqueValues(orderedUniqueValues, ref writer);
+                WriteIndexes(values, orderedUniqueValues, ref writer);
 
                 return new(
-                    itemCount,
+                    values.Length,
                     hasNulls,
-                    uniqueValues.First(),
-                    uniqueValues.Last());
+                    orderedUniqueValues.First(),
+                    orderedUniqueValues.Last());
             }
             else
             {   //  Only nulls
                 writer.WriteUInt16((ushort)0);
 
                 return new(
-                    itemCount,
+                    values.Length,
                     true,
                     null,
                     null);
             }
         }
+
+        private static void WriteUniqueValues(
+            IImmutableList<string> uniqueValues,
+            ref ByteWriter writer)
+        {
+            var valuesSequenceLength = uniqueValues
+                .Sum(v => v.Length + 1);
+            Span<ulong> valuesSequenceSpan = valuesSequenceLength <= 1024
+                ? stackalloc ulong[valuesSequenceLength]
+                : new ulong[valuesSequenceLength];
+            ulong valuesSequenceMax = 0;
+            var j = 0;
+
+            for (var i = 0; i != uniqueValues.Count; ++i)
+            {
+                foreach (var c in uniqueValues[i])
+                {
+                    valuesSequenceSpan[j++] = (ulong)c + 1;
+                    valuesSequenceMax = Math.Max(valuesSequenceMax, (ulong)c);
+                }
+                //  We punctuate the string by a value zero
+                valuesSequenceSpan[j++] = 0;
+            }
+
+            writer.WriteUInt16((ushort)valuesSequenceLength);
+            writer.WriteByte((byte)valuesSequenceMax);
+            BitPacker.Pack(valuesSequenceSpan, valuesSequenceMax + 1, ref writer);
+        }
+
+        private static void WriteIndexes(
+            ReadOnlySpan<string?> values,
+            IImmutableList<string> uniqueValues,
+            ref ByteWriter writer)
+        {
+            Span<ulong> indexesSpan = values.Length <= 1024
+                ? stackalloc ulong[values.Length]
+                : new ulong[values.Length];
+            var revertDictionary = new Dictionary<string, ushort>(uniqueValues.Count);
+
+            //  More efficient than LINQ expression
+            for (var i = (ushort)0; i != uniqueValues.Count; ++i)
+            {
+                revertDictionary[uniqueValues[i]] = (ushort)(i + 1);
+            }
+            for (var i = 0; i < values.Length; ++i)
+            {
+                var value = values[i];
+
+                indexesSpan[i] = value == null ? 0 : (ulong)(revertDictionary[value] + 1);
+            }
+            BitPacker.Pack(indexesSpan, (ulong)(uniqueValues.Count + 1), ref writer);
+        }
+
+        private static (IImmutableList<string> OrderedUniqueValues, bool HasNulls) ScanStats(
+            ReadOnlySpan<string?> values)
+        {
+            var uniqueValues = new HashSet<string>();
+            var hasNulls = false;
+
+            foreach (var value in values)
+            {
+                if (value == null)
+                {
+                    hasNulls = true;
+                }
+                else
+                {
+                    uniqueValues.Add(value);
+                }
+            }
+
+            //  Order is important as the min and max are later deduced from the start and end
+            return (uniqueValues.Order().ToImmutableArray(), hasNulls);
+        }
         #endregion
 
         #region Decompress
-        public static IEnumerable<string?> Decompress(
-            int itemCount,
-            ReadOnlySpan<byte> payload)
+        public static void Decompress(ref ByteReader payloadReader, Span<string?> values)
         {
-            IEnumerable<string> BreakStrings(IEnumerable<char?> valueSequence)
+            List<string> BreakStrings(ReadOnlySpan<ulong> valueSequence)
             {
-                var charList = new List<char>();
+                var values = new List<string>();
+                Span<char> charArray = valueSequence.Length <= 1024
+                    ? stackalloc char[valueSequence.Length]
+                    : new char[valueSequence.Length];
+                var i = 0;
 
                 foreach (var value in valueSequence)
                 {
-                    if (value == null)
+                    if (value == 0)
                     {
-                        yield return new string(charList.ToArray());
-                        charList.Clear();
+                        values.Add(new string(charArray.Slice(0, i)));
+                        i = 0;
                     }
                     else
                     {
-                        charList.Add(value.Value);
+                        charArray[i++] = (char)(value - 1);
+                    }
+                }
+
+                return values;
+            }
+
+            var valuesSequenceLength = payloadReader.ReadUInt16();
+
+            if (valuesSequenceLength > 0)
+            {
+                //  Values sequence
+                var valuesSequenceMax = payloadReader.ReadByte();
+                var valuesSequencePackedSpan = payloadReader.SliceForward(
+                    BitPacker.PackSize(valuesSequenceLength, valuesSequenceMax));
+                Span<ulong> valueSequenceUnpackedSpan = valuesSequenceLength <= 1024
+                    ? stackalloc ulong[valuesSequenceLength]
+                    : new ulong[valuesSequenceLength];
+
+                BitPacker.Unpack(
+                    valuesSequencePackedSpan,
+                    valuesSequenceMax,
+                    valueSequenceUnpackedSpan);
+
+                var uniqueValues = BreakStrings(valueSequenceUnpackedSpan);
+                //  Indexes
+                Span<ulong> indexesUnpackedSpan = values.Length <= 1024
+                    ? stackalloc ulong[values.Length]
+                    : new ulong[values.Length];
+                var indexesPackedSpan = payloadReader.SliceForward(BitPacker.PackSize(
+                    indexesUnpackedSpan.Length,
+                    (ulong)(uniqueValues.Count + 1)));
+
+                BitPacker.Unpack(
+                    indexesPackedSpan,
+                    (ulong)(uniqueValues.Count + 1),
+                    indexesUnpackedSpan);
+
+                for (var i = 0; i != indexesUnpackedSpan.Length; ++i)
+                {
+                    if (indexesUnpackedSpan[i] == 0)
+                    {
+                        values[i] = null;
+                    }
+                    else
+                    {
+                        var index = (int)indexesUnpackedSpan[i] - 1;
+                        var value = uniqueValues[index];
+
+                        values[i] = value;
                     }
                 }
             }
-
-            var payloadReader = new ByteReader(payload);
-            var valuesSequenceCount = payloadReader.ReadUInt16();
-
-            if (valuesSequenceCount > 0)
-            {
-                //  Value Sequence
-                var valuesSequenceSize = payloadReader.ReadUInt16();
-                var valuesSequence = Int64Codec.Decompress(
-                    valuesSequenceCount,
-                    true,
-                    payloadReader.SpanForward(valuesSequenceSize))
-                    .Select(l => (char?)l);
-                //  Unique values
-                var uniqueValues = BreakStrings(valuesSequence)
-                    .ToImmutableArray();
-                //  Indexes
-                var indexSize = payloadReader.ReadUInt16();
-                var unpackedIndexes = BitPacker.Unpack(
-                    payloadReader.SpanForward(indexSize),
-                    itemCount,
-                    (ulong)(uniqueValues.Length));
-                var values = ImmutableArray<string?>.Empty.ToBuilder();
-
-                foreach (var unpackedIndex in unpackedIndexes)
-                {
-                    var index = (int)unpackedIndex - 1;
-                    var value = index >= 0 ? uniqueValues[index] : null;
-
-                    values.Add(value);
-                }
-
-                return values.ToImmutable();
-            }
             else
             {
-                return Enumerable.Range(0, itemCount)
-                    .Select(i => (string?)null);
+                values.Fill(null);
             }
         }
         #endregion

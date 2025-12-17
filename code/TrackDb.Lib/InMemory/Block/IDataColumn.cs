@@ -28,11 +28,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         /// <summary>Deserialize the payload and insert records in the column.</summary>
         /// <param name="itemCount"></param>
-        /// <param name="hasNulls"></param>
         /// <paramref name="payload"></param>
-        void Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload);
+        void Deserialize(int itemCount, ReadOnlySpan<byte> payload);
     }
 }
