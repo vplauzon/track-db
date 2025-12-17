@@ -9,7 +9,7 @@ using Xunit;
 
 namespace TrackDb.UnitTest.PrefixTruncate
 {
-    public class IntOnlyPrefixTruncateTest
+    public class BlockSegmentationTest
     {
         const int MAX_SIZE = 4000;
 
@@ -26,10 +26,11 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             block.AppendRecord(DateTime.Now, 1, new[] { (object)1 });
 
-            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
+            var segments = block.SegmentRecords(MAX_SIZE);
 
-            Assert.Equal(1, blockStats.ItemCount);
-            Assert.True(blockStats.Size <= MAX_SIZE);
+            Assert.Single(segments);
+            Assert.Equal(1, segments[0].ItemCount);
+            Assert.True(segments[0].Size <= MAX_SIZE);
         }
 
         [Fact]
@@ -44,11 +45,11 @@ namespace TrackDb.UnitTest.PrefixTruncate
                 block.AppendRecord(DateTime.Now, i, [(object)i]);
             }
 
-            var blockStats = block.TruncateSerialize(new byte[MAX_SIZE], 0);
+            var segments = block.SegmentRecords(MAX_SIZE);
 
-            Assert.True(blockStats.ItemCount > 0);
-            Assert.True(blockStats.ItemCount < ROW_COUNT);
-            Assert.True(blockStats.Size <= MAX_SIZE);
+            Assert.True(segments.Count > 0);
+            Assert.True(segments.All(s => s.ItemCount < ROW_COUNT));
+            Assert.True(segments.All(s => s.Size <= MAX_SIZE));
         }
     }
 }

@@ -182,34 +182,27 @@ namespace TrackDb.Lib.InMemory.Block
             var totalRecordCount = block.RecordCount;
             var recordCountList = new List<SegmentSize>();
             var skipRows = 0;
-            var motherArray = ArrayPool<int>.Shared.Rent(_dataColumns.Count * totalRecordCount);
+            var motherArray = new int[_dataColumns.Count * totalRecordCount];
 
-            try
+            while (skipRows < block.RecordCount)
             {
-                while (skipRows < block.RecordCount)
+                var segmentSize = ComputerSegmentSize(
+                    totalRecordCount,
+                    skipRows,
+                    motherArray,
+                    maxBufferLength);
+
+                if (segmentSize.ItemCount == 0)
                 {
-                    var segmentSize = ComputerSegmentSize(
-                        totalRecordCount,
-                        skipRows,
-                        motherArray,
-                        maxBufferLength);
-
-                    if (segmentSize.ItemCount == 0)
-                    {
-                        throw new InvalidDataException(
-                            $"A single record is too large to persist on table " +
-                            $"'{block.TableSchema.TableName}' with " +
-                            $"{block.TableSchema.Columns.Count} columns");
-                    }
-                    recordCountList.Add(segmentSize);
+                    throw new InvalidDataException(
+                        $"A single record is too large to persist on table " +
+                        $"'{block.TableSchema.TableName}' with " +
+                        $"{block.TableSchema.Columns.Count} columns");
                 }
+                recordCountList.Add(segmentSize);
+            }
 
-                return recordCountList;
-            }
-            finally
-            {
-                ArrayPool<int>.Shared.Return(motherArray);
-            }
+            return recordCountList;
         }
 
         private SegmentSize ComputerSegmentSize(
