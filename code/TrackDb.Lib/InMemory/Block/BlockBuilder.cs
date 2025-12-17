@@ -200,6 +200,7 @@ namespace TrackDb.Lib.InMemory.Block
                         $"{block.TableSchema.Columns.Count} columns");
                 }
                 recordCountList.Add(segmentSize);
+                skipRows += segmentSize.ItemCount;
             }
 
             return recordCountList;
