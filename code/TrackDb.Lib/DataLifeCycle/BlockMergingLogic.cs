@@ -161,9 +161,11 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (((IBlock)BlockBuilder).RecordCount > 0)
                 {
-                    var blockStats = BlockBuilder.Serialize(Array.Empty<byte>());
+                    var segments = BlockBuilder.SegmentRecords(
+                        Database.DatabasePolicy.StoragePolicy.BlockSize);
 
-                    return blockStats.Size;
+                    return segments
+                        .Sum(s => s.Size);
                 }
                 else
                 {
