@@ -115,7 +115,7 @@ namespace TrackDb.UnitTest.Encoding
         {
             foreach (var originalSequence in scenarios)
             {
-                var max = originalSequence.Any() ? originalSequence.Max() : 0UL;
+                var max = Math.Max(1, originalSequence.Any() ? originalSequence.Max() : 0);
                 var packedArray = new byte[BitPacker.PackSize(originalSequence.Count(), max)];
                 var writer = new ByteWriter(packedArray);
                 var sequence = originalSequence.ToArray();
