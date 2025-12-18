@@ -296,7 +296,7 @@ namespace TrackDb.Lib
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
 
         #region Available Blocks
-        private int GetAvailableBlockId(TransactionContext tx)
+        internal int GetAvailableBlockId(TransactionContext tx)
         {
             var availableBlock = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
@@ -693,13 +693,9 @@ namespace TrackDb.Lib
             return block;
         }
 
-        internal int PersistBlock(ReadOnlySpan<byte> buffer, TransactionContext tx)
+        internal void PersistBlock(int blockId, ReadOnlySpan<byte> buffer, TransactionContext tx)
         {
-            var blockId = GetAvailableBlockId(tx);
-
             _dbFileManager.Value.WriteBlock(blockId, buffer);
-
-            return blockId;
         }
         #endregion
 

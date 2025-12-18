@@ -62,9 +62,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         $"Block size ({blockStats.Size}) is bigger than planned" +
                         $"maximum ({segment.Size})");
                 }
-                var blockId =
-                    Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
+                var blockId = Database.GetAvailableBlockId(tx);
 
+                Database.PersistBlock(blockId, buffer.AsSpan().Slice(0, blockStats.Size), tx);
                 metadataTable.AppendRecord(
                     metaSchema.CreateMetadataRecord(blockId, blockStats).Span,
                     tx);

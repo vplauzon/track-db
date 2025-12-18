@@ -244,13 +244,15 @@ namespace TrackDb.Lib.DataLifeCycle
                     throw new InvalidOperationException("Block bigger than planned");
                 }
 
-                var blockId = Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
+                var blockId = Database.GetAvailableBlockId(tx);
                 var tableName = ((IBlock)BlockBuilder).TableSchema.TableName;
                 var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
                 var metadataTable = tableMap[tableMap[tableName].MetaDataTableName!].Table;
                 var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                 var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
                 var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
+
+                Database.PersistBlock(blockId, buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
                 return new MetaDataBlockFacade(Database, metaBlock);
             }
