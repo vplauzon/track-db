@@ -142,7 +142,7 @@ namespace TrackDb.Lib.Encoding
         }
 
         private static void WriteUniqueValues(
-            IImmutableList<string> uniqueValues,
+            List<string> uniqueValues,
             ref ByteWriter writer)
         {
             var valuesSequenceLength = uniqueValues
@@ -173,7 +173,7 @@ namespace TrackDb.Lib.Encoding
 
         private static void WriteIndexes(
             ReadOnlySpan<string?> values,
-            IImmutableList<string> uniqueValues,
+            List<string> uniqueValues,
             ref ByteWriter writer)
         {
             Span<ulong> indexesSpan = values.Length <= 1024
@@ -195,7 +195,7 @@ namespace TrackDb.Lib.Encoding
             BitPacker.Pack(indexesSpan, (ulong)uniqueValues.Count, ref writer);
         }
 
-        private static (IImmutableList<string> OrderedUniqueValues, bool HasNulls) ScanStats(
+        private static (List<string> OrderedUniqueValues, bool HasNulls) ScanStats(
             ReadOnlySpan<string?> values)
         {
             var uniqueValues = new HashSet<string>();
@@ -213,8 +213,12 @@ namespace TrackDb.Lib.Encoding
                 }
             }
 
+            var orderedList = uniqueValues.ToList();
+
             //  Order is important as the min and max are later deduced from the start and end
-            return (uniqueValues.Order().ToImmutableArray(), hasNulls);
+            orderedList.Sort();
+
+            return (orderedList, hasNulls);
         }
         #endregion
 
