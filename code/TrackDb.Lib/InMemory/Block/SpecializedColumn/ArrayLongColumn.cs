@@ -65,7 +65,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override void ComputeSerializationSizes(
+        protected override int ComputeSerializationSizes(
             ReadOnlySpan<long> storedValues,
             Span<int> sizes,
             int maxSize)
@@ -73,13 +73,13 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             var values = storedValues.Length <= 1024
                 ? stackalloc long[storedValues.Length]
                 : new long[storedValues.Length];
-
+            
             for (var i = 0; i != storedValues.Length; ++i)
             {
                 values[i] = storedValues[i];
             }
 
-            Int64Codec.ComputeSerializationSizes(values, NullValue, sizes, maxSize);
+            return Int64Codec.ComputeSerializationSizes(values, NullValue, sizes, maxSize);
         }
 
         protected override ColumnStats Serialize(

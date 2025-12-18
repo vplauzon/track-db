@@ -180,6 +180,7 @@ namespace TrackDb.Lib.InMemory.Block
         {
             IBlock block = this;
             var totalRecordCount = block.RecordCount;
+            var maxRecordCount = totalRecordCount;
             var recordCountList = new List<SegmentSize>();
             var skipRows = 0;
             var motherArray = new int[_dataColumns.Count * totalRecordCount];
@@ -187,7 +188,7 @@ namespace TrackDb.Lib.InMemory.Block
             while (skipRows < block.RecordCount)
             {
                 var segmentSize = ComputerSegmentSize(
-                    totalRecordCount,
+                    maxRecordCount,
                     skipRows,
                     motherArray,
                     maxBufferLength);
@@ -199,6 +200,9 @@ namespace TrackDb.Lib.InMemory.Block
                         $"'{block.TableSchema.TableName}' with " +
                         $"{block.TableSchema.Columns.Count} columns");
                 }
+                //  Cap the amount of records we are going to look at in next iteration to %25 more
+                //  than what we did on this round
+                maxRecordCount = segmentSize.ItemCount + segmentSize.ItemCount / 4;
                 recordCountList.Add(segmentSize);
                 skipRows += segmentSize.ItemCount;
             }
@@ -207,12 +211,13 @@ namespace TrackDb.Lib.InMemory.Block
         }
 
         private SegmentSize ComputerSegmentSize(
-            int totalRecordCount,
+            int maxRecordCount,
             int skipRows,
             int[] motherArray,
             int maxBufferLength)
         {
-            var recordCount = totalRecordCount - skipRows;
+            IBlock block = this;
+            var recordCount = Math.Min(maxRecordCount, block.RecordCount - skipRows);
             var matchedItemCount = 0;
             var matchedSize = 0;
             var blockHeaderSize =
@@ -221,7 +226,7 @@ namespace TrackDb.Lib.InMemory.Block
 
             for (var j = 0; j != _dataColumns.Count; ++j)
             {
-                var columnsizes = motherArray.AsSpan().Slice(j * totalRecordCount, totalRecordCount);
+                var columnsizes = motherArray.AsSpan().Slice(j * recordCount, recordCount);
 
                 _dataColumns[j].ComputeSerializationSizes(
                     columnsizes,
@@ -234,7 +239,7 @@ namespace TrackDb.Lib.InMemory.Block
 
                 for (var j = 0; j != _dataColumns.Count; ++j)
                 {
-                    size += motherArray[j * totalRecordCount + i];
+                    size += motherArray[j * recordCount + i];
                 }
                 if (size > maxBufferLength)
                 {

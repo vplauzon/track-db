@@ -63,12 +63,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        protected override void ComputeSerializationSizes(
+        protected override int ComputeSerializationSizes(
             ReadOnlySpan<string?> storedValues,
             Span<int> sizes,
             int maxSize)
         {
-            StringCodec.ComputeSerializationSizes(storedValues, sizes, maxSize);
+            return StringCodec.ComputeSerializationSizes(storedValues, sizes, maxSize);
         }
 
         protected override ColumnStats Serialize(

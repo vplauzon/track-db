@@ -27,8 +27,8 @@ namespace TrackDb.Lib.Encoding
         /// <param name="nullValue"></param>
         /// <param name="maxSize"></param>
         /// <param name="sizes"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        public static void ComputeSerializationSizes(
+        /// <returns>Number of records actually input in <paramref name="sizes"/>.</returns>
+        public static int ComputeSerializationSizes(
             scoped ReadOnlySpan<long> storedValues,
             long nullValue,
             Span<int> sizes,
@@ -60,12 +60,14 @@ namespace TrackDb.Lib.Encoding
                     ? BitPacker.PackSize(nonNull, (ulong)(maxValue - minValue))
                     : 0);
 
-                sizes[i] = size;
                 if (size >= maxSize)
                 {
-                    return;
+                    return i;
                 }
+                sizes[i] = size;
             }
+
+            return storedValues.Length;
         }
         #endregion
 

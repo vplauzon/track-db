@@ -28,7 +28,8 @@ namespace TrackDb.Lib.InMemory.Block
         /// <param name="sizes">Array to write the sizes in</param>
         /// <param name="skipRecords">Number of records to skip at the beginning</param>
         /// <param name="maxSize">Maximum size, after which the array isn't expected to be completed</param>
-        void ComputeSerializationSizes(Span<int> sizes, int skipRecords, int maxSize);
+        /// <returns>Number of records actually input in <paramref name="sizes"/>.</returns>
+        int ComputeSerializationSizes(Span<int> sizes, int skipRecords, int maxSize);
 
         /// <summary>Serialize a segment.</summary>
         /// <param name="writer"></param>

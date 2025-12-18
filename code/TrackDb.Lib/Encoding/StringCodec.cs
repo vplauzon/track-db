@@ -13,7 +13,7 @@ namespace TrackDb.Lib.Encoding
     internal static class StringCodec
     {
         #region Compute Size
-        public static void ComputeSerializationSizes(
+        public static int ComputeSerializationSizes(
             ReadOnlySpan<string?> storedValues,
             Span<int> sizes,
             int maxSize)
@@ -49,21 +49,25 @@ namespace TrackDb.Lib.Encoding
                 }
                 if (uniqueValues.Count != 0)
                 {
-                    sizes[i] =
+                    var size = 
                         sizeof(ushort)  //  Value sequence count
                         + sizeof(byte)  //  Value sequence max
                         + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
                         + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
-                    if (sizes[i] >= maxSize)
+
+                    if (size >= maxSize)
                     {
-                        return;
+                        return i;
                     }
+                    sizes[i] = size;
                 }
                 else
                 {
                     sizes[i] = sizeof(ushort);  //  Write 0
                 }
             }
+
+            return storedValues.Length;
         }
         #endregion
 

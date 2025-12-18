@@ -86,13 +86,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder.ToImmutable();
         }
 
-        void IReadOnlyDataColumn.ComputeSerializationSizes(
+        int IReadOnlyDataColumn.ComputeSerializationSizes(
             Span<int> sizes,
             int skipRecords,
             int maxSize)
         {
-            ComputeSerializationSizes(
-                _array.AsSpan().Slice(0, _itemCount).Slice(skipRecords),
+            return ComputeSerializationSizes(
+                _array
+                .AsSpan()
+                .Slice(skipRecords, Math.Min(_itemCount - skipRecords, sizes.Length)),
                 sizes,
                 maxSize);
         }
@@ -225,7 +227,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             BinaryOperator binaryOperator,
             ImmutableArray<int>.Builder matchBuilder);
 
-        protected abstract void ComputeSerializationSizes(
+        protected abstract int ComputeSerializationSizes(
             ReadOnlySpan<T> storedValues,
             Span<int> sizes,
             int maxSize);

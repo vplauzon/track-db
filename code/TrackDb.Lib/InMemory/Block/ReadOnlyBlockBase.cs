@@ -48,7 +48,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotImplementedException();
             }
 
-            void IReadOnlyDataColumn.ComputeSerializationSizes(
+            int IReadOnlyDataColumn.ComputeSerializationSizes(
                 Span<int> sizes,
                 int skipRecords,
                 int maxSize)
@@ -93,7 +93,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotImplementedException();
             }
 
-            void IReadOnlyDataColumn.ComputeSerializationSizes(
+            int IReadOnlyDataColumn.ComputeSerializationSizes(
                 Span<int> sizes,
                 int skipRecords,
                 int maxSize)
