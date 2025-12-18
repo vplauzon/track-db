@@ -55,7 +55,7 @@ namespace TrackDb.Lib.Encoding
                         + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
                         + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
 
-                    if (sizes[i] >= maxSize)
+                    if (size >= maxSize)
                     {
                         return i;
                     }
