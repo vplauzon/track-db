@@ -62,6 +62,12 @@ namespace TrackDb.PerfTest
             await RunPerformanceTestAsync(100000, 100);
         }
 
+        [Fact]
+        public async Task Test1000000by1()
+        {
+            await RunPerformanceTestAsync(1000000, 1);
+        }
+
         protected async Task RunPerformanceTestAsync(int cycleCount, int batchCount)
         {
             var random = new Random();
