@@ -296,21 +296,26 @@ namespace TrackDb.Lib
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
 
         #region Available Blocks
-        internal int GetAvailableBlockId(TransactionContext tx)
+        internal IReadOnlyList<int> GetAvailableBlockIds(int blockIdCount, TransactionContext tx)
         {
-            var availableBlock = _availableBlockTable.Query(tx)
+            var availableBlockIds = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                .Take(1)
-                .FirstOrDefault();
+                .Take(blockIdCount)
+                .Select(a => a.BlockId)
+                .ToImmutableArray();
 
-            if (availableBlock != null)
+            if (availableBlockIds.Length == blockIdCount)
             {
-                _availableBlockTable.UpdateRecord(
-                    availableBlock,
-                    availableBlock with { BlockAvailability = BlockAvailability.InUsed },
-                    tx);
+                var newRecords = availableBlockIds
+                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
 
-                return availableBlock.BlockId;
+                _availableBlockTable.Query(tx)
+                    .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
+                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
+                    .Delete();
+                _availableBlockTable.AppendRecords(newRecords, tx);
+
+                return availableBlockIds;
             }
             else
             {
@@ -322,8 +327,15 @@ namespace TrackDb.Lib
                     tx);
 
                 //  Now that there are available block, let's try again
-                return GetAvailableBlockId(tx);
+                return GetAvailableBlockIds(blockIdCount, tx);
             }
+        }
+
+        internal int GetAvailableBlockId(TransactionContext tx)
+        {
+            var blockIds = GetAvailableBlockIds(1, tx);
+
+            return blockIds[0];
         }
 
         internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
