@@ -60,12 +60,12 @@ namespace TrackDb.Lib.InMemory.Block
                 .ToImmutableHashSet());
         }
 
-        void IReadOnlyDataColumn.ComputeSerializationSizes(
+        int IReadOnlyDataColumn.ComputeSerializationSizes(
             Span<int> sizes,
             int skipRecords,
             int maxSize)
         {
-            _innerColumn.ComputeSerializationSizes(sizes, skipRecords, maxSize);
+            return _innerColumn.ComputeSerializationSizes(sizes, skipRecords, maxSize);
         }
 
         ColumnStats IReadOnlyDataColumn.SerializeSegment(
