@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
@@ -168,16 +170,95 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
-        public BlockStats Serialize(Memory<byte> buffer)
-        {
-            return SerializeSegment(buffer, 0, ((IBlock)this).RecordCount);
-        }
-
-        private BlockStats SerializeSegment(Memory<byte>? buffer, int skipRows, int takeRows)
+        /// <summary>
+        /// Segments the block's records into batches that can be serialized within a buffer of
+        /// size <paramref name="maxBufferLength"/>.
+        /// </summary>
+        /// <param name="maxBufferLength"></param>
+        /// <returns></returns>
+        public IReadOnlyList<SegmentSize> SegmentRecords(int maxBufferLength)
         {
             IBlock block = this;
-            var writer =
-                new ByteWriter(buffer != null ? buffer.Value.Span : new Span<byte>(), false);
+            var totalRecordCount = block.RecordCount;
+            var recordCountList = new List<SegmentSize>();
+            var skipRows = 0;
+            var motherArray = new int[_dataColumns.Count * totalRecordCount];
+
+            while (skipRows < block.RecordCount)
+            {
+                var segmentSize = ComputerSegmentSize(
+                    totalRecordCount,
+                    skipRows,
+                    motherArray,
+                    maxBufferLength);
+
+                if (segmentSize.ItemCount == 0)
+                {
+                    throw new InvalidDataException(
+                        $"A single record is too large to persist on table " +
+                        $"'{block.TableSchema.TableName}' with " +
+                        $"{block.TableSchema.Columns.Count} columns");
+                }
+                recordCountList.Add(segmentSize);
+                skipRows += segmentSize.ItemCount;
+            }
+
+            return recordCountList;
+        }
+
+        private SegmentSize ComputerSegmentSize(
+            int totalRecordCount,
+            int skipRows,
+            int[] motherArray,
+            int maxBufferLength)
+        {
+            var recordCount = totalRecordCount - skipRows;
+            var matchedItemCount = 0;
+            var matchedSize = 0;
+            var blockHeaderSize =
+                sizeof(ushort)  //  Item count
+                + _dataColumns.Count * sizeof(ushort);  //  Column payload sizes
+
+            for (var j = 0; j != _dataColumns.Count; ++j)
+            {
+                var columnsizes = motherArray.AsSpan().Slice(j * totalRecordCount, totalRecordCount);
+
+                _dataColumns[j].ComputeSerializationSizes(
+                    columnsizes,
+                    skipRows,
+                    maxBufferLength);
+            }
+            for (var i = 0; i != recordCount; ++i)
+            {
+                var size = blockHeaderSize;
+
+                for (var j = 0; j != _dataColumns.Count; ++j)
+                {
+                    size += motherArray[j * totalRecordCount + i];
+                }
+                if (size > maxBufferLength)
+                {
+                    return new(matchedItemCount, matchedSize);
+                }
+                else
+                {
+                    matchedItemCount = i + 1;
+                    matchedSize = size;
+                }
+            }
+
+            return new(matchedItemCount, matchedSize);
+        }
+
+        public BlockStats Serialize(Span<byte> buffer)
+        {
+            return Serialize(buffer, 0, ((IBlock)this).RecordCount);
+        }
+
+        public BlockStats Serialize(Span<byte> buffer, int skipRows, int takeRows)
+        {
+            IBlock block = this;
+            var writer = new ByteWriter(buffer);
 
             if (skipRows < 0)
             {
@@ -203,184 +284,22 @@ namespace TrackDb.Lib.InMemory.Block
             writer.WriteUInt16((ushort)takeRows);
 
             //  Column payload sizes
-            var columnsPayloadSizePlaceholder = writer.PlaceholderArrayUInt16(_dataColumns.Count);
-            var columnStatsBuilder = ImmutableArray<ColumnStats>.Empty.ToBuilder();
+            var columnsPayloadSizePlaceholder = writer.SliceArrayUInt16(_dataColumns.Count);
+            var columnStats = new ColumnStats[_dataColumns.Count];
 
             //  Body:  columns
             for (var i = 0; i != _dataColumns.Count; ++i)
             {
                 var sizeBefore = writer.Position;
-                var columnStats = _dataColumns[i].SerializeSegment(ref writer, skipRows, takeRows);
+
+                columnStats[i] = _dataColumns[i].SerializeSegment(ref writer, skipRows, takeRows);
+
                 var columnSize = (ushort)(writer.Position - sizeBefore);
 
-                columnStatsBuilder.Add(columnStats);
-                columnsPayloadSizePlaceholder.SetValue(i, columnSize);
+                columnsPayloadSizePlaceholder.WriteUInt16(columnSize);
             }
 
-            //  Footer:  has nulls
-            BitPacker.Pack(
-                columnStatsBuilder.Select(c => Convert.ToUInt64(c.HasNulls)),
-                columnStatsBuilder.Count,
-                1,
-                ref writer);
-
-            return new(takeRows, writer.Position, columnStatsBuilder.ToImmutable());
-        }
-
-        /// <summary>
-        /// Extract a number of rows from the block builder.  The resulting
-        /// block should serialize to as close to but <= <paramref name="maxSize"/>.
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="skipRows">Number of rows to skip at the beginning of the block.</param>
-        /// <returns></returns>
-        public BlockStats TruncateSerialize(Memory<byte> buffer, int skipRows)
-        {
-            (var itemCount, var size) = OptimizeSize(buffer.Length, skipRows);
-            var stats = SerializeSegment(buffer, skipRows, itemCount);
-
-            if (stats.Size != size)
-            {
-                throw new InvalidOperationException(
-                    $"Mismatch between compute size and actual size of serialized block:" +
-                    $"{size} vs {stats.Size}");
-            }
-
-            return stats;
-        }
-
-        private (int ItemCount, int Size) OptimizeSize(int maxSize, int skipRows)
-        {
-            var recordCount = ((IBlock)this).RecordCount - skipRows;
-            var motherArray = new int[_dataColumns.Count * recordCount];
-
-            for (var i = 0; i != _dataColumns.Count; ++i)
-            {
-                _dataColumns[i].ComputeSerializationSizes(
-                    motherArray.AsSpan().Slice(i * recordCount, recordCount),
-                    skipRows,
-                    maxSize);
-            }
-
-            var blockHeaderFooterSize =
-                sizeof(ushort)  //  Item count
-                + _dataColumns.Count * sizeof(ushort)  //  Column payload sizes
-                + BitPacker.PackSize(_dataColumns.Count, 1); //  Footer
-            var matchedItemCount = 0;
-            var matchedSize = 0;
-
-            for (int i = 0; i != recordCount; ++i)
-            {
-                var size = blockHeaderFooterSize;
-
-                for (var j = 0; j != _dataColumns.Count; ++j)
-                {
-                    size += motherArray[j * recordCount + i];
-                }
-                if (size > maxSize)
-                {
-                    return (matchedItemCount, matchedSize);
-                }
-                else
-                {
-                    matchedItemCount = i + 1;
-                    matchedSize = size;
-                }
-            }
-
-            return (matchedItemCount, matchedSize);
-        }
-
-        private BlockStats OptimizeTruncationRowCount(
-            Memory<byte> buffer,
-            int skipRows,
-            int maxRowCount,
-            BlockStats lowerBound,
-            BlockStats upperBound,
-            int iterationCount)
-        {
-            const int DELTA_SIZE_TOLERANCE = 25;
-
-            var maxSize = buffer.Length;
-
-            if (upperBound.Size <= maxSize && upperBound.Size > maxSize - DELTA_SIZE_TOLERANCE)
-            {
-                return upperBound;
-            }
-            else if (lowerBound.Size > maxSize - DELTA_SIZE_TOLERANCE)
-            {
-                return lowerBound;
-            }
-            else if (upperBound.ItemCount - lowerBound.ItemCount <= 1)
-            {
-                return upperBound.Size <= maxSize ? upperBound : lowerBound;
-            }
-            else
-            {
-                //  Inter / extra-polate the new count
-                //  Assuming X = count & Y = size
-                //  Also assuming that Y = m.X + b (relation is linear)
-                //  We want Y to converge to maxSize or Y3 = maxSize
-                //  Y1 = m.X1 + b, Y2 = m.X2 + b
-                //  => Y2-Y1 = m.(X2-X1) => m = (Y2-Y1)/(X2-X1)
-                //  => b = Y1-m.X1
-                //  Then, Y3 = m.X3 + b => X3 = (Y3-b)/m
-                var m = (double)(upperBound.Size - lowerBound.Size)
-                    / (upperBound.ItemCount - lowerBound.ItemCount);
-                var b = lowerBound.Size - m * lowerBound.ItemCount;
-                var newCount = Math.Min(maxRowCount, (int)((maxSize - b) / m));
-                var newBound = SerializeSegment(buffer, skipRows, newCount);
-                //  Now we have X1, X2 & X3 with X1<X2 but X3 could be anywhere
-                //  We'll first reorder them into XA, XB & XC with XA<XB<XC
-                (var boundA, var boundB, var boundC) =
-                    SortByItemCount(lowerBound, upperBound, newBound);
-                //  In general, we want to move up in size, but we want to keep lower bound
-                //  under max-size
-                (var newLowerBound, var newUpperBound) = boundB.Size > maxSize && boundC.Size > maxSize
-                    ? (boundA, boundB)
-                    : (boundB, boundC);
-
-                if ((Math.Abs(newLowerBound.Size - lowerBound.Size) < DELTA_SIZE_TOLERANCE
-                    && Math.Abs(newUpperBound.Size - upperBound.Size) < DELTA_SIZE_TOLERANCE
-                    && newLowerBound.ItemCount > 0)
-                    || iterationCount == MAX_ITERATION_COUNT)
-                {
-                    return newUpperBound.Size <= maxSize
-                        ? newUpperBound
-                        : newLowerBound;
-                }
-                else
-                {
-                    return OptimizeTruncationRowCount(
-                        buffer,
-                        skipRows,
-                        maxRowCount,
-                        newLowerBound,
-                        newUpperBound,
-                        iterationCount + 1);
-                }
-            }
-        }
-
-        private (BlockStats boundA, BlockStats boundB, BlockStats boundC) SortByItemCount(
-            BlockStats bound1,
-            BlockStats bound2,
-            BlockStats bound3)
-        {
-            if (bound2.ItemCount < bound1.ItemCount)
-            {
-                (bound1, bound2) = (bound2, bound1);
-            }
-            if (bound3.ItemCount < bound2.ItemCount)
-            {
-                (bound2, bound3) = (bound3, bound2);
-            }
-            if (bound2.ItemCount < bound1.ItemCount)
-            {
-                (bound1, bound2) = (bound2, bound1);
-            }
-
-            return (bound1, bound2, bound3);
+            return new(takeRows, writer.Position, columnStats.ToImmutableArray());
         }
         #endregion
 

@@ -1,5 +1,4 @@
-﻿using TrackDb.Lib.InMemory.Block.SpecializedColumn;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -75,23 +74,6 @@ namespace TrackDb.UnitTest.Encoding
         }
 
         [Fact]
-        public void EmptySequence()
-        {
-            Assert.Throws<ArgumentNullException>(() =>
-            {
-                var writer = new ByteWriter(new Span<byte>(), false);
-
-                StringCodec.Compress(null!, ref writer);
-            });
-            Assert.Throws<ArgumentNullException>(() =>
-            {
-                var writer = new ByteWriter(new Span<byte>(), false);
-
-                StringCodec.Compress(Array.Empty<string?>(), ref writer);
-            });
-        }
-
-        [Fact]
         public void SequenceTooLarge()
         {
             var data = Enumerable.Range(0, UInt16.MaxValue + 1)
@@ -100,7 +82,7 @@ namespace TrackDb.UnitTest.Encoding
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
             {
-                var writer = new ByteWriter(new Span<byte>(), false);
+                var writer = new ByteWriter(new byte[UInt16.MaxValue * 4]);
 
                 StringCodec.Compress(data, ref writer);
             });
@@ -124,18 +106,15 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<string?> data, bool doExpectPayload)
         {
-            var buffer = new byte[7000];
-            var writer = new ByteWriter(buffer, true);
-            var package = StringCodec.Compress(data, ref writer);
-            var decodedArray = StringCodec.Decompress(
-                data.Count(),
-                buffer.AsSpan(0, writer.Position))
-                .ToImmutableArray();
+            var buffer = new byte[10000];
+            var writer = new ByteWriter(buffer);
+            var reader = new ByteReader(buffer);
+            var package = StringCodec.Compress(data.ToArray(), ref writer);
+            var decodedArray = new string?[data.Count()];
+                
+            StringCodec.Decompress(ref reader, decodedArray);
 
-            Assert.False(writer.IsOverflow);
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
-            Assert.Equal(data.Min(), decodedArray.Min());
-            Assert.Equal(data.Max(), decodedArray.Max());
         }
     }
 }

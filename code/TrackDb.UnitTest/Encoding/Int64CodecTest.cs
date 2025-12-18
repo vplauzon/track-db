@@ -61,38 +61,18 @@ namespace TrackDb.UnitTest.Encoding
         }
 
         [Fact]
-        public void EmptySequence()
-        {
-            Assert.Throws<ArgumentNullException>(() =>
-            {
-                var writer = new ByteWriter(new Span<byte>(), false);
-
-                Int64Codec.Compress(null!, ref writer);
-            });
-            Assert.Throws<ArgumentNullException>(() =>
-            {
-                var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
-
-                Int64Codec.Compress(Array.Empty<long?>(), ref writer);
-            });
-        }
-
-        [Fact]
         public void SequenceTooLarge()
         {
             var data = Enumerable.Range(0, UInt16.MaxValue + 1)
-                .Select(i => (long?)i)
+                .Select(i => (long)i)
                 .ToArray();
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
             {
-                var writer = new ByteWriter(new Span<byte>(), false);
-                var draftWriter = new ByteWriter(new Span<byte>(), false);
+                var writer = new ByteWriter(new byte[4 * UInt16.MaxValue]);
 
-                Int64Codec.Compress(data, ref writer);
+                Int64Codec.Compress(data, long.MinValue, ref writer);
             });
-
         }
 
         [Fact]
@@ -159,18 +139,19 @@ namespace TrackDb.UnitTest.Encoding
 
         private static void TestScenario(IEnumerable<long?> data)
         {
+            var nullValue = long.MinValue;
+            var dataArray = data
+                .Select(d => d == null ? nullValue : d.Value)
+                .ToArray();
             var buffer = new byte[50000];
-            var writer = new ByteWriter(buffer, true);
-            var package = Int64Codec.Compress(data, ref writer);
-            var decodedArray = Int64Codec.Decompress(
-                package.ItemCount,
-                package.HasNulls,
-                buffer.AsSpan().Slice(0, writer.Position))
-                .ToImmutableArray();
+            var writer = new ByteWriter(buffer);
+            var reader = new ByteReader(buffer);
+            var package = Int64Codec.Compress(dataArray, nullValue, ref writer);
+            var decodedArray = new long[dataArray.Length];
 
-            Assert.True(Enumerable.SequenceEqual(decodedArray, data));
-            Assert.Equal(data.Min(), decodedArray.Min());
-            Assert.Equal(data.Max(), decodedArray.Max());
+            Int64Codec.Decompress(ref reader, decodedArray, nullValue);
+
+            Assert.True(Enumerable.SequenceEqual(decodedArray, dataArray));
         }
     }
 }

@@ -9,122 +9,44 @@ using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayEnumColumn<T> : PrimitiveArrayColumnBase<T>
+    internal class ArrayEnumColumn<T> : TransformProxyColumn
         where T : struct, Enum
     {
-        private readonly T _nullValue = (T)Enum.ToObject(typeof(T), -1);
-
         public ArrayEnumColumn(bool allowNull, int capacity)
-            : base(allowNull, capacity)
+            : base(new ArrayLongColumn(allowNull, capacity))
         {
         }
 
-        protected override T NullValue => _nullValue;
-
-        protected override object? GetObjectData(T data)
+        protected override object? OutToInValue(object? value)
         {
-            return EqualityComparer<T>.Default.Equals(data, _nullValue)
-                ? null
-                : (object)data;
-        }
-
-        protected override void FilterBinaryInternal(
-            T value,
-            ReadOnlySpan<T> storedValues,
-            BinaryOperator binaryOperator,
-            ImmutableArray<int>.Builder matchBuilder)
-        {
-            switch (binaryOperator)
-            {
-                case BinaryOperator.Equal:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (EqualityComparer<T>.Default.Equals(storedValues[i], value))
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.LessThan:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (Convert.ToInt64(storedValues[i]) < Convert.ToInt64(value))
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.LessThanOrEqual:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (Convert.ToInt64(storedValues[i]) <= Convert.ToInt64(value))
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                default:
-                    throw new NotSupportedException(
-                        $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
-            }
-        }
-
-        protected override void ComputeSerializationSizes(
-            ReadOnlyMemory<T> storedValues,
-            Span<int> sizes,
-            int maxSize)
-        {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
+            var enumValue = (T?)value;
+            var longValue = enumValue == null
                 ? (long?)null
-                : Convert.ToInt64(v));
+                : Convert.ToInt64(enumValue.Value);
 
-            Int64Codec.ComputeSerializationSizes(values, sizes, maxSize);
+            return longValue;
         }
 
-        protected override ColumnStats Serialize(
-            ReadOnlyMemory<T> storedValues,
-            ref ByteWriter writer)
+        protected override object? InToOutValue(object? value)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => EqualityComparer<T>.Default.Equals(v, _nullValue)
-                ? (long?)null
-                : Convert.ToInt64(v));
-            var package = Int64Codec.Compress(values, ref writer);
+            var longValue = (long?)value;
+            var enumValue = longValue == null
+                ? (T?)null
+                : Enum.ToObject(typeof(T), longValue.Value);
 
-            //  Convert min and max to T (from int-64)
-            return new(
-                package.ItemCount,
-                package.HasNulls,
-                package.ColumnMinimum == null
-                ? null
-                : Enum.ToObject(typeof(T), (long)package.ColumnMinimum!),
-                package.ColumnMaximum == null
-                ? null
-                : Enum.ToObject(typeof(T), (long)package.ColumnMaximum!));
+            return enumValue;
         }
 
-        protected override IEnumerable<object?> Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload)
+        protected override JsonElement InToLogValue(object? value)
         {
-            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
-                .Select(l => l == null ? null : Enum.ToObject(typeof(T), l));
+            var enumValue = (T?)value;
+
+            return JsonSerializer.SerializeToElement(enumValue.ToString());
         }
 
-        protected override JsonElement GetLogValue(object? objectData)
+        protected override object? LogValueToIn(JsonElement logValue)
         {
-            var element = JsonSerializer.SerializeToElement(objectData?.ToString());
-
-            return element;
-        }
-
-        protected override object? GetObjectDataFromLog(JsonElement logElement)
-        {
-            var text = JsonSerializer.Deserialize<string>(logElement);
+            var text = JsonSerializer.Deserialize<string>(logValue);
 
             if (text == null)
             {

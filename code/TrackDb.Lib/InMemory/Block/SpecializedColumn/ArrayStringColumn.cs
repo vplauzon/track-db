@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
 using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
@@ -63,23 +64,18 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         }
 
         protected override void ComputeSerializationSizes(
-            ReadOnlyMemory<string?> storedValues,
+            ReadOnlySpan<string?> storedValues,
             Span<int> sizes,
             int maxSize)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i]);
-
-            StringCodec.ComputeSerializationSizes(values, sizes, maxSize);
+            StringCodec.ComputeSerializationSizes(storedValues, sizes, maxSize);
         }
 
         protected override ColumnStats Serialize(
-            ReadOnlyMemory<string?> storedValues,
+            ReadOnlySpan<string?> storedValues,
             ref ByteWriter writer)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i]);
-            var package = StringCodec.Compress(values, ref writer);
+            var package = StringCodec.Compress(storedValues, ref writer);
 
             return new(
                 package.ItemCount,
@@ -88,12 +84,17 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 package.ColumnMaximum);
         }
 
-        protected override IEnumerable<object?> Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload)
+        protected override void Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
-            return StringCodec.Decompress(itemCount, payload.Span);
+            IDataColumn dataColumn = this;
+            var payloadReader = new ByteReader(payload);
+            var newValues = new string?[itemCount];
+
+            StringCodec.Decompress(ref payloadReader, newValues);
+            for (var i = 0; i != newValues.Length; ++i)
+            {
+                dataColumn.AppendValue(newValues[i]);
+            }
         }
     }
 }

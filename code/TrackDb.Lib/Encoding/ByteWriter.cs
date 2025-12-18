@@ -8,195 +8,78 @@ using System.Threading.Tasks;
 namespace TrackDb.Lib.Encoding
 {
     /// <summary>
-    /// Byte writer:  can write bytes different ways and can also emulate to write
-    /// when no buffer (or not long enough buffer) is provided.
+    /// Byte writer:  writes bytes to a span with helper methods to serialize primitive types.
     /// </summary>
     internal ref struct ByteWriter
     {
         private readonly Span<byte> _span;
-        private readonly bool _isStrict;
+        private int _position = 0;
 
-        /// <summary>
-        /// </summary>
-        /// <param name="buffer"></param>
-        /// <param name="isStrict">
-        /// Is strict about managing the size of the buffer.  <c>true</c> means it throws error when
-        /// overflow.
-        /// </param>
-        public ByteWriter(Span<byte> buffer, bool isStrict)
+        public ByteWriter(Span<byte> buffer)
         {
             _span = buffer;
-            _isStrict = isStrict;
         }
 
-        public int Position { get; private set; } = 0;
+        public int Position => _position;
 
-        public bool IsOverflow => Position > _span.Length;
-
-        public byte[] ToArray()
+        #region Slicing
+        public Span<byte> SliceForward(int length)
         {
-            if (IsOverflow)
-            {
-                throw new OverflowException();
-            }
+            var subSpan = _span.Slice(_position, length);
 
-            return _span.Slice(0, Position).ToArray();
+            _position += length;
+
+            return subSpan;
         }
 
-        #region Copy
-        public void CopyFrom(ReadOnlySpan<byte> source)
+        public ByteWriter SliceArrayUInt16(int count)
         {
-            var destination = VirtualByteSpanForward(source.Length);
+            var length = sizeof(ushort) * count;
+            var subSpan = SliceForward(length);
 
-            destination.CopyFrom(source);
+            return new(subSpan);
         }
-
-        public void CopyFrom(VirtualByteSpan source)
-        {
-            var destination = VirtualByteSpanForward(source.Length);
-
-            source.CopyTo(destination);
-        }
-        #endregion
-
-        #region Into other objects
-        public VirtualByteSpan VirtualByteSpanForward(int length)
-        {
-            var subSpan = SubSpanForward(length);
-
-            return new(subSpan, length);
-        }
-        #endregion
-
-        #region Placeholders
-        #region Array
-        public PlaceholderArrayWriter<ushort> PlaceholderArrayUInt16(int length)
-        {
-            var subSpan = SubSpanForward(length * sizeof(ushort));
-            var placeholder = new PlaceholderArrayWriter<ushort>(
-                subSpan,
-                length,
-                (span, i, value) =>
-                {
-                    if (span.Length > 0)
-                    {
-                        WriteUInt16ToSubSpan(span.Slice(sizeof(ushort) * i, sizeof(ushort)), value);
-                    }
-                });
-
-            return placeholder;
-        }
-        #endregion
-
-        #region Simple Values
-        public PlaceholderWriter<ushort> PlaceholderUInt16()
-        {
-            var subSpan = SubSpanForwardUInt16();
-            var placeholder = new PlaceholderWriter<ushort>(
-                subSpan,
-                (span, value) =>
-                {
-                    if (span.Length > 0)
-                    {
-                        WriteUInt16ToSubSpan(span, value);
-                    }
-                });
-
-            return placeholder;
-        }
-        #endregion
         #endregion
 
         #region Write operations
+        public void WriteByte(byte value)
+        {
+            _span.Slice(_position)[0] = value;
+            ++_position;
+        }
+
         public void WriteInt16(short value)
         {
-            var subSpan = SubSpanForwardInt16();
+            //  According to ChatGpt, slightly more performant not to slice with the size
+            //  as it does only one bound check instead of two
+            var subSpan = _span.Slice(_position);
 
-            WriteInt16ToSubSpan(subSpan, value);
-        }
-
-        private static void WriteInt16ToSubSpan(Span<byte> subSpan, short value)
-        {
-            if (subSpan.Length > 0)
-            {
-                BinaryPrimitives.WriteInt16LittleEndian(subSpan, value);
-            }
-        }
-        private Span<byte> SubSpanForwardInt16()
-        {
-            return SubSpanForward(sizeof(short));
+            BinaryPrimitives.WriteInt16LittleEndian(subSpan, value);
+            _position += sizeof(short);
         }
 
         public void WriteUInt16(ushort value)
         {
-            var subSpan = SubSpanForwardUInt16();
+            var subSpan = _span.Slice(_position);
 
-            WriteUInt16ToSubSpan(subSpan, value);
-        }
-
-        private static void WriteUInt16ToSubSpan(Span<byte> subSpan, ushort value)
-        {
-            if (subSpan.Length > 0)
-            {
-                BinaryPrimitives.WriteUInt16LittleEndian(subSpan, value);
-            }
-        }
-
-        private Span<byte> SubSpanForwardUInt16()
-        {
-            return SubSpanForward(sizeof(ushort));
+            BinaryPrimitives.WriteUInt16LittleEndian(subSpan, value);
+            _position += sizeof(ushort);
         }
 
         public void WriteInt64(long value)
         {
-            var subSpan = SubSpanForwardInt64();
+            var subSpan = _span.Slice(_position);
 
-            WriteInt64ToSubSpan(subSpan, value);
-        }
-
-        private static void WriteInt64ToSubSpan(Span<byte> subSpan, long value)
-        {
-            if (subSpan.Length > 0)
-            {
-                BinaryPrimitives.WriteInt64LittleEndian(subSpan, value);
-            }
-        }
-
-        private Span<byte> SubSpanForwardInt64()
-        {
-            return SubSpanForward(sizeof(long));
+            BinaryPrimitives.WriteInt64LittleEndian(subSpan, value);
+            _position += sizeof(long);
         }
 
         public void WriteBytes(ReadOnlySpan<byte> span)
         {
-            var subSpan = SubSpanForward(span.Length);
+            var subSpan = _span.Slice(_position);
 
-            if (subSpan.Length > 0)
-            {
-                span.CopyTo(subSpan);
-            }
-        }
-
-        private Span<byte> SubSpanForward(int length)
-        {
-            if (Position + length <= _span.Length)
-            {
-                var span = _span.Slice(Position, length);
-
-                Position += length;
-
-                return span;
-            }
-            else if (!_isStrict)
-            {
-                Position += length;
-
-                return new Span<byte>();
-            }
-            else
-            {
-                throw new OverflowException();
-            }
+            span.Slice(0, span.Length).CopyTo(subSpan);
+            _position += subSpan.Length;
         }
         #endregion
     }

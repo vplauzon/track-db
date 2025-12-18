@@ -2,109 +2,47 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using TrackDb.Lib.Encoding;
-using TrackDb.Lib.Predicate;
+using System.Text.Json;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
-    internal class ArrayDateTimeColumn : PrimitiveArrayColumnBase<DateTime>
+    internal class ArrayDateTimeColumn : TransformProxyColumn
     {
         public ArrayDateTimeColumn(bool allowNull, int capacity)
-            : base(allowNull, capacity)
+            : base(new ArrayLongColumn(allowNull, capacity))
         {
         }
 
-        protected override DateTime NullValue => DateTime.MinValue;
-
-        protected override object? GetObjectData(DateTime data)
+        protected override object? OutToInValue(object? value)
         {
-            return data == NullValue
-                ? null
-                : (object)data;
+            var dateTimeValue = (DateTime?)value;
+            var longValue = dateTimeValue == null
+                ? (long?)null
+                : dateTimeValue.Value.Ticks;
+
+            return longValue;
         }
 
-        protected override void FilterBinaryInternal(
-            DateTime value,
-            ReadOnlySpan<DateTime> storedValues,
-            BinaryOperator binaryOperator,
-            ImmutableArray<int>.Builder matchBuilder)
+        protected override object? InToOutValue(object? value)
         {
-            switch (binaryOperator)
-            {
-                case BinaryOperator.Equal:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] == value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.LessThan:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] < value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                case BinaryOperator.LessThanOrEqual:
-                    for (int i = 0; i != storedValues.Length; ++i)
-                    {
-                        if (storedValues[i] <= value)
-                        {
-                            matchBuilder.Add(i);
-                        }
-                    }
-                    return;
-                default:
-                    throw new NotSupportedException(
-                        $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
-            }
+            var longValue = (long?)value;
+            var dateTimeValue = longValue == null
+                ? (DateTime?)null
+                : new DateTime(longValue.Value);
+
+            return dateTimeValue;
         }
 
-        protected override void ComputeSerializationSizes(
-            ReadOnlyMemory<DateTime> storedValues,
-            Span<int> sizes,
-            int maxSize)
+        protected override JsonElement InToLogValue(object? value)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => v == NullValue ? null : (long?)v.Ticks);
+            var dateTimeValue = (DateTime?)value;
 
-            Int64Codec.ComputeSerializationSizes(values, sizes, maxSize);
+            return JsonSerializer.SerializeToElement(dateTimeValue);
         }
 
-        protected override ColumnStats Serialize(
-            ReadOnlyMemory<DateTime> storedValues,
-            ref ByteWriter writer)
+        protected override object? LogValueToIn(JsonElement logValue)
         {
-            var values = Enumerable.Range(0, storedValues.Length)
-                .Select(i => storedValues.Span[i])
-                .Select(v => v == NullValue ? null : (long?)v.Ticks);
-            var package = Int64Codec.Compress(values, ref writer);
-
-            //  Convert min and max to DateTime (from int-64)
-            return new(
-                package.ItemCount,
-                package.HasNulls,
-                package.ColumnMinimum == null
-                ? null
-                : new DateTime(((long?)package.ColumnMinimum)!.Value),
-                package.ColumnMaximum == null
-                ? null
-                : new DateTime(((long?)package.ColumnMaximum)!.Value));
-        }
-
-        protected override IEnumerable<object?> Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload)
-        {
-            return Int64Codec.Decompress(itemCount, hasNulls, payload.Span)
-                .Select(l => l == null ? (DateTime?)null : new DateTime(l.Value))
-                .Cast<object?>();
+            return JsonSerializer.Deserialize<DateTime?>(logValue);
         }
     }
 }

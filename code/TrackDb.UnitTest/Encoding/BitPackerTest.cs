@@ -115,23 +115,16 @@ namespace TrackDb.UnitTest.Encoding
         {
             foreach (var originalSequence in scenarios)
             {
-                var max = originalSequence.Any() ? originalSequence.Max() : 0UL;
+                var max = Math.Max(1, originalSequence.Any() ? originalSequence.Max() : 0);
                 var packedArray = new byte[BitPacker.PackSize(originalSequence.Count(), max)];
-                var writer = new ByteWriter(packedArray, true);
+                var writer = new ByteWriter(packedArray);
+                var sequence = originalSequence.ToArray();
+                var unpackedArray = new ulong[sequence.Length];
 
-                BitPacker.Pack(
-                    originalSequence,
-                    originalSequence.Count(),
-                    max,
-                    ref writer);
+                BitPacker.Pack(sequence, max, ref writer);
+                BitPacker.Unpack(packedArray, max, unpackedArray);
 
-                var unpackedArray = BitPacker.Unpack(
-                    packedArray,
-                    originalSequence.Count(),
-                    max)
-                    .ToImmutableArray(v => v);
-
-                Assert.True(Enumerable.SequenceEqual(unpackedArray, originalSequence));
+                Assert.True(Enumerable.SequenceEqual(sequence, unpackedArray));
             }
         }
     }

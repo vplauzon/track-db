@@ -8,109 +8,61 @@ using System.Threading.Tasks;
 namespace TrackDb.Lib.Encoding
 {
     /// <summary>
-    /// Byte reader:  can read bytes different ways.
+    /// Byte reader:  read bytes from a span with helper methods to deserialize primitive types.
     /// </summary>
     internal ref struct ByteReader
     {
         private readonly ReadOnlySpan<byte> _span;
+        private int _position = 0;
 
         public ByteReader(ReadOnlySpan<byte> span)
         {
             _span = span;
         }
 
-        public int Position { get; private set; } = 0;
-
-        #region Into other objects
-        public ReadOnlySpan<byte> SpanForward(int length)
+        #region Slicing
+        public ReadOnlySpan<byte> SliceForward(int length)
         {
-            if(Position + length > _span.Length)
-            {
-                throw new ArgumentOutOfRangeException(nameof(length));
-            }
+            var subSpan = _span.Slice(_position, length);
 
-            var span = _span.Slice(Position, length);
+            _position += length;
 
-            Position += length;
-
-            return span;
+            return subSpan;
         }
 
-        public ReadOnlySpan<byte> RemainingSpanForward()
+        public ByteReader SliceArrayUInt16(int count)
         {
-            var span = _span.Slice(Position);
+            var length = sizeof(ushort) * count;
+            var subSpan = SliceForward(length);
 
-            Position += _span.Length;
-
-            return span;
+            return new(subSpan);
         }
         #endregion
 
         #region Read operations
+        public byte ReadByte()
+        {
+            return _span[_position++];
+        }
+
         public ushort ReadUInt16()
         {
-            var subSpan = SubSpanForwardUInt16();
+            var size = sizeof(ushort);
+            var subSpan = _span.Slice(_position);
+
+            _position += size;
 
             return BinaryPrimitives.ReadUInt16LittleEndian(subSpan);
         }
 
         public long ReadInt64()
         {
-            var subSpan = SubSpanForwardInt64();
+            var size = sizeof(long);
+            var subSpan = _span.Slice(_position);
+
+            _position += size;
 
             return BinaryPrimitives.ReadInt64LittleEndian(subSpan);
-        }
-        #endregion
-
-        #region Virtual Arrays
-        public VirtualReadonlyArray<ushort> VirtualReadonlyArrayUInt16(int length)
-        {
-            var subSpan = SubSpanForward(length * sizeof(ushort));
-            var virtualArray = new VirtualReadonlyArray<ushort>(
-                subSpan,
-                length,
-                (span, i) =>
-                {
-                    if (span.Length > 0)
-                    {
-                        var subSpan = span.Slice(sizeof(ushort) * i, sizeof(ushort));
-                        
-                        return BinaryPrimitives.ReadUInt16LittleEndian(subSpan);
-                    }
-                    else
-                    {
-                        return 0;
-                    }
-                });
-
-            return virtualArray;
-        }
-        #endregion
-
-
-        #region Get sub spans
-        private ReadOnlySpan<byte> SubSpanForwardUInt16()
-        {
-            return SubSpanForward(sizeof(ushort));
-        }
-
-        private ReadOnlySpan<byte> SubSpanForwardInt64()
-        {
-            return SubSpanForward(sizeof(long));
-        }
-
-        private ReadOnlySpan<byte> SubSpanForward(int length)
-        {
-            if (Position + length > _span.Length)
-            {
-                throw new ArgumentOutOfRangeException(nameof(length));
-            }
-
-            var span = _span.Slice(Position, length);
-
-            Position += length;
-
-            return span;
         }
         #endregion
     }

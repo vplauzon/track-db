@@ -34,7 +34,9 @@ namespace TrackDb.Lib.InMemory.Block
 
         object? IReadOnlyDataColumn.GetValue(int index)
         {
-            return InToOutValue(_innerColumn.GetValue(index));
+            var inValue = _innerColumn.GetValue(index);
+
+            return InToOutValue(inValue);
         }
 
         IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()
@@ -105,9 +107,9 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
-        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
+        void IDataColumn.Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
-            _innerColumn.Deserialize(itemCount, hasNulls, payload);
+            _innerColumn.Deserialize(itemCount, payload);
         }
         #endregion
     }

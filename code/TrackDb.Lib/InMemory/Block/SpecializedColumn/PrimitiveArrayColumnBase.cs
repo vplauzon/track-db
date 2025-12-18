@@ -92,7 +92,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             int maxSize)
         {
             ComputeSerializationSizes(
-                _array.AsMemory().Slice(0, _itemCount).Slice(skipRecords),
+                _array.AsSpan().Slice(0, _itemCount).Slice(skipRecords),
                 sizes,
                 maxSize);
         }
@@ -123,7 +123,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
 
             return Serialize(
-                new ReadOnlyMemory<T>(_array, skipRecords, takeRows),
+                new ReadOnlySpan<T>(_array, skipRecords, takeRows),
                 ref writer);
         }
         #endregion
@@ -207,15 +207,9 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
-        void IDataColumn.Deserialize(int itemCount, bool hasNulls, ReadOnlyMemory<byte> payload)
+        void IDataColumn.Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
-            IDataColumn dataColumn = this;
-            var newValues = Deserialize(itemCount, hasNulls, payload);
-
-            foreach (var value in newValues)
-            {
-                dataColumn.AppendValue(value);
-            }
+            Deserialize(itemCount, payload);
         }
         #endregion
 
@@ -232,18 +226,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             ImmutableArray<int>.Builder matchBuilder);
 
         protected abstract void ComputeSerializationSizes(
-            ReadOnlyMemory<T> storedValues,
+            ReadOnlySpan<T> storedValues,
             Span<int> sizes,
             int maxSize);
 
         protected abstract ColumnStats Serialize(
-            ReadOnlyMemory<T> storedValues,
+            ReadOnlySpan<T> storedValues,
             ref ByteWriter writer);
 
-        protected abstract IEnumerable<object?> Deserialize(
-            int itemCount,
-            bool hasNulls,
-            ReadOnlyMemory<byte> payload);
+        protected abstract void Deserialize(int itemCount, ReadOnlySpan<byte> payload);
 
         protected virtual JsonElement GetLogValue(object? objectData)
         {

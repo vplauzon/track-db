@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -34,13 +35,18 @@ namespace TrackDb.Lib.Encoding
             int itemCount,
             ulong maximumValue)
         {
-            // Calculate number of bits needed per value
+            if (maximumValue == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maximumValue));
+            }
+
+            //  Calculate number of bits needed per value
             var bitsPerValue = maximumValue == ulong.MaxValue
                 ? 64
                 : (int)Math.Ceiling(Math.Log2(maximumValue + 1));
-            // Calculate total bits and bytes needed
-            var totalBits = itemCount * bitsPerValue;
-            var totalBytes = (totalBits + 7) / 8; // Round up to nearest byte
+            //  Calculate total bits and bytes needed
+            var totalBits = (long)itemCount * bitsPerValue;
+            var totalBytes = (int)((totalBits + 7) / 8);    // Round up to nearest byte
 
             return (totalBytes, bitsPerValue);
         }
@@ -54,22 +60,22 @@ namespace TrackDb.Lib.Encoding
         /// Sequence of <see cref="ulong"/> items with minimum value of 0 and maximum value of
         /// <paramref name="maximumValue"/>.
         /// </param>
-        /// <param name="itemCount">The number of items in <paramref name="data"/>.</param>
         /// <param name="maximumValue">Maximum value in <paramref name="data"/>.</param>
         /// <param name="writer">
         /// Destination of <paramref name="data"/>'s bit-packed representation.
         /// </param>
         public static void Pack(
-            IEnumerable<ulong> data,
-            int itemCount,
+            scoped ReadOnlySpan<ulong> data,
             ulong maximumValue,
             ref ByteWriter writer)
         {
-            var sizeInfo = PackSizeAdvanced(itemCount, maximumValue);
-            var packed = writer.VirtualByteSpanForward(sizeInfo.TotalBytes);
+            var sizeInfo = PackSizeAdvanced(data.Length, maximumValue);
+            var buffer = writer.SliceForward(sizeInfo.TotalBytes);
             var currentBitPosition = 0;
 
-            packed.Fill(0);
+            //  Since we do bit manipulations and will write partial bytes,
+            //  we want to ensure we start with a clean slate
+            buffer.Fill(0);
             foreach (var value in data)
             {
                 // Calculate which byte(s) this value's bits will go into
@@ -88,16 +94,15 @@ namespace TrackDb.Lib.Encoding
                     // Calculate how many bits we can write to the current byte
                     var bitsToWrite = Math.Min(8 - bitOffsetInStartByte, (int)remainingBits);
 
-                    // Extract the bits we want to write
-                    // Handle the case where we need all 64 bits (for ulong.MaxValue)
-                    var mask = bitsToWrite == 64 ? ulong.MaxValue : (1UL << bitsToWrite) - 1;
+                    //  Extract the bits we want to write
+                    var mask = (1UL << bitsToWrite) - 1;
                     var bits = (byte)(remainingValue & mask);
 
                     // Shift the bits to their correct position in the byte
                     bits = (byte)(bits << bitOffsetInStartByte);
 
                     // Combine with existing bits in the byte using OR
-                    packed[startByteIndex] |= bits;
+                    buffer[startByteIndex] |= bits;
 
                     // Update our position trackers
                     remainingValue >>= bitsToWrite;
@@ -111,25 +116,58 @@ namespace TrackDb.Lib.Encoding
         }
 
         /// <summary>
-        /// Unpacks a sequence of bit-packed values back into their original long values.
+        /// Unpacks a sequence of bit-packed values back into their original ulong values.
         /// </summary>
         /// <param name="packed">The byte array containing bit-packed values.</param>
-        /// <param name="itemCount">The number of values to unpack.</param>
         /// <param name="maximumValue">The maximum possible value in the original data.</param>
-        /// <returns>Array of unpacked ulong values.</returns>
-        public static UnpackedValues Unpack(
+        /// <param name="values">The unpacked values.</param>
+        public static void Unpack(
             ReadOnlySpan<byte> packed,
-            int itemCount,
-            ulong maximumValue)
+            ulong maximumValue,
+            Span<ulong> values)
         {
-            var sizeInfo = PackSizeAdvanced(itemCount, maximumValue);
+            var sizeInfo = PackSizeAdvanced(values.Length, maximumValue);
+            var currentBitPosition = 0;
 
             if (packed.Length != sizeInfo.TotalBytes)
             {
                 throw new ArgumentOutOfRangeException(nameof(packed));
             }
 
-            return new(packed, maximumValue, sizeInfo.BitsPerValue, itemCount);
+            for (int i = 0; i != values.Length; ++i)
+            {
+                var startByteIndex = currentBitPosition / 8;
+                var bitOffsetInStartByte = currentBitPosition % 8;
+                var remainingBits = sizeInfo.BitsPerValue;
+                var value = (ulong)0;
+                var bitsProcessed = 0;
+
+                while (remainingBits > 0)
+                {
+                    // Calculate how many bits we can read from current byte
+                    var bitsToRead = Math.Min(8 - bitOffsetInStartByte, remainingBits);
+                    // Extract bits from current byte
+                    var currentByte = packed[startByteIndex];
+                    var mask = (1UL << bitsToRead) - 1;
+                    var bits = (currentByte >> bitOffsetInStartByte) & (byte)mask;
+
+                    // Add these bits to our value (ensure 64-bit operations throughout)
+                    value |= ((ulong)bits << bitsProcessed);
+
+                    // Update our trackers
+                    remainingBits -= bitsToRead;
+                    bitsProcessed += bitsToRead;
+                    startByteIndex++;
+                    bitOffsetInStartByte = 0;
+                }
+                if (value > maximumValue)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        $"Unpacked value ({value}) > maximum value ({maximumValue})");
+                }
+                currentBitPosition += sizeInfo.BitsPerValue;
+                values[i] = value;
+            }
         }
     }
 }
