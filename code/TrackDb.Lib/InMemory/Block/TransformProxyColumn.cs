@@ -34,7 +34,9 @@ namespace TrackDb.Lib.InMemory.Block
 
         object? IReadOnlyDataColumn.GetValue(int index)
         {
-            return InToOutValue(_innerColumn.GetValue(index));
+            var inValue = _innerColumn.GetValue(index);
+
+            return InToOutValue(inValue);
         }
 
         IEnumerable<JsonElement> IReadOnlyDataColumn.GetLogValues()

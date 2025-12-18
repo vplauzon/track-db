@@ -221,8 +221,10 @@ namespace TrackDb.Lib.InMemory.Block
 
             for (var j = 0; j != _dataColumns.Count; ++j)
             {
+                var columnsizes = motherArray.AsSpan().Slice(j * totalRecordCount, totalRecordCount);
+
                 _dataColumns[j].ComputeSerializationSizes(
-                    motherArray.AsSpan().Slice(j * totalRecordCount, totalRecordCount),
+                    columnsizes,
                     skipRows,
                     maxBufferLength);
             }
@@ -232,7 +234,7 @@ namespace TrackDb.Lib.InMemory.Block
 
                 for (var j = 0; j != _dataColumns.Count; ++j)
                 {
-                    size += motherArray[j * recordCount + i];
+                    size += motherArray[j * totalRecordCount + i];
                 }
                 if (size > maxBufferLength)
                 {

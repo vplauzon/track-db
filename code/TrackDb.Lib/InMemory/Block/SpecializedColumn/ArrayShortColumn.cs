@@ -19,7 +19,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override object? GetObjectData(short data)
         {
-            return data == short.MinValue
+            return data == NullValue
                 ? null
                 : (object)data;
         }
