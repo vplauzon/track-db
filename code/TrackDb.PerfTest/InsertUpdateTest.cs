@@ -4,12 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.UnitTest.VolumeTests
+namespace TrackDb.PerfTest
 {
-    public class InsertTest : InsertUpdateTestBase
+    public class InsertUpdateTest : InsertUpdateTestBase
     {
-        public InsertTest()
-            : base(false)
+        public InsertUpdateTest()
+            : base(true)
         {
         }
 

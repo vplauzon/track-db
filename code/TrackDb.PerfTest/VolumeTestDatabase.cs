@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
 
-namespace TrackDb.UnitTest.VolumeTests
+namespace TrackDb.PerfTest
 {
     internal class VolumeTestDatabase : IAsyncDisposable
     {

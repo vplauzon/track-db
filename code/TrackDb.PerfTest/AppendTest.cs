@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using TrackDb.Lib;
 using Xunit;
 
-namespace TrackDb.UnitTest.VolumeTests
+namespace TrackDb.PerfTest
 {
     public class AppendTest
     {
