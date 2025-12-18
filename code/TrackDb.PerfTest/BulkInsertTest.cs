@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.UnitTest.VolumeTests
+namespace TrackDb.PerfTest
 {
     public class BulkInsertTest
     {
