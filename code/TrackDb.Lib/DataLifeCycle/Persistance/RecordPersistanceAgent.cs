@@ -49,24 +49,24 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
             var segments = tableBlockBuilder.SegmentRecords(buffer.Length);
+            var blockIds = Database.GetAvailableBlockIds(segments.Count, tx);
             var skipRows = 0;
 
-            foreach (var segment in segments)
+            for (int i = 0; i != segments.Count; ++i)
             {
                 var blockStats =
-                    tableBlockBuilder.Serialize(buffer, skipRows, segment.ItemCount);
+                    tableBlockBuilder.Serialize(buffer, skipRows, segments[i].ItemCount);
 
-                if (blockStats.Size != segment.Size)
+                if (blockStats.Size != segments[i].Size)
                 {
                     throw new InvalidOperationException(
                         $"Block size ({blockStats.Size}) is bigger than planned" +
-                        $"maximum ({segment.Size})");
+                        $"maximum ({segments[i].Size})");
                 }
-                var blockId =
-                    Database.PersistBlock(buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
+                Database.PersistBlock(blockIds[i], buffer.AsSpan().Slice(0, blockStats.Size), tx);
                 metadataTable.AppendRecord(
-                    metaSchema.CreateMetadataRecord(blockId, blockStats).Span,
+                    metaSchema.CreateMetadataRecord(blockIds[i], blockStats).Span,
                     tx);
                 skipRows += blockStats.ItemCount;
             }
