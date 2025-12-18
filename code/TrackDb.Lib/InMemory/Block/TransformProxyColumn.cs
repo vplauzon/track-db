@@ -107,6 +107,11 @@ namespace TrackDb.Lib.InMemory.Block
             _innerColumn.DeleteRecords(recordIndexes);
         }
 
+        void IDataColumn.Clear()
+        {
+            _innerColumn.Clear();
+        }
+
         void IDataColumn.Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
             _innerColumn.Deserialize(itemCount, payload);

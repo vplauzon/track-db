@@ -25,6 +25,9 @@ namespace TrackDb.Lib.InMemory.Block
         /// <summary>Delete record indexes.</summary>
         /// <param name="recordIndexes"></param>
         void DeleteRecords(IEnumerable<int> recordIndexes);
+        
+        /// <summary>Clear all data from column.</summary>
+        void Clear();
 
         /// <summary>Deserialize the payload and insert records in the column.</summary>
         /// <param name="itemCount"></param>
