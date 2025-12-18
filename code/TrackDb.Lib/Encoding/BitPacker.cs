@@ -40,11 +40,11 @@ namespace TrackDb.Lib.Encoding
                 throw new ArgumentOutOfRangeException(nameof(maximumValue));
             }
 
-            // Calculate number of bits needed per value
+            //  Calculate number of bits needed per value
             var bitsPerValue = maximumValue == ulong.MaxValue
                 ? 64
                 : (int)Math.Ceiling(Math.Log2(maximumValue + 1));
-            // Calculate total bits and bytes needed
+            //  Calculate total bits and bytes needed
             var totalBits = (long)itemCount * bitsPerValue;
             var totalBytes = (int)((totalBits + 7) / 8);    // Round up to nearest byte
 
