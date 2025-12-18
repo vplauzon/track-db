@@ -91,9 +91,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private async Task DataMaintanceAsync()
         {
             var lastReleaseBlock = DateTime.Now;
-            //var stopwatch = new Stopwatch();
-
-            //stopwatch.Start();
+            
             //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
@@ -112,9 +110,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         (var dataManagementActivity, var sourceList) = ReadAccumulatedItems();
 
-                        //stopwatch.Restart();
                         RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList);
-                        //Console.WriteLine(stopwatch.Elapsed);
                     }
                 }
                 ReleaseBlocks(ref lastReleaseBlock);
