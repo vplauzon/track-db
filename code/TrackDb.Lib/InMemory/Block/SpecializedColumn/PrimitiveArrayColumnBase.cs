@@ -209,6 +209,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
         }
 
+        void IDataColumn.Clear()
+        {
+            _itemCount = 0;
+            if (_array.Length > 2 * MIN_CAPACITY)
+            {
+                _array = new T[MIN_CAPACITY];
+            }
+        }
+
         void IDataColumn.Deserialize(int itemCount, ReadOnlySpan<byte> payload)
         {
             Deserialize(itemCount, payload);

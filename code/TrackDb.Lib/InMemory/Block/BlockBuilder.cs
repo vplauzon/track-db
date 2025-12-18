@@ -167,6 +167,16 @@ namespace TrackDb.Lib.InMemory.Block
                 dataColumn.DeleteRecords(recordIndexes);
             }
         }
+
+        /// <summary>Clear the entire block.</summary>
+        /// <param name="recordIndexes"></param>
+        public void Clear()
+        {
+            foreach (var dataColumn in _dataColumns)
+            {
+                dataColumn.Clear();
+            }
+        }
         #endregion
 
         #region Serialization

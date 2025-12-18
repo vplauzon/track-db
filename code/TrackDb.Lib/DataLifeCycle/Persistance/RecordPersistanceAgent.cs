@@ -70,7 +70,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     tx);
                 skipRows += blockStats.ItemCount;
             }
-            tableBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, skipRows));
+            tableBlockBuilder.Clear();
         }
     }
 }
