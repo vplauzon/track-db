@@ -39,9 +39,16 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override JsonElement InToLogValue(object? value)
         {
-            var enumValue = (T?)value;
+            if (value == null)
+            {
+                return JsonSerializer.SerializeToElement<string?>(null);
+            }
+            else
+            {
+                var enumValue = (T)Enum.ToObject(typeof(T), value);
 
-            return JsonSerializer.SerializeToElement(enumValue.ToString());
+                return JsonSerializer.SerializeToElement(enumValue.ToString());
+            }
         }
 
         protected override object? LogValueToIn(JsonElement logValue)
