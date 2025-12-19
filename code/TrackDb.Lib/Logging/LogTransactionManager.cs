@@ -43,7 +43,6 @@ namespace TrackDb.Lib.Logging
         private readonly TaskCompletionSource _stopBackgroundProcessingSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Channel<ContentItem> _channel = Channel.CreateUnbounded<ContentItem>();
-        private bool _isCheckpointCreationRequired = false;
 
         public LogTransactionManager(
             LogPolicy logPolicy,
@@ -65,9 +64,6 @@ namespace TrackDb.Lib.Logging
             await ((IAsyncDisposable)_logStorageManager).DisposeAsync();
         }
 
-        public bool IsCheckpointCreationRequired => _isCheckpointCreationRequired
-            || _logStorageManager.IsCheckpointCreationRequired;
-
         #region Load
         public async IAsyncEnumerable<TransactionLog> LoadLogsAsync(
             [EnumeratorCancellation]
@@ -78,14 +74,13 @@ namespace TrackDb.Lib.Logging
             //  Try read first element
             if (!await enumerator.MoveNextAsync())
             {   //  No items
-                _isCheckpointCreationRequired = true;
                 yield break;
             }
             else
             {
                 var schemaContent = SchemaContent.FromJson(enumerator.Current);
 
-                _isCheckpointCreationRequired = ValidateSchema(schemaContent);
+                ValidateSchema(schemaContent);
                 while (await enumerator.MoveNextAsync())
                 {
                     var logContent = TransactionContent.FromJson(enumerator.Current);

@@ -1,5 +1,4 @@
-﻿using Azure;
-using Azure.Storage.Blobs;
+﻿using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
 using Azure.Storage.Files.DataLake.Specialized;
@@ -11,7 +10,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.Policies;
@@ -77,7 +75,6 @@ namespace TrackDb.Lib.Logging
         private readonly string _localFolder;
         private readonly DataLakeDirectoryClient _loggingDirectory;
         private readonly BlobContainerClient _loggingContainer;
-        private bool _isCheckpointCreationRequired = false;
         private long _currentLogBlobIndex = 0;
         private AppendBlobClient? _currentLogBlob;
 
@@ -121,8 +118,6 @@ namespace TrackDb.Lib.Logging
             await Task.CompletedTask;
         }
 
-        public bool IsCheckpointCreationRequired => _isCheckpointCreationRequired;
-
         #region Load
         public async IAsyncEnumerable<string> LoadAsync(
             [EnumeratorCancellation]
@@ -164,10 +159,6 @@ namespace TrackDb.Lib.Logging
                     yield return text;
                 }
             }
-            else
-            {   //  Nothing in storage, we need to create checkpoint
-                _isCheckpointCreationRequired = true;
-            }
         }
 
         private async IAsyncEnumerable<string> LoadLinesFromCheckpointAsync(
@@ -186,10 +177,6 @@ namespace TrackDb.Lib.Logging
                 {
                     if (currentLogFile == null)
                     {
-                        if (isFirstLine)
-                        {
-                            _isCheckpointCreationRequired = true;
-                        }
                         yield break;
                     }
                     else

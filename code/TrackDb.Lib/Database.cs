@@ -766,13 +766,13 @@ namespace TrackDb.Lib
                     _dataLifeCycleManager.TriggerDataManagement();
                 }
                 InitTablesRecordId(tableToLastRecordIdMap);
-                if (_logManager.IsCheckpointCreationRequired)
-                {
-                    using (var tx = CreateTransaction())
-                    {
-                        await _logManager.CreateCheckpointAsync(ListCheckpointTransactions(tx, ct), ct);
-                    }
-                }
+                //if (_logManager.IsCheckpointCreationRequired)
+                //{
+                //    using (var tx = CreateTransaction())
+                //    {
+                //        await _logManager.CreateCheckpointAsync(ListCheckpointTransactions(tx, ct), ct);
+                //    }
+                //}
             }
         }
 
@@ -786,7 +786,6 @@ namespace TrackDb.Lib
                 var maxRecordId = pair.Value;
 
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
-
             }
         }
 
