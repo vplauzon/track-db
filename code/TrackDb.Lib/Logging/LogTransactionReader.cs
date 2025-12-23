@@ -66,9 +66,10 @@ namespace TrackDb.Lib.Logging
             }
         }
 
-        public LogTransactionWriter CreateLogTransactionWriter()
+        public async Task<LogTransactionWriter> CreateLogTransactionWriterAsync(
+            CancellationToken ct)
         {
-            var logStorageWriter = _logStorageReader.CreateLogStorageManager();
+            var logStorageWriter = await _logStorageReader.CreateLogStorageManagerAsync(ct);
 
             return new LogTransactionWriter(logStorageWriter, _tableSchemaMap, _tombstoneTable);
         }

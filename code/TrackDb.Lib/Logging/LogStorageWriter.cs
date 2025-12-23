@@ -21,10 +21,30 @@ namespace TrackDb.Lib.Logging
     internal class LogStorageWriter : LogStorageBase, IAsyncDisposable
     {
         private long _currentLogBlobIndex = 0;
-        private AppendBlobClient? _currentLogBlob;
+        private AppendBlobClient _currentLogBlob;
 
         #region Constructor
-        public LogStorageWriter(
+        public static async Task<LogStorageWriter> CreateLogStorageWriterAsync(
+            LogPolicy logPolicy,
+            string localFolder,
+            DataLakeDirectoryClient loggingDirectory,
+            BlobContainerClient loggingContainer,
+            long currentLogBlobIndex,
+            CancellationToken ct = default)
+        {
+            var logStorageWriter = new LogStorageWriter(
+                logPolicy,
+                localFolder,
+                loggingDirectory,
+                loggingContainer,
+                currentLogBlobIndex);
+
+            await logStorageWriter.EnsureCurrentLogBlobAsync(ct);
+
+            return logStorageWriter;
+        }
+
+        private LogStorageWriter(
             LogPolicy logPolicy,
             string localFolder,
             DataLakeDirectoryClient loggingDirectory,
@@ -32,7 +52,16 @@ namespace TrackDb.Lib.Logging
             long currentLogBlobIndex)
             : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
         {
+            var logFileName = GetCheckpointFileName(currentLogBlobIndex);
+
             _currentLogBlobIndex = currentLogBlobIndex;
+            _currentLogBlob = LoggingContainer.GetAppendBlobClient(
+                $"{LoggingDirectory.Path}/{logFileName}");
+        }
+
+        private async Task EnsureCurrentLogBlobAsync(CancellationToken ct)
+        {
+            await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
         }
         #endregion
 
@@ -70,7 +99,6 @@ namespace TrackDb.Lib.Logging
 
             //  Copy to temp folder in cloud
             var checkpointFileClient = tempCloudDirectory.GetFileClient(checkpointFileName);
-            var logFileName = GetCheckpointFileName(currentLogBlobIndex);
 
             await deleteTempCloudDirectoryTask;
             await checkpointFileClient.UploadAsync(
@@ -82,9 +110,6 @@ namespace TrackDb.Lib.Logging
                 .GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER)
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
-            _currentLogBlob = LoggingContainer.GetAppendBlobClient(
-                $"{LoggingDirectory.Path}/{logFileName}");
-            await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
         }
         #endregion
 

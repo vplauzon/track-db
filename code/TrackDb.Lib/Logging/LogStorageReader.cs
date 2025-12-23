@@ -281,14 +281,15 @@ namespace TrackDb.Lib.Logging
             }
         }
 
-        public LogStorageWriter CreateLogStorageManager()
+        public async Task<LogStorageWriter> CreateLogStorageManagerAsync(CancellationToken ct)
         {
-            return new LogStorageWriter(
+            return await LogStorageWriter.CreateLogStorageWriterAsync(
                 LogPolicy,
                 LocalFolder,
                 LoggingDirectory,
                 LoggingContainer,
-                _lastLogFileIndex ?? 1);
+                _lastLogFileIndex ?? 1,
+                ct);
         }
     }
 }

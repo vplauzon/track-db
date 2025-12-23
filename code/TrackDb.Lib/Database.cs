@@ -747,7 +747,7 @@ namespace TrackDb.Lib
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
             }
 
-            _logTransactionWriter = logTransactionReader.CreateLogTransactionWriter();
+            _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(
