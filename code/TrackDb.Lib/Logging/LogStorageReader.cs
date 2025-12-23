@@ -166,6 +166,7 @@ namespace TrackDb.Lib.Logging
                     lastCheckpoint.Name.Split('.')[0].Split('-')[1]);
                 var checkpointLocalPath = Path.Combine(localReadFolder, lastCheckpoint.Name);
 
+                Directory.CreateDirectory(localReadFolder);
                 await lastCheckpoint.ReadToAsync(checkpointLocalPath, cancellationToken: ct);
 
                 return lastCheckpointIndex;
@@ -288,7 +289,7 @@ namespace TrackDb.Lib.Logging
                 LocalFolder,
                 LoggingDirectory,
                 LoggingContainer,
-                _lastLogFileIndex ?? 1,
+                _lastLogFileIndex,
                 ct);
         }
     }

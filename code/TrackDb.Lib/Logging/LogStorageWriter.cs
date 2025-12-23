@@ -29,7 +29,7 @@ namespace TrackDb.Lib.Logging
             string localFolder,
             DataLakeDirectoryClient loggingDirectory,
             BlobContainerClient loggingContainer,
-            long currentLogBlobIndex,
+            long? currentLogBlobIndex,
             CancellationToken ct = default)
         {
             var logStorageWriter = new LogStorageWriter(
@@ -37,8 +37,11 @@ namespace TrackDb.Lib.Logging
                 localFolder,
                 loggingDirectory,
                 loggingContainer,
-                currentLogBlobIndex);
+                currentLogBlobIndex ?? 1);
 
+            await logStorageWriter.CreateCheckpointAsync(
+                Array.Empty<string>().ToAsyncEnumerable(),
+                ct);
             await logStorageWriter.EnsureCurrentLogBlobAsync(ct);
 
             return logStorageWriter;
@@ -84,6 +87,7 @@ namespace TrackDb.Lib.Logging
             var deleteTempCloudDirectoryTask =
                 tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
 
+            Directory.CreateDirectory(LocalFolder);
             //  Write locally
             using (var stream = File.Create(checkpointFilePath))
             using (var writer = new StreamWriter(stream))
@@ -105,6 +109,7 @@ namespace TrackDb.Lib.Logging
                 checkpointFilePath,
                 true,
                 cancellationToken: ct);
+            File.Delete(checkpointFilePath);
             await checkpointFileClient.RenameAsync(
                 LoggingDirectory
                 .GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER)
