@@ -17,11 +17,7 @@ namespace TrackDb.Lib.Logging
 {
     internal class LogStorageReader : LogStorageBase, IAsyncDisposable
     {
-        private const string READ_LOCAL_FOLDER = "read";
-
         private readonly string _localReadFolder;
-        private readonly DataLakeDirectoryClient _loggingDirectory;
-        private readonly BlobContainerClient _loggingContainer;
         private readonly long? _checkpointIndex;
         private readonly long? _lastLogFileIndex;
 
@@ -45,8 +41,6 @@ namespace TrackDb.Lib.Logging
             {
                 throw new ArgumentNullException(nameof(logPolicy.StorageConfiguration));
             }
-
-            var localFolderRead = Path.Combine(localFolder, READ_LOCAL_FOLDER);
 
             if (logPolicy.StorageConfiguration.TokenCredential != null)
             {
@@ -83,7 +77,7 @@ namespace TrackDb.Lib.Logging
             string localFolder,
             CancellationToken ct)
         {
-            var localReadFolder = Path.Combine(localFolder, READ_LOCAL_FOLDER);
+            var localReadFolder = Path.Combine(localFolder, "read");
             var lastCheckpointIndex =
                 await CopyCheckpointAsync(loggingDirectory, localReadFolder, ct);
 
@@ -107,6 +101,7 @@ namespace TrackDb.Lib.Logging
 
                 return new LogStorageReader(
                     logPolicy,
+                    localFolder,
                     localReadFolder,
                     loggingDirectory,
                     loggingContainer,
@@ -118,6 +113,7 @@ namespace TrackDb.Lib.Logging
             {
                 return new LogStorageReader(
                     logPolicy,
+                    localFolder,
                     localReadFolder,
                     loggingDirectory,
                     loggingContainer,
@@ -223,17 +219,16 @@ namespace TrackDb.Lib.Logging
 
         private LogStorageReader(
             LogPolicy logPolicy,
+            string localFolder,
             string localReadFolder,
             DataLakeDirectoryClient loggingDirectory,
             BlobContainerClient loggingContainer,
             long? checkpointIndex,
             long? lastLogFileIndex,
             Version storeageVersion)
-            :base(logPolicy)
+            : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
         {
             _localReadFolder = localReadFolder;
-            _loggingDirectory = loggingDirectory;
-            _loggingContainer = loggingContainer;
             _checkpointIndex = checkpointIndex;
             _lastLogFileIndex = lastLogFileIndex;
             StorageVersion = storeageVersion;
@@ -286,10 +281,14 @@ namespace TrackDb.Lib.Logging
             }
         }
 
-        public Task<LogStorageWriter> CreateLogStorageManagerAsync(
-            CancellationToken ct = default)
+        public LogStorageWriter CreateLogStorageManager()
         {
-            throw new NotImplementedException();
+            return new LogStorageWriter(
+                LogPolicy,
+                LocalFolder,
+                LoggingDirectory,
+                LoggingContainer,
+                _lastLogFileIndex ?? 1);
         }
     }
 }

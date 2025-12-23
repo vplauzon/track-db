@@ -29,7 +29,7 @@ namespace TrackDb.Lib
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
-        private LogTransactionWriter? _logManager;
+        private LogTransactionWriter? _logTransactionWriter;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
 
@@ -147,9 +147,9 @@ namespace TrackDb.Lib
             {
                 await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
             }
-            if (_logManager != null)
+            if (_logTransactionWriter != null)
             {
-                await ((IAsyncDisposable)_logManager).DisposeAsync();
+                await ((IAsyncDisposable)_logTransactionWriter).DisposeAsync();
             }
         }
 
@@ -579,17 +579,17 @@ namespace TrackDb.Lib
         internal void CompleteTransaction(TransactionState transactionState, bool doLog)
         {
             CompleteTransaction(transactionState);
-            if (doLog && _logManager != null)
+            if (doLog && _logTransactionWriter != null)
             {
-                _logManager.QueueContent(transactionState.UncommittedTransactionLog);
+                _logTransactionWriter.QueueContent(transactionState.UncommittedTransactionLog);
             }
         }
 
         internal async Task LogAndCompleteTransactionAsync(TransactionState transactionState, bool doLog)
         {
-            if (doLog && _logManager != null)
+            if (doLog && _logTransactionWriter != null)
             {
-                await _logManager.CommitContentAsync(
+                await _logTransactionWriter.CommitContentAsync(
                     transactionState.UncommittedTransactionLog);
             }
             CompleteTransaction(transactionState);
@@ -747,7 +747,7 @@ namespace TrackDb.Lib
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
             }
 
-            _logManager = await logTransactionReader.CreateLogTransactionManagerAsync(ct);
+            _logTransactionWriter = logTransactionReader.CreateLogTransactionWriter();
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(

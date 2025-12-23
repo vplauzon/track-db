@@ -20,9 +20,6 @@ namespace TrackDb.Lib.Logging
     /// </summary>
     internal class LogStorageWriter : LogStorageBase, IAsyncDisposable
     {
-        private readonly string _localFolder;
-        private readonly DataLakeDirectoryClient _loggingDirectory;
-        private readonly BlobContainerClient _loggingContainer;
         private long _currentLogBlobIndex = 0;
         private AppendBlobClient? _currentLogBlob;
 
@@ -33,11 +30,8 @@ namespace TrackDb.Lib.Logging
             DataLakeDirectoryClient loggingDirectory,
             BlobContainerClient loggingContainer,
             long currentLogBlobIndex)
-            : base(logPolicy)
+            : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
         {
-            _localFolder = localFolder;
-            _loggingDirectory = loggingDirectory;
-            _loggingContainer = loggingContainer;
             _currentLogBlobIndex = currentLogBlobIndex;
         }
         #endregion
@@ -54,8 +48,8 @@ namespace TrackDb.Lib.Logging
         {
             var currentLogBlobIndex = ++_currentLogBlobIndex;
             var checkpointFileName = GetCheckpointFileName(currentLogBlobIndex);
-            var checkpointFilePath = Path.Combine(_localFolder, checkpointFileName);
-            var tempCloudDirectory = _loggingDirectory.GetSubDirectoryClient("temp");
+            var checkpointFilePath = Path.Combine(LocalFolder, checkpointFileName);
+            var tempCloudDirectory = LoggingDirectory.GetSubDirectoryClient("temp");
             var checkpointHeader = new CheckpointHeader(CURRENT_HEADER_VERSION);
             var checkpointHeaderText = checkpointHeader.ToJson();
             var deleteTempCloudDirectoryTask =
@@ -84,12 +78,12 @@ namespace TrackDb.Lib.Logging
                 true,
                 cancellationToken: ct);
             await checkpointFileClient.RenameAsync(
-                _loggingDirectory
+                LoggingDirectory
                 .GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER)
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
-            _currentLogBlob = _loggingContainer.GetAppendBlobClient(
-                $"{_loggingDirectory.Path}/{logFileName}");
+            _currentLogBlob = LoggingContainer.GetAppendBlobClient(
+                $"{LoggingDirectory.Path}/{logFileName}");
             await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
         }
         #endregion

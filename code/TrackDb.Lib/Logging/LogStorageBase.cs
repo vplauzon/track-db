@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Azure.Storage.Blobs;
+using Azure.Storage.Files.DataLake;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -17,7 +19,11 @@ namespace TrackDb.Lib.Logging
 
         protected static Version CURRENT_HEADER_VERSION = new(1, 0);
 
-        protected LogStorageBase(LogPolicy logPolicy)
+        protected LogStorageBase(
+            LogPolicy logPolicy,
+            string localFolder,
+            DataLakeDirectoryClient loggingDirectory,
+            BlobContainerClient loggingContainer)
         {
             if (logPolicy.StorageConfiguration == null)
             {
@@ -25,9 +31,18 @@ namespace TrackDb.Lib.Logging
             }
 
             LogPolicy = logPolicy;
+            LocalFolder = localFolder;
+            LoggingDirectory = loggingDirectory;
+            LoggingContainer = loggingContainer;
         }
 
         public LogPolicy LogPolicy { get; }
+
+        protected string LocalFolder { get; }
+
+        protected DataLakeDirectoryClient LoggingDirectory { get; }
+
+        protected BlobContainerClient LoggingContainer { get; }
 
         protected static string GetCheckpointFileName(long index)
         {
