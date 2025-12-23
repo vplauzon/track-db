@@ -37,12 +37,14 @@ namespace TrackDb.Lib.Logging
                 localFolder,
                 loggingDirectory,
                 loggingContainer,
-                currentLogBlobIndex ?? 1);
+                currentLogBlobIndex ?? 0);
 
-            await logStorageWriter.CreateCheckpointAsync(
+            if (currentLogBlobIndex == null)
+            {
+                await logStorageWriter.CreateCheckpointAsync(
                 Array.Empty<string>().ToAsyncEnumerable(),
                 ct);
-            await logStorageWriter.EnsureCurrentLogBlobAsync(ct);
+            }
 
             return logStorageWriter;
         }
@@ -55,11 +57,8 @@ namespace TrackDb.Lib.Logging
             long currentLogBlobIndex)
             : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
         {
-            var logFileName = GetLogFileName(currentLogBlobIndex);
-
             _currentLogBlobIndex = currentLogBlobIndex;
-            _currentLogBlob = LoggingContainer.GetAppendBlobClient(
-                $"{LoggingDirectory.Path}/{logFileName}");
+            _currentLogBlob = GetAppendBlobClient();
         }
 
         private async Task EnsureCurrentLogBlobAsync(CancellationToken ct)
@@ -115,6 +114,16 @@ namespace TrackDb.Lib.Logging
                 .GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER)
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
+            _currentLogBlob = GetAppendBlobClient();
+            await EnsureCurrentLogBlobAsync(ct);
+        }
+
+        private AppendBlobClient GetAppendBlobClient()
+        {
+            var logFileName = GetLogFileName(_currentLogBlobIndex);
+
+            return LoggingContainer.GetAppendBlobClient(
+                $"{LoggingDirectory.Path}/{logFileName}");
         }
         #endregion
 
