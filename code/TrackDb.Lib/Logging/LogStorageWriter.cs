@@ -55,7 +55,7 @@ namespace TrackDb.Lib.Logging
             long currentLogBlobIndex)
             : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
         {
-            var logFileName = GetCheckpointFileName(currentLogBlobIndex);
+            var logFileName = GetLogFileName(currentLogBlobIndex);
 
             _currentLogBlobIndex = currentLogBlobIndex;
             _currentLogBlob = LoggingContainer.GetAppendBlobClient(
