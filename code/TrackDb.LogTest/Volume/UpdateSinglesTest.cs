@@ -42,7 +42,7 @@ namespace TrackDb.LogTest.Volume
         private async Task RunPerformanceTestAsync(long cycleCount)
         {
             var stopwatch = new Stopwatch();
-            var testId = $"PerformanceTest-{cycleCount}-{Guid.NewGuid()}";
+            var testId = $"{GetType().Name}-{cycleCount}-{Guid.NewGuid()}";
 
             stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))
