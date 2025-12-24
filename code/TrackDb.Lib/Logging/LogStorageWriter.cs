@@ -64,6 +64,7 @@ namespace TrackDb.Lib.Logging
 
         private async Task EnsureCurrentLogBlobAsync(CancellationToken ct)
         {
+            _currentLogBlob = GetAppendBlobClient();
             await _currentLogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
         }
         #endregion
@@ -150,6 +151,7 @@ namespace TrackDb.Lib.Logging
             {
                 ++_currentLogBlobIndex;
                 await EnsureCurrentLogBlobAsync(ct);
+                await PersistBatchAsync(transactionTexts, ct);
             }
         }
 
