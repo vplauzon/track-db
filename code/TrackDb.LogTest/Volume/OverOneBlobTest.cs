@@ -1,0 +1,58 @@
+﻿using System;
+using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
+using Xunit;
+
+namespace TrackDb.LogTest.Volume
+{
+    public class OverOneBlobTest
+    {
+        [Fact]
+        public async Task OverrunBlob()
+        {
+            const int CYCLE_COUNT = 50005;
+
+            var stopwatch = new Stopwatch();
+            var testId = $"{GetType().Name}-{Guid.NewGuid()}";
+
+            stopwatch.Start();
+            await using (var db = await TestDatabase.CreateAsync(testId))
+            {
+                for (int i = 0; i != CYCLE_COUNT; ++i)
+                {
+                    var workflow = new TestDatabase.Workflow(
+                        $"Workflow-{i}",
+                        i,
+                        TestDatabase.WorkflowState.Pending,
+                        DateTime.Now);
+
+                    using (var tx = db.Database.CreateTransaction())
+                    {
+                        db.WorkflowTable.AppendRecord(workflow, tx);
+
+                        //  Force every record to commit a block
+                        await tx.LogAndCompleteAsync();
+                    }
+                }
+
+                var stats = db.Database.GetDatabaseStatistics();
+
+                Console.WriteLine(stats);
+            }
+            //  Check final state after reloading
+            await using (var db = await TestDatabase.CreateAsync(testId))
+            {
+                var workflowCounts = db.WorkflowTable.Query()
+                    .Count();
+
+                Assert.Equal(CYCLE_COUNT, workflowCounts);
+
+                var stats = db.Database.GetDatabaseStatistics();
+
+                Console.WriteLine(stats);
+            }
+        }
+    }
+}
