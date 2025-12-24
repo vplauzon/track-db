@@ -28,14 +28,16 @@ namespace TrackDb.Lib
         /// <summary>Creates a transaction.</summary>
         /// <param name="database"></param>
         /// <param name="inMemoryDatabase"></param>
+        /// <param name="transactionLog"></param>
         /// <param name="doLog"></param>
         internal TransactionContext(
             Database database,
             InMemoryDatabase inMemoryDatabase,
+            TransactionLog transactionLog,
             bool doLog)
         {
             _database = database;
-            TransactionState = new TransactionState(inMemoryDatabase, new TransactionLog());
+            TransactionState = new TransactionState(inMemoryDatabase, transactionLog);
             _doLog = doLog;
         }
         #endregion

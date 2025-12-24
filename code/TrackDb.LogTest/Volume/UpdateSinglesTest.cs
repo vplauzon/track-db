@@ -5,9 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.LogTest
+namespace TrackDb.LogTest.Volume
 {
-    public class PerformanceTest
+    public class UpdateSinglesTest
     {
         [Fact]
         public async Task Test00010()
@@ -42,7 +42,7 @@ namespace TrackDb.LogTest
         private async Task RunPerformanceTestAsync(long cycleCount)
         {
             var stopwatch = new Stopwatch();
-            var testId = $"PerformanceTest-{cycleCount}-{Guid.NewGuid()}";
+            var testId = $"{GetType().Name}-{cycleCount}-{Guid.NewGuid()}";
 
             stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))
@@ -130,6 +130,7 @@ namespace TrackDb.LogTest
                         .ToImmutableArray();
 
                     Assert.Empty(incompleteTasks);
+                    await db.Database.AwaitLifeCycleManagement(5);
                 }
 
                 CheckDb(db, cycleCount);

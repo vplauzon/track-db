@@ -29,7 +29,7 @@ namespace TrackDb.Lib
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
-        private readonly LogTransactionManager? _logManager;
+        private LogTransactionWriter? _logTransactionWriter;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
 
@@ -40,7 +40,10 @@ namespace TrackDb.Lib
         {
             var database = new Database(databasePolicies, schemas);
 
-            await database.InitLogsAsync(CancellationToken.None);
+            if (databasePolicies.LogPolicy.StorageConfiguration != null)
+            {
+                await database.InitLogsAsync(CancellationToken.None);
+            }
 
             return database;
         }
@@ -99,14 +102,6 @@ namespace TrackDb.Lib
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
             _dataLifeCycleManager = new DataLifeCycleManager(this);
-            _logManager = databasePolicies.LogPolicy.StorageConfiguration != null
-                ? new LogTransactionManager(
-                    databasePolicies.LogPolicy,
-                    localFolder,
-                    userTables
-                    .ToImmutableDictionary(t => t.Schema.TableName, t => t.Schema),
-                    TombstoneTable)
-                : null;
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
@@ -152,9 +147,9 @@ namespace TrackDb.Lib
             {
                 await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
             }
-            if (_logManager != null)
+            if (_logTransactionWriter != null)
             {
-                await ((IAsyncDisposable)_logManager).DisposeAsync();
+                await ((IAsyncDisposable)_logTransactionWriter).DisposeAsync();
             }
         }
 
@@ -501,16 +496,17 @@ namespace TrackDb.Lib
 
         public TransactionContext CreateTransaction()
         {
-            return CreateTransaction(true);
+            return CreateTransaction(true, new TransactionLog());
         }
 
-        internal TransactionContext CreateTransaction(bool doLog)
+        internal TransactionContext CreateTransaction(bool doLog, TransactionLog transactionLog)
         {
             _dataLifeCycleManager.ObserveBackgroundTask();
 
             var transactionContext = new TransactionContext(
                 this,
                 _databaseState.InMemoryDatabase,
+                transactionLog,
                 doLog);
 
             Interlocked.Increment(ref _activeTransactionCount);
@@ -583,17 +579,17 @@ namespace TrackDb.Lib
         internal void CompleteTransaction(TransactionState transactionState, bool doLog)
         {
             CompleteTransaction(transactionState);
-            if (doLog && _logManager != null)
+            if (doLog && _logTransactionWriter != null)
             {
-                _logManager.QueueContent(transactionState.UncommittedTransactionLog);
+                _logTransactionWriter.QueueContent(transactionState.UncommittedTransactionLog);
             }
         }
 
         internal async Task LogAndCompleteTransactionAsync(TransactionState transactionState, bool doLog)
         {
-            if (doLog && _logManager != null)
+            if (doLog && _logTransactionWriter != null)
             {
-                await _logManager.CommitContentAsync(
+                await _logTransactionWriter.CommitContentAsync(
                     transactionState.UncommittedTransactionLog);
             }
             CompleteTransaction(transactionState);
@@ -714,95 +710,44 @@ namespace TrackDb.Lib
         #region Logging
         private async Task InitLogsAsync(CancellationToken ct)
         {
-            void UpdateLastRecordIdMap(
-                TransactionLog tl,
-                IDictionary<string, long> tableToLastRecordIdMap)
+            var tableMap = GetDatabaseStateSnapshot().TableMap;
+            var logTransactionReader = await LogTransactionReader.CreateAsync(
+                DatabasePolicy.LogPolicy,
+                Path.Combine(Path.GetTempPath(), "track-db", Guid.NewGuid().ToString()),
+                tableMap.Values
+                .Where(p => p.IsUserTable)
+                .Select(p => p.Table.Schema),
+                TombstoneTable,
+                ct);
+            var tableToLastRecordIdMap = new Dictionary<string, long>();
+            var tombstoneTableName = TombstoneTable.Schema.TableName;
+            long appendCount = 0;
+            long tombstonedCount = 0;
+
+            await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
             {
-                var buffer = new object?[1];
+                appendCount += transactionLog.TransactionTableLogMap
+                    .Where(p => p.Key != tombstoneTableName)
+                    .Sum(p => ((IBlock)p.Value.NewDataBlock).RecordCount);
+                tombstonedCount += transactionLog.TransactionTableLogMap
+                    .Where(p => p.Key == tombstoneTableName)
+                    .Sum(p => ((IBlock)p.Value.NewDataBlock).RecordCount);
 
-                foreach (var pair in tl.TransactionTableLogMap)
+                using (var tx = CreateTransaction(false, transactionLog))
                 {
-                    var tableName = pair.Key;
-                    IBlock block = pair.Value.NewDataBlock;
-
-                    if (block.RecordCount > 0 && tableName != TombstoneTable.Schema.TableName)
-                    {
-                        var maxRecordId = block.Project(
-                            buffer,
-                            ImmutableArray.Create(block.TableSchema.RecordIdColumnIndex),
-                            Enumerable.Range(0, block.RecordCount),
-                            0)
-                            .Select(r => (long)r.Span[0]!)
-                            .Max();
-                        if (tableToLastRecordIdMap.ContainsKey(tableName))
-                        {
-                            tableToLastRecordIdMap[tableName] =
-                                Math.Max(maxRecordId, tableToLastRecordIdMap[tableName]);
-                        }
-                        else
-                        {
-                            tableToLastRecordIdMap[tableName] = maxRecordId;
-                        }
-                    }
+                    tx.Complete();
                 }
             }
-
-            if (_logManager != null)
-            {
-                var tableToLastRecordIdMap = new Dictionary<string, long>();
-
-                await foreach (var tl in _logManager.LoadLogsAsync(ct))
-                {
-                    UpdateLastRecordIdMap(tl, tableToLastRecordIdMap);
-                    ChangeDatabaseState(currentDbState =>
-                    {   //  Add transaction log to the state
-                        var txState = new TransactionState(currentDbState.InMemoryDatabase, tl);
-
-                        return currentDbState with
-                        {
-                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(txState)
-                        };
-                    });
-                    _dataLifeCycleManager.TriggerDataManagement();
-                }
-                InitTablesRecordId(tableToLastRecordIdMap);
-                if (_logManager.IsCheckpointCreationRequired)
-                {
-                    using (var tx = CreateTransaction())
-                    {
-                        await _logManager.CreateCheckpointAsync(ListCheckpointTransactions(tx, ct), ct);
-                    }
-                }
-            }
-        }
-
-        private void InitTablesRecordId(Dictionary<string, long> tableToLastRecordIdMap)
-        {
-            var tableMap = _databaseState.TableMap;
-
+            //  Set the current record ID for each table
             foreach (var pair in tableToLastRecordIdMap)
             {
                 var tableName = pair.Key;
                 var maxRecordId = pair.Value;
 
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
-
             }
-        }
 
-        private void InitRecordIds()
-        {
-            var userTables = _databaseState.TableMap
-                .Where(t => t.Value.IsUserTable)
-                .Select(t => t.Value.Table);
-
-            using (var tx = CreateTransaction())
-            {
-                foreach (var table in userTables)
-                {
-                    throw new NotImplementedException();
-                }
-            }
+            _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(

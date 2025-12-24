@@ -35,9 +35,17 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override JsonElement InToLogValue(object? value)
         {
-            var dateTimeValue = (DateTime?)value;
+            if (value == null)
+            {
+                return JsonSerializer.SerializeToElement<string?>(null);
+            }
+            else
+            {
+                var longValue = (long)value;
+                var dateTimeValue = new DateTime(longValue);
 
-            return JsonSerializer.SerializeToElement(dateTimeValue);
+                return JsonSerializer.SerializeToElement(dateTimeValue);
+            }
         }
 
         protected override object? LogValueToIn(JsonElement logValue)
