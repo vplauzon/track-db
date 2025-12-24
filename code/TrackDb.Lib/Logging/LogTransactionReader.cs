@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
@@ -59,10 +60,22 @@ namespace TrackDb.Lib.Logging
         {
             await foreach (var text in _logStorageReader.LoadTransactionTextsAsync(ct))
             {
-                var logContent = TransactionContent.FromJson(text);
-                var log = logContent.ToTransactionLog(_tombstoneTable, _tableSchemaMap);
+                TransactionLog? log = null;
+                try
+                {
+                    var logContent = TransactionContent.FromJson(text);
 
-                yield return log;
+                    log = logContent.ToTransactionLog(_tombstoneTable, _tableSchemaMap);
+                }
+                catch (JsonException)
+                {   //  This happens when a transaction got split in two blob blocks
+                    //  and the second one didn't get persisted
+                    //  because the process crashed / terminated
+                }
+                if (log != null)
+                {
+                    yield return log;
+                }
             }
         }
 

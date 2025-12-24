@@ -152,7 +152,30 @@ namespace TrackDb.Lib.Logging
                     }
                     else
                     {
-                        throw new NotSupportedException("Too large transaction");
+                        var transactionText = transactionTexts.First();
+                        var isFirst = true;
+
+                        while (transactionText.Length > 0)
+                        {
+                            var text = transactionText.Substring(
+                                0,
+                                Math.Min(
+                                    transactionText.Length,
+                                    _currentLogBlob!.AppendBlobMaxAppendBlockBytes - SEPARATOR.Length));
+
+                            stream.Position = 0;
+                            stream.SetLength(0);
+                            if (isFirst)
+                            {
+                                writer.Write(SEPARATOR);
+                                isFirst = false;
+                            }
+                            writer.Write(text);
+                            writer.Flush();
+                            stream.Position = 0;
+                            await _currentLogBlob!.AppendBlockAsync(stream);
+                            transactionText = transactionText.Substring(text.Length);
+                        }
                     }
                 }
                 else
