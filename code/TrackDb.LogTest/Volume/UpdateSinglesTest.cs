@@ -5,9 +5,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace TrackDb.LogTest
+namespace TrackDb.LogTest.Volume
 {
-    public class PerformanceTest
+    public class UpdateSinglesTest
     {
         [Fact]
         public async Task Test00010()
@@ -130,6 +130,7 @@ namespace TrackDb.LogTest
                         .ToImmutableArray();
 
                     Assert.Empty(incompleteTasks);
+                    await db.Database.AwaitLifeCycleManagement(5);
                 }
 
                 CheckDb(db, cycleCount);

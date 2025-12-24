@@ -270,7 +270,7 @@ namespace TrackDb.Lib.Logging
                     for (var i = _checkpointIndex.Value; i <= _lastLogFileIndex.Value; ++i)
                     {
                         var logPath = Path.Combine(_localReadFolder, GetLogFileName(i));
-                        var logLines = File.ReadLines(checkpointPath).Skip(1);
+                        var logLines = File.ReadLines(logPath).Skip(1);
 
                         foreach (var line in logLines)
                         {
