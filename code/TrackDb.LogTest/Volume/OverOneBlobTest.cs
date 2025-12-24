@@ -9,6 +9,12 @@ namespace TrackDb.LogTest.Volume
 {
     public class OverOneBlobTest
     {
+        /// <summary>
+        /// This tests does over 50K append blob operations and is hence extremelly long.
+        /// That is, multiple hours long.
+        /// For this reason, it is disabled by default.
+        /// </summary>
+        /// <returns></returns>
         [Fact]
         public async Task OverrunBlob()
         {
