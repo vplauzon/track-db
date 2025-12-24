@@ -45,6 +45,12 @@ namespace TrackDb.LogTest.Volume
             await RunPerformanceTestAsync(100000);
         }
 
+        [Fact]
+        public async Task Test01000000()
+        {
+            await RunPerformanceTestAsync(1000000);
+        }
+
         private async Task RunPerformanceTestAsync(int recordCount)
         {
             var stopwatch = new Stopwatch();
