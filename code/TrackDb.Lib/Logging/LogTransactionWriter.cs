@@ -131,7 +131,7 @@ namespace TrackDb.Lib.Logging
         #endregion
 
         #region Content items processing
-        private async Task ProcessContentItemsAsync()
+        private async Task ProcessContentItemsAsync(CancellationToken ct = default)
         {
             var queue = new Queue<ContentItem>();
 
@@ -143,7 +143,7 @@ namespace TrackDb.Lib.Logging
                     || IsBufferingTimeOver(queue.Peek())
                     || IsBlockComplete(queue)))
                 {
-                    await PersistBlockAsync(queue);
+                    await PersistBlockAsync(queue, ct);
                 }
                 if (!DrainChannel(queue))
                 {
@@ -171,7 +171,7 @@ namespace TrackDb.Lib.Logging
             while (!_stopBackgroundProcessingSource.Task.IsCompleted || queue.Any());
         }
 
-        private async Task PersistBlockAsync(Queue<ContentItem> queue)
+        private async Task PersistBlockAsync(Queue<ContentItem> queue, CancellationToken ct)
         {
             var tcsList = new List<TaskCompletionSource>(queue.Count);
             var transactionTextList = new List<string>();
@@ -195,7 +195,7 @@ namespace TrackDb.Lib.Logging
                     }
                     if (!canFit || !queue.Any())
                     {
-                        await _logStorageWriter.PersistBatchAsync(transactionTextList);
+                        await _logStorageWriter.PersistBatchAsync(transactionTextList, ct);
                         //  Confirm persistance
                         foreach (var tcs in tcsList)
                         {

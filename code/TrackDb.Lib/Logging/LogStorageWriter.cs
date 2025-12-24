@@ -1,4 +1,5 @@
-﻿using Azure.Storage.Blobs;
+﻿using Azure;
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
 using Azure.Storage.Files.DataLake;
 using System;
@@ -137,7 +138,24 @@ namespace TrackDb.Lib.Logging
                 LogPolicy.MaxBatchSizeInBytes);
         }
 
-        public async Task PersistBatchAsync(IEnumerable<string> transactionTexts)
+        public async Task PersistBatchAsync(
+            IEnumerable<string> transactionTexts,
+            CancellationToken ct)
+        {
+            try
+            {
+                await PersistBatchInternalAsync(transactionTexts, ct);
+            }
+            catch (RequestFailedException ex) when (ex.ErrorCode == "MaxBlobBlocksExceeded")
+            {
+                ++_currentLogBlobIndex;
+                await EnsureCurrentLogBlobAsync(ct);
+            }
+        }
+
+        private async Task PersistBatchInternalAsync(
+            IEnumerable<string> transactionTexts,
+            CancellationToken ct)
         {
             using (var stream = new MemoryStream())
             using (var writer = new StreamWriter(stream))
@@ -175,7 +193,7 @@ namespace TrackDb.Lib.Logging
                             writer.Write(text);
                             writer.Flush();
                             stream.Position = 0;
-                            await _currentLogBlob!.AppendBlockAsync(stream);
+                            await _currentLogBlob!.AppendBlockAsync(stream, cancellationToken: ct);
                             transactionText = transactionText.Substring(text.Length);
                         }
                     }
@@ -194,7 +212,7 @@ namespace TrackDb.Lib.Logging
                         throw new InvalidDataException(
                             $"Expected batch size to be '{totalLength}' but is '{stream.Length}'");
                     }
-                    await _currentLogBlob!.AppendBlockAsync(stream);
+                    await _currentLogBlob!.AppendBlockAsync(stream, cancellationToken: ct);
                 }
             }
         }
