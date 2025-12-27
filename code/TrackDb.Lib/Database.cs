@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -599,13 +600,34 @@ namespace TrackDb.Lib
         {
             if (!transactionState.UncommittedTransactionLog.IsEmpty)
             {
-                ChangeDatabaseState(currentDbState =>
+                if (DatabasePolicy.LogPolicy.StorageConfiguration != null)
                 {
-                    return currentDbState with
+                    var counts = transactionState.UncommittedTransactionLog.GetLoggedRecordCounts(
+                        GetDatabaseStateSnapshot().TableMap
+                        .Where(t => t.Value.IsUserTable)
+                        .Select(t => t.Key),
+                        TombstoneTable.Schema.TableName);
+
+                    ChangeDatabaseState(currentDbState =>
                     {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
-                    };
-                });
+                        return currentDbState with
+                        {
+                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
+                            AppendRecordCount = currentDbState.AppendRecordCount + counts.AppendRecordCount,
+                            TombstoneRecordCount = currentDbState.TombstoneRecordCount + counts.TombstoneRecordCount
+                        };
+                    });
+                }
+                else
+                {
+                    ChangeDatabaseState(currentDbState =>
+                    {
+                        return currentDbState with
+                        {
+                            InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
+                        };
+                    });
+                }
                 _dataLifeCycleManager.TriggerDataManagement();
             }
             if (Interlocked.Decrement(ref _activeTransactionCount) < 0)
@@ -721,18 +743,20 @@ namespace TrackDb.Lib
                 ct);
             var tableToLastRecordIdMap = new Dictionary<string, long>();
             var tombstoneTableName = TombstoneTable.Schema.TableName;
+            var loggedTableNames = GetDatabaseStateSnapshot().TableMap
+                .Where(t => t.Value.IsUserTable)
+                .Select(t => t.Key);
             long appendRecordCount = 0;
             long tombstonedCount = 0;
 
             await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
             {
-                appendRecordCount += transactionLog.TransactionTableLogMap
-                    .Where(p => p.Key != tombstoneTableName)
-                    .Sum(p => ((IBlock)p.Value.NewDataBlock).RecordCount);
-                tombstonedCount += transactionLog.TransactionTableLogMap
-                    .Where(p => p.Key == tombstoneTableName)
-                    .Sum(p => ((IBlock)p.Value.NewDataBlock).RecordCount);
+                var counts = transactionLog.GetLoggedRecordCounts(
+                    loggedTableNames,
+                    tombstoneTableName);
 
+                appendRecordCount += counts.AppendRecordCount;
+                tombstonedCount += counts.TombstoneRecordCount;
                 using (var tx = CreateTransaction(false, transactionLog))
                 {
                     tx.Complete();

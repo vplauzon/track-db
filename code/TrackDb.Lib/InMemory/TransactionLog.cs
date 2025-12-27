@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.InMemory
 {
@@ -16,6 +17,35 @@ namespace TrackDb.Lib.InMemory
 
         public bool IsEmpty => TransactionTableLogMap.Values
             .All(t => ((IBlock)t.NewDataBlock).RecordCount == 0 && t.CommittedDataBlock == null);
+
+        public (long AppendRecordCount, long TombstoneRecordCount) GetLoggedRecordCounts(
+            IEnumerable<string> loggingTables,
+            string tombstoneTableName)
+        {
+            var appendRecordCount = loggingTables
+                .Where(t => TransactionTableLogMap.ContainsKey(t))
+                .Sum(t => ((IBlock)TransactionTableLogMap[t].NewDataBlock).RecordCount);
+
+            if (TransactionTableLogMap.TryGetValue(tombstoneTableName, out var tombstoneTableLog))
+            {
+                var tombstoneBlock = (IBlock)tombstoneTableLog.NewDataBlock;
+                var tombstoneSchema = (TypedTableSchema<TombstoneRecord>)tombstoneBlock.TableSchema;
+                var tombstoneRecordCount = tombstoneBlock.Project(
+                    new object?[1],
+                    tombstoneSchema.GetColumnIndexSubset(t => t.TableName),
+                    Enumerable.Range(0, tombstoneBlock.RecordCount),
+                    42)
+                    .Select(mem => (string)mem.Span[0]!)
+                    .Where(t => loggingTables.Contains(t))
+                    .Count();
+
+                return (appendRecordCount, tombstoneRecordCount);
+            }
+            else
+            {
+                return (appendRecordCount, 0);
+            }
+        }
 
         public void AppendRecord(
             DateTime creationTime,
