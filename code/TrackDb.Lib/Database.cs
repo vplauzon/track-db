@@ -600,7 +600,7 @@ namespace TrackDb.Lib
         {
             if (!transactionState.UncommittedTransactionLog.IsEmpty)
             {
-                if (DatabasePolicy.LogPolicy.StorageConfiguration != null)
+                if (_logTransactionWriter != null)
                 {
                     var counts = transactionState.UncommittedTransactionLog.GetLoggedRecordCounts(
                         GetDatabaseStateSnapshot().TableMap
