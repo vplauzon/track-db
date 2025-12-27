@@ -617,6 +617,7 @@ namespace TrackDb.Lib
                             TombstoneRecordCount = currentDbState.TombstoneRecordCount + counts.TombstoneRecordCount
                         };
                     });
+                    CheckpointIfNeeded();
                 }
                 else
                 {
@@ -777,6 +778,23 @@ namespace TrackDb.Lib
                 TombstoneRecordCount = tombstonedCount
             });
             _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
+        }
+
+        private void CheckpointIfNeeded()
+        {
+            if (IsCheckpointNeeded())
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        private bool IsCheckpointNeeded()
+        {
+            var state = GetDatabaseStateSnapshot();
+
+            return state.AppendRecordCount > DatabasePolicy.LogPolicy.MinRecordCountBeforeCheckpoint
+                && state.TombstoneRecordCount * DatabasePolicy.LogPolicy.MinRecordCountPerCheckpointTransaction
+                > state.AppendRecordCount;
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(
