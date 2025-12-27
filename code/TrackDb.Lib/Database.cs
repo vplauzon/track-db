@@ -784,7 +784,10 @@ namespace TrackDb.Lib
         {
             if (IsCheckpointNeeded())
             {
-                throw new NotImplementedException();
+                lock (_logTransactionWriter!)
+                {
+                    throw new NotImplementedException();
+                }
             }
         }
 
