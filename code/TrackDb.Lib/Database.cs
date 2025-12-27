@@ -721,12 +721,12 @@ namespace TrackDb.Lib
                 ct);
             var tableToLastRecordIdMap = new Dictionary<string, long>();
             var tombstoneTableName = TombstoneTable.Schema.TableName;
-            long appendCount = 0;
+            long appendRecordCount = 0;
             long tombstonedCount = 0;
 
             await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
             {
-                appendCount += transactionLog.TransactionTableLogMap
+                appendRecordCount += transactionLog.TransactionTableLogMap
                     .Where(p => p.Key != tombstoneTableName)
                     .Sum(p => ((IBlock)p.Value.NewDataBlock).RecordCount);
                 tombstonedCount += transactionLog.TransactionTableLogMap
@@ -747,6 +747,11 @@ namespace TrackDb.Lib
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
             }
 
+            ChangeDatabaseState(state => state with
+            {
+                AppendRecordCount = appendRecordCount,
+                TombstoneRecordCount = tombstonedCount
+            });
             _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
         }
 
