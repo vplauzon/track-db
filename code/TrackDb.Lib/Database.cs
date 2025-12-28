@@ -782,12 +782,16 @@ namespace TrackDb.Lib
 
         private void CheckpointIfNeeded()
         {
-            if (IsCheckpointNeeded())
+            if (_logTransactionWriter != null && IsCheckpointNeeded())
             {   //  We lock so only one thread can do the checkpoint
-                lock (_logTransactionWriter!)
-                {
+                //DatabaseState state = null;
+
+                //lock (_logTransactionWriter)
+                //{
+                //    var state = ChangeDatabaseState();
                     throw new NotImplementedException();
-                }
+                //}
+                //await _logTransactionWriter.CreateCheckpointAsync();
             }
         }
 

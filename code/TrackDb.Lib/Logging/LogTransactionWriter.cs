@@ -62,7 +62,7 @@ namespace TrackDb.Lib.Logging
         #region Checkpoint
         public async Task CreateCheckpointAsync(
             IAsyncEnumerable<TransactionLog> transactions,
-            CancellationToken ct)
+            CancellationToken ct = default)
         {
             await _logStorageWriter.CreateCheckpointAsync(
                 ToTransactionText(transactions, ct),
