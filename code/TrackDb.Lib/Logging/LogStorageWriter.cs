@@ -113,7 +113,6 @@ namespace TrackDb.Lib.Logging
             File.Delete(checkpointFilePath);
             await checkpointFileClient.RenameAsync(
                 LoggingDirectory
-                .GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER)
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
             _currentLogBlob = GetAppendBlobClient();
