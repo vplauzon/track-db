@@ -116,7 +116,10 @@ namespace TrackDb.Lib.Logging
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
             _currentLogBlob = GetAppendBlobClient();
+            deleteTempCloudDirectoryTask =
+                tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
             await EnsureCurrentLogBlobAsync(ct);
+            await deleteTempCloudDirectoryTask;
         }
 
         private AppendBlobClient GetAppendBlobClient()
