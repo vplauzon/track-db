@@ -783,7 +783,7 @@ namespace TrackDb.Lib
         private void CheckpointIfNeeded()
         {
             if (IsCheckpointNeeded())
-            {
+            {   //  We lock so only one thread can do the checkpoint
                 lock (_logTransactionWriter!)
                 {
                     throw new NotImplementedException();
