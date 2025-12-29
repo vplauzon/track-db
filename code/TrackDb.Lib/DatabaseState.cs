@@ -17,11 +17,12 @@ namespace TrackDb.Lib
     internal record DatabaseState(
         InMemoryDatabase InMemoryDatabase,
         IImmutableDictionary<string, TableProperties> TableMap,
+        long CheckpointId,
         long AppendRecordCount,
         long TombstoneRecordCount)
     {
         public DatabaseState(IImmutableDictionary<string, TableProperties> tableMap)
-            : this(new InMemoryDatabase(), tableMap, 0, 0)
+            : this(new InMemoryDatabase(), tableMap, 0, 0, 0)
         {
         }
     }
