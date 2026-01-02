@@ -66,12 +66,12 @@ namespace TrackDb.Lib
             }
         }
 
-        public async Task LogAndCompleteAsync()
+        public async Task CompleteAsync()
         {
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                await _database.LogAndCompleteTransactionAsync(TransactionState, _doLog);
+                await _database.CompleteTransactionAsync(TransactionState, _doLog);
             }
             else
             {

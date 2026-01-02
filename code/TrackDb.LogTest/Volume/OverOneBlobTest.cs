@@ -39,7 +39,7 @@ namespace TrackDb.LogTest.Volume
                         db.WorkflowTable.AppendRecord(workflow, tx);
 
                         //  Force every record to commit a block
-                        await tx.LogAndCompleteAsync();
+                        await tx.CompleteAsync();
                     }
                 }
 

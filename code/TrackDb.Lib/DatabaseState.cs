@@ -17,7 +17,7 @@ namespace TrackDb.Lib
     internal record DatabaseState(
         InMemoryDatabase InMemoryDatabase,
         IImmutableDictionary<string, TableProperties> TableMap,
-        long CheckpointId,
+        long CheckpointIndex,
         long AppendRecordCount,
         long TombstoneRecordCount)
     {

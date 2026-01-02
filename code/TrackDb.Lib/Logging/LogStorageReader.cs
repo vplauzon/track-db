@@ -144,7 +144,7 @@ namespace TrackDb.Lib.Logging
                 return lastCheckpoint;
             }
             await loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
-            
+
             var lastCheckpoint = await GetLastCheckpointAsync(loggingDirectory, ct);
 
             if (lastCheckpoint != null)
@@ -255,12 +255,16 @@ namespace TrackDb.Lib.Logging
                     for (var i = _checkpointIndex.Value; i <= _lastLogFileIndex.Value; ++i)
                     {
                         var logPath = Path.Combine(_localReadFolder, GetLogFileName(i));
-                        var logLines = File.ReadLines(logPath).Skip(1);
 
-                        foreach (var line in logLines)
-                        {
-                            ct.ThrowIfCancellationRequested();
-                            yield return line;
+                        if (Path.Exists(logPath))
+                        {   //  There can be gaps in log blobs
+                            var logLines = File.ReadLines(logPath).Skip(1);
+
+                            foreach (var line in logLines)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                yield return line;
+                            }
                         }
                     }
                 }
@@ -274,6 +278,7 @@ namespace TrackDb.Lib.Logging
                 LocalFolder,
                 LoggingDirectory,
                 LoggingContainer,
+                _checkpointIndex,
                 _lastLogFileIndex,
                 ct);
         }
