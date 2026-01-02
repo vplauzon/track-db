@@ -12,7 +12,7 @@ namespace TrackDb.PerfTest
     {
         #region Entity types
         public record Employee(string EmployeeId, string Name);
-        
+
         public enum RequestStatus
         {
             Initiated,
@@ -24,7 +24,7 @@ namespace TrackDb.PerfTest
             string EmployeeId,
             string RequestCode,
             RequestStatus RequestStatus);
-        
+
         public record Document(string RequestCode, string DocumentContent);
         #endregion
 
@@ -40,7 +40,7 @@ namespace TrackDb.PerfTest
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync(
+            var db = await Database.CreateAsync<Database>(
                 modifiedDataPolicy,
                 TypedTableSchema<Employee>.FromConstructor(EMPLOYEE_TABLE)
                 .AddPrimaryKeyProperty(p => p.EmployeeId),
