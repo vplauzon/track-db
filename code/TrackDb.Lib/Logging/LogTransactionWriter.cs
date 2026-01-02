@@ -94,6 +94,7 @@ namespace TrackDb.Lib.Logging
                 checkpointIndex,
                 ToTransactionText(transactions, cts),
                 cts.Token);
+            postCheckpointAction();
         }
 
         private async IAsyncEnumerable<string> ToTransactionText(

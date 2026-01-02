@@ -22,7 +22,7 @@ namespace TrackDb.Lib.Policies
                 StorageConfiguration,
                 BufferingTimeWindow ?? TimeSpan.FromSeconds(5),
                 MaxBatchSizeInBytes ?? 8 * 1024 * 1024,
-                MinRecordCountBeforeCheckpoint ?? 10000,
+                MinRecordCountBeforeCheckpoint ?? 50000,
                 MinTombstonePercentBeforeCheckpoint ?? 40,
                 MinRecordCountPerCheckpointTransaction ?? 200);
         }
