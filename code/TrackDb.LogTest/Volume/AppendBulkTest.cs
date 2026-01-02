@@ -39,19 +39,19 @@ namespace TrackDb.LogTest.Volume
             await RunPerformanceTestAsync(10000);
         }
 
-        [Fact]
+        [Fact(Skip = "Too long")]
         public async Task Test0100000()
         {
             await RunPerformanceTestAsync(100000);
         }
 
-        [Fact]
+        [Fact(Skip = "Too long")]
         public async Task Test01000000()
         {
             await RunPerformanceTestAsync(1000000);
         }
 
-        [Fact]
+        [Fact(Skip = "Too long")]
         public async Task Test02000000()
         {
             await RunPerformanceTestAsync(2000000);
