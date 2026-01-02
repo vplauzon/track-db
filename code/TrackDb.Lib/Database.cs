@@ -626,9 +626,9 @@ namespace TrackDb.Lib
                         TombstoneRecordCount = currentDbState.TombstoneRecordCount + counts.TombstoneRecordCount
                     };
 
-                    if (newState.AppendRecordCount > DatabasePolicy.LogPolicy.MinRecordCountBeforeCheckpoint
-                        && newState.TombstoneRecordCount * DatabasePolicy.LogPolicy.MinRecordCountPerCheckpointTransaction
-                        > newState.AppendRecordCount)
+                    if (newState.AppendRecordCount >= DatabasePolicy.LogPolicy.MinRecordCountBeforeCheckpoint
+                        && newState.TombstoneRecordCount * 100
+                        > newState.AppendRecordCount * DatabasePolicy.LogPolicy.MinTombstonePercentBeforeCheckpoint)
                     {
                         newState = newState with
                         {

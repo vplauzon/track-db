@@ -2,7 +2,6 @@
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
-using TrackDb.Lib.Policies;
 using Xunit;
 
 namespace TrackDb.LogTest.Checkpoint
@@ -13,6 +12,32 @@ namespace TrackDb.LogTest.Checkpoint
 
         [Fact]
         public async Task NoneLeft()
+        {
+            var testId = $"CheckpointTest-NoneLeft-{Guid.NewGuid()}";
+
+            await using (var db = await CreateDatabaseAsync(testId))
+            {
+                var records = Enumerable.Range(0, MAX_RECORDS)
+                    .Select(i => new TestDatabase.Workflow(
+                        $"My Workflow-{i}",
+                        i,
+                        TestDatabase.WorkflowState.Started,
+                        DateTime.Now));
+
+                db.WorkflowTable.AppendRecords(records);
+                //  Delete all records
+                db.WorkflowTable.Query().Delete();
+            }
+            await using (var db = await CreateDatabaseAsync(testId))
+            {
+                var count = db.WorkflowTable.Query().Count();
+
+                Assert.Equal(0, count);
+            }
+        }
+
+        [Fact]
+        public async Task Something()
         {
             var testId = $"CheckpointTest-NoneLeft-{Guid.NewGuid()}";
 
