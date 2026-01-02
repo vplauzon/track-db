@@ -59,7 +59,9 @@ namespace TrackDb.LogTest
         private const string TASK_TABLE = "Task";
 
         #region Constructor
-        public static async Task<TestDatabase> CreateAsync(string testId)
+        public static async Task<TestDatabase> CreateAsync(
+            string testId,
+            Func<DatabasePolicy, DatabasePolicy>? dataPolicyChanger = null)
         {
             var logFolderUriText = TestConfiguration.Instance.GetConfiguration("logFolderUri");
             var logFolderKey = TestConfiguration.Instance.GetConfiguration("logFolderKey");
@@ -78,12 +80,16 @@ namespace TrackDb.LogTest
             logFolderUri.Path += $"/{_runFolder}/{testId}";
 
             var accountName = logFolderUri.Host.Split('.').First();
+            var dataPolicy = DatabasePolicy.Create(LogPolicy: LogPolicy.Create(
+                new StorageConfiguration(
+                    logFolderUri.Uri,
+                    null,
+                    new StorageSharedKeyCredential(accountName, logFolderKey))));
+            var modifiedDataPolicy = dataPolicyChanger != null
+                ? dataPolicyChanger(dataPolicy)
+                : dataPolicy;
             var db = await Database.CreateAsync(
-                DatabasePolicy.Create(LogPolicy: LogPolicy.Create(
-                    new StorageConfiguration(
-                        logFolderUri.Uri,
-                        null,
-                        new StorageSharedKeyCredential(accountName, logFolderKey)))),
+                modifiedDataPolicy,
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)

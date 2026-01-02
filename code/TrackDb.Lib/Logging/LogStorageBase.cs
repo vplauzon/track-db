@@ -13,8 +13,6 @@ namespace TrackDb.Lib.Logging
 {
     internal class LogStorageBase
     {
-        protected const string CHECKPOINT_BLOB_FOLDER = "checkpoint";
-
         protected static readonly string SEPARATOR = "\n";
 
         protected static Version CURRENT_HEADER_VERSION = new(1, 0);
@@ -46,12 +44,12 @@ namespace TrackDb.Lib.Logging
 
         protected static string GetCheckpointFileName(long index)
         {
-            return $"checkpoint-{index:D19}.json";
+            return $"{index:D19}-checkpoint.json";
         }
 
         protected static string GetLogFileName(long index)
         {
-            return $"log-{index:D19}.json";
+            return $"{index:D19}-log.json";
         }
     }
 }

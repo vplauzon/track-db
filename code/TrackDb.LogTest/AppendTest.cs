@@ -9,7 +9,7 @@ namespace TrackDb.LogTest
     public class AppendTest
     {
         [Fact]
-        public async Task OneRecordAsync()
+        public async Task OneRecord()
         {
             var testId = $"AppendTest-OneRecordAsync-{Guid.NewGuid()}";
             var record = new TestDatabase.Workflow(
@@ -32,7 +32,7 @@ namespace TrackDb.LogTest
         }
 
         [Fact]
-        public async Task MultipleRecordsAsync()
+        public async Task MultipleRecords()
         {
             var testId = $"AppendTest-MultipleRecordsAsync-{Guid.NewGuid()}";
             var workflow = new TestDatabase.Workflow(

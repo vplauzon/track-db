@@ -128,42 +128,28 @@ namespace TrackDb.Lib.Logging
             string localReadFolder,
             CancellationToken ct)
         {
-            async Task<DataLakeDirectoryClient> EnsureCheckpointBlobFolderAsync(
-                DataLakeDirectoryClient loggingDirectory,
-                CancellationToken ct)
-            {
-                var checkpointDirectory = loggingDirectory.GetSubDirectoryClient(CHECKPOINT_BLOB_FOLDER);
-
-                await checkpointDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
-
-                return checkpointDirectory;
-            }
-
             async Task<DataLakeFileClient?> GetLastCheckpointAsync(
                 DataLakeDirectoryClient loggingDirectory,
-                DataLakeDirectoryClient checkpointDirectory,
                 CancellationToken ct)
             {
-                var checkpointPathList = await checkpointDirectory.GetPathsAsync(cancellationToken: ct)
+                var checkpointPathList = await loggingDirectory.GetPathsAsync(cancellationToken: ct)
                     .ToImmutableListAsync();
                 var lastCheckpoint = checkpointPathList
                     .Where(i => i.IsDirectory == false)
                     .Select(i => loggingDirectory.GetParentFileSystemClient().GetFileClient(i.Name))
-                    .Where(f => f.Name.EndsWith(".json"))
-                    .Where(f => f.Name.StartsWith("checkpoint-"))
+                    .Where(f => f.Name.EndsWith("-checkpoint.json"))
                     .OrderBy(f => f.Name)
                     .LastOrDefault();
 
                 return lastCheckpoint;
             }
+            await loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
 
-            var checkpointDirectory = await EnsureCheckpointBlobFolderAsync(loggingDirectory, ct);
-            var lastCheckpoint = await GetLastCheckpointAsync(loggingDirectory, checkpointDirectory, ct);
+            var lastCheckpoint = await GetLastCheckpointAsync(loggingDirectory, ct);
 
             if (lastCheckpoint != null)
             {
-                var lastCheckpointIndex = long.Parse(
-                    lastCheckpoint.Name.Split('.')[0].Split('-')[1]);
+                var lastCheckpointIndex = long.Parse(lastCheckpoint.Name.Split('-')[0]);
                 var checkpointLocalPath = Path.Combine(localReadFolder, lastCheckpoint.Name);
 
                 Directory.CreateDirectory(localReadFolder);
@@ -188,12 +174,11 @@ namespace TrackDb.Lib.Logging
             var logPathList = allLogPathsList
                 .Where(i => i.IsDirectory == false)
                 .Select(i => loggingDirectory.GetParentFileSystemClient().GetFileClient(i.Name))
-                .Where(f => f.Name.EndsWith(".json"))
-                .Where(f => f.Name.StartsWith("log-"))
+                .Where(f => f.Name.EndsWith("-log.json"))
                 .Select(f => new
                 {
                     Client = f,
-                    Index = long.Parse(f.Name.Split('.')[0].Split('-')[1])
+                    Index = long.Parse(f.Name.Split('-')[0])
                 })
                 .Where(o => o.Index >= lastCheckpointIndex)
                 .Select(o => o.Client)
@@ -209,7 +194,7 @@ namespace TrackDb.Lib.Logging
             if (logPathList.Any())
             {
                 return logPathList
-                    .Select(f => long.Parse(f.Name.Split('.')[0].Split('-')[1]))
+                    .Select(f => long.Parse(f.Name.Split('-')[0]))
                     .Max();
             }
             else
@@ -270,12 +255,16 @@ namespace TrackDb.Lib.Logging
                     for (var i = _checkpointIndex.Value; i <= _lastLogFileIndex.Value; ++i)
                     {
                         var logPath = Path.Combine(_localReadFolder, GetLogFileName(i));
-                        var logLines = File.ReadLines(logPath).Skip(1);
 
-                        foreach (var line in logLines)
-                        {
-                            ct.ThrowIfCancellationRequested();
-                            yield return line;
+                        if (Path.Exists(logPath))
+                        {   //  There can be gaps in log blobs
+                            var logLines = File.ReadLines(logPath).Skip(1);
+
+                            foreach (var line in logLines)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                yield return line;
+                            }
                         }
                     }
                 }
@@ -289,6 +278,7 @@ namespace TrackDb.Lib.Logging
                 LocalFolder,
                 LoggingDirectory,
                 LoggingContainer,
+                _checkpointIndex,
                 _lastLogFileIndex,
                 ct);
         }
