@@ -88,7 +88,7 @@ namespace TrackDb.LogTest
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync(
+            var db = await Database.CreateAsync<Database>(
                 modifiedDataPolicy,
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),

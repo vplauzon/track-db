@@ -41,7 +41,7 @@ namespace TrackDb.UnitTest
                 |
                 (doHardDeleteAll ? DataManagementActivity.HardDeleteAll : DataManagementActivity.None);
             var tableName = "MyTable";
-            var db = await Database.CreateAsync(
+            var db = await Database.CreateAsync<Database>(
                 DatabasePolicy.Create(),
                 TypedTableSchema<Entity>.FromConstructor(tableName));
             var table = db.GetTypedTable<Entity>(tableName);

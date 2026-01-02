@@ -31,12 +31,23 @@ namespace TrackDb.Lib
         private volatile int _activeTransactionCount = 0;
 
         #region Constructors
-        public async static Task<Database> CreateAsync(
+        public async static Task<DATABASE> CreateAsync<DATABASE>(
             DatabasePolicy databasePolicies,
             params IEnumerable<TableSchema> schemas)
+            where DATABASE : Database
         {
-            var database = new Database(databasePolicies, schemas);
+            var database = typeof(DATABASE) == typeof(Database)
+                ? (DATABASE?)new Database(databasePolicies, schemas)
+                : (DATABASE?)Activator.CreateInstance(
+                    typeof(DATABASE),
+                    databasePolicies,
+                    schemas);
 
+            if (database == null)
+            {
+                throw new InvalidOperationException(
+                    $"Database activation of type '{typeof(DATABASE).Name}' failed");
+            }
             if (databasePolicies.LogPolicy.StorageConfiguration != null)
             {
                 await database.InitLogsAsync(CancellationToken.None);
@@ -45,7 +56,7 @@ namespace TrackDb.Lib
             return database;
         }
 
-        private Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
+        protected Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))

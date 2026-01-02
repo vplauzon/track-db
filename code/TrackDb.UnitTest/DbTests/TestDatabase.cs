@@ -38,7 +38,7 @@ namespace TrackDb.UnitTest.DbTests
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync(
+            var db = await Database.CreateAsync<Database>(
                 modifiedDataPolicy,
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE)
                 .AddPrimaryKeyProperty(p => p.Integer),
