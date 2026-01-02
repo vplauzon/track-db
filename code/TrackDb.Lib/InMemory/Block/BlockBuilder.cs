@@ -100,10 +100,10 @@ namespace TrackDb.Lib.InMemory.Block
 
         public void AppendRecord(DateTime creationTime, long recordId, ReadOnlySpan<object?> record)
         {
-            if (record.Length != _dataColumns.Count - 2)
+            if (record.Length != Schema.Columns.Count)
             {
                 throw new ArgumentException(
-                    $"Expected {_dataColumns.Count - 2} columns but is {record.Length}",
+                    $"Expected {Schema.Columns.Count} columns but is {record.Length}",
                     nameof(record));
             }
             for (int i = 0; i != record.Length; ++i)

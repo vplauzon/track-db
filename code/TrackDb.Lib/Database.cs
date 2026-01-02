@@ -843,18 +843,21 @@ namespace TrackDb.Lib
                 while (doContinue)
                 {
                     var txLog = new TransactionLog();
+                    var recordCount = 0;
 
                     for (var i = 0; i != recordsPerTransaction && recordEnumerator.MoveNext(); ++i)
                     {
                         var record = recordEnumerator.Current;
                         var creationTime = (DateTime)record.Span[table.Schema.CreationTimeColumnIndex]!;
                         var recordId = (long)record.Span[table.Schema.RecordIdColumnIndex]!;
+                        var trimmedRecord = record.Span.Slice(0, table.Schema.Columns.Count);
 
-                        txLog.AppendRecord(creationTime, recordId, record.Span, table.Schema);
+                        txLog.AppendRecord(creationTime, recordId, trimmedRecord, table.Schema);
+                        ++recordCount;
                     }
                     yield return txLog;
                     doContinue = txLog.TransactionTableLogMap.Any()
-                        && ((IBlock)txLog.TransactionTableLogMap.First().Value).RecordCount == recordsPerTransaction;
+                        && recordCount == recordsPerTransaction;
                 }
             }
         }

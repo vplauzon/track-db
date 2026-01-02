@@ -37,13 +37,13 @@ namespace TrackDb.LogTest.Checkpoint
         }
 
         [Fact]
-        public async Task Something()
+        public async Task RemoveHalf()
         {
             var testId = $"CheckpointTest-NoneLeft-{Guid.NewGuid()}";
 
             await using (var db = await CreateDatabaseAsync(testId))
             {
-                var records = Enumerable.Range(0, MAX_RECORDS)
+                var records = Enumerable.Range(0, 2*MAX_RECORDS)
                     .Select(i => new TestDatabase.Workflow(
                         $"My Workflow-{i}",
                         i,
@@ -52,13 +52,13 @@ namespace TrackDb.LogTest.Checkpoint
 
                 db.WorkflowTable.AppendRecords(records);
                 //  Delete all records
-                db.WorkflowTable.Query().Delete();
+                db.WorkflowTable.Query().Take(MAX_RECORDS).Delete();
             }
             await using (var db = await CreateDatabaseAsync(testId))
             {
                 var count = db.WorkflowTable.Query().Count();
 
-                Assert.Equal(0, count);
+                Assert.Equal(MAX_RECORDS, count);
             }
         }
 
