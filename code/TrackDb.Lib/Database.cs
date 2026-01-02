@@ -813,12 +813,13 @@ namespace TrackDb.Lib
                 tableMap[tableName].Table.InitRecordId(maxRecordId);
             }
 
+            _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
             ChangeDatabaseState(state => state with
             {
+                CheckpointIndex = _logTransactionWriter.LastCheckpointIndex,
                 AppendRecordCount = appendRecordCount,
                 TombstoneRecordCount = tombstonedCount
             });
-            _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(
