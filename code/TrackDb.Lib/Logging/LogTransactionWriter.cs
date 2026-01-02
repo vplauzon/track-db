@@ -167,6 +167,14 @@ namespace TrackDb.Lib.Logging
 
             do
             {
+                //  Process items
+                if (queueMap.Any())
+                {
+                    await PersistItemsAsync(
+                        queueMap,
+                        _stopBackgroundProcessingSource.Task.IsCompleted,
+                        ct);
+                }
                 //  Get items from channel
                 if (!DrainChannel(queueMap))
                 {
@@ -194,16 +202,8 @@ namespace TrackDb.Lib.Logging
                     //  Drain again after waiting
                     DrainChannel(queueMap);
                 }
-                //  Process items
-                if (queueMap.Any())
-                {
-                    await PersistItemsAsync(
-                        queueMap,
-                        _stopBackgroundProcessingSource.Task.IsCompleted,
-                        ct);
-                }
             }
-            while (!_stopBackgroundProcessingSource.Task.IsCompleted && queueMap.Any());
+            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queueMap.Any());
         }
 
         private async Task PersistItemsAsync(
@@ -226,8 +226,8 @@ namespace TrackDb.Lib.Logging
                     || queue.Peek().Timestamp > DateTime.Now - bufferingTimeWindow))
                 {   //  Persist one batch
                     while (queue.TryPeek(out var item)
-                        && _logStorageWriter.CanFitInBatch(
-                            transactionTextList.Append(item.Content)))
+                        && (!transactionTextList.Any()
+                        || _logStorageWriter.CanFitInBatch(transactionTextList.Append(item.Content))))
                     {
                         transactionTextList.Add(item.Content);
                         if (item.Tcs != null)
