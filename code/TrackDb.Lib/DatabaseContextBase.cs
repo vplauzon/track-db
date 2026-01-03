@@ -8,11 +8,16 @@ using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
-    internal abstract class DatabaseContextBase
+    public abstract class DatabaseContextBase : IAsyncDisposable
     {
         protected DatabaseContextBase(Database database)
         {
             Database = database;
+        }
+
+        async ValueTask IAsyncDisposable.DisposeAsync()
+        {
+            await ((IAsyncDisposable)Database).DisposeAsync();
         }
 
         protected Database Database { get; }
