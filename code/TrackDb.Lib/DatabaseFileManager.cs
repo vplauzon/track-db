@@ -21,15 +21,15 @@ namespace TrackDb.Lib
         public DatabaseFileManager(string filePath, ushort blockSize)
         {
             _filePath = filePath;
-			BlockSize = blockSize;
+            BlockSize = blockSize;
             _fileStream = new FileStream(
                 filePath,
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.ReadWrite,
-                //  Disables FileStream’s internal buffer
-                bufferSize: 1,
-                FileOptions.RandomAccess | FileOptions.WriteThrough);
+                //  Large buffer to allow async writes since local write aren't the real persistance layer
+                bufferSize: 64 * 1024,
+                FileOptions.RandomAccess);
         }
         #endregion
 
