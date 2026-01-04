@@ -8,7 +8,7 @@ using TrackDb.Lib.Policies;
 
 namespace TrackDb.PerfTest
 {
-    internal class VolumeTestDatabase : IAsyncDisposable
+    internal class VolumeTestDatabase : DatabaseContextBase
     {
         #region Entity types
         public record Employee(string EmployeeId, string Name);
@@ -40,29 +40,23 @@ namespace TrackDb.PerfTest
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync<Database>(
+            var db = await Database.CreateAsync<VolumeTestDatabase>(
                 modifiedDataPolicy,
+                db => new(db),
                 TypedTableSchema<Employee>.FromConstructor(EMPLOYEE_TABLE)
                 .AddPrimaryKeyProperty(p => p.EmployeeId),
                 TypedTableSchema<Request>.FromConstructor(REQUEST_TABLE)
                 .AddPrimaryKeyProperty(p => p.RequestCode),
                 TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE));
 
-            return new VolumeTestDatabase(db);
+            return db;
         }
 
         private VolumeTestDatabase(Database database)
+            : base(database)
         {
-            Database = database;
         }
         #endregion
-
-        async ValueTask IAsyncDisposable.DisposeAsync()
-        {
-            await ((IAsyncDisposable)Database).DisposeAsync();
-        }
-
-        public Database Database { get; }
 
         public TypedTable<Employee> EmployeeTable
             => Database.GetTypedTable<Employee>(EMPLOYEE_TABLE);

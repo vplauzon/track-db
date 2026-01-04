@@ -9,7 +9,7 @@ using TrackDb.Lib.Policies;
 
 namespace TrackDb.LogTest
 {
-    internal class TestDatabase : IAsyncDisposable
+    internal class TestDatabase : DatabaseContextBase
     {
         private static readonly string _runFolder = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss");
 
@@ -88,8 +88,9 @@ namespace TrackDb.LogTest
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync<Database>(
+            var db = await Database.CreateAsync<TestDatabase>(
                 modifiedDataPolicy,
+                db => new TestDatabase(db),
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)
@@ -98,21 +99,14 @@ namespace TrackDb.LogTest
                 .AddPrimaryKeyProperty(m => m.ActivityName)
                 .AddPrimaryKeyProperty(m => m.TaskName));
 
-            return new TestDatabase(db);
+            return db;
         }
 
         private TestDatabase(Database database)
+            :base(database)
         {
-            Database = database;
         }
         #endregion
-
-        async ValueTask IAsyncDisposable.DisposeAsync()
-        {
-            await ((IAsyncDisposable)Database).DisposeAsync();
-        }
-
-        public Database Database { get; }
 
         public TypedTable<Workflow> WorkflowTable
             => Database.GetTypedTable<Workflow>(WORKFLOW_TABLE);

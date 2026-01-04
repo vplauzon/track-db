@@ -20,7 +20,7 @@ namespace TrackDb.Lib
             await ((IAsyncDisposable)Database).DisposeAsync();
         }
 
-        protected Database Database { get; }
+        protected internal Database Database { get; }
 
         public DatabasePolicy DatabasePolicy => Database.DatabasePolicy;
 
