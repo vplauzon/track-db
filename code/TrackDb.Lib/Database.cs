@@ -31,29 +31,25 @@ namespace TrackDb.Lib
         private volatile int _activeTransactionCount = 0;
 
         #region Constructors
-        public async static Task<DATABASE> CreateAsync<DATABASE>(
+        public async static Task<DATABASE_CONTEXT> CreateAsync<DATABASE_CONTEXT>(
             DatabasePolicy databasePolicies,
+            Func<Database, DATABASE_CONTEXT> contextFactory,
             params IEnumerable<TableSchema> schemas)
-            where DATABASE : Database
+            where DATABASE_CONTEXT : DatabaseContextBase
         {
-            var database = typeof(DATABASE) == typeof(Database)
-                ? (DATABASE?)new Database(databasePolicies, schemas)
-                : (DATABASE?)Activator.CreateInstance(
-                    typeof(DATABASE),
-                    databasePolicies,
-                    schemas);
+            var database = new Database(databasePolicies, schemas);
+            var context = contextFactory(database);
 
-            if (database == null)
+            if (context == null)
             {
-                throw new InvalidOperationException(
-                    $"Database activation of type '{typeof(DATABASE).Name}' failed");
+                throw new NullReferenceException("Database context factory returned null");
             }
             if (databasePolicies.LogPolicy.StorageConfiguration != null)
             {
                 await database.InitLogsAsync(CancellationToken.None);
             }
 
-            return database;
+            return context;
         }
 
         protected Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)

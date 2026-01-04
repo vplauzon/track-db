@@ -8,7 +8,7 @@ using TrackDb.Lib.Policies;
 
 namespace TrackDb.UnitTest.DbTests
 {
-    internal class TestDatabase : IAsyncDisposable
+    internal class TestDatabase : DatabaseContextBase
     {
         #region Entity types
         public record Primitives(int Integer, int? NullableInteger = null);
@@ -34,12 +34,13 @@ namespace TrackDb.UnitTest.DbTests
             Func<DatabasePolicy, DatabasePolicy>? dataPolicyChanger = null)
         {
             var dataPolicy = DatabasePolicy.Create(
-                LifeCyclePolicy:LifeCyclePolicy.Create(MaxWaitPeriod:TimeSpan.FromSeconds(0)));
+                LifeCyclePolicy: LifeCyclePolicy.Create(MaxWaitPeriod: TimeSpan.FromSeconds(0)));
             var modifiedDataPolicy = dataPolicyChanger != null
                 ? dataPolicyChanger(dataPolicy)
                 : dataPolicy;
-            var db = await Database.CreateAsync<Database>(
+            var db = await Database.CreateAsync<TestDatabase>(
                 modifiedDataPolicy,
+                db => new(db),
                 TypedTableSchema<Primitives>.FromConstructor(PRIMITIVES_TABLE)
                 .AddPrimaryKeyProperty(p => p.Integer),
                 TypedTableSchema<MultiIntegers>.FromConstructor(MULTI_INTEGERS_TABLE)
@@ -48,21 +49,14 @@ namespace TrackDb.UnitTest.DbTests
                 .AddPrimaryKeyProperty(m => m.VersionedName.FullName),
                 TypedTableSchema<OtherTypes>.FromConstructor(OTHER_TYPES_TABLE));
 
-            return new TestDatabase(db);
+            return db;
         }
 
         private TestDatabase(Database database)
+            : base(database)
         {
-            Database = database;
         }
         #endregion
-
-        async ValueTask IAsyncDisposable.DisposeAsync()
-        {
-            await ((IAsyncDisposable)Database).DisposeAsync();
-        }
-
-        public Database Database { get; }
 
         public TypedTable<Primitives> PrimitiveTable
             => Database.GetTypedTable<Primitives>(PRIMITIVES_TABLE);

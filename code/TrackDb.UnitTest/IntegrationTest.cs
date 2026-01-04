@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
+using TrackDb.UnitTest.DbTests;
 using Xunit;
 
 namespace TrackDb.UnitTest
@@ -27,6 +29,28 @@ namespace TrackDb.UnitTest
             long Ticks,
             short LegacyId,
             DateTime? Timestamp);
+
+        private class TestDatabaseContext : DatabaseContextBase
+        {
+            private const string ENTITY_TABLE = "Entity";
+
+            private TestDatabaseContext(Database db)
+                : base(db)
+            {
+            }
+
+            public static async Task<TestDatabaseContext> CreateAsync()
+            {
+                var db = await Database.CreateAsync<TestDatabaseContext>(
+                    DatabasePolicy.Create(),
+                    db => new TestDatabaseContext(db),
+                    TypedTableSchema<Entity>.FromConstructor(ENTITY_TABLE));
+
+                return db;
+            }
+
+            public TypedTable<Entity> Entity => Database.GetTypedTable<Entity>(ENTITY_TABLE);
+        }
         #endregion
 
         [Theory]
@@ -40,11 +64,8 @@ namespace TrackDb.UnitTest
                 (doPersistAllUserData ? DataManagementActivity.PersistAllNonMetaData : DataManagementActivity.None)
                 |
                 (doHardDeleteAll ? DataManagementActivity.HardDeleteAll : DataManagementActivity.None);
-            var tableName = "MyTable";
-            var db = await Database.CreateAsync<Database>(
-                DatabasePolicy.Create(),
-                TypedTableSchema<Entity>.FromConstructor(tableName));
-            var table = db.GetTypedTable<Entity>(tableName);
+            var db = await TestDatabaseContext.CreateAsync();
+            var table = db.Entity;
             var entity1 = new Entity("Alice", Status.InProgress, 25, 450000000, 657, DateTime.Now);
             var entity2 = new Entity("Bob", Status.Starting, 13, 320000000, 892, DateTime.Now);
             //  Added but deleted
@@ -54,14 +75,14 @@ namespace TrackDb.UnitTest
             table.AppendRecords([entity1, entity3]);
             table.AppendRecord(entity2);
 
-            await db.ForceDataManagementAsync(dataManagementActivity);
+            await db.Database.ForceDataManagementAsync(dataManagementActivity);
 
             table.Query()
                 .Where(pf => pf.Equal(e => e.Name, entity3.Name))
                 .Delete();
             table.AppendRecord(entity4);
 
-            await db.ForceDataManagementAsync(dataManagementActivity);
+            await db.Database.ForceDataManagementAsync(dataManagementActivity);
 
             var result1 = table.Query()
                 .Where(pf => pf.GreaterThan(e => e.Step, 20))
