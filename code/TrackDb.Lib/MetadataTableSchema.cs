@@ -74,7 +74,13 @@ namespace TrackDb.Lib
             TableSchema parentSchema,
             string tableName,
             IEnumerable<ColumnSchemaProperties> columnProperties)
-            : base(tableName, columnProperties, ImmutableArray<int>.Empty, ImmutableArray<int>.Empty, false)
+            : base(
+                  tableName,
+                  columnProperties,
+                  ImmutableArray<int>.Empty,
+                  ImmutableArray<int>.Empty,
+                  ImmutableArray<TableTriggerAction>.Empty,
+                  false)
         {
             ParentSchema = parentSchema;
         }
