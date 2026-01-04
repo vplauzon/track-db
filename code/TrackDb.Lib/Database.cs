@@ -26,6 +26,7 @@ namespace TrackDb.Lib
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
+        private DatabaseContextBase? _databaseContext = null;
         private LogTransactionWriter? _logTransactionWriter;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
@@ -48,11 +49,14 @@ namespace TrackDb.Lib
             {
                 await database.InitLogsAsync(CancellationToken.None);
             }
+            database._databaseContext = context;
 
             return context;
         }
 
-        protected Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
+        private Database(
+            DatabasePolicy databasePolicies,
+            params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))
