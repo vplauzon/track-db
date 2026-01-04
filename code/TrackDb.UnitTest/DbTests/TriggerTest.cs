@@ -41,6 +41,8 @@ namespace TrackDb.UnitTest.DbTests
                     .AddTrigger((genDb, tx) =>
                     {
                         var db = (TestTriggerDatabaseContext)genDb;
+
+                        db.TriggerCount.AppendRecord(new TriggerCount(1));
                     }),
                     TypedTableSchema<SubEntity>.FromConstructor(SUB_ENTITY_TABLE),
                     TypedTableSchema<TriggerCount>.FromConstructor(TRIGGER_COUNT_TABLE));
@@ -69,6 +71,34 @@ namespace TrackDb.UnitTest.DbTests
                 db.SubEntity.AppendRecord(record);
 
                 Assert.Equal(0, db.TriggerCount.Query().Count());
+            }
+        }
+
+        [Fact]
+        public async Task OneChange()
+        {
+            await using (var db = await TestTriggerDatabaseContext.CreateAsync())
+            {
+                var record = new MainEntity("Bob", "Employee", 42);
+
+                db.MainEntity.AppendRecord(record);
+
+                Assert.Equal(1, db.TriggerCount.Query().Count());
+            }
+        }
+
+        [Fact]
+        public async Task TwoChanges()
+        {
+            await using (var db = await TestTriggerDatabaseContext.CreateAsync())
+            {
+                var record1 = new MainEntity("Alice", "Employee", 74);
+                var record2 = new MainEntity("Bob", "Employee", 42);
+
+                db.MainEntity.AppendRecord(record1);
+                db.MainEntity.AppendRecord(record2);
+
+                Assert.Equal(1, db.TriggerCount.Query().Count());
             }
         }
     }
