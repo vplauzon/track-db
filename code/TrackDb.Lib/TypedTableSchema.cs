@@ -364,10 +364,16 @@ namespace TrackDb.Lib
                 _propertyPathToColumnIndexesMap);
         }
 
-        public TypedTableSchema<T> AddTrigger(
-            Action<DatabaseContextBase, TransactionContext> triggerAction)
+        public TypedTableSchema<T> AddTrigger(TableTriggerAction triggerAction)
         {
-            throw new NotImplementedException();
+            return new TypedTableSchema<T>(
+                TableName,
+                PrimaryKeyColumnIndexes,
+                PartitionKeyColumnIndexes,
+                TriggerActions.Append(triggerAction).ToImmutableArray(),
+                _mainConstructorMapping,
+                _constructorMappingByType,
+                _propertyPathToColumnIndexesMap);
         }
 
         internal ReadOnlySpan<object?> FromObjectToColumns(T record)
