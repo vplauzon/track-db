@@ -489,7 +489,7 @@ namespace TrackDb.Lib
             var blockId = 0;
 
             foreach (var block in
-                transactionState.ListBlocks(_table.Schema.TableName, _committedOnly))
+                transactionState.ListBlocks(_table.Schema.TableName, _inTxOnly, _committedOnly))
             {
                 yield return new IdentifiedBlock(blockId--, block);
             }
