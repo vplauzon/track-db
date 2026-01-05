@@ -13,6 +13,8 @@ namespace TrackDb.UnitTest.DbTests
         #region Inner types
         public record MainEntity(string Name, string Category, int Value);
 
+        public record MainEntityAccumulation(string Category, int SumValue);
+
         /// <summary>
         /// This is there just so we can make changes without main-entity triggers being invoked.
         /// </summary>
@@ -24,6 +26,7 @@ namespace TrackDb.UnitTest.DbTests
         private class TestTriggerDatabaseContext : DatabaseContextBase
         {
             private const string MAIN_ENTITY_TABLE = "MainEntity";
+            private const string MAIN_ENTITY_ACCUMULATION_TABLE = "MainEntityAccumulation";
             private const string SUB_ENTITY_TABLE = "SubEntity";
             private const string TRIGGER_COUNT_TABLE = "TriggerCount";
 
@@ -43,7 +46,18 @@ namespace TrackDb.UnitTest.DbTests
                         var db = (TestTriggerDatabaseContext)genDb;
 
                         db.TriggerCount.AppendRecord(new TriggerCount(1));
+                    })
+                    .AddTrigger((genDb, tx) =>
+                    {
+                        var db = (TestTriggerDatabaseContext)genDb;
+                        var accumulations = db.MainEntity.Query(tx)
+                        .WithinTransactionOnly()
+                        .GroupBy(m => m.Category)
+                        .Select(g => new MainEntityAccumulation(g.Key, g.Sum(m => m.Value)));
+
+                        db.MainEntityAccumulation.AppendRecords(accumulations, tx);
                     }),
+                    TypedTableSchema<MainEntityAccumulation>.FromConstructor(MAIN_ENTITY_ACCUMULATION_TABLE),
                     TypedTableSchema<SubEntity>.FromConstructor(SUB_ENTITY_TABLE),
                     TypedTableSchema<TriggerCount>.FromConstructor(TRIGGER_COUNT_TABLE));
 
@@ -55,6 +69,9 @@ namespace TrackDb.UnitTest.DbTests
 
             public TypedTable<SubEntity> SubEntity =>
                 Database.GetTypedTable<SubEntity>(SUB_ENTITY_TABLE);
+
+            public TypedTable<MainEntityAccumulation> MainEntityAccumulation =>
+                Database.GetTypedTable<MainEntityAccumulation>(MAIN_ENTITY_ACCUMULATION_TABLE);
 
             public TypedTable<TriggerCount> TriggerCount =>
                 Database.GetTypedTable<TriggerCount>(TRIGGER_COUNT_TABLE);
@@ -113,6 +130,34 @@ namespace TrackDb.UnitTest.DbTests
                 db.MainEntity.Query().Delete();
 
                 Assert.Equal(2, db.TriggerCount.Query().Count());
+            }
+        }
+
+        [Fact]
+        public async Task PureAccumulation()
+        {
+            await using (var db = await TestTriggerDatabaseContext.CreateAsync())
+            {
+                var record1 = new MainEntity("Alice", "Employee", 74);
+                var record2 = new MainEntity("Bob", "Employee", 42);
+                var record3 = new MainEntity("Carl", "Employee", 10);
+                var record4 = new MainEntity("Dominic", "Employee", 16);
+
+                db.MainEntity.AppendRecord(record1);
+                using (var tx = db.CreateTransaction())
+                {
+                    db.MainEntity.AppendRecord(record2, tx);
+                    db.MainEntity.AppendRecord(record3, tx);
+                    //  Done outside the transaction, in parallel
+                    db.MainEntity.AppendRecord(record4);
+
+                    tx.Complete();
+                }
+
+                Assert.Equal(3, db.MainEntityAccumulation.Query().Count());
+                Assert.Equal(
+                    record1.Value + record2.Value + record3.Value + record4.Value,
+                    db.MainEntityAccumulation.Query().Sum(a => a.SumValue));
             }
         }
     }

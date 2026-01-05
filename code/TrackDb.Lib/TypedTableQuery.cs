@@ -186,7 +186,7 @@ namespace TrackDb.Lib
                 queryTag);
         }
 
-        internal TypedTableQuery<T> WithInTransactionOnly()
+        internal TypedTableQuery<T> WithinTransactionOnly()
         {
             return new TypedTableQuery<T>(
                 _table,
@@ -238,9 +238,17 @@ namespace TrackDb.Lib
                     .WithSortColumns(_sortColumns)
                     .WithTake(_takeCount);
 
-                return _queryTag == null
-                    ? tableQuery
-                    : tableQuery.WithQueryTag(_queryTag);
+                if (_inTxOnly)
+                {
+                    tableQuery = tableQuery
+                        .WithinTransactionOnly();
+                }
+                if (_queryTag != null)
+                {
+                    tableQuery = tableQuery.WithQueryTag(_queryTag);
+                }
+
+                return tableQuery;
             }
         }
 

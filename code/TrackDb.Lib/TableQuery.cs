@@ -157,7 +157,7 @@ namespace TrackDb.Lib
                 _queryTag);
         }
 
-        public TableQuery WithInTransactionOnly()
+        public TableQuery WithinTransactionOnly()
         {
             return new TableQuery(
                 _table,
