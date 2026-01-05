@@ -41,12 +41,14 @@ namespace TrackDb.UnitTest.DbTests
                     DatabasePolicy.Create(),
                     db => new TestTriggerDatabaseContext(db),
                     TypedTableSchema<MainEntity>.FromConstructor(MAIN_ENTITY_TABLE)
+                    //  Just count
                     .AddTrigger((genDb, tx) =>
                     {
                         var db = (TestTriggerDatabaseContext)genDb;
 
                         db.TriggerCount.AppendRecord(new TriggerCount(1));
                     })
+                    //  Accumulation
                     .AddTrigger((genDb, tx) =>
                     {
                         var db = (TestTriggerDatabaseContext)genDb;
@@ -54,8 +56,15 @@ namespace TrackDb.UnitTest.DbTests
                         .WithinTransactionOnly()
                         .GroupBy(m => m.Category)
                         .Select(g => new MainEntityAccumulation(g.Key, g.Sum(m => m.Value)));
+                        var decumulations = db.MainEntity.TombstonedWithinTransaction(tx)
+                        .GroupBy(m => m.Category)
+                        .Select(g => new MainEntityAccumulation(g.Key, -g.Sum(m => m.Value)));
+                        var integratedAccumulations = accumulations
+                        .Concat(decumulations)
+                        .GroupBy(m => m.Category)
+                        .Select(g => new MainEntityAccumulation(g.Key, g.Sum(m => m.SumValue)));
 
-                        db.MainEntityAccumulation.AppendRecords(accumulations, tx);
+                        db.MainEntityAccumulation.AppendRecords(integratedAccumulations, tx);
                     }),
                     TypedTableSchema<MainEntityAccumulation>.FromConstructor(MAIN_ENTITY_ACCUMULATION_TABLE),
                     TypedTableSchema<SubEntity>.FromConstructor(SUB_ENTITY_TABLE),

@@ -7,177 +7,197 @@ using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
-	public class Table
-	{
-		private long _recordId = 0;
+    public class Table
+    {
+        private long _recordId = 0;
 
-		internal Table(Database database, TableSchema schema)
-		{
-			Database = database;
-			Schema = schema;
-		}
+        internal Table(Database database, TableSchema schema)
+        {
+            Database = database;
+            Schema = schema;
+        }
 
-		public Database Database { get; }
+        public Database Database { get; }
 
-		public TableSchema Schema { get; }
+        public TableSchema Schema { get; }
 
-		public TableQuery Query(TransactionContext? tx = null)
-		{
-			return new TableQuery(this, tx, true);
-		}
+        public TableQuery Query(TransactionContext? tx = null)
+        {
+            return new TableQuery(this, tx, true);
+        }
 
-		internal void InitRecordId(long maxRecordId)
-		{
-			_recordId = maxRecordId;
-		}
+        public IEnumerable<ReadOnlyMemory<object?>> TombstonedWithinTransaction(
+            TransactionContext tx)
+        {
+            var tombstoneRecordIds = Database.TombstoneTable.Query(tx)
+                .WithinTransactionOnly()
+                .Where(pf => pf.Equal(t => t.TableName, Schema.TableName))
+                .TableQuery
+                .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
+                    t => t.DeletedRecordId))
+                .Select(r => r.Span[0])
+                .ToImmutableArray();
+            var tombstonedRecords = Query(tx)
+                .WithIgnoreDeleted()
+                .WithPredicate(new InPredicate(
+                    Schema.RecordIdColumnIndex,
+                    tombstoneRecordIds));
 
-		#region Record IDs
-		internal long NewRecordId()
-		{
-			return Interlocked.Increment(ref _recordId);
-		}
+            return tombstonedRecords;
+        }
 
-		internal IImmutableList<long> NewRecordIds(int recordCount)
-		{
-			var nextId = Interlocked.Add(ref _recordId, recordCount);
+        internal void InitRecordId(long maxRecordId)
+        {
+            _recordId = maxRecordId;
+        }
 
-			return Enumerable.Range(0, recordCount)
-				.Select(i => i + nextId - recordCount)
-				.ToImmutableArray();
-		}
-		#endregion
+        #region Record IDs
+        internal long NewRecordId()
+        {
+            return Interlocked.Increment(ref _recordId);
+        }
 
-		#region Append
-		public void AppendRecord(
-			ReadOnlySpan<object?> record,
-			TransactionContext? transactionContext = null)
-		{
-			if (record.Length != Schema.Columns.Count)
-			{
-				throw new ArgumentOutOfRangeException(
-					$"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
-					nameof(record));
-			}
-			//  Database.ExecuteWithinTransactionContext doesn't work with ReadOnlySpan<object?>
-			if (transactionContext != null)
-			{
-				AppendRecordInternal(record, transactionContext);
-			}
-			else
-			{
-				using (transactionContext = Database.CreateTransaction())
-				{
-					AppendRecordInternal(record, transactionContext);
+        internal IImmutableList<long> NewRecordIds(int recordCount)
+        {
+            var nextId = Interlocked.Add(ref _recordId, recordCount);
 
-					transactionContext.Complete();
-				}
-			}
-		}
+            return Enumerable.Range(0, recordCount)
+                .Select(i => i + nextId - recordCount)
+                .ToImmutableArray();
+        }
+        #endregion
 
-		public void AppendRecords(
-			IEnumerable<ReadOnlySpan<object?>> records,
-			TransactionContext? transactionContext = null)
-		{
-			Database.ExecuteWithinTransactionContext(
-				transactionContext,
-				tc =>
-				{
-					foreach (var record in records)
-					{
-						AppendRecord(record, tc);
-					}
-				});
-		}
+        #region Append
+        public void AppendRecord(
+            ReadOnlySpan<object?> record,
+            TransactionContext? transactionContext = null)
+        {
+            if (record.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
+                    nameof(record));
+            }
+            //  Database.ExecuteWithinTransactionContext doesn't work with ReadOnlySpan<object?>
+            if (transactionContext != null)
+            {
+                AppendRecordInternal(record, transactionContext);
+            }
+            else
+            {
+                using (transactionContext = Database.CreateTransaction())
+                {
+                    AppendRecordInternal(record, transactionContext);
 
-		private void AppendRecordInternal(
-			ReadOnlySpan<object?> record,
-			TransactionContext transactionContext)
-		{
-			transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
-				DateTime.Now,
-				NewRecordId(),
-				record,
-				Schema);
-		}
-		#endregion
+                    transactionContext.Complete();
+                }
+            }
+        }
 
-		#region Update
-		public int UpdateRecord(
-			ReadOnlySpan<object?> oldVersionRecord,
-			ReadOnlySpan<object?> newVersionRecord,
-			TransactionContext? tx = null)
-		{
-			if (oldVersionRecord.Length != Schema.Columns.Count)
-			{
-				throw new ArgumentOutOfRangeException(
-					$"Expected '{Schema.Columns.Count}' but has '{oldVersionRecord.Length}'",
-					nameof(oldVersionRecord));
-			}
-			if (newVersionRecord.Length != Schema.Columns.Count)
-			{
-				throw new ArgumentOutOfRangeException(
-					$"Expected '{Schema.Columns.Count}' but has '{newVersionRecord.Length}'",
-					nameof(newVersionRecord));
-			}
-			if (tx != null)
-			{
-				return UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
-			}
-			else
-			{
-				using (tx = Database.CreateTransaction())
-				{
-					var deletedCount =
-						UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
+        public void AppendRecords(
+            IEnumerable<ReadOnlySpan<object?>> records,
+            TransactionContext? transactionContext = null)
+        {
+            Database.ExecuteWithinTransactionContext(
+                transactionContext,
+                tc =>
+                {
+                    foreach (var record in records)
+                    {
+                        AppendRecord(record, tc);
+                    }
+                });
+        }
 
-					tx.Complete();
+        private void AppendRecordInternal(
+            ReadOnlySpan<object?> record,
+            TransactionContext transactionContext)
+        {
+            transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
+                DateTime.Now,
+                NewRecordId(),
+                record,
+                Schema);
+        }
+        #endregion
 
-					return deletedCount;
-				}
-			}
-		}
+        #region Update
+        public int UpdateRecord(
+            ReadOnlySpan<object?> oldVersionRecord,
+            ReadOnlySpan<object?> newVersionRecord,
+            TransactionContext? tx = null)
+        {
+            if (oldVersionRecord.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{oldVersionRecord.Length}'",
+                    nameof(oldVersionRecord));
+            }
+            if (newVersionRecord.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{newVersionRecord.Length}'",
+                    nameof(newVersionRecord));
+            }
+            if (tx != null)
+            {
+                return UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
+            }
+            else
+            {
+                using (tx = Database.CreateTransaction())
+                {
+                    var deletedCount =
+                        UpdateRecordInternal(oldVersionRecord, newVersionRecord, tx);
 
-		private int UpdateRecordInternal(
-			ReadOnlySpan<object?> oldVersionRecord,
-			ReadOnlySpan<object?> newVersionRecord,
-			TransactionContext? tx)
-		{
-			var deletedRecordCount = Query(tx)
-				.WithPredicate(CreatePrimaryKeyEqualPredicate(oldVersionRecord))
-				.Delete();
+                    tx.Complete();
 
-			AppendRecord(newVersionRecord, tx);
+                    return deletedCount;
+                }
+            }
+        }
 
-			return deletedRecordCount;
-		}
+        private int UpdateRecordInternal(
+            ReadOnlySpan<object?> oldVersionRecord,
+            ReadOnlySpan<object?> newVersionRecord,
+            TransactionContext? tx)
+        {
+            var deletedRecordCount = Query(tx)
+                .WithPredicate(CreatePrimaryKeyEqualPredicate(oldVersionRecord))
+                .Delete();
 
-		private QueryPredicate CreatePrimaryKeyEqualPredicate(
-			ReadOnlySpan<object?> oldVersionRecord)
-		{
-			QueryPredicate? predicate = null;
+            AppendRecord(newVersionRecord, tx);
 
-			foreach (var columnIndex in Schema.PrimaryKeyColumnIndexes)
-			{
-				var value = oldVersionRecord[columnIndex];
-				var newPredicate = new BinaryOperatorPredicate(
-					columnIndex,
-					value,
-					BinaryOperator.Equal);
+            return deletedRecordCount;
+        }
 
-				predicate = predicate == null
-					? newPredicate
-					: new ConjunctionPredicate(predicate, newPredicate);
-			}
+        private QueryPredicate CreatePrimaryKeyEqualPredicate(
+            ReadOnlySpan<object?> oldVersionRecord)
+        {
+            QueryPredicate? predicate = null;
 
-			if (predicate == null)
-			{
-				throw new InvalidOperationException(
-					$"No primary defined on table '{Schema.TableName}':  " +
-					$"can't participate in an update");
-			}
+            foreach (var columnIndex in Schema.PrimaryKeyColumnIndexes)
+            {
+                var value = oldVersionRecord[columnIndex];
+                var newPredicate = new BinaryOperatorPredicate(
+                    columnIndex,
+                    value,
+                    BinaryOperator.Equal);
 
-			return predicate!;
-		}
-		#endregion
-	}
+                predicate = predicate == null
+                    ? newPredicate
+                    : new ConjunctionPredicate(predicate, newPredicate);
+            }
+
+            if (predicate == null)
+            {
+                throw new InvalidOperationException(
+                    $"No primary defined on table '{Schema.TableName}':  " +
+                    $"can't participate in an update");
+            }
+
+            return predicate!;
+        }
+        #endregion
+    }
 }
