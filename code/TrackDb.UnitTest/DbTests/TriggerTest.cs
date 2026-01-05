@@ -101,5 +101,19 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(2, db.TriggerCount.Query().Count());
             }
         }
+
+        [Fact]
+        public async Task OneChangeOneDelete()
+        {
+            await using (var db = await TestTriggerDatabaseContext.CreateAsync())
+            {
+                var record = new MainEntity("Alice", "Employee", 74);
+
+                db.MainEntity.AppendRecord(record);
+                db.MainEntity.Query().Delete();
+
+                Assert.Equal(2, db.TriggerCount.Query().Count());
+            }
+        }
     }
 }
