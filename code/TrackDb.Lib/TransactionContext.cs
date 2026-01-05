@@ -21,7 +21,6 @@ namespace TrackDb.Lib
         #endregion
 
         private readonly Database _database;
-        private readonly bool _doLog;
         private TransactionStatus _status = TransactionStatus.Open;
 
         #region Constructors
@@ -38,7 +37,7 @@ namespace TrackDb.Lib
         {
             _database = database;
             TransactionState = new TransactionState(inMemoryDatabase, transactionLog);
-            _doLog = doLog;
+            DoLog = doLog;
         }
         #endregion
 
@@ -50,6 +49,8 @@ namespace TrackDb.Lib
             }
         }
 
+        internal bool DoLog { get; }
+
         internal TransactionState TransactionState { get; }
 
         public void Complete()
@@ -57,7 +58,7 @@ namespace TrackDb.Lib
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                _database.CompleteTransaction(TransactionState, _doLog);
+                _database.CompleteTransaction(this);
             }
             else
             {
@@ -71,7 +72,7 @@ namespace TrackDb.Lib
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                await _database.CompleteTransactionAsync(TransactionState, _doLog);
+                await _database.CompleteTransactionAsync(this);
             }
             else
             {
