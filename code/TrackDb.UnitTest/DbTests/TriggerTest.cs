@@ -98,7 +98,7 @@ namespace TrackDb.UnitTest.DbTests
                 db.MainEntity.AppendRecord(record1);
                 db.MainEntity.AppendRecord(record2);
 
-                Assert.Equal(1, db.TriggerCount.Query().Count());
+                Assert.Equal(2, db.TriggerCount.Query().Count());
             }
         }
     }
