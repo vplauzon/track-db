@@ -13,6 +13,7 @@ namespace TrackDb.Lib
     {
         private readonly TypedTable<T> _table;
         private readonly bool _canDelete;
+        private readonly bool _inTxOnly;
         private readonly bool _committedOnly;
         private readonly TransactionContext? _transactionContext;
         private readonly IImmutableList<SortColumn> _sortColumns;
@@ -28,6 +29,7 @@ namespace TrackDb.Lib
                   table,
                   canDelete,
                   false,
+                  false,
                   transactionContext,
                   AllInPredicate.Instance,
                   ImmutableArray<SortColumn>.Empty,
@@ -39,6 +41,7 @@ namespace TrackDb.Lib
         internal TypedTableQuery(
             TypedTable<T> table,
             bool canDelete,
+            bool inTxOnly,
             bool committedOnly,
             TransactionContext? transactionContext,
             QueryPredicate predicate,
@@ -48,6 +51,7 @@ namespace TrackDb.Lib
         {
             _table = table;
             _canDelete = canDelete;
+            _inTxOnly = inTxOnly;
             _committedOnly = committedOnly;
             _transactionContext = transactionContext;
             Predicate = predicate;
@@ -76,6 +80,7 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _inTxOnly,
                 _committedOnly,
                 _transactionContext,
                 newPredicate,
@@ -94,6 +99,7 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _inTxOnly,
                 _committedOnly,
                 _transactionContext,
                 Predicate,
@@ -149,6 +155,7 @@ namespace TrackDb.Lib
                 return new TypedTableQuery<T>(
                     _table,
                     _canDelete,
+                    _inTxOnly,
                     _committedOnly,
                     _transactionContext,
                     Predicate,
@@ -170,6 +177,7 @@ namespace TrackDb.Lib
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _inTxOnly,
                 _committedOnly,
                 _transactionContext,
                 Predicate,
@@ -178,11 +186,26 @@ namespace TrackDb.Lib
                 queryTag);
         }
 
+        internal TypedTableQuery<T> WithInTransactionOnly()
+        {
+            return new TypedTableQuery<T>(
+                _table,
+                _canDelete,
+                true,
+                _committedOnly,
+                _transactionContext,
+                Predicate,
+                _sortColumns,
+                _takeCount,
+                _queryTag);
+        }
+
         internal TypedTableQuery<T> WithCommittedOnly()
         {
             return new TypedTableQuery<T>(
                 _table,
                 _canDelete,
+                _inTxOnly,
                 true,
                 _transactionContext,
                 Predicate,
