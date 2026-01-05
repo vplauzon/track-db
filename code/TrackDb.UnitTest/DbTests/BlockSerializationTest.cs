@@ -17,7 +17,8 @@ namespace TrackDb.UnitTest.DbTests
                 "Thingy",
                 [new ColumnSchema("Name", typeof(string)), new ColumnSchema("Id", typeof(int))],
                 Array.Empty<int>(),
-                Array.Empty<int>());
+                Array.Empty<int>(),
+                Array.Empty<TableTriggerAction>());
             var blockBuilder = new BlockBuilder(schema);
             var buffer = new byte[5000];
 

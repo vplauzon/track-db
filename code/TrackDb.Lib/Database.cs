@@ -12,6 +12,7 @@ using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Logging;
 using TrackDb.Lib.Policies;
+using TrackDb.Lib.Predicate;
 using TrackDb.Lib.Statistics;
 using TrackDb.Lib.SystemData;
 
@@ -26,6 +27,8 @@ namespace TrackDb.Lib
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
+        private readonly IImmutableList<TableSchema> _schemaWithTriggers;
+        private DatabaseContextBase? _databaseContext;
         private LogTransactionWriter? _logTransactionWriter;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
@@ -48,11 +51,14 @@ namespace TrackDb.Lib
             {
                 await database.InitLogsAsync(CancellationToken.None);
             }
+            database._databaseContext = context;
 
             return context;
         }
 
-        protected Database(DatabasePolicy databasePolicies, params IEnumerable<TableSchema> schemas)
+        private Database(
+            DatabasePolicy databasePolicies,
+            params IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))
@@ -106,6 +112,10 @@ namespace TrackDb.Lib
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
             _dataLifeCycleManager = new DataLifeCycleManager(this);
+            _schemaWithTriggers = userTables
+                .Select(t => t.Schema)
+                .Where(s => s.TriggerActions.Count > 0)
+                .ToImmutableArray();
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
@@ -581,38 +591,40 @@ namespace TrackDb.Lib
             }
         }
 
-        internal void CompleteTransaction(TransactionState transactionState, bool doLog)
+        internal void CompleteTransaction(TransactionContext tx)
         {
-            if (!transactionState.UncommittedTransactionLog.IsEmpty)
+            RunTriggers(tx);
+            DecrementActiveTransactionCount();
+            if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
-                var checkpointIndex = CompleteTransactionState(transactionState, doLog);
+                var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
 
-                if (doLog && _logTransactionWriter != null)
+                _dataLifeCycleManager.TriggerDataManagement();
+                if (tx.DoLog && _logTransactionWriter != null)
                 {
                     _logTransactionWriter.QueueContent(
                         checkpointIndex,
-                        transactionState.UncommittedTransactionLog);
+                        tx.TransactionState.UncommittedTransactionLog);
                 }
-                _dataLifeCycleManager.TriggerDataManagement();
             }
-            DecrementActiveTransactionCount();
         }
 
-        internal async Task CompleteTransactionAsync(TransactionState transactionState, bool doLog)
+        internal async Task CompleteTransactionAsync(TransactionContext tx)
         {
-            if (!transactionState.UncommittedTransactionLog.IsEmpty)
+            RunTriggers(tx);
+            DecrementActiveTransactionCount();
+            if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
-                var checkpointIndex = CompleteTransactionState(transactionState, doLog);
+                var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
 
-                if (doLog && _logTransactionWriter != null)
+                _dataLifeCycleManager.TriggerDataManagement();
+                if (tx.DoLog && _logTransactionWriter != null)
                 {
                     await _logTransactionWriter.CommitContentAsync(
                         checkpointIndex,
-                        transactionState.UncommittedTransactionLog);
+                        tx.TransactionState.UncommittedTransactionLog);
                 }
-                _dataLifeCycleManager.TriggerDataManagement();
             }
-            DecrementActiveTransactionCount();
         }
 
         private long CompleteTransactionState(TransactionState transactionState, bool doLog)
@@ -697,6 +709,64 @@ namespace TrackDb.Lib
             DataManagementActivity dataManagementActivity = DataManagementActivity.None)
         {
             await _dataLifeCycleManager.ForceDataManagementAsync(dataManagementActivity);
+        }
+        #endregion
+
+        #region Triggers
+        private void RunTriggers(TransactionContext tx)
+        {
+            bool IsTriggerRequired(
+                string tableName,
+                IDictionary<string, TransactionTableLog> transactionTableLogMap,
+                IBlock? tombstoneBlock,
+                QueryPredicateFactory<TombstoneRecord>? qpf)
+            {
+                if (transactionTableLogMap.ContainsKey(tableName))
+                {
+                    return true;
+                }
+                else if (tombstoneBlock != null && qpf != null)
+                {
+                    var filteredOuput = tombstoneBlock.Filter(
+                        qpf.Equal(t => t.TableName, tableName).QueryPredicate,
+                        false);
+
+                    return filteredOuput.RowIndexes.Any();
+                }
+                else
+                {
+                    return false;
+                }
+            }
+
+            if (_schemaWithTriggers.Count > 0)
+            {
+                var transactionTableLogMap =
+                    tx.TransactionState.UncommittedTransactionLog.TransactionTableLogMap;
+                var hasTombstoneLogs = transactionTableLogMap.TryGetValue(
+                    TombstoneTable.Schema.TableName,
+                    out var tombstoneLog);
+                var tombstoneBlock = tombstoneLog?.NewDataBlock;
+                var qpf = tombstoneBlock != null
+                    ? new QueryPredicateFactory<TombstoneRecord>(
+                        (TypedTableSchema<TombstoneRecord>)((IBlock)tombstoneBlock).TableSchema)
+                    : null;
+
+                foreach (var schema in _schemaWithTriggers)
+                {
+                    if (IsTriggerRequired(
+                        schema.TableName,
+                        transactionTableLogMap,
+                        tombstoneBlock,
+                        qpf))
+                    {
+                        foreach (var trigger in schema.TriggerActions)
+                        {
+                            trigger(_databaseContext!, tx);
+                        }
+                    }
+                }
+            }
         }
         #endregion
 

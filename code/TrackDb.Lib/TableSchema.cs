@@ -21,12 +21,14 @@ namespace TrackDb.Lib
             string tableName,
             IEnumerable<ColumnSchema> columns,
             IEnumerable<int> primaryKeyColumnIndexes,
-            IEnumerable<int> partitionKeyColumnIndexes)
+            IEnumerable<int> partitionKeyColumnIndexes,
+            IEnumerable<TableTriggerAction> triggerActions)
             : this(
                   tableName,
                   columns.Select(c => new ColumnSchemaProperties(c, ColumnSchemaStat.Data)),
                   primaryKeyColumnIndexes.ToImmutableArray(),
                   partitionKeyColumnIndexes.ToImmutableArray(),
+                  triggerActions,
                   true)
         {
         }
@@ -36,6 +38,7 @@ namespace TrackDb.Lib
             IEnumerable<ColumnSchemaProperties> columnProperties,
             IEnumerable<int> primaryKeyColumnIndexes,
             IEnumerable<int> partitionKeyColumnIndexes,
+            IEnumerable<TableTriggerAction> triggerActions,
             bool areExtraColumnsIndexed)
         {
             //  Validate column types
@@ -89,6 +92,7 @@ namespace TrackDb.Lib
                 .ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();
+            TriggerActions = triggerActions.ToImmutableArray();
             _columnNameToColumnIndexMap = Columns
                 .Index()
                 .ToImmutableDictionary(o => o.Item.ColumnName, o => o.Index);
@@ -118,6 +122,8 @@ namespace TrackDb.Lib
         public IImmutableList<int> PrimaryKeyColumnIndexes { get; }
 
         public IImmutableList<int> PartitionKeyColumnIndexes { get; }
+        
+        public IImmutableList<TableTriggerAction> TriggerActions { get; }
 
         public int FindColumnIndex(string columnName)
         {

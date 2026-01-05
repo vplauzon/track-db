@@ -53,9 +53,18 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query
-        public new TypedTableQuery<T> Query(TransactionContext? transactionContext = null)
+        public new TypedTableQuery<T> Query(TransactionContext? tx = null)
         {
-            return new TypedTableQuery<T>(this, true, transactionContext);
+            return new TypedTableQuery<T>(this, true, tx);
+        }
+
+        public new IEnumerable<T> TombstonedWithinTransaction(TransactionContext tx)
+        {
+            var records = base.TombstonedWithinTransaction(tx);
+            var typedRecords = records
+                .Select(r => Schema.FromColumnsToObject(r.Span));
+
+            return typedRecords;
         }
         #endregion
 

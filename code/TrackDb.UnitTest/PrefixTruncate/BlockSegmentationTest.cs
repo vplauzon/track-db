@@ -15,9 +15,10 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
         private readonly TableSchema _schema = new(
             "MyTable",
-            new[] { new ColumnSchema("MyColumn", typeof(int)) },
+            [new ColumnSchema("MyColumn", typeof(int))],
             Array.Empty<int>(),
-            Array.Empty<int>());
+            Array.Empty<int>(),
+            Array.Empty<TableTriggerAction>());
 
         [Fact]
         public void OneRowData()

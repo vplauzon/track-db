@@ -285,6 +285,7 @@ namespace TrackDb.Lib
                 tableName,
                 ImmutableArray<int>.Empty,
                 ImmutableArray<int>.Empty,
+                ImmutableArray<TableTriggerAction>.Empty,
                 constructorMapping,
                 constructorMapping.GetIndexedMappings(),
                 constructorMapping.GetPropertyPathToColumnIndexesMap());
@@ -294,6 +295,7 @@ namespace TrackDb.Lib
             string tableName,
             IImmutableList<int> primaryKeyColumnIndexes,
             IImmutableList<int> partitionKeyColumnIndexes,
+            IImmutableList<TableTriggerAction> triggerActions,
             ConstructorMapping mainConstructorMapping,
             IImmutableDictionary<Type, ConstructorMapping> constructorMappingByType,
             IImmutableDictionary<string, IImmutableList<int>> propertyPathToColumnIndexesMap)
@@ -301,7 +303,8 @@ namespace TrackDb.Lib
                   tableName,
                   mainConstructorMapping.ColumnSchemas,
                   primaryKeyColumnIndexes,
-                  partitionKeyColumnIndexes)
+                  partitionKeyColumnIndexes,
+                  triggerActions)
         {
             _mainConstructorMapping = mainConstructorMapping;
             _constructorMappingByType = constructorMappingByType;
@@ -328,6 +331,7 @@ namespace TrackDb.Lib
                 TableName,
                 newPrimaryKeyColumnIndexes,
                 PartitionKeyColumnIndexes,
+                TriggerActions,
                 _mainConstructorMapping,
                 _constructorMappingByType,
                 _propertyPathToColumnIndexesMap);
@@ -354,6 +358,19 @@ namespace TrackDb.Lib
                 TableName,
                 PrimaryKeyColumnIndexes,
                 newPartitionKeyColumnIndexes,
+                TriggerActions,
+                _mainConstructorMapping,
+                _constructorMappingByType,
+                _propertyPathToColumnIndexesMap);
+        }
+
+        public TypedTableSchema<T> AddTrigger(TableTriggerAction triggerAction)
+        {
+            return new TypedTableSchema<T>(
+                TableName,
+                PrimaryKeyColumnIndexes,
+                PartitionKeyColumnIndexes,
+                TriggerActions.Append(triggerAction).ToImmutableArray(),
                 _mainConstructorMapping,
                 _constructorMappingByType,
                 _propertyPathToColumnIndexesMap);
