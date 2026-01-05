@@ -160,5 +160,37 @@ namespace TrackDb.UnitTest.DbTests
                     db.MainEntityAccumulation.Query().Sum(a => a.SumValue));
             }
         }
+
+        [Fact]
+        public async Task AccumulationWithDeletion()
+        {
+            await using (var db = await TestTriggerDatabaseContext.CreateAsync())
+            {
+                var record1 = new MainEntity("Alice", "Employee", 74);
+                var record2 = new MainEntity("Bob", "Employee", 42);
+                var record3 = new MainEntity("Carl", "Employee", 10);
+                var record4 = new MainEntity("Dominic", "Employee", 16);
+
+                db.MainEntity.AppendRecord(record1);
+                using (var tx = db.CreateTransaction())
+                {
+                    db.MainEntity.AppendRecord(record2, tx);
+                    db.MainEntity.AppendRecord(record3, tx);
+                    //  Done outside the transaction, in parallel
+                    db.MainEntity.AppendRecord(record4);
+
+                    tx.Complete();
+                }
+                //  Delete record3
+                db.MainEntity.Query()
+                    .Where(pf => pf.Equal(r => r.Value, record3.Value))
+                    .Delete();
+
+                Assert.Equal(4, db.MainEntityAccumulation.Query().Count());
+                Assert.Equal(
+                    record1.Value + record2.Value + record4.Value,
+                    db.MainEntityAccumulation.Query().Sum(a => a.SumValue));
+            }
+        }
     }
 }
