@@ -248,7 +248,7 @@ namespace TrackDb.Lib
         {
             if (_projectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_projectionColumnIndexes, _sortColumns).GetEnumerator();
+                return ExecuteQuery(_projectionColumnIndexes, false).GetEnumerator();
             }
             else
             {
@@ -260,7 +260,7 @@ namespace TrackDb.Lib
         {
             if (_projectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_projectionColumnIndexes, _sortColumns).GetEnumerator();
+                return ExecuteQuery(_projectionColumnIndexes, false).GetEnumerator();
             }
             else
             {
@@ -272,7 +272,7 @@ namespace TrackDb.Lib
         public bool Any()
         {
             //  Project no columns & sort no columns
-            var items = ExecuteQuery(Array.Empty<int>(), Array.Empty<SortColumn>());
+            var items = ExecuteQuery(Array.Empty<int>(), false);
 
             return items.Any();
         }
@@ -280,7 +280,7 @@ namespace TrackDb.Lib
         public long Count()
         {
             //  Project no columns & sort no columns
-            var items = ExecuteQuery(Array.Empty<int>(), Array.Empty<SortColumn>());
+            var items = ExecuteQuery(Array.Empty<int>(), false);
             var count = (long)0;
 
             foreach (var item in items)
@@ -316,6 +316,7 @@ namespace TrackDb.Lib
                         //  Fetch record & block ID of records matching query
                         var deletedRecordIds = ExecuteQuery(
                             tx,
+                            true,
                             [_table.Schema.RecordIdColumnIndex, _table.Schema.ParentBlockIdColumnIndex])
                         .Select(r => new
                         {
@@ -354,19 +355,19 @@ namespace TrackDb.Lib
         #region Query internals
         private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
             IEnumerable<int> projectionColumnIndexes,
-            IEnumerable<SortColumn> sortColumns)
+            bool noSort)
         {
             var results = _table.Database.EnumeratesWithinTransactionContext(
                 _tx,
-                tc =>
+                tx =>
                 {
-                    if (_takeCount == 0)
+                    if (_takeCount == 0 || (_inTxOnly && _committedOnly))
                     {
                         return Array.Empty<ReadOnlyMemory<object?>>();
                     }
                     else
                     {
-                        return ExecuteQuery(tc, projectionColumnIndexes);
+                        return ExecuteQuery(tx, noSort, projectionColumnIndexes);
                     }
                 });
 
@@ -374,19 +375,20 @@ namespace TrackDb.Lib
         }
 
         private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
-            TransactionContext transactionContext,
+            TransactionContext tx,
+            bool noSort,
             IEnumerable<int> projectionColumnIndexes)
         {
-            if (_sortColumns.Any())
+            if (!noSort && _sortColumns.Any())
             {
                 return ExecuteQueryWithSort(
-                    transactionContext,
+                    tx,
                     projectionColumnIndexes);
             }
             else
             {
                 return ExecuteQueryWithoutSort(
-                    transactionContext,
+                    tx,
                     projectionColumnIndexes);
             }
         }
