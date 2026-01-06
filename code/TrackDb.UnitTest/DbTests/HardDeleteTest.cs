@@ -22,7 +22,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Integer, 1))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
 
                 Assert.Equal(0, db.PrimitiveTable.Query().Count());
@@ -34,7 +34,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(
                     0,
                     db.Database.TombstoneTable.Query()
-                    .Filter(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
+                    .WherePredicate(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
                     .Count());
             }
         }
@@ -54,7 +54,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(2, db.PrimitiveTable.Query().Count());
 
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Integer, record1.Integer))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, record1.Integer))
                     .Delete();
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
@@ -66,7 +66,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(
                     0,
                     db.Database.TombstoneTable.Query()
-                    .Filter(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
+                    .WherePredicate(pf => pf.Equal(t => t.TableName, db.PrimitiveTable.Schema.TableName))
                     .Count());
             }
         }
@@ -93,7 +93,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 //  Delete all even numbers
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.In(
+                    .WherePredicate(pf => pf.In(
                         r => r.Integer,
                         Enumerable.Range(0, LOOP_SIZE).Select(i => 2 * i)))
                     .Delete();
@@ -137,7 +137,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 //  In tc1, we delete first one, in tc2, we delete both
                 db.PrimitiveTable.Query(tx1)
-                    .Filter(pf => pf.Equal(r => r.Integer, 1))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
                 db.PrimitiveTable.Query(tx2)
                     .Delete();

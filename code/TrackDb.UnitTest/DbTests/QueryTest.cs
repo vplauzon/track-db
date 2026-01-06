@@ -64,7 +64,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Contains(3, resultsAll.Select(r => r.Integer));
 
                 var resultsEqual = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.Equal(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsEqual);
@@ -72,7 +72,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Null(resultsEqual[0].NullableInteger);
 
                 var resultsNotEqual = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.NotEqual(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.NotEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsNotEqual.Count);
@@ -80,14 +80,14 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Contains(3, resultsNotEqual.Select(r => r.Integer));
 
                 var resultsLessThan = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.LessThan(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.LessThan(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsLessThan);
                 Assert.Equal(1, resultsLessThan[0].Integer);
 
                 var resultsLessThanOrEqual = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.LessThanOrEqual(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.LessThanOrEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsLessThanOrEqual.Count);
@@ -95,7 +95,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Contains(2, resultsLessThanOrEqual.Select(r => r.Integer));
 
                 var resultsGreaterThan = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.GreaterThan(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.GreaterThan(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Single(resultsGreaterThan);
@@ -103,7 +103,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Equal(43, resultsGreaterThan[0].NullableInteger);
 
                 var resultsGreaterThanOrEqual = db.PrimitiveTable.Query()
-                    .Filter(pf => pf.GreaterThanOrEqual(i => i.Integer, 2))
+                    .WherePredicate(pf => pf.GreaterThanOrEqual(i => i.Integer, 2))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsGreaterThanOrEqual.Count);
@@ -134,15 +134,15 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var results1 = db.MultiIntegerTable.Query()
-                    .Filter(pf => pf.LessThanOrEqual(i => i.Integer1, 10))
-                    .Filter(pf => pf.GreaterThanOrEqual(i => i.Integer2, 20))
+                    .WherePredicate(pf => pf.LessThanOrEqual(i => i.Integer1, 10))
+                    .WherePredicate(pf => pf.GreaterThanOrEqual(i => i.Integer2, 20))
                     .ToImmutableList();
 
                 Assert.Single(results1);
                 Assert.Equal(record, results1[0]);
 
                 var results2 = db.MultiIntegerTable.Query()
-                    .Filter(pf => pf.LessThanOrEqual(i => i.Integer1, 10).And(
+                    .WherePredicate(pf => pf.LessThanOrEqual(i => i.Integer1, 10).And(
                         pf.GreaterThanOrEqual(i => i.Integer2, 20)))
                     .ToImmutableList();
 
@@ -171,7 +171,7 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var results = db.MultiIntegerTable.Query()
-                    .Filter(pf => pf.LessThan(i => i.Integer1, 10).Or(
+                    .WherePredicate(pf => pf.LessThan(i => i.Integer1, 10).Or(
                         pf.GreaterThan(i => i.Integer2, 20)))
                     .AsEnumerable()
                     .OrderBy(i => i.Integer1)
@@ -239,7 +239,7 @@ namespace TrackDb.UnitTest.DbTests
                     resultsAll.Select(r => r.VersionedName.FullName.FirstName));
 
                 var resultsEqualLeaf = db.CompoundKeyTable.Query()
-                    .Filter(pf => pf.Equal(
+                    .WherePredicate(pf => pf.Equal(
                         r => r.VersionedName.FullName.FirstName,
                         record2.VersionedName.FullName.FirstName))
                     .ToImmutableList();
@@ -250,7 +250,7 @@ namespace TrackDb.UnitTest.DbTests
                     resultsEqualLeaf[0].VersionedName.FullName.LastName);
 
                 var resultsNotEqualLeaf = db.CompoundKeyTable.Query()
-                    .Filter(pf => pf.NotEqual(
+                    .WherePredicate(pf => pf.NotEqual(
                         r => r.VersionedName.FullName.FirstName,
                         record2.VersionedName.FullName.FirstName))
                     .ToImmutableList();
@@ -297,7 +297,7 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var resultsNotEqualVersionedName = db.CompoundKeyTable.Query()
-                    .Filter(pf => pf.NotEqual(r => r.VersionedName, record2.VersionedName))
+                    .WherePredicate(pf => pf.NotEqual(r => r.VersionedName, record2.VersionedName))
                     .ToImmutableList();
 
                 Assert.Equal(2, resultsNotEqualVersionedName.Count);
@@ -305,7 +305,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Contains(record3, resultsNotEqualVersionedName);
 
                 var resultsEqualFullName = db.CompoundKeyTable.Query()
-                    .Filter(pf => pf.Equal(
+                    .WherePredicate(pf => pf.Equal(
                         r => r.VersionedName.FullName,
                         record2.VersionedName.FullName))
                     .ToImmutableList();
@@ -352,10 +352,10 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var resultsIn = db.CompoundKeyTable.Query()
-                    .Filter(pf => pf.Equal(
+                    .WherePredicate(pf => pf.Equal(
                         r => r.VersionedName.FullName,
                         record2.VersionedName.FullName))
-                    .Filter(pf => pf.In(r => r.VersionedName.Version, [record2.VersionedName.Version]))
+                    .WherePredicate(pf => pf.In(r => r.VersionedName.Version, [record2.VersionedName.Version]))
                     .ToImmutableList();
 
                 Assert.Single(resultsIn);
@@ -395,7 +395,7 @@ namespace TrackDb.UnitTest.DbTests
                 Assert.Contains(record3, resultsAll);
 
                 var results2 = db.OtherTypesTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Uri, record2.Uri))
+                    .WherePredicate(pf => pf.Equal(r => r.Uri, record2.Uri))
                     .ToImmutableList();
 
                 Assert.Single(results2);
@@ -437,7 +437,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 //  Delete
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Integer, 2))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, 2))
                     .Delete();
                 await db.Database.ForceDataManagementAsync(doPushPendingData3
                     ? DataManagementActivity.PersistAllNonMetaData

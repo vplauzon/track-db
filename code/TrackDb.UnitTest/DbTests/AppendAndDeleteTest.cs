@@ -24,7 +24,7 @@ namespace TrackDb.UnitTest.DbTests
                     ? DataManagementActivity.PersistAllNonMetaData
                     : DataManagementActivity.None);
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Integer, 1))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
                 await db.Database.ForceDataManagementAsync(doHardDelete
                     ? DataManagementActivity.HardDeleteAll
@@ -48,7 +48,7 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 db.PrimitiveTable.Query()
-                    .Filter(pf => pf.Equal(r => r.Integer, 1))
+                    .WherePredicate(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
             }
         }

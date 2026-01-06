@@ -82,7 +82,7 @@ namespace TrackDb.UnitTest.DbTests
                 foreach (var record in allRecords)
                 {
                     var queryRecords = db.PrimitiveTable.Query()
-                        .Filter(pf => pf.Equal(r => r.Integer, record.Integer))
+                        .WherePredicate(pf => pf.Equal(r => r.Integer, record.Integer))
                         .ToImmutableArray();
 
                     Assert.Single(queryRecords);
@@ -133,7 +133,7 @@ namespace TrackDb.UnitTest.DbTests
                 foreach (var record in allRecords)
                 {
                     var queryRecords = db.PrimitiveTable.Query()
-                        .Filter(pf => pf.Equal(r => r.Integer, record.Integer))
+                        .WherePredicate(pf => pf.Equal(r => r.Integer, record.Integer))
                         .ToImmutableArray();
 
                     Assert.Single(queryRecords);
@@ -164,7 +164,7 @@ namespace TrackDb.UnitTest.DbTests
                     DataManagementActivity.PersistAllMetaDataFirstLevel);
 
                 db.PrimitiveTable.Query()
-                    .Filter(pf=>pf.Equal(p => p.Integer, record2.Integer))
+                    .WherePredicate(pf=>pf.Equal(p => p.Integer, record2.Integer))
                     .Delete();
                 //  This will trigger a rebuild of metablocks
                 await db.Database.ForceDataManagementAsync(

@@ -62,7 +62,7 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query alteration
-        public TypedTableQuery<T> Filter(
+        public TypedTableQuery<T> WherePredicate(
             Func<QueryPredicateFactory<T>, TypedQueryPredicate<T>> predicateFunc)
         {
             if (_sortColumns.Any())

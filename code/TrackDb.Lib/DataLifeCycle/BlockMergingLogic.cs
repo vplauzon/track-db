@@ -124,8 +124,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     .ToImmutableArray();
                 //  Then, let's find which ones are deleted
                 var deletedRecordIds = Database.TombstoneTable.Query(tx)
-                    .Filter(pf => pf.Equal(t => t.TableName, parentSchema.TableName))
-                    .Filter(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
+                    .WherePredicate(pf => pf.Equal(t => t.TableName, parentSchema.TableName))
+                    .WherePredicate(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
                     .Select(t => t.DeletedRecordId)
                     .ToImmutableArray();
                 var blockBuilder = new BlockBuilder(parentSchema);

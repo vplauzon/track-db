@@ -18,7 +18,7 @@ namespace TrackDb.Lib.Statistics
                 .WithInMemoryOnly()
                 .Count();
             var tombstoneRecords = database.TombstoneTable.Query(tx)
-                .Filter(pf => pf.Equal(t => t.TableName, table.Schema.TableName))
+                .WherePredicate(pf => pf.Equal(t => t.TableName, table.Schema.TableName))
                 .Count();
 
             return new InMemoryDataStatistics(tableRecords, tombstoneRecords);

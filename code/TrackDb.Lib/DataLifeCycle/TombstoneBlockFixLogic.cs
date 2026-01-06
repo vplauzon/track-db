@@ -24,8 +24,8 @@ namespace TrackDb.Lib.DataLifeCycle
             tx.LoadCommittedBlocksInTransaction(tableName);
 
             var orphansDeletedRecordMap = Database.TombstoneTable.Query(tx)
-                .Filter(pf => pf.Equal(t => t.TableName, tableName))
-                .Filter(pf => pf.Equal(t => t.BlockId, null))
+                .WherePredicate(pf => pf.Equal(t => t.TableName, tableName))
+                .WherePredicate(pf => pf.Equal(t => t.BlockId, null))
                 .GroupBy(t => t.DeletedRecordId)
                 .ToImmutableDictionary(g => g.Key, g => g.Min(t => t.Timestamp));
 
@@ -66,8 +66,8 @@ namespace TrackDb.Lib.DataLifeCycle
             tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
 
             var orphansDeletedRecordIdMap = Database.TombstoneTable.Query(tx)
-                .Filter(pf => pf.Equal(t => t.TableName, tableName))
-                .Filter(pf => pf.Equal(t => t.BlockId, blockId))
+                .WherePredicate(pf => pf.Equal(t => t.TableName, tableName))
+                .WherePredicate(pf => pf.Equal(t => t.BlockId, blockId))
                 .ToImmutableDictionary(t => t.DeletedRecordId, t => t.Timestamp);
             var table = Database.GetAnyTable(tableName);
             var predicate = new InPredicate(

@@ -323,7 +323,7 @@ namespace TrackDb.Lib
         internal IReadOnlyList<int> GetAvailableBlockIds(int blockIdCount, TransactionContext tx)
         {
             var availableBlockIds = _availableBlockTable.Query(tx)
-                .Filter(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
+                .WherePredicate(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                 .Take(blockIdCount)
                 .Select(a => a.BlockId)
                 .ToImmutableArray();
@@ -334,8 +334,8 @@ namespace TrackDb.Lib
                     .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
 
                 _availableBlockTable.Query(tx)
-                    .Filter(pf => pf.In(a => a.BlockId, availableBlockIds))
-                    .Filter(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
+                    .WherePredicate(pf => pf.In(a => a.BlockId, availableBlockIds))
+                    .WherePredicate(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                     .Delete();
                 _availableBlockTable.AppendRecords(newRecords, tx);
 
@@ -365,8 +365,8 @@ namespace TrackDb.Lib
         internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
             var deletedUsedBlocks = _availableBlockTable.Query(tx)
-                .Filter(pf => pf.In(a => a.BlockId, blockIds))
-                .Filter(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
+                .WherePredicate(pf => pf.In(a => a.BlockId, blockIds))
+                .WherePredicate(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Delete();
 
             if (deletedUsedBlocks != blockIds.Count())
@@ -384,13 +384,13 @@ namespace TrackDb.Lib
         internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
         {
             var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
-                .Filter(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                .WherePredicate(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
                 .ToImmutableArray();
 
             if (noLongerInUsedBlocks.Any())
             {
                 _availableBlockTable.Query(tx)
-                    .Filter(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                    .WherePredicate(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
                     .Delete();
                 _availableBlockTable.AppendRecords(noLongerInUsedBlocks
                     .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
@@ -826,8 +826,8 @@ namespace TrackDb.Lib
             var newBlockBuilder = transactionTableLog.NewDataBlock;
             var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
             var predicate = TombstoneTable.Query(tx)
-                .Filter(pf => pf.Equal(t => t.TableName, tableName))
-                .Filter(pf => pf.In(t => t.DeletedRecordId, recordIds))
+                .WherePredicate(pf => pf.Equal(t => t.TableName, tableName))
+                .WherePredicate(pf => pf.In(t => t.DeletedRecordId, recordIds))
                 .Predicate;
 
             if (newBlockBuilder != null && ((IBlock)newBlockBuilder).RecordCount > 0)
