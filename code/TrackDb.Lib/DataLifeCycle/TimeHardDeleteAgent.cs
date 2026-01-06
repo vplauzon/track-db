@@ -28,7 +28,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var thresholdTimestamp = DateTime.Now
                 - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
             var oldTombstoneRecords = Database.TombstoneTable.Query(tx)
-                .WherePredicate(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp));
+                .Where(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp));
 
             if (oldTombstoneRecords.Any())
             {
@@ -39,8 +39,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 var argMaxTableName = oldestRecord!.TableName;
                 var argMaxBlockId = oldestRecord!.BlockId;
                 var hasNullBlockIds = oldTombstoneRecords
-                    .WherePredicate(pf => pf.Equal(t => t.TableName, argMaxTableName))
-                    .WherePredicate(pf => pf.Equal(t => t.BlockId, null))
+                    .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))
+                    .Where(pf => pf.Equal(t => t.BlockId, null))
                     .Any();
 
                 if (argMaxBlockId == null || hasNullBlockIds)
@@ -52,8 +52,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 else
                 {
                     var otherBlockIds = oldTombstoneRecords
-                        .WherePredicate(pf => pf.Equal(t => t.TableName, argMaxTableName))
-                        .WherePredicate(pf => pf.NotEqual(t => t.BlockId, argMaxBlockId))
+                        .Where(pf => pf.Equal(t => t.TableName, argMaxTableName))
+                        .Where(pf => pf.NotEqual(t => t.BlockId, argMaxBlockId))
                         .Select(t => t.BlockId!.Value)
                         .Distinct()
                         .ToImmutableArray();

@@ -194,7 +194,7 @@ namespace TrackDb.UnitTest.DbTests
                 }
                 //  Delete record3
                 db.MainEntity.Query()
-                    .WherePredicate(pf => pf.Equal(r => r.Value, record3.Value))
+                    .Where(pf => pf.Equal(r => r.Value, record3.Value))
                     .Delete();
 
                 Assert.Equal(4, db.MainEntityAccumulation.Query().Count());

@@ -31,7 +31,7 @@ namespace TrackDb.Lib
         {
             var tombstoneRecordIds = Database.TombstoneTable.Query(tx)
                 .WithinTransactionOnly()
-                .WherePredicate(pf => pf.Equal(t => t.TableName, Schema.TableName))
+                .Where(pf => pf.Equal(t => t.TableName, Schema.TableName))
                 .TableQuery
                 .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
                     t => t.DeletedRecordId))
