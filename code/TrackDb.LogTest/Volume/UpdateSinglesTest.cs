@@ -126,7 +126,7 @@ namespace TrackDb.LogTest.Volume
                         tx.Complete();
                     }
                     var incompleteTasks = db.TaskTable.Query()
-                        .Where(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
+                        .Filter(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
                         .ToImmutableArray();
 
                     Assert.Empty(incompleteTasks);
@@ -158,7 +158,7 @@ namespace TrackDb.LogTest.Volume
         private void CheckDb(TestDatabase db, long cycleCount)
         {
             var completedWorkflows = db.WorkflowTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Filter(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
                 .Select(w => w.WorkflowName)
                 .OrderBy(n => n)
                 .ToImmutableArray();
@@ -171,30 +171,30 @@ namespace TrackDb.LogTest.Volume
             Assert.Equal(cycleCount, completedWorkflows.Length);
 
             var completedWorkflowCount = db.WorkflowTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Filter(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Completed))
                 .Count();
             var incompleteWorkflows = db.WorkflowTable.Query()
-                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.WorkflowState.Completed))
+                .Filter(pf => pf.NotEqual(w => w.State, TestDatabase.WorkflowState.Completed))
                 .ToImmutableArray();
 
             Assert.Equal(cycleCount, completedWorkflowCount);
             Assert.Empty(incompleteWorkflows);
 
             var completedActivityCount = db.ActivityTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.ActivityState.Completed))
+                .Filter(pf => pf.Equal(w => w.State, TestDatabase.ActivityState.Completed))
                 .Count();
             var incompleteActivities = db.ActivityTable.Query()
-                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.ActivityState.Completed))
+                .Filter(pf => pf.NotEqual(w => w.State, TestDatabase.ActivityState.Completed))
                 .ToImmutableArray();
 
             Assert.Equal(2 * cycleCount, completedActivityCount);
             Assert.Empty(incompleteActivities);
 
             var completedTaskCount = db.TaskTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.TaskState.Completed))
+                .Filter(pf => pf.Equal(w => w.State, TestDatabase.TaskState.Completed))
                 .Count();
             var incompleteTasks = db.TaskTable.Query()
-                .Where(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
+                .Filter(pf => pf.NotEqual(w => w.State, TestDatabase.TaskState.Completed))
                 .ToImmutableArray();
 
             Assert.Equal(3 * cycleCount, completedTaskCount);

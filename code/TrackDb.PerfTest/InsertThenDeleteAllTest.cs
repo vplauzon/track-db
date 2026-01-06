@@ -38,7 +38,7 @@ namespace TrackDb.PerfTest
                 foreach (var employeeId in shuffledEmployeeIds)
                 {
                     db.EmployeeTable.Query()
-                        .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
+                        .Filter(pf => pf.Equal(e => e.EmployeeId, employeeId))
                         .Delete();
 
                     await db.Database.AwaitLifeCycleManagement(4);
@@ -75,7 +75,7 @@ namespace TrackDb.PerfTest
                     if (doKeepOne)
                     {   //  Delete all but the first one
                         db.EmployeeTable.Query(tx2)
-                            .Where(pf => pf.NotEqual(e => e.EmployeeId, "Employee-0"))
+                            .Filter(pf => pf.NotEqual(e => e.EmployeeId, "Employee-0"))
                             .Delete();
                     }
                     else
