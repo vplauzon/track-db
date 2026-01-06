@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
@@ -42,6 +43,7 @@ namespace TrackDb.UnitTest
                 var db = await Database.CreateAsync<TestDatabaseContext>(
                     DatabasePolicy.Create(),
                     db => new TestDatabaseContext(db),
+                    CancellationToken.None,
                     TypedTableSchema<Entity>.FromConstructor(ENTITY_TABLE));
 
                 return db;

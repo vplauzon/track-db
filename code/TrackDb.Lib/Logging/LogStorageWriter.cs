@@ -44,8 +44,7 @@ namespace TrackDb.Lib.Logging
         public static async Task<LogStorageWriter> CreateLogStorageWriterAsync(
             LogPolicy logPolicy,
             string localFolder,
-            DataLakeDirectoryClient loggingDirectory,
-            BlobContainerClient loggingContainer,
+            BlobClients blobClients,
             long? currentCheckpointIndex,
             long? currentLogBlobIndex,
             CancellationToken ct = default)
@@ -53,8 +52,7 @@ namespace TrackDb.Lib.Logging
             var logStorageWriter = new LogStorageWriter(
                 logPolicy,
                 localFolder,
-                loggingDirectory,
-                loggingContainer,
+                blobClients,
                 currentCheckpointIndex ?? 1,
                 currentLogBlobIndex ?? 1);
             var checkpointState = logStorageWriter.GetCheckpointState(currentCheckpointIndex ?? 1);
@@ -73,11 +71,10 @@ namespace TrackDb.Lib.Logging
         private LogStorageWriter(
             LogPolicy logPolicy,
             string localFolder,
-            DataLakeDirectoryClient loggingDirectory,
-            BlobContainerClient loggingContainer,
+            BlobClients blobClients,
             long currentCheckpointIndex,
             long currentLogBlobIndex)
-            : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
+            : base(logPolicy, localFolder, blobClients)
         {
             var currentState = new CheckpointState(
                 currentCheckpointIndex,
@@ -106,7 +103,7 @@ namespace TrackDb.Lib.Logging
             var state = GetCheckpointState(checkpointIndex);
             var checkpointFileName = GetCheckpointFileName(state.CheckpointIndex);
             var checkpointFilePath = Path.Combine(LocalFolder, checkpointFileName);
-            var tempCloudDirectory = LoggingDirectory.GetSubDirectoryClient("temp");
+            var tempCloudDirectory = BlobClients.Directory.GetSubDirectoryClient("temp");
             var checkpointHeader = new CheckpointHeader(CURRENT_HEADER_VERSION);
             var checkpointHeaderText = checkpointHeader.ToJson();
             var deleteTempCloudDirectoryTask =
@@ -136,7 +133,7 @@ namespace TrackDb.Lib.Logging
                 cancellationToken: ct);
             File.Delete(checkpointFilePath);
             await checkpointFileClient.RenameAsync(
-                LoggingDirectory
+                BlobClients.Directory
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
             deleteTempCloudDirectoryTask =
@@ -148,7 +145,8 @@ namespace TrackDb.Lib.Logging
         {
             var logFileName = GetLogFileName(logBlobIndex);
 
-            return LoggingContainer.GetAppendBlobClient($"{LoggingDirectory.Path}/{logFileName}");
+            return BlobClients.Container.GetAppendBlobClient(
+                $"{BlobClients.Directory.Path}/{logFileName}");
         }
         #endregion
 

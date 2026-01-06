@@ -21,13 +21,16 @@ namespace TrackDb.Lib.Logging
 
         #region Constructors
         internal static async Task<BlobLock> CreateAsync(
-            BlobBaseClient blobClient,
+            BlobClients blobClients,
             CancellationToken ct)
         {
+            var fileClient = blobClients.Directory.GetFileClient("lock");
+            var blobClient = blobClients.Container.GetBlockBlobClient(fileClient.Path);
             var leaseClient = blobClient.GetBlobLeaseClient();
 
             try
             {
+                await fileClient.CreateIfNotExistsAsync(cancellationToken: ct);
                 await leaseClient.AcquireAsync(DEFAULT_LEASE_DURATION);
 
                 return new BlobLock(leaseClient, ct);
@@ -69,6 +72,7 @@ namespace TrackDb.Lib.Logging
                     _backgroundCompletedSource.Task);
                 await LeaseClient.RenewAsync(null, ct);
             }
+            await LeaseClient.ReleaseAsync(cancellationToken: ct);
         }
     }
 }

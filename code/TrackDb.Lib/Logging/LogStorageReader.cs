@@ -28,63 +28,30 @@ namespace TrackDb.Lib.Logging
         /// <see cref="LoadTransactionTextsAsync(CancellationToken)"/>
         /// </summary>
         /// <param name="logPolicy"></param>
+        /// <param name="blobClients"></param>
         /// <param name="localFolder"></param>
         /// <param name="ct"></param>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>
         public static async Task<LogStorageReader> CreateAsync(
             LogPolicy logPolicy,
+            BlobClients blobClients,
             string localFolder,
-            CancellationToken ct = default)
+            CancellationToken ct)
         {
             if (logPolicy.StorageConfiguration == null)
             {
                 throw new ArgumentNullException(nameof(logPolicy.StorageConfiguration));
             }
 
-            if (logPolicy.StorageConfiguration.TokenCredential != null)
-            {
-                var dummyBlob = new AppendBlobClient(
-                    logPolicy.StorageConfiguration.LogFolderUri,
-                    logPolicy.StorageConfiguration.TokenCredential);
-                var loggingDirectory = new DataLakeDirectoryClient(
-                    logPolicy.StorageConfiguration.LogFolderUri,
-                    logPolicy.StorageConfiguration.TokenCredential);
-                var loggingContainer = dummyBlob.GetParentBlobContainerClient();
-
-                return await CreateAsync(
-                    logPolicy, loggingDirectory, loggingContainer, localFolder, ct);
-            }
-            else
-            {
-                var dummyBlob = new AppendBlobClient(
-                    logPolicy.StorageConfiguration.LogFolderUri,
-                    logPolicy.StorageConfiguration.KeyCredential);
-                var loggingDirectory = new DataLakeDirectoryClient(
-                    logPolicy.StorageConfiguration.LogFolderUri,
-                    logPolicy.StorageConfiguration.KeyCredential);
-                var loggingContainer = dummyBlob.GetParentBlobContainerClient();
-
-                return await CreateAsync(
-                    logPolicy, loggingDirectory, loggingContainer, localFolder, ct);
-            }
-        }
-
-        private static async Task<LogStorageReader> CreateAsync(
-            LogPolicy logPolicy,
-            DataLakeDirectoryClient loggingDirectory,
-            BlobContainerClient loggingContainer,
-            string localFolder,
-            CancellationToken ct)
-        {
             var localReadFolder = Path.Combine(localFolder, "read");
             var lastCheckpointIndex =
-                await CopyCheckpointAsync(loggingDirectory, localReadFolder, ct);
+                await CopyCheckpointAsync(blobClients.Directory, localReadFolder, ct);
 
             if (lastCheckpointIndex != null)
             {
                 var lastLogFileIndex = await CopyLogFilesAsync(
-                    loggingDirectory,
+                    blobClients.Directory,
                     localReadFolder,
                     lastCheckpointIndex.Value,
                     ct);
@@ -103,8 +70,7 @@ namespace TrackDb.Lib.Logging
                     logPolicy,
                     localFolder,
                     localReadFolder,
-                    loggingDirectory,
-                    loggingContainer,
+                    blobClients,
                     lastCheckpointIndex,
                     lastLogFileIndex,
                     version);
@@ -115,8 +81,7 @@ namespace TrackDb.Lib.Logging
                     logPolicy,
                     localFolder,
                     localReadFolder,
-                    loggingDirectory,
-                    loggingContainer,
+                    blobClients,
                     lastCheckpointIndex,
                     null,
                     CURRENT_HEADER_VERSION);
@@ -207,12 +172,11 @@ namespace TrackDb.Lib.Logging
             LogPolicy logPolicy,
             string localFolder,
             string localReadFolder,
-            DataLakeDirectoryClient loggingDirectory,
-            BlobContainerClient loggingContainer,
+            BlobClients blobClients,
             long? checkpointIndex,
             long? lastLogFileIndex,
             Version storeageVersion)
-            : base(logPolicy, localFolder, loggingDirectory, loggingContainer)
+            : base(logPolicy, localFolder, blobClients)
         {
             _localReadFolder = localReadFolder;
             _checkpointIndex = checkpointIndex;
@@ -276,8 +240,7 @@ namespace TrackDb.Lib.Logging
             return await LogStorageWriter.CreateLogStorageWriterAsync(
                 LogPolicy,
                 LocalFolder,
-                LoggingDirectory,
-                LoggingContainer,
+                BlobClients,
                 _checkpointIndex,
                 _lastLogFileIndex,
                 ct);

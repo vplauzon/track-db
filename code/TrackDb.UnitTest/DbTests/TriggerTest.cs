@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
@@ -40,6 +41,7 @@ namespace TrackDb.UnitTest.DbTests
                 var db = await Database.CreateAsync(
                     DatabasePolicy.Create(),
                     db => new TestTriggerDatabaseContext(db),
+                    CancellationToken.None,
                     TypedTableSchema<MainEntity>.FromConstructor(MAIN_ENTITY_TABLE)
                     //  Just count
                     .AddTrigger((genDb, tx) =>

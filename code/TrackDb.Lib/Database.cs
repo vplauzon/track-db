@@ -28,6 +28,7 @@ namespace TrackDb.Lib
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly IImmutableList<TableSchema> _schemaWithTriggers;
+        private readonly BlobLock? _blobLock;
         private DatabaseContextBase? _databaseContext;
         private LogTransactionWriter? _logTransactionWriter;
         private volatile DatabaseState _databaseState;
@@ -37,28 +38,37 @@ namespace TrackDb.Lib
         public async static Task<DATABASE_CONTEXT> CreateAsync<DATABASE_CONTEXT>(
             DatabasePolicy databasePolicies,
             Func<Database, DATABASE_CONTEXT> contextFactory,
+            CancellationToken ct,
             params IEnumerable<TableSchema> schemas)
             where DATABASE_CONTEXT : DatabaseContextBase
         {
-            var database = new Database(databasePolicies, schemas);
+            var useLogging = databasePolicies.LogPolicy.StorageConfiguration != null;
+            var blobClients = useLogging
+                ? databasePolicies.LogPolicy.StorageConfiguration!.CreateClients()
+                : null;
+            var blockLock = useLogging
+                ? await BlobLock.CreateAsync(blobClients!, ct)
+                : null;
+            var database = new Database(databasePolicies, blockLock, schemas);
             var context = contextFactory(database);
 
             if (context == null)
             {
                 throw new NullReferenceException("Database context factory returned null");
             }
-            if (databasePolicies.LogPolicy.StorageConfiguration != null)
-            {
-                await database.InitLogsAsync(CancellationToken.None);
-            }
             database._databaseContext = context;
+            if (useLogging)
+            {
+                await database.InitLogsAsync(blobClients!, ct);
+            }
 
             return context;
         }
 
         private Database(
             DatabasePolicy databasePolicies,
-            params IEnumerable<TableSchema> schemas)
+            BlobLock? blobLock,
+            IEnumerable<TableSchema> schemas)
         {
             var userTables = schemas
                 .Select(s => CreateTable(s))
@@ -116,6 +126,7 @@ namespace TrackDb.Lib
                 .Select(t => t.Schema)
                 .Where(s => s.TriggerActions.Count > 0)
                 .ToImmutableArray();
+            _blobLock = blobLock;
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
@@ -164,6 +175,10 @@ namespace TrackDb.Lib
             if (_logTransactionWriter != null)
             {
                 await ((IAsyncDisposable)_logTransactionWriter).DisposeAsync();
+            }
+            if (_blobLock != null)
+            {
+                await ((IAsyncDisposable)_blobLock).DisposeAsync();
             }
         }
 
@@ -849,12 +864,13 @@ namespace TrackDb.Lib
         #endregion
 
         #region Logging
-        private async Task InitLogsAsync(CancellationToken ct)
+        private async Task InitLogsAsync(BlobClients blobClients, CancellationToken ct)
         {
             var tableMap = GetDatabaseStateSnapshot().TableMap;
             var logTransactionReader = await LogTransactionReader.CreateAsync(
                 DatabasePolicy.LogPolicy,
                 Path.Combine(Path.GetTempPath(), "track-db", Guid.NewGuid().ToString()),
+                blobClients,
                 tableMap.Values
                 .Where(p => p.IsUserTable)
                 .Select(p => p.Table.Schema),
