@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
@@ -43,6 +44,7 @@ namespace TrackDb.PerfTest
             var db = await Database.CreateAsync<VolumeTestDatabase>(
                 modifiedDataPolicy,
                 db => new(db),
+                CancellationToken.None,
                 TypedTableSchema<Employee>.FromConstructor(EMPLOYEE_TABLE)
                 .AddPrimaryKeyProperty(p => p.EmployeeId),
                 TypedTableSchema<Request>.FromConstructor(REQUEST_TABLE)
