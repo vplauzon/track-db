@@ -17,11 +17,7 @@ namespace TrackDb.Lib.Logging
 
         protected static Version CURRENT_HEADER_VERSION = new(1, 0);
 
-        protected LogStorageBase(
-            LogPolicy logPolicy,
-            string localFolder,
-            DataLakeDirectoryClient loggingDirectory,
-            BlobContainerClient loggingContainer)
+        protected LogStorageBase(LogPolicy logPolicy, string localFolder, BlobClients blobClients)
         {
             if (logPolicy.StorageConfiguration == null)
             {
@@ -30,17 +26,14 @@ namespace TrackDb.Lib.Logging
 
             LogPolicy = logPolicy;
             LocalFolder = localFolder;
-            LoggingDirectory = loggingDirectory;
-            LoggingContainer = loggingContainer;
+            BlobClients = blobClients;
         }
 
         public LogPolicy LogPolicy { get; }
 
         protected string LocalFolder { get; }
 
-        protected DataLakeDirectoryClient LoggingDirectory { get; }
-
-        protected BlobContainerClient LoggingContainer { get; }
+        protected BlobClients BlobClients { get; }
 
         protected static string GetCheckpointFileName(long index)
         {

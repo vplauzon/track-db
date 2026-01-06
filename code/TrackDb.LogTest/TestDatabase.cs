@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib;
 using TrackDb.Lib.Policies;
@@ -91,6 +92,7 @@ namespace TrackDb.LogTest
             var db = await Database.CreateAsync<TestDatabase>(
                 modifiedDataPolicy,
                 db => new TestDatabase(db),
+                CancellationToken.None,
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
                 .AddPrimaryKeyProperty(m => m.WorkflowName),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)

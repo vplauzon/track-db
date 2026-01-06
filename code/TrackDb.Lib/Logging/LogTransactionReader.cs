@@ -26,11 +26,16 @@ namespace TrackDb.Lib.Logging
         public static async Task<LogTransactionReader> CreateAsync(
             LogPolicy logPolicy,
             string localFolder,
+            BlobClients blobClients,
             IEnumerable<TableSchema> tableSchemas,
             TypedTable<TombstoneRecord> tombstoneTable,
             CancellationToken ct = default)
         {
-            var logStorageReader = await LogStorageReader.CreateAsync(logPolicy, localFolder, ct);
+            var logStorageReader = await LogStorageReader.CreateAsync(
+                logPolicy,
+                blobClients,
+                localFolder,
+                ct);
             var tableSchemaMap = tableSchemas.ToImmutableDictionary(s => s.TableName);
 
             return new LogTransactionReader(logStorageReader, tableSchemaMap, tombstoneTable);
