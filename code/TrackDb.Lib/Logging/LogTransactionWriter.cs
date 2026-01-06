@@ -139,7 +139,10 @@ namespace TrackDb.Lib.Logging
             }
         }
 
-        public async Task CommitContentAsync(long checkpointIndex, TransactionLog transactionLog)
+        public async Task CommitContentAsync(
+            long checkpointIndex,
+            TransactionLog transactionLog,
+            CancellationToken ct)
         {
             var content = TransactionContent.FromTransactionLog(
                 transactionLog,
@@ -156,7 +159,7 @@ namespace TrackDb.Lib.Logging
                     throw new InvalidOperationException("Couldn't write content");
                 }
 
-                await tcs.Task;
+                await tcs.Task.WaitAsync(ct);
             }
         }
         #endregion

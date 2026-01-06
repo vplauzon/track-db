@@ -624,7 +624,7 @@ namespace TrackDb.Lib
             }
         }
 
-        internal async Task CompleteTransactionAsync(TransactionContext tx)
+        internal async Task CompleteTransactionAsync(TransactionContext tx, CancellationToken ct)
         {
             RunTriggers(tx);
             DecrementActiveTransactionCount();
@@ -637,7 +637,8 @@ namespace TrackDb.Lib
                 {
                     await _logTransactionWriter.CommitContentAsync(
                         checkpointIndex,
-                        tx.TransactionState.UncommittedTransactionLog);
+                        tx.TransactionState.UncommittedTransactionLog,
+                        ct);
                 }
             }
         }

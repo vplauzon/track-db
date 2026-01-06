@@ -67,12 +67,12 @@ namespace TrackDb.Lib
             }
         }
 
-        public async Task CompleteAsync()
+        public async Task CompleteAsync(CancellationToken ct = default)
         {
             if (_status == TransactionStatus.Open)
             {
                 _status = TransactionStatus.Complete;
-                await _database.CompleteTransactionAsync(this);
+                await _database.CompleteTransactionAsync(this, ct);
             }
             else
             {
