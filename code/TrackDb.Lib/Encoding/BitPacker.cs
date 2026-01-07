@@ -37,7 +37,9 @@ namespace TrackDb.Lib.Encoding
         {
             if (maximumValue == 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(maximumValue));
+                throw new ArgumentOutOfRangeException(
+                    $"itemCount={itemCount} ; maximumValue={maximumValue}",
+                    nameof(maximumValue));
             }
 
             //  Calculate number of bits needed per value

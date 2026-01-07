@@ -235,12 +235,21 @@ namespace TrackDb.Lib.InMemory.Block
 
             for (var j = 0; j != _dataColumns.Count; ++j)
             {
-                var columnsizes = motherArray.AsSpan().Slice(j * recordCount, recordCount);
+                try
+                {
+                    var columnsizes = motherArray.AsSpan().Slice(j * recordCount, recordCount);
 
-                _dataColumns[j].ComputeSerializationSizes(
-                    columnsizes,
-                    skipRows,
-                    maxBufferLength);
+                    _dataColumns[j].ComputeSerializationSizes(
+                        columnsizes,
+                        skipRows,
+                        maxBufferLength);
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException(
+                        $"Column j={j}, ColumnName={Schema.ColumnProperties[j].ColumnSchema.ColumnName}",
+                        ex);
+                }
             }
             for (var i = 0; i != recordCount; ++i)
             {

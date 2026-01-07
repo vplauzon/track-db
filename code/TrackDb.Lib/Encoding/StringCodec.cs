@@ -18,52 +18,66 @@ namespace TrackDb.Lib.Encoding
             Span<int> sizes,
             int maxSize)
         {
+            //  Unique stored values, built in the for-loop
             var uniqueValues = new HashSet<string>();
+            //  Length of the value sequence, i.e. string concatenation of all unique values
             var valueSequenceLength = 0;
             var valueSequenceMax = (ulong)0;
 
             for (var i = 0; i != storedValues.Length; ++i)
             {
-                var value = storedValues[i];
-
-                if (value != null)
+                try
                 {
-                    if (uniqueValues.Add(value))
+                    var value = storedValues[i];
+
+                    if (value != null)
                     {
-                        valueSequenceLength += value.Length + 1;
-                        if (value.Length != 0)
+                        if (uniqueValues.Add(value))
                         {
-                            ulong localMax = 0;
-
-                            foreach (var c in value)
+                            valueSequenceLength += value.Length + 1;
+                            if (value.Length != 0)
                             {
-                                if ((ulong)c > localMax)
-                                {
-                                    localMax = (ulong)c;
-                                }
-                            }
+                                ulong localMax = 0;
 
-                            valueSequenceMax = Math.Max(valueSequenceMax, (ulong)(localMax + 1));
+                                foreach (var c in value)
+                                {
+                                    if ((ulong)c > localMax)
+                                    {
+                                        localMax = (ulong)c;
+                                    }
+                                }
+
+                                valueSequenceMax = Math.Max(valueSequenceMax, (ulong)(localMax + 1));
+                            }
                         }
                     }
-                }
-                if (uniqueValues.Count != 0)
-                {
-                    var size = 
-                        sizeof(ushort)  //  Value sequence count
-                        + sizeof(byte)  //  Value sequence max
-                        + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
-                        + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
-
-                    if (size >= maxSize)
+                    if (uniqueValues.Count != 0)
                     {
-                        return i;
+                        var size =
+                            sizeof(ushort)  //  Value sequence count
+                            + sizeof(byte)  //  Value sequence max
+                            + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
+                            + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
+
+                        if (size >= maxSize)
+                        {
+                            return i;
+                        }
+                        sizes[i] = size;
                     }
-                    sizes[i] = size;
+                    else
+                    {
+                        sizes[i] = sizeof(ushort);  //  Write 0
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    sizes[i] = sizeof(ushort);  //  Write 0
+                    throw new InvalidOperationException(
+                        $"i={i}, storedValues.Length={storedValues.Length}, " +
+                        $"uniqueValues.Count={uniqueValues.Count}, " +
+                        $"valueSequenceLength={valueSequenceLength}, " +
+                        $"valueSequenceMax={valueSequenceMax}",
+                        ex);
                 }
             }
 
