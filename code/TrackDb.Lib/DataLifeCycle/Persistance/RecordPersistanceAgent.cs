@@ -60,8 +60,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 if (blockStats.Size != segments[i].Size)
                 {
                     throw new InvalidOperationException(
-                        $"Block size ({blockStats.Size}) is bigger than planned" +
-                        $"maximum ({segments[i].Size})");
+                        $"Block size ({blockStats.Size}) is different than planned" +
+                        $" ({segments[i].Size})");
                 }
 
                 Database.PersistBlock(blockIds[i], buffer.AsSpan().Slice(0, blockStats.Size), tx);

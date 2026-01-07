@@ -17,10 +17,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Using Include="Xunit" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<ProjectReference Include="..\TrackDb.Lib\TrackDb.Lib.csproj" />
 	</ItemGroup>
 </Project>
