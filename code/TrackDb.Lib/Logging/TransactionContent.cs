@@ -53,6 +53,7 @@ namespace TrackDb.Lib.Logging
             foreach (var tableName in tableSchemaMap.Keys)
             {
                 var newRecordsContent = transactionTableLogMap.ContainsKey(tableName)
+                    && ((IBlock)transactionTableLogMap[tableName].NewDataBlock).RecordCount > 0
                     ? transactionTableLogMap[tableName].NewDataBlock.ToLog()
                     : null;
                 var tombstoneRecordIds = GetTombstoneRecordIds(tombstoneBlock, tableName);
