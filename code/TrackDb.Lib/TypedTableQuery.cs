@@ -186,7 +186,7 @@ namespace TrackDb.Lib
                 queryTag);
         }
 
-        internal TypedTableQuery<T> WithinTransactionOnly()
+        public TypedTableQuery<T> WithinTransactionOnly()
         {
             return new TypedTableQuery<T>(
                 _table,
