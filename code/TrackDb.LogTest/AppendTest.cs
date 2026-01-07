@@ -95,5 +95,38 @@ namespace TrackDb.LogTest
                 Assert.Equal(task2, foundTasks[1]);
             }
         }
+
+        [Fact]
+        public async Task MultipleCommits()
+        {
+            var testId = GetTestId();
+            var record1 = new TestDatabase.Workflow(
+                "My Workflow",
+                42,
+                TestDatabase.WorkflowState.Started,
+                DateTime.Now);
+            var record2 = new TestDatabase.Workflow(
+                "My other Workflow",
+                43,
+                TestDatabase.WorkflowState.Started,
+                DateTime.Now);
+
+            await using (var db = await TestDatabase.CreateAsync(testId))
+            {
+                db.WorkflowTable.AppendRecord(record1);
+                using(var tx = db.CreateTransaction())
+                {
+                    db.WorkflowTable.AppendRecord(record2);
+
+                    await tx.CompleteAsync();
+                }
+            }
+            await using (var db = await TestDatabase.CreateAsync(testId))
+            {
+                var foundRecordCount = db.WorkflowTable.Query().Count();
+
+                Assert.Equal(2, foundRecordCount);
+            }
+        }
     }
 }
