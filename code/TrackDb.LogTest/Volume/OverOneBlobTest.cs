@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TrackDb.LogTest.Volume
 {
-    public class OverOneBlobTest
+    public class OverOneBlobTest : TestBase
     {
         /// <summary>
         /// This tests does over 50K append blob operations and is hence extremelly long.
@@ -21,7 +21,7 @@ namespace TrackDb.LogTest.Volume
             const int CYCLE_COUNT = 50005;
 
             var stopwatch = new Stopwatch();
-            var testId = $"{GetType().Name}-{Guid.NewGuid()}";
+            var testId = GetTestId();
 
             stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))

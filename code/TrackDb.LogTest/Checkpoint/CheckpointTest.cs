@@ -6,14 +6,14 @@ using Xunit;
 
 namespace TrackDb.LogTest.Checkpoint
 {
-    public class CheckpointTest
+    public class CheckpointTest : TestBase
     {
         private const int MAX_RECORDS = 1000;
 
         [Fact]
         public async Task NoneLeft()
         {
-            var testId = $"CheckpointTest-NoneLeft-{Guid.NewGuid()}";
+            var testId = GetTestId();
 
             await using (var db = await CreateDatabaseAsync(testId))
             {
@@ -39,7 +39,7 @@ namespace TrackDb.LogTest.Checkpoint
         [Fact]
         public async Task RemoveHalf()
         {
-            var testId = $"CheckpointTest-NoneLeft-{Guid.NewGuid()}";
+            var testId = GetTestId();
 
             await using (var db = await CreateDatabaseAsync(testId))
             {

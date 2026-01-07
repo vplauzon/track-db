@@ -6,12 +6,12 @@ using Xunit;
 
 namespace TrackDb.LogTest
 {
-    public class AppendTest
+    public class AppendTest : TestBase
     {
         [Fact]
         public async Task OneRecord()
         {
-            var testId = $"AppendTest-OneRecordAsync-{Guid.NewGuid()}";
+            var testId = GetTestId();
             var record = new TestDatabase.Workflow(
                 "My Workflow",
                 42,
@@ -34,7 +34,7 @@ namespace TrackDb.LogTest
         [Fact]
         public async Task MultipleRecords()
         {
-            var testId = $"AppendTest-MultipleRecordsAsync-{Guid.NewGuid()}";
+            var testId = GetTestId();
             var workflow = new TestDatabase.Workflow(
                 "My Workflow",
                 42,

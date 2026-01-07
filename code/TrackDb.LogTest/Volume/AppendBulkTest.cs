@@ -7,60 +7,75 @@ using Xunit;
 
 namespace TrackDb.LogTest.Volume
 {
-    public class AppendBulkTest
+    public class AppendBulkTest : TestBase
     {
         [Fact]
         public async Task Test00010()
         {
-            await RunPerformanceTestAsync(10);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 10);
         }
 
         [Fact]
         public async Task Test00050()
         {
-            await RunPerformanceTestAsync(50);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 50);
         }
 
         [Fact]
         public async Task Test00250()
         {
-            await RunPerformanceTestAsync(250);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 250);
         }
 
         [Fact]
         public async Task Test01000()
         {
-            await RunPerformanceTestAsync(1000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 1000);
         }
 
         [Fact]
         public async Task Test010000()
         {
-            await RunPerformanceTestAsync(10000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 10000);
         }
 
         [Fact]
         public async Task Test0100000()
         {
-            await RunPerformanceTestAsync(100000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 100000);
         }
 
         [Fact]
         public async Task Test01000000()
         {
-            await RunPerformanceTestAsync(1000000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 1000000);
         }
 
         [Fact]
         public async Task Test02000000()
         {
-            await RunPerformanceTestAsync(2000000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 2000000);
         }
 
-        private async Task RunPerformanceTestAsync(int recordCount)
+        private async Task RunPerformanceTestAsync(string testId, int recordCount)
         {
             var stopwatch = new Stopwatch();
-            var testId = $"{GetType().Name}-{recordCount}-{Guid.NewGuid()}";
 
             stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))

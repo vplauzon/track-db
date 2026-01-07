@@ -7,42 +7,51 @@ using Xunit;
 
 namespace TrackDb.LogTest.Volume
 {
-    public class UpdateSinglesTest
+    public class UpdateSinglesTest : TestBase
     {
         [Fact]
         public async Task Test00010()
         {
-            await RunPerformanceTestAsync(10);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 10);
         }
 
         [Fact]
         public async Task Test00050()
         {
-            await RunPerformanceTestAsync(50);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 50);
         }
 
         [Fact]
         public async Task Test00250()
         {
-            await RunPerformanceTestAsync(250);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 250);
         }
 
         [Fact]
         public async Task Test01000()
         {
-            await RunPerformanceTestAsync(1000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 1000);
         }
 
         [Fact]
         public async Task Test010000()
         {
-            await RunPerformanceTestAsync(10000);
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 10000);
         }
 
-        private async Task RunPerformanceTestAsync(long cycleCount)
+        private async Task RunPerformanceTestAsync(string testId, long cycleCount)
         {
             var stopwatch = new Stopwatch();
-            var testId = $"{GetType().Name}-{cycleCount}-{Guid.NewGuid()}";
 
             stopwatch.Start();
             await using (var db = await TestDatabase.CreateAsync(testId))
