@@ -849,9 +849,12 @@ namespace TrackDb.Lib
             var tombstoneQuery = tombstoneQueryBase
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds));
+            var tombstoneDistinctRecordIdCount = tombstoneQuery
+                .Select(t => t.DeletedRecordId)
+                .Distinct()
+                .Count();
 
-            if (tombstoneQuery.Select(t => t.DeletedRecordId).Distinct().Count()
-                != materializedRecordIds.Length)
+            if (tombstoneDistinctRecordIdCount != materializedRecordIds.Length)
             {
                 throw new InvalidOperationException("Mismatch tombstone");
             }
