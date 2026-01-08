@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
+using static TrackDb.PerfTest.VolumeTestDatabase;
 
 namespace TrackDb.PerfTest
 {
@@ -44,12 +45,12 @@ namespace TrackDb.PerfTest
                 db.RequestTable.AppendRecords(Enumerable.Range(0, cycleCount)
                     .Select(i => new VolumeTestDatabase.Request(
                         $"Employee-{i}",
-                        $"Request-{2 * i}-1",
+                        $"Request-{i}-1",
                         VolumeTestDatabase.RequestStatus.Initiated)));
                 db.RequestTable.AppendRecords(Enumerable.Range(0, cycleCount)
                     .Select(i => new VolumeTestDatabase.Request(
                         $"Employee-{i}",
-                        $"Request-{2 * i}-2",
+                        $"Request-{i}-2",
                         VolumeTestDatabase.RequestStatus.Initiated)));
 
                 var employeeIds = db.EmployeeTable.Query()
@@ -63,17 +64,23 @@ namespace TrackDb.PerfTest
                 {
                     using (var tx = db.CreateTransaction())
                     {
-                        var employee = db.EmployeeTable.Query(tx)
+                        var employees = db.EmployeeTable.Query(tx)
                             .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
-                            .First();
+                            .ToImmutableArray();
                         var requests = db.RequestTable.Query(tx)
                             .Where(pf => pf.Equal(r => r.EmployeeId, employeeId))
                             .ToImmutableArray();
+
+                        Assert.Single(employees);
+                        Assert.Equal(2, requests.Length);
+
+                        var employee = employees[0];
 
                         db.EmployeeTable.UpdateRecord(
                             employee,
                             employee with { Name = $"E-{employee.Name}" },
                             tx);
+
                         foreach (var request in requests)
                         {
                             db.RequestTable.UpdateRecord(
@@ -89,6 +96,11 @@ namespace TrackDb.PerfTest
                         tx.Complete();
                     }
                     await db.Database.AwaitLifeCycleManagement(5);
+                    if (i % 5 == 0)
+                    {
+                        Assert.Equal(cycleCount, db.EmployeeTable.Query().Count());
+                        Assert.Equal(2 * cycleCount, db.RequestTable.Query().Count());
+                    }
                 }
 
                 var stats = db.Database.GetDatabaseStatistics();
