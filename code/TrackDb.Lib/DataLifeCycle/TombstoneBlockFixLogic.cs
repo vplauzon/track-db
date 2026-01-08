@@ -74,6 +74,7 @@ namespace TrackDb.Lib.DataLifeCycle
         public void FixBlockId(string tableName, int blockId, TransactionContext tx)
         {   //  Load table and tombstone table in-memory so we can delete in-place
             tx.LoadCommittedBlocksInTransaction(tableName);
+            tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
 
             var orphansDeletedRecordIdMap = Database.TombstoneTable.Query(tx)
                 .WithCommittedOnly()
