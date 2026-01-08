@@ -320,7 +320,7 @@ namespace TrackDb.Lib
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
 
         #region Available Blocks
-        internal IReadOnlyList<int> GetAvailableBlockIds(int blockIdCount, TransactionContext tx)
+        internal IReadOnlyList<int> UseAvailableBlockIds(int blockIdCount, TransactionContext tx)
         {
             var availableBlockIds = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
@@ -351,13 +351,13 @@ namespace TrackDb.Lib
                     tx);
 
                 //  Now that there are available block, let's try again
-                return GetAvailableBlockIds(blockIdCount, tx);
+                return UseAvailableBlockIds(blockIdCount, tx);
             }
         }
 
         internal int GetAvailableBlockId(TransactionContext tx)
         {
-            var blockIds = GetAvailableBlockIds(1, tx);
+            var blockIds = UseAvailableBlockIds(1, tx);
 
             return blockIds[0];
         }

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.InMemory.Block;
@@ -440,10 +441,46 @@ namespace TrackDb.Lib.DataLifeCycle
                         metaBlockId = metaMetaBlockId > 0 ? metaMetaBlockId : null;
                         blockIdsToCompact = Array.Empty<int>();
                         blocksToAdd = ((IBlock)newBlockBuilder).RecordCount > 0
-                            ? [newBlockBuilder]
+                            //  A new block can be bigger than original
+                            //  e.g. same number of records but different min-max makes compression different
+                            ? SegmentBlockBuilder(newBlockBuilder)
                             : Array.Empty<BlockBuilder>();
                     }
                 }
+            }
+        }
+
+        private IEnumerable<BlockBuilder> SegmentBlockBuilder(BlockBuilder blockBuilder)
+        {
+            var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
+            var sizes = blockBuilder.SegmentRecords(maxBlockSize);
+
+            if (sizes.Count == 1)
+            {   //  The block isn't too big
+                return [blockBuilder];
+            }
+            else
+            {   //  We segment the block
+                var list = new List<BlockBuilder>();
+                var recordIndex = 0;
+                var totalRecordCount = ((IBlock)blockBuilder).RecordCount;
+
+                foreach (var size in sizes)
+                {
+                    var subBlockBuilder = new BlockBuilder(((IBlock)blockBuilder).TableSchema);
+
+                    subBlockBuilder.AppendBlock(blockBuilder);
+                    //  Remove records after
+                    subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
+                        recordIndex + size.ItemCount,
+                        totalRecordCount - (recordIndex + size.ItemCount)));
+                    //  Remove records before
+                    subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, recordIndex));
+
+                    list.Add(subBlockBuilder);
+                }
+
+                return list;
             }
         }
 

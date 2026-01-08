@@ -49,7 +49,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
             var segments = tableBlockBuilder.SegmentRecords(buffer.Length);
-            var blockIds = Database.GetAvailableBlockIds(segments.Count, tx);
+            var blockIds = Database.UseAvailableBlockIds(segments.Count, tx);
             var skipRows = 0;
 
             for (int i = 0; i != segments.Count; ++i)

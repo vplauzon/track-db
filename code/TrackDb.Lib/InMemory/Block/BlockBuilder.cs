@@ -51,7 +51,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new ArgumentException("Columns are incompatible", nameof(block));
             }
 
-            //  Include record ID
+            //  Include extra columns
             var data = block.Project(
                 new object?[_dataColumns.Count].AsMemory(),
                 Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
