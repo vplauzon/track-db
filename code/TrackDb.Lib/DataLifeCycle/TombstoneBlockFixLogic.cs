@@ -24,9 +24,11 @@ namespace TrackDb.Lib.DataLifeCycle
             tx.LoadCommittedBlocksInTransaction(tableName);
 
             var orphansDeletedRecordMap = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.Equal(t => t.BlockId, null))
+                .Where(pf => pf.Equal(t => t.BlockId, null).Or(pf.LessThanOrEqual(t => t.BlockId, 0)))
                 .GroupBy(t => t.DeletedRecordId)
+                //  It's possible to have twice the same record ID in the tombstone with parallel TX
                 .ToImmutableDictionary(g => g.Key, g => g.Min(t => t.Timestamp));
 
             if (orphansDeletedRecordMap.Any())
@@ -36,6 +38,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     table.Schema.RecordIdColumnIndex,
                     orphansDeletedRecordMap.Keys.Cast<object?>());
                 var foundRecords = table.Query(tx)
+                    .WithCommittedOnly()
                     .WithIgnoreDeleted()
                     .WithPredicate(predicate)
                     .WithProjection([
@@ -48,7 +51,15 @@ namespace TrackDb.Lib.DataLifeCycle
                         orphansDeletedRecordMap[(long)r.Span[0]!]))
                     .ToImmutableArray();
 
-                Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordMap.Keys, tx);
+                if (foundRecords.Count() != orphansDeletedRecordMap.Count())
+                {
+                    throw new InvalidOperationException($"Can't find all tombstone records:  " +
+                        $"found {foundRecords.Count()} over {orphansDeletedRecordMap.Count()}");
+                }
+                Database.DeleteTombstoneRecords(
+                    tableName,
+                    foundRecords.Select(t => t.DeletedRecordId).Distinct(),
+                    tx);
                 Database.TombstoneTable.AppendRecords(foundRecords, tx);
             }
         }

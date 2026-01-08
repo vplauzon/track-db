@@ -364,6 +364,22 @@ namespace TrackDb.Lib
 
         internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
+            var invalidBlockCount = _availableBlockTable.Query(tx)
+                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
+                .Count();
+
+            if (invalidBlockCount > 0)
+            {   //  For Debug
+                var invalidBlocks = _availableBlockTable.Query(tx)
+                    .Where(pf => pf.In(a => a.BlockId, blockIds))
+                    .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
+                    .ToImmutableArray();
+
+                throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
+                    $"i.e. not InUsed");
+            }
+
             var deletedUsedBlocks = _availableBlockTable.Query(tx)
                 .Where(pf => pf.In(a => a.BlockId, blockIds))
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
