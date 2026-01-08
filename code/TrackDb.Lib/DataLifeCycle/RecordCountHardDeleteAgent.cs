@@ -85,26 +85,26 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(o => o.TableName == tableName)
                 .Where(o => o.BlockId == null)
                 .Any();
-            var blockId = topBlocks.First().BlockId;
-            var otherBlockIds = topBlocks
-                .Skip(1)
-                .Where(o => o.TableName == tableName)
-                .Select(o => o.BlockId)
-                .Where(id => id != null)
-                .Cast<int>()
-                .ToImmutableArray();
 
-            //  GC
-            topBlocks = topBlocks.Take(0).ToImmutableArray();
             if (hasNullBlocks)
             {
                 var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
 
                 tombstoneBlockFixLogic.FixNullBlockIds(tableName, tx);
             }
-            else if (!tableMap[tableName].IsMetaDataTable)
+            else
             {
-                CompactBlock(tableName, blockId!.Value, otherBlockIds, tx);
+                var blockId = topBlocks.First().BlockId!.Value;
+                var otherBlockIds = topBlocks
+                    .Skip(1)
+                    .Where(o => o.TableName == tableName)
+                    .Select(o => o.BlockId!.Value)
+                    .ToImmutableArray();
+
+                if (!tableMap[tableName].IsMetaDataTable)
+                {
+                    CompactBlock(tableName, blockId, otherBlockIds, tx);
+                }
             }
         }
 
