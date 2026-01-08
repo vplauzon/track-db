@@ -54,6 +54,7 @@ namespace TrackDb.PerfTest
 
                 var employeeIds = db.EmployeeTable.Query()
                     .Select(e => e.EmployeeId)
+                    .ToImmutableArray()
                     .Shuffle()
                     .ToImmutableArray();
                 var i = 0;
@@ -87,6 +88,7 @@ namespace TrackDb.PerfTest
 
                         tx.Complete();
                     }
+                    await db.Database.AwaitLifeCycleManagement(5);
                 }
 
                 var stats = db.Database.GetDatabaseStatistics();
