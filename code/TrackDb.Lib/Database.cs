@@ -334,11 +334,15 @@ namespace TrackDb.Lib
             {
                 var newRecords = availableBlockIds
                     .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
-
-                _availableBlockTable.Query(tx)
+                var deletedCount = _availableBlockTable.Query(tx)
                     .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
                     .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                     .Delete();
+
+                if (deletedCount != availableBlockIds.Length)
+                {
+                    throw new InvalidOperationException($"Corrupted available blocks");
+                }
                 _availableBlockTable.AppendRecords(newRecords, tx);
 
                 return availableBlockIds;
