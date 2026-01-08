@@ -830,6 +830,7 @@ namespace TrackDb.Lib
         internal void DeleteTombstoneRecords(
             string tableName,
             IEnumerable<long> recordIds,
+            bool forceDeleteWithinTransaction,
             TransactionContext tx)
         {
             var tombstoneTableName = TombstoneTable.Schema.TableName;
@@ -839,28 +840,38 @@ namespace TrackDb.Lib
             var transactionTableLog = tx.TransactionState
                 .UncommittedTransactionLog
                 .TransactionTableLogMap[tombstoneTableName];
-            var newBlockBuilder = transactionTableLog.NewDataBlock;
             var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
-            var predicate = TombstoneTable.Query(tx)
+            var newBlockBuilder = transactionTableLog.NewDataBlock;
+            var materializedRecordIds = recordIds.Distinct().ToImmutableArray();
+            var tombstoneQueryBase = forceDeleteWithinTransaction
+                ? TombstoneTable.Query(tx)
+                : TombstoneTable.Query(tx).WithCommittedOnly();
+            var tombstoneQuery = tombstoneQueryBase
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.In(t => t.DeletedRecordId, recordIds))
-                .Predicate;
+                .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds));
 
-            if (newBlockBuilder != null && ((IBlock)newBlockBuilder).RecordCount > 0)
+            if (tombstoneQuery.Select(t => t.DeletedRecordId).Distinct().Count()
+                != materializedRecordIds.Length)
             {
-                var rowIndexes = ((IBlock)newBlockBuilder)
-                    .Filter(predicate, false)
-                    .RowIndexes;
-
-                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                throw new InvalidOperationException("Mismatch tombstone");
             }
             if (committedBlockBuilder != null && ((IBlock)committedBlockBuilder).RecordCount > 0)
             {
                 var rowIndexes = ((IBlock)committedBlockBuilder)
-                    .Filter(predicate, false)
+                    .Filter(tombstoneQuery.Predicate, false)
                     .RowIndexes;
 
                 committedBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+            }
+            if (forceDeleteWithinTransaction
+                && newBlockBuilder != null
+                && ((IBlock)newBlockBuilder).RecordCount > 0)
+            {
+                var rowIndexes = ((IBlock)newBlockBuilder)
+                    .Filter(tombstoneQuery.Predicate, false)
+                    .RowIndexes;
+
+                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
             }
         }
         #endregion

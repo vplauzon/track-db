@@ -406,7 +406,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         //  Hard delete records
                         foreach (var p in cumulatedHardDeletedRecordIds)
                         {
-                            Database.DeleteTombstoneRecords(p.Key, p.Value, tx);
+                            Database.DeleteTombstoneRecords(p.Key, p.Value, true, tx);
                         }
                         Database.SetNoLongerInUsedBlockIds(
                             cumulatedReleasedBlockIds.Concat(prunedBlockIds),

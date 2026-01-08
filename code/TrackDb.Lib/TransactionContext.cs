@@ -125,7 +125,11 @@ namespace TrackDb.Lib
 
                         if (hardDeletedRecordIds.Any())
                         {
-                            _database.DeleteTombstoneRecords(tableName, hardDeletedRecordIds, this);
+                            _database.DeleteTombstoneRecords(
+                                tableName,
+                                hardDeletedRecordIds,
+                                false,
+                                this);
                         }
                     }
                 }

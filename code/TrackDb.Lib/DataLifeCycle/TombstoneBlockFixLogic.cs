@@ -51,15 +51,14 @@ namespace TrackDb.Lib.DataLifeCycle
                         orphansDeletedRecordMap[(long)r.Span[0]!]))
                     .ToImmutableArray();
 
-                if (foundRecords.Count() != orphansDeletedRecordMap.Count())
-                {
-                    throw new InvalidOperationException($"Can't find all tombstone records:  " +
-                        $"found {foundRecords.Count()} over {orphansDeletedRecordMap.Count()}");
-                }
+                //  We can't assert foundRecords.Count() == orphansDeletedRecordMap.Count()
+                //  Parallel transaction could break that assertion
                 Database.DeleteTombstoneRecords(
                     tableName,
-                    foundRecords.Select(t => t.DeletedRecordId).Distinct(),
+                    orphansDeletedRecordMap.Keys.Distinct(),
+                    false,
                     tx);
+                //  This was deleted from committed logs and can hence be hard-deleted there
                 Database.TombstoneTable.AppendRecords(foundRecords, tx);
             }
         }
@@ -73,10 +72,11 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="tx"></param>
         /// <exception cref="NotImplementedException"></exception>
         public void FixBlockId(string tableName, int blockId, TransactionContext tx)
-        {   //  Load the tombstone table in-memory so we can delete in-place
-            tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
+        {   //  Load table and tombstone table in-memory so we can delete in-place
+            tx.LoadCommittedBlocksInTransaction(tableName);
 
             var orphansDeletedRecordIdMap = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .Where(pf => pf.Equal(t => t.BlockId, blockId))
                 .ToImmutableDictionary(t => t.DeletedRecordId, t => t.Timestamp);
@@ -98,10 +98,22 @@ namespace TrackDb.Lib.DataLifeCycle
                     tableName,
                     (int)r.Span[1]!,
                     orphansDeletedRecordIdMap[(long)r.Span[0]!]));
+            //  The delete was on "committed only", the fixed version should be there too
+            var tombstoneCommittedDataBlock = tx.TransactionState.UncommittedTransactionLog
+                .TransactionTableLogMap[Database.TombstoneTable.Schema.TableName]
+                .CommittedDataBlock!;
 
             //  Delete those records in tombstone table
-            Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordIdMap.Keys, tx);
-            Database.TombstoneTable.AppendRecords(newTombstoneRecords, tx);
+            Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordIdMap.Keys, false, tx);
+            foreach (var record in newTombstoneRecords)
+            {
+                var columnRecord = Database.TombstoneTable.Schema.FromObjectToColumns(record);
+
+                tombstoneCommittedDataBlock.AppendRecord(
+                    record.Timestamp,
+                    Database.TombstoneTable.NewRecordId(),
+                    columnRecord);
+            }
         }
     }
 }

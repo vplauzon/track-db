@@ -52,6 +52,7 @@ namespace TrackDb.PerfTest
                         $"Employee-{i}",
                         $"Request-{i}-2",
                         VolumeTestDatabase.RequestStatus.Initiated)));
+                await db.Database.AwaitLifeCycleManagement(5);
 
                 var employeeIds = db.EmployeeTable.Query()
                     .Select(e => e.EmployeeId)

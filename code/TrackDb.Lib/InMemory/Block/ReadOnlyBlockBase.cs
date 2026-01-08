@@ -339,10 +339,8 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Debug View
-        /// <summary>
-        /// To be used in debugging.
-        /// </summary>
-        internal IEnumerable<IImmutableDictionary<string, object?>> DebugView
+        /// <summary>To be used in debugging only.</summary>
+        internal DataTable DebugView
         {
             get
             {
@@ -354,13 +352,21 @@ namespace TrackDb.Lib.InMemory.Block
                     new object?[block.TableSchema.Columns.Count + 3],
                     Enumerable.Range(0, block.TableSchema.Columns.Count + 3).ToImmutableArray(),
                     Enumerable.Range(0, block.RecordCount),
-                    42)
-                    .Select(b => b.ToArray()
-                    .Zip(columnNames)
-                    .ToImmutableDictionary(p => p.Second, p => p.First))
-                    .ToImmutableArray();
+                    42);
+                var records = projection
+                    .Select(b => b.ToArray());
+                var dataTable = new DataTable();
 
-                return projection;
+                foreach (var columnName in columnNames)
+                {
+                    dataTable.Columns.Add(columnName);
+                }
+                foreach(var record in records)
+                {
+                    dataTable.Rows.Add(record);
+                }
+
+                return dataTable;
             }
         }
         #endregion    }

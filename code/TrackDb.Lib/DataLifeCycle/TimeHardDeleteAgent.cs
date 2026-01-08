@@ -28,6 +28,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var thresholdTimestamp = DateTime.Now
                 - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
             var oldTombstoneRecords = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
                 .Where(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp));
 
             if (oldTombstoneRecords.Any())

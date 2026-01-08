@@ -119,7 +119,7 @@ namespace TrackDb.UnitTest.DbTests
         }
 
         [Fact]
-        public async Task RacingCondition()
+        public async Task RacingCondition2()
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
@@ -135,7 +135,7 @@ namespace TrackDb.UnitTest.DbTests
                 var tx1 = db.Database.CreateTransaction();
                 var tx2 = db.Database.CreateTransaction();
 
-                //  In tc1, we delete first one, in tc2, we delete both
+                //  In tx1, we delete first one, in tx2, we delete both
                 db.PrimitiveTable.Query(tx1)
                     .Where(pf => pf.Equal(r => r.Integer, 1))
                     .Delete();
@@ -144,8 +144,11 @@ namespace TrackDb.UnitTest.DbTests
 
                 tx1.Complete();
 
+                //  As tx1 is completed, record1 disappear
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
 
+                //  This will leave only one record, which forces the record to be in-memory
+                //  (We don't persist a block with one record)
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(1, db.PrimitiveTable.Query().Count());
@@ -154,10 +157,10 @@ namespace TrackDb.UnitTest.DbTests
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
 
                 Assert.Equal(0, db.PrimitiveTable.Query().Count());
-                using (var tc = db.Database.CreateTransaction())
+                using (var tx = db.Database.CreateTransaction())
                 {
                     Assert.False(
-                        tc.TransactionState.ListBlocks(
+                        tx.TransactionState.ListBlocks(
                             db.PrimitiveTable.Schema.TableName, false, false).Any());
                 }
             }

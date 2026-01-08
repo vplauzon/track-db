@@ -238,6 +238,11 @@ namespace TrackDb.Lib
                     .WithSortColumns(_sortColumns)
                     .WithTake(_takeCount);
 
+                if (_committedOnly)
+                {
+                    tableQuery = tableQuery
+                        .WithCommittedOnly();
+                }
                 if (_inTxOnly)
                 {
                     tableQuery = tableQuery

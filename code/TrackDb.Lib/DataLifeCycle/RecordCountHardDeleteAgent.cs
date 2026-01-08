@@ -36,6 +36,9 @@ namespace TrackDb.Lib.DataLifeCycle
             var doIncludeSystemTables = !doHardDeleteAll;
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var tombstoneCardinality = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
+                //  We remove the combination of system table under doHardDeleteAll
+                //  As it creates a forever loop with the available-blocks table
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .Count();
 
