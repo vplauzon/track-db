@@ -8,7 +8,7 @@ namespace TrackDb.PerfTest
 {
     public class InsertThenDeleteAllTest
     {
-        private const int BULK_SIZE = 10000;
+        private const int BULK_SIZE = 20000;
 
         [Fact]
         public async Task DeleteAll()

@@ -114,7 +114,7 @@ namespace TrackDb.Lib
             return AlterOrderBy(propertySelector, true, true);
         }
 
-        public TypedTableQuery<T> OrderByDesc<U>(Expression<Func<T, U>> propertySelector)
+        public TypedTableQuery<T> OrderByDescending<U>(Expression<Func<T, U>> propertySelector)
         {
             return AlterOrderBy(propertySelector, false, true);
         }
@@ -124,7 +124,7 @@ namespace TrackDb.Lib
             return AlterOrderBy(propertySelector, true, false);
         }
 
-        public TypedTableQuery<T> ThenByDesc<U>(Expression<Func<T, U>> propertySelector)
+        public TypedTableQuery<T> ThenByDescending<U>(Expression<Func<T, U>> propertySelector)
         {
             return AlterOrderBy(propertySelector, false, false);
         }

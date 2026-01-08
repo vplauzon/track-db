@@ -24,6 +24,8 @@ namespace TrackDb.Lib
     /// </summary>
     public class Database : IAsyncDisposable
     {
+        private const int BLOCK_INCREMENT = 256;
+
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
@@ -343,12 +345,7 @@ namespace TrackDb.Lib
             }
             else
             {
-                var blockIds = _dbFileManager.Value.CreateBlockBatch()
-                    .ToImmutableArray();
-
-                _availableBlockTable.AppendRecords(blockIds
-                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available)),
-                    tx);
+                IncrementBlockCount(tx);
 
                 //  Now that there are available block, let's try again
                 return UseAvailableBlockIds(blockIdCount, tx);
@@ -371,10 +368,8 @@ namespace TrackDb.Lib
 
             if (invalidBlockCount > 0)
             {   //  For Debug
-                var invalidBlocks = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.In(a => a.BlockId, blockIds))
-                    .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
-                    .ToImmutableArray();
+                var blocks = _availableBlockTable.Query(tx)
+                    .Where(pf => pf.In(a => a.BlockId, blockIds));
 
                 throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
                     $"i.e. not InUsed");
@@ -418,6 +413,22 @@ namespace TrackDb.Lib
             {
                 return false;
             }
+        }
+
+        private void IncrementBlockCount(TransactionContext tx)
+        {
+            var maxBlockId = _availableBlockTable.Query(tx)
+                .OrderByDescending(a => a.BlockId)
+                .Take(1)
+                .Select(a => a.BlockId)
+                .FirstOrDefault();
+            var targetCapacity = maxBlockId + BLOCK_INCREMENT;
+            var newBlockIds = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT);
+            var newAvailableBlocks = newBlockIds
+                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available));
+
+            _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
+            _availableBlockTable.AppendRecords(newAvailableBlocks, tx);
         }
         #endregion
         #endregion

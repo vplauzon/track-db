@@ -8,10 +8,12 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
+    /// <summary>
+    /// Manages read / writes of blocks.
+    /// Blocks start at index 1.
+    /// </summary>
     internal class DatabaseFileManager : IAsyncDisposable
     {
-        private const int INCREMENT_BLOCK_COUNT = 256;
-
         private readonly string _filePath;
         private readonly FileStream _fileStream;
         private readonly object _lock = new();
@@ -87,17 +89,17 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public IEnumerable<int> CreateBlockBatch()
+        public void EnsureBlockCapacity(int blockCount)
         {
             lock (_lock)
             {
                 var currentBlockCount = (int)(_fileStream.Length / BlockSize);
-                var targetBlockCount = currentBlockCount + INCREMENT_BLOCK_COUNT;
 
-                _fileStream.SetLength((targetBlockCount + 1) * (long)BlockSize);
-                _fileLength = (targetBlockCount + 1) * (long)BlockSize;
-
-                return Enumerable.Range(currentBlockCount + 1, INCREMENT_BLOCK_COUNT);
+                if (blockCount > currentBlockCount)
+                {
+                    _fileStream.SetLength(blockCount * (long)BlockSize);
+                    _fileLength = blockCount * (long)BlockSize;
+                }
             }
         }
     }
