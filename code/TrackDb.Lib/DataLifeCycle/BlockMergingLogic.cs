@@ -377,14 +377,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {
-                    (var newBlockBuilder, var hardDeletedRecordIds, var releasedBlockIds) =
-                        mergeResults.Value;
+                    (var newBlockBuilder, var releasedBlockIds) = mergeResults.Value;
                     var metadataTable = Database.GetAnyTable(metadataTableName);
                     var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                     var dataTableName = metaSchema.ParentSchema.TableName;
 
-                    //  Hard delete records
-                    Database.DeleteTombstoneRecords(dataTableName, hardDeletedRecordIds, true, tx);
                     //  Release block ids
                     Database.SetNoLongerInUsedBlockIds(releasedBlockIds, tx);
 
@@ -477,7 +474,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private (BlockBuilder NewBlock, IEnumerable<long> HardDeletedRecordIds, IEnumerable<int> ReleasedBlockIds)? MergeBlocksWithReplacementsOneLayer(
+        private (BlockBuilder NewBlock, IEnumerable<int> ReleasedBlockIds)? MergeBlocksWithReplacementsOneLayer(
             string metadataTableName,
             int? metaBlockId,
             IEnumerable<int> blockIdsToCompact,
@@ -493,7 +490,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 tx);
             var metadataTable = Database.GetAnyTable(metadataTableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
-            (var mergedMetaBlocks, var hardDeletedRecordIds) = MergeBlockStack(
+            var mergedMetaBlocks = MergeBlockStack(
                 blockStack,
                 blockIdsToCompact.ToImmutableHashSet(),
                 metaSchema,
@@ -517,17 +514,10 @@ namespace TrackDb.Lib.DataLifeCycle
                         metaBlock.MetadataRecord.Span);
                 }
 
-                return (newMetadataBlockBuilder, hardDeletedRecordIds, removedBlockIds);
+                return (newMetadataBlockBuilder, removedBlockIds);
             }
             else
             {
-                if (hardDeletedRecordIds.Any())
-                {
-                    throw new InvalidOperationException(
-                        $"Post merge has {hardDeletedRecordIds.Count()} hard deleted record IDs" +
-                        $"but no removed block IDs");
-                }
-
                 return null;
             }
         }
@@ -604,7 +594,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #endregion
 
         #region Merge algorithm
-        private (IEnumerable<MetaDataBlock> MergeBlocks, IEnumerable<long> HardDeletedRecordIds) MergeBlockStack(
+        private IEnumerable<MetaDataBlock> MergeBlockStack(
             Stack<IBlockFacade> blockStack,
             IImmutableSet<int> blockIdsToCompact,
             MetadataTableSchema metaSchema,
@@ -664,7 +654,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
 
-            return (processedBlocks, hardDeletedRecordIds);
+            return processedBlocks;
         }
         #endregion
 
