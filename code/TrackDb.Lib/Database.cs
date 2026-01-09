@@ -372,8 +372,13 @@ namespace TrackDb.Lib
 
             if (invalidBlockCount > 0)
             {   //  For Debug
+#if DEBUG
                 var blocks = _availableBlockTable.Query(tx)
                     .Where(pf => pf.In(a => a.BlockId, blockIds));
+                var duplicates = _availableBlockTable.Query(tx)
+                    .GroupBy(a => a.BlockId)
+                    .Where(g => g.Count() > 1);
+#endif
 
                 throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
                     $"i.e. not InUsed");
