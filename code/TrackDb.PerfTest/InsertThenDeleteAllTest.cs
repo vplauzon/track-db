@@ -45,12 +45,8 @@ namespace TrackDb.PerfTest
 
                     await db.Database.AwaitLifeCycleManagement(4);
                 }
-                Assert.Equal(
-                    0,
-                    db.EmployeeTable.Query().Count());
-                Assert.Equal(
-                    0,
-                    db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
+                Assert.Equal(0, db.EmployeeTable.Query().Count());
+                Assert.Equal(0, db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
             }
         }
 

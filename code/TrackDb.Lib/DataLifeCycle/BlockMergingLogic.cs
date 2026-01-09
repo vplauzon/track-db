@@ -508,7 +508,9 @@ namespace TrackDb.Lib.DataLifeCycle
             var newBlockIds = mergedMetaBlocks
                 .Select(m => m.BlockId)
                 .ToImmutableArray();
-            var removedBlockIds = originalBlockIds.Except(newBlockIds);
+            var removedBlockIds = originalBlockIds
+                .Except(newBlockIds)
+                .ToImmutableArray();
 
             if (removedBlockIds.Any())
             {
@@ -526,6 +528,13 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else
             {
+                if (hardDeletedRecordIds.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Post merge has {hardDeletedRecordIds.Count()} hard deleted record IDs" +
+                        $"but no removed block IDs");
+                }
+
                 return null;
             }
         }
