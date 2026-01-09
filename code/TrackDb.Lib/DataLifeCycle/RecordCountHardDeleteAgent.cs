@@ -89,6 +89,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(o => o.BlockId == null)
                 .Any();
 
+            if (tableMap[tableName].IsMetaDataTable)
+            {
+                throw new InvalidOperationException(
+                    $"A metadata table ({tableName}) has tombstone entries");
+            }
             if (hasNullBlocks)
             {
                 var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
@@ -104,10 +109,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Select(o => o.BlockId!.Value)
                     .ToImmutableArray();
 
-                if (!tableMap[tableName].IsMetaDataTable)
-                {
-                    CompactBlock(tableName, blockId, otherBlockIds, tx);
-                }
+                CompactBlock(tableName, blockId, otherBlockIds, tx);
             }
         }
 

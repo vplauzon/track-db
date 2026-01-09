@@ -13,14 +13,23 @@ namespace TrackDb.Lib.DataLifeCycle
     internal class BlockMergingLogic : LogicBase
     {
         #region Inner Types
-        private record CompactResult(
-            IBlockFacade NewBlock,
-            IEnumerable<long> HardDeletedRecordIds);
+        private record BlockFacadeMergeResult(
+            IEnumerable<MetaDataBlock> MetaDataBlocks,
+            IEnumerable<long> TombstoneRecordIdsToDelete);
 
-        private record MergeResult(
-            IBlockFacade NewLeftBlock,
-            IBlockFacade? NewRightBlock,
-            IEnumerable<long> HardDeletedRecordIds);
+        private record OneLayerMergeResult(
+            BlockBuilder NewBlock,
+            IEnumerable<int> ReleasedBlockIds,
+            IEnumerable<long> TombstoneRecordIdsToDelete);
+
+        private record TransformResult(
+            bool IsTransformed,
+            IEnumerable<long> TombstoneRecordIdsToDelete,
+            IEnumerable<IBlockFacade> Blocks)
+        {
+            public static TransformResult NoTransform { get; }
+                = new TransformResult(false, Array.Empty<long>(), Array.Empty<IBlockFacade>());
+        }
 
         private interface IBlockFacade
         {
@@ -37,10 +46,10 @@ namespace TrackDb.Lib.DataLifeCycle
             /// <param name="blockIdsToCompact"></param>
             /// <param name="tx"></param>
             /// <returns>
-            /// <c>null</c> iif the block didn't get compacted.
-            /// Returns the new block and the list of record IDs that were hard deleted.
+            /// There might be more than one block in the case where the compacted version compresses
+            /// less than original one (rare).
             /// </returns>
-            CompactResult? CompactIf(IImmutableSet<int> blockIdsToCompact, TransactionContext tx);
+            TransformResult CompactIf(IImmutableSet<int> blockIdsToCompact, TransactionContext tx);
 
             /// <summary>
             /// Try merging current and <paramref name="right"/> block.
@@ -48,16 +57,10 @@ namespace TrackDb.Lib.DataLifeCycle
             /// <param name="right"></param>
             /// <param name="tx"></param>
             /// <returns>
-            /// <see cref="MergeResult.NewRightBlock"/> will be
-            /// <c>null</c> iff:
-            /// <list type="bullet">
-            /// <item>
-            /// Either current or <paramref name="right"/> is <see cref="MetaDataBlockFacade"/>
-            /// </item>
-            /// <item>If they can't be merged into a block that is persistable</item>
-            /// </list>
+            /// There might be more than one block in the case where the merged version compresses
+            /// less than original ones (rare).
             /// </returns>
-            MergeResult TryMerge(IBlockFacade right, TransactionContext tx);
+            TransformResult TryMerge(IBlockFacade right, TransactionContext tx);
 
             MetaDataBlockFacade Persist(TransactionContext tx);
         }
@@ -71,38 +74,44 @@ namespace TrackDb.Lib.DataLifeCycle
 
             int IBlockFacade.ItemCount => MetaDataBlock.ItemCount;
 
-            CompactResult? IBlockFacade.CompactIf(
+            TransformResult IBlockFacade.CompactIf(
                 IImmutableSet<int> blockIdsToCompact,
                 TransactionContext tx)
             {
                 if (blockIdsToCompact.Contains(MetaDataBlock.BlockId))
                 {
-                    return ForceCompact(tx);
+                    var blockBuilderFacade = ToBlockBuilderFacade();
+
+                    return blockBuilderFacade.ForceCompact(tx);
                 }
                 else
                 {
-                    return null;
+                    return TransformResult.NoTransform;
                 }
             }
 
-            MergeResult IBlockFacade.TryMerge(IBlockFacade right, TransactionContext tx)
+            TransformResult IBlockFacade.TryMerge(IBlockFacade right, TransactionContext tx)
             {
                 var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
 
                 if (((IBlockFacade)this).ComputeSize() + right.ComputeSize() <= maxBlockSize)
                 {
-                    var compactResult = ForceCompact(tx);
-                    var mergeResult = compactResult.NewBlock.TryMerge(right, tx);
+                    var blockBuilderFacade = ToBlockBuilderFacade();
+                    var leftTransformResult = blockBuilderFacade.ForceCompact(tx);
 
-                    return new MergeResult(
-                        mergeResult.NewLeftBlock,
-                        mergeResult.NewRightBlock,
-                        compactResult.HardDeletedRecordIds
-                        .Concat(mergeResult.HardDeletedRecordIds));
+                    return leftTransformResult.IsTransformed
+                        ? new TransformResult(
+                            true,
+                            leftTransformResult.TombstoneRecordIdsToDelete,
+                            leftTransformResult.Blocks.Append(right))
+                        : new TransformResult(
+                            true,
+                            Array.Empty<long>(),
+                            [blockBuilderFacade, right]);
                 }
                 else
                 {
-                    return new MergeResult(this, right, Array.Empty<long>());
+                    return TransformResult.NoTransform;
                 }
             }
 
@@ -111,33 +120,16 @@ namespace TrackDb.Lib.DataLifeCycle
                 return this;
             }
 
-            public CompactResult ForceCompact(TransactionContext tx)
+            public BlockBuilderFacade ToBlockBuilderFacade()
             {
                 var parentSchema = MetaDataBlock.Schema.ParentSchema;
                 var block = Database.GetOrLoadBlock(MetaDataBlock.BlockId, parentSchema);
-                //  First let's find the record IDs in the block
-                var allRecordIds = block.Project(
-                    new object?[1],
-                    [parentSchema.RecordIdColumnIndex],
-                    Enumerable.Range(0, block.RecordCount),
-                    0)
-                    .Select(r => (long)r.Span[0]!)
-                    .ToImmutableArray();
-                //  Then, let's find which ones are deleted
-                var deletedRecordIds = Database.TombstoneTable.Query(tx)
-                    .Where(pf => pf.Equal(t => t.TableName, parentSchema.TableName))
-                    .Where(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
-                    .Select(t => t.DeletedRecordId)
-                    .ToImmutableArray();
                 var blockBuilder = new BlockBuilder(parentSchema);
+                var blockBuilderFacade = new BlockBuilderFacade(Database, blockBuilder);
 
-                //  Hard delete those records
                 blockBuilder.AppendBlock(block);
-                blockBuilder.DeleteRecordsByRecordId(deletedRecordIds);
 
-                return new CompactResult(
-                    new BlockBuilderFacade(Database, blockBuilder),
-                    deletedRecordIds);
+                return blockBuilderFacade;
             }
         }
 
@@ -176,53 +168,40 @@ namespace TrackDb.Lib.DataLifeCycle
 
             int IBlockFacade.ItemCount => ((IBlock)BlockBuilder).RecordCount;
 
-            CompactResult? IBlockFacade.CompactIf(
+            TransformResult IBlockFacade.CompactIf(
                 IImmutableSet<int> blockIdsToCompact,
                 TransactionContext tx)
             {
-                return null;
+                return TransformResult.NoTransform;
             }
 
-            MergeResult IBlockFacade.TryMerge(IBlockFacade right, TransactionContext tx)
+            TransformResult IBlockFacade.TryMerge(IBlockFacade right, TransactionContext tx)
             {
-                MergeResult MergeBlockBuilderFacades(
-                    BlockBuilderFacade rightFacade,
-                    IEnumerable<long> hardDeletedRecordIds,
-                    TransactionContext tx)
-                {
-                    var newBlockBuilder =
-                        new BlockBuilder(((IBlock)BlockBuilder).TableSchema);
-                    IBlockFacade newFacade = new BlockBuilderFacade(Database, newBlockBuilder);
-
-                    newBlockBuilder.AppendBlock(BlockBuilder);
-                    newBlockBuilder.AppendBlock(rightFacade.BlockBuilder);
-
-                    if (newFacade.ComputeSize() <=
-                        Database.DatabasePolicy.StoragePolicy.BlockSize)
-                    {
-                        return new MergeResult(newFacade, null, hardDeletedRecordIds);
-                    }
-                    else
-                    {
-                        return new MergeResult(this, rightFacade, hardDeletedRecordIds);
-                    }
-                }
-
                 if (((IBlockFacade)this).ComputeSize() + right.ComputeSize()
                     <= Database.DatabasePolicy.StoragePolicy.BlockSize)
                 {
                     if (right is BlockBuilderFacade rbbf)
                     {
-                        return MergeBlockBuilderFacades(rbbf, Array.Empty<long>(), tx);
+                        var newBlockBuilder =
+                            new BlockBuilder(((IBlock)BlockBuilder).TableSchema);
+
+                        newBlockBuilder.AppendBlock(BlockBuilder);
+                        newBlockBuilder.AppendBlock(rbbf.BlockBuilder);
+
+                        var blockBuilders = SegmentBlockBuilder(newBlockBuilder);
+                        var facades = blockBuilders
+                            .Select(s => new BlockBuilderFacade(Database, s));
+
+                        return new TransformResult(true, Array.Empty<long>(), facades);
                     }
                     else if (right is MetaDataBlockFacade rmdbf)
                     {
-                        var compactResult = rmdbf.ForceCompact(tx);
+                        var compactedResult = rmdbf.ToBlockBuilderFacade().ForceCompact(tx);
 
-                        return MergeBlockBuilderFacades(
-                            (BlockBuilderFacade)compactResult.NewBlock,
-                            compactResult.HardDeletedRecordIds,
-                            tx);
+                        return new TransformResult(
+                            true,
+                            compactedResult.TombstoneRecordIdsToDelete,
+                            compactedResult.Blocks.Prepend(this));
                     }
                     else
                     {
@@ -230,8 +209,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                 }
                 else
-                {
-                    return new MergeResult(this, right, Array.Empty<long>());
+                {   //  Can't merge
+                    return TransformResult.NoTransform;
                 }
             }
 
@@ -256,6 +235,96 @@ namespace TrackDb.Lib.DataLifeCycle
                 Database.PersistBlock(blockId, buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
                 return new MetaDataBlockFacade(Database, metaBlock);
+            }
+
+            public TransformResult ForceCompact(TransactionContext tx)
+            {
+                var schema = ((IBlock)BlockBuilder).TableSchema;
+                //  Take a copy of the block
+                var blockBuilderCopy = new BlockBuilder(schema);
+
+                blockBuilderCopy.AppendBlock(BlockBuilder);
+
+                //  First let's find all record IDs in the block
+                var allRecordIds = ((IBlock)blockBuilderCopy).Project(
+                    new object?[1],
+                    [schema.RecordIdColumnIndex],
+                    Enumerable.Range(0, ((IBlock)blockBuilderCopy).RecordCount),
+                    0)
+                    .Select(r => (long)r.Span[0]!)
+                    .ToImmutableArray();
+                var tombstoneRecordIdColumnIndex =
+                    Database.TombstoneTable.Schema.RecordIdColumnIndex;
+                var deletedRecordIdColumnIndex =
+                    Database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId);
+                //  Then, let's find which ones are deleted
+                var tombstoneRecords = Database.TombstoneTable.Query(tx)
+                    .WithCommittedOnly()
+                    .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
+                    .Where(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
+                    .TableQuery
+                    .WithProjection(deletedRecordIdColumnIndex.Prepend(tombstoneRecordIdColumnIndex))
+                    .Select(r => new
+                    {
+                        TombstoneRecordId = (long)r.Span[0]!,
+                        DeletedRecordId = (long)r.Span[1]!
+                    })
+                    .ToImmutableArray();
+
+                if (tombstoneRecords.Length > 0)
+                {   //  Delete records in the block
+                    blockBuilderCopy.DeleteRecordsByRecordId(
+                        tombstoneRecords.Select(t => t.DeletedRecordId));
+
+                    //  Segment resulting block builder
+                    var segments = SegmentBlockBuilder(blockBuilderCopy);
+                    var blocks = segments
+                        .Select(s => new BlockBuilderFacade(Database, s))
+                        .ToImmutableArray();
+
+                    return new TransformResult(
+                        true,
+                        tombstoneRecords.Select(t => t.TombstoneRecordId),
+                        blocks);
+                }
+                else
+                {
+                    return new TransformResult(true, Array.Empty<long>(), [this]);
+                }
+            }
+
+            private IEnumerable<BlockBuilder> SegmentBlockBuilder(BlockBuilder blockBuilder)
+            {
+                var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
+                var sizes = blockBuilder.SegmentRecords(maxBlockSize);
+
+                if (sizes.Count == 1 || ((IBlock)blockBuilder).RecordCount == 0)
+                {   //  The block isn't too big
+                    return [blockBuilder];
+                }
+                else
+                {   //  We segment the block
+                    var list = new List<BlockBuilder>();
+                    var recordIndex = 0;
+                    var totalRecordCount = ((IBlock)blockBuilder).RecordCount;
+
+                    foreach (var size in sizes)
+                    {
+                        var subBlockBuilder = new BlockBuilder(((IBlock)blockBuilder).TableSchema);
+
+                        subBlockBuilder.AppendBlock(blockBuilder);
+                        //  Remove records after
+                        subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
+                            recordIndex + size.ItemCount,
+                            totalRecordCount - (recordIndex + size.ItemCount)));
+                        //  Remove records before
+                        subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, recordIndex));
+
+                        list.Add(subBlockBuilder);
+                    }
+
+                    return list;
+                }
             }
         }
         #endregion
@@ -361,9 +430,11 @@ namespace TrackDb.Lib.DataLifeCycle
             IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
+            var cummulatedTombstoneRecordIdsToDelete = new List<long>();
+
             while (true)
             {
-                var mergeResults = MergeBlocksWithReplacementsOneLayer(
+                var mergeResult = MergeBlocksWithReplacementsOneLayer(
                     metadataTableName,
                     metaBlockId,
                     blockIdsToCompact,
@@ -371,36 +442,44 @@ namespace TrackDb.Lib.DataLifeCycle
                     blocksToAdd,
                     tx);
 
-                if (mergeResults == null)
+                if (mergeResult == null)
                 {   //  Nothing changed
                     return false;
                 }
                 else
                 {
-                    (var newBlockBuilder, var releasedBlockIds) = mergeResults.Value;
                     var metadataTable = Database.GetAnyTable(metadataTableName);
                     var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                     var dataTableName = metaSchema.ParentSchema.TableName;
 
+                    cummulatedTombstoneRecordIdsToDelete.AddRange(
+                        mergeResult.TombstoneRecordIdsToDelete);
                     //  Release block ids
-                    Database.SetNoLongerInUsedBlockIds(releasedBlockIds, tx);
+                    Database.SetNoLongerInUsedBlockIds(mergeResult.ReleasedBlockIds, tx);
 
                     if (metaBlockId == null)
                     {   //  The top of the hierarchy
-                        //  Delete all in-memory meta records
+                        //  Delete all committed in-memory meta records
                         tx.LoadCommittedBlocksInTransaction(metadataTableName);
 
                         var tableLog = tx.TransactionState.UncommittedTransactionLog
                             .TransactionTableLogMap[metadataTableName];
 
-                        tableLog.CommittedDataBlock?.DeleteAll();
-                        tableLog.NewDataBlock.DeleteAll();
-                        //  Replace with in-memory block
-                        tableLog.NewDataBlock.AppendBlock(newBlockBuilder);
+                        //  Here we flip the old to the new representation (merged blocks)
+                        tableLog.CommittedDataBlock!.DeleteAll();
+                        //  Replace with in-memory block & in-place
+                        //  In-place:  this isn't new data, just new representation
+                        tableLog.CommittedDataBlock!.AppendBlock(mergeResult.NewBlock);
 
                         var prunedBlockIds = PruneMetaTable(metadataTable, tx);
 
-                        Database.SetNoLongerInUsedBlockIds(prunedBlockIds, tx);
+                        if (prunedBlockIds.Any())
+                        {
+                            Database.SetNoLongerInUsedBlockIds(prunedBlockIds, tx);
+                        }
+                        Database.CheckAvailabilityDuplicates(tx);
+                        HardDeleteTombstoneRecordIds(cummulatedTombstoneRecordIdsToDelete, tx);
+                        Database.CheckAvailabilityDuplicates(tx);
 
                         return true;
                     }
@@ -430,51 +509,29 @@ namespace TrackDb.Lib.DataLifeCycle
                         blockIdsToRemove = [metaBlockId.Value];
                         metaBlockId = metaMetaBlockId > 0 ? metaMetaBlockId : null;
                         blockIdsToCompact = Array.Empty<int>();
-                        blocksToAdd = ((IBlock)newBlockBuilder).RecordCount > 0
-                            //  A new block can be bigger than original
-                            //  e.g. same number of records but different min-max makes compression different
-                            ? SegmentBlockBuilder(newBlockBuilder)
+                        blocksToAdd = ((IBlock)mergeResult.NewBlock).RecordCount > 0
+                            ? [mergeResult.NewBlock]
                             : Array.Empty<BlockBuilder>();
                     }
                 }
             }
         }
 
-        private IEnumerable<BlockBuilder> SegmentBlockBuilder(BlockBuilder blockBuilder)
+        private void HardDeleteTombstoneRecordIds(
+            IEnumerable<long> tombstoneRecordIdsToDelete,
+            TransactionContext tx)
         {
-            var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
-            var sizes = blockBuilder.SegmentRecords(maxBlockSize);
-
-            if (sizes.Count == 1)
-            {   //  The block isn't too big
-                return [blockBuilder];
-            }
-            else
-            {   //  We segment the block
-                var list = new List<BlockBuilder>();
-                var recordIndex = 0;
-                var totalRecordCount = ((IBlock)blockBuilder).RecordCount;
-
-                foreach (var size in sizes)
-                {
-                    var subBlockBuilder = new BlockBuilder(((IBlock)blockBuilder).TableSchema);
-
-                    subBlockBuilder.AppendBlock(blockBuilder);
-                    //  Remove records after
-                    subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
-                        recordIndex + size.ItemCount,
-                        totalRecordCount - (recordIndex + size.ItemCount)));
-                    //  Remove records before
-                    subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, recordIndex));
-
-                    list.Add(subBlockBuilder);
-                }
-
-                return list;
+            if (tombstoneRecordIdsToDelete.Any())
+            {
+                tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
+                tx.TransactionState
+                    .UncommittedTransactionLog
+                    .TransactionTableLogMap[Database.TombstoneTable.Schema.TableName]
+                    .CommittedDataBlock!.DeleteRecordsByRecordId(tombstoneRecordIdsToDelete);
             }
         }
 
-        private (BlockBuilder NewBlock, IEnumerable<int> ReleasedBlockIds)? MergeBlocksWithReplacementsOneLayer(
+        private OneLayerMergeResult? MergeBlocksWithReplacementsOneLayer(
             string metadataTableName,
             int? metaBlockId,
             IEnumerable<int> blockIdsToCompact,
@@ -490,12 +547,12 @@ namespace TrackDb.Lib.DataLifeCycle
                 tx);
             var metadataTable = Database.GetAnyTable(metadataTableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
-            var mergedMetaBlocks = MergeBlockStack(
+            var mergedResult = MergeBlocks(
                 blockStack,
-                blockIdsToCompact.ToImmutableHashSet(),
+                blockIdsToCompact,
                 metaSchema,
                 tx);
-            var newBlockIds = mergedMetaBlocks
+            var newBlockIds = mergedResult.MetaDataBlocks
                 .Select(m => m.BlockId)
                 .ToImmutableArray();
             var removedBlockIds = originalBlockIds
@@ -506,7 +563,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var newMetadataBlockBuilder = new BlockBuilder(metaSchema);
 
-                foreach (var metaBlock in mergedMetaBlocks)
+                foreach (var metaBlock in mergedResult.MetaDataBlocks)
                 {
                     newMetadataBlockBuilder.AppendRecord(
                         DateTime.Now,
@@ -514,7 +571,10 @@ namespace TrackDb.Lib.DataLifeCycle
                         metaBlock.MetadataRecord.Span);
                 }
 
-                return (newMetadataBlockBuilder, removedBlockIds);
+                return new OneLayerMergeResult(
+                    newMetadataBlockBuilder,
+                    removedBlockIds,
+                    mergedResult.TombstoneRecordIdsToDelete);
             }
             else
             {
@@ -552,6 +612,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 var metadataTable = Database.GetAnyTable(metadataTableName);
                 var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
                 var metaDataBlocks = metadataTable.Query(tx)
+                    //  Especially relevant for availability-block:
+                    //  We just want to deal with what is committed
+                    .WithCommittedOnly()
                     .WithInMemoryOnly()
                     .Select(r => new MetaDataBlock(r.ToArray(), metadataTableSchema))
                     .ToImmutableArray();
@@ -560,7 +623,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private (Stack<IBlockFacade> BlockFacades, IEnumerable<int> OriginalBlockIds) LoadBlockFacades(
+        private (IEnumerable<IBlockFacade> BlockFacades, IEnumerable<int> OriginalBlockIds) LoadBlockFacades(
             string metadataTableName,
             int? metaBlockId,
             IEnumerable<int> blockIdsToRemove,
@@ -589,57 +652,70 @@ namespace TrackDb.Lib.DataLifeCycle
                 .OrderBy(f => f.RecordIdMax)
                 .Select(f => f.Facade);
 
-            return (new Stack<IBlockFacade>(allFacades), originalBlockIds);
+            return (allFacades.ToImmutableArray(), originalBlockIds);
         }
         #endregion
 
         #region Merge algorithm
-        private IEnumerable<MetaDataBlock> MergeBlockStack(
-            Stack<IBlockFacade> blockStack,
-            IImmutableSet<int> blockIdsToCompact,
+        private BlockFacadeMergeResult MergeBlocks(
+            IEnumerable<IBlockFacade> blocks,
+            IEnumerable<int> blockIdsToCompact,
             MetadataTableSchema metaSchema,
             TransactionContext tx)
         {
             var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
+            var blockStack = new Stack<IBlockFacade>(blocks);
+            var blockIdsToCompactSet = blockIdsToCompact.ToImmutableHashSet();
             var processedBlocks = new List<MetaDataBlock>(blockStack.Count);
-            var hardDeletedRecordIds = new List<long>();
+            var cummulatedTombstoneRecordIdsToDelete = new List<long>();
+
+            void PushRange(IEnumerable<IBlockFacade> blocks)
+            {
+                foreach (var block in blocks)
+                {
+                    blockStack.Push(block);
+                }
+            }
 
             while (blockStack.Any())
             {
                 var leftBlock = blockStack.Pop();
-                var leftCompactResult = leftBlock.CompactIf(blockIdsToCompact, tx);
+                var compactedLeftBlocks = leftBlock.CompactIf(blockIdsToCompactSet, tx);
 
-                if (leftCompactResult != null)
+                if (compactedLeftBlocks.IsTransformed)
                 {
-                    hardDeletedRecordIds.AddRange(leftCompactResult.HardDeletedRecordIds);
-                    leftBlock = leftCompactResult.NewBlock;
+                    cummulatedTombstoneRecordIdsToDelete.AddRange(
+                        compactedLeftBlocks.TombstoneRecordIdsToDelete);
+                    PushRange(compactedLeftBlocks.Blocks);
                 }
-                if (leftBlock.ItemCount > 0)
+                else if (leftBlock.ItemCount > 0)
                 {
                     if (blockStack.Any())
                     {
                         var rightBlock = blockStack.Pop();
-                        var rightCompactResult = rightBlock.CompactIf(blockIdsToCompact, tx);
+                        var compactedRightBlocks = rightBlock.CompactIf(blockIdsToCompactSet, tx);
 
-                        if (rightCompactResult != null)
+                        if (compactedRightBlocks.IsTransformed)
                         {
-                            hardDeletedRecordIds.AddRange(rightCompactResult.HardDeletedRecordIds);
-                            rightBlock = rightCompactResult.NewBlock;
+                            cummulatedTombstoneRecordIdsToDelete.AddRange(
+                                compactedRightBlocks.TombstoneRecordIdsToDelete);
+                            blockStack.Push(leftBlock);
+                            PushRange(compactedRightBlocks.Blocks);
                         }
-                        if (rightBlock.ItemCount > 0)
+                        else if (rightBlock.ItemCount > 0)
                         {
-                            var mergeResult = leftBlock.TryMerge(rightBlock, tx);
+                            var mergedBlocks = leftBlock.TryMerge(rightBlock, tx);
 
-                            hardDeletedRecordIds.AddRange(mergeResult.HardDeletedRecordIds);
-                            if (mergeResult.NewRightBlock != null)
-                            {   //  No merging occured
-                                processedBlocks.Add(
-                                    mergeResult.NewLeftBlock.Persist(tx).MetaDataBlock);
-                                blockStack.Push(mergeResult.NewRightBlock);
+                            if (mergedBlocks.IsTransformed)
+                            {
+                                cummulatedTombstoneRecordIdsToDelete.AddRange(
+                                    mergedBlocks.TombstoneRecordIdsToDelete);
+                                PushRange(mergedBlocks.Blocks);
                             }
                             else
-                            {   //  Merging occured, we keep the new block for another round
-                                blockStack.Push(mergeResult.NewLeftBlock);
+                            {   //  No merge occured
+                                processedBlocks.Add(leftBlock.Persist(tx).MetaDataBlock);
+                                blockStack.Push(rightBlock);
                             }
                         }
                         else
@@ -654,7 +730,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
             }
 
-            return processedBlocks;
+            return new BlockFacadeMergeResult(processedBlocks, cummulatedTombstoneRecordIdsToDelete);
         }
         #endregion
 

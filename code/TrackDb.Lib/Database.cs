@@ -365,8 +365,9 @@ namespace TrackDb.Lib
 
         internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
+            var materializedBlockIds = blockIds.ToImmutableArray();
             var invalidBlockCount = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
                 .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Count();
 
@@ -374,10 +375,12 @@ namespace TrackDb.Lib
             {   //  For Debug
 #if DEBUG
                 var blocks = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.In(a => a.BlockId, blockIds));
+                    .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
+                    .ToImmutableArray();
                 var duplicates = _availableBlockTable.Query(tx)
                     .GroupBy(a => a.BlockId)
-                    .Where(g => g.Count() > 1);
+                    .Where(g => g.Count() > 1)
+                    .ToImmutableArray();
 #endif
 
                 throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
@@ -385,20 +388,33 @@ namespace TrackDb.Lib
             }
 
             var deletedUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Delete();
 
-            if (deletedUsedBlocks != blockIds.Count())
+            if (deletedUsedBlocks != materializedBlockIds.Count())
             {
                 throw new InvalidOperationException(
-                    $"Corrupted available blocks:  {blockIds.Count()} to release from use, " +
-                    $"{deletedUsedBlocks} found");
+                    $"Corrupted available blocks:  {materializedBlockIds.Count()} " +
+                    $"to release from use, {deletedUsedBlocks} found");
             }
             _availableBlockTable.AppendRecords(
-                blockIds
+                materializedBlockIds
                 .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
                 tx);
+        }
+
+        internal void CheckAvailabilityDuplicates(TransactionContext tx)
+        {
+            var duplicates = _availableBlockTable.Query(tx)
+                .GroupBy(a => a.BlockId)
+                .Where(g => g.Count() > 1)
+                .ToImmutableArray();
+
+            if (duplicates.Length > 0)
+            {
+                throw new InvalidOperationException("Duplicates available blocks");
+            }
         }
 
         internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
@@ -850,51 +866,38 @@ namespace TrackDb.Lib
         internal void DeleteTombstoneRecords(
             string tableName,
             IEnumerable<long> recordIds,
-            bool forceDeleteWithinTransaction,
             TransactionContext tx)
         {
             var tombstoneTableName = TombstoneTable.Schema.TableName;
+            var materializedRecordIds = recordIds.Distinct().ToImmutableArray();
 
             tx.LoadCommittedBlocksInTransaction(tombstoneTableName);
 
             var transactionTableLog = tx.TransactionState
                 .UncommittedTransactionLog
                 .TransactionTableLogMap[tombstoneTableName];
-            var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
-            var newBlockBuilder = transactionTableLog.NewDataBlock;
-            var materializedRecordIds = recordIds.Distinct().ToImmutableArray();
-            var tombstoneQueryBase = forceDeleteWithinTransaction
-                ? TombstoneTable.Query(tx)
-                : TombstoneTable.Query(tx).WithCommittedOnly();
-            var tombstoneQuery = tombstoneQueryBase
+            var committedDataBlock = transactionTableLog.CommittedDataBlock;
+            var newDataBlock = transactionTableLog.NewDataBlock;
+            var tombstonePredicate = TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds));
-            var tombstoneDistinctRecordIdCount = tombstoneQuery
-                .Select(t => t.DeletedRecordId)
-                .Distinct()
-                .Count();
+                .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds))
+                .Predicate;
 
-            if (tombstoneDistinctRecordIdCount != materializedRecordIds.Length)
+            if (committedDataBlock != null && ((IBlock)committedDataBlock).RecordCount > 0)
             {
-                throw new InvalidOperationException("Mismatch tombstone");
-            }
-            if (committedBlockBuilder != null && ((IBlock)committedBlockBuilder).RecordCount > 0)
-            {
-                var rowIndexes = ((IBlock)committedBlockBuilder)
-                    .Filter(tombstoneQuery.Predicate, false)
+                var rowIndexes = ((IBlock)committedDataBlock)
+                    .Filter(tombstonePredicate, false)
                     .RowIndexes;
 
-                committedBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                committedDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
             }
-            if (forceDeleteWithinTransaction
-                && newBlockBuilder != null
-                && ((IBlock)newBlockBuilder).RecordCount > 0)
+            if (newDataBlock != null && ((IBlock)newDataBlock).RecordCount > 0)
             {
-                var rowIndexes = ((IBlock)newBlockBuilder)
-                    .Filter(tombstoneQuery.Predicate, false)
+                var rowIndexes = ((IBlock)newDataBlock)
+                    .Filter(tombstonePredicate, false)
                     .RowIndexes;
 
-                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                newDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
             }
         }
         #endregion

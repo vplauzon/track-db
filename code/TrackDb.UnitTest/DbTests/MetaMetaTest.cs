@@ -16,11 +16,12 @@ namespace TrackDb.UnitTest.DbTests
             {
                 var record1 = new TestDatabase.Primitives(1);
                 var record2 = new TestDatabase.Primitives(2);
+                var activity = DataManagementActivity.PersistAllNonMetaData
+                    | DataManagementActivity.PersistAllMetaDataFirstLevel;
 
                 db.PrimitiveTable.AppendRecord(record1);
                 db.PrimitiveTable.AppendRecord(record2);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
+                await db.Database.ForceDataManagementAsync(activity);
 
                 var state = db.Database.GetDatabaseStateSnapshot();
                 var map = state.TableMap;
@@ -37,8 +38,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 db.PrimitiveTable.AppendRecord(record3);
                 db.PrimitiveTable.AppendRecord(record4);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllNonMetaData);
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.PersistAllMetaDataFirstLevel);
+                await db.Database.ForceDataManagementAsync(activity);
 
                 state = db.Database.GetDatabaseStateSnapshot();
                 map = state.TableMap;

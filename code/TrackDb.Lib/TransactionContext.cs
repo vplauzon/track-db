@@ -131,7 +131,6 @@ namespace TrackDb.Lib
                             _database.DeleteTombstoneRecords(
                                 tableName,
                                 hardDeletedRecordIds,
-                                false,
                                 this);
                         }
                     }
