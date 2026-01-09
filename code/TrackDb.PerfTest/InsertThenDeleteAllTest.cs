@@ -35,8 +35,10 @@ namespace TrackDb.PerfTest
                     .ToImmutableArray();
 
                 //  Delete out-of-order, one at the time
-                foreach (var employeeId in shuffledEmployeeIds)
+                for (var i = 0; i != shuffledEmployeeIds.Length; ++i)
                 {
+                    var employeeId = shuffledEmployeeIds[i];
+
                     db.EmployeeTable.Query()
                         .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
                         .Delete();
