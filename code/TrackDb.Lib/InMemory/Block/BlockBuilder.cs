@@ -11,10 +11,6 @@ namespace TrackDb.Lib.InMemory.Block
 {
     internal class BlockBuilder : ReadOnlyBlockBase
     {
-        private const int START_TRUNCATE_ROW_COUNT = 100;
-        private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
-        private const int MAX_ITERATION_COUNT = 5;
-
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
         protected override int RecordCount => _dataColumns.First().RecordCount;
