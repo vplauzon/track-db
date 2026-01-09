@@ -361,9 +361,6 @@ namespace TrackDb.Lib.DataLifeCycle
             IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
-            var cumulatedHardDeletedRecordIds = new Dictionary<string, IEnumerable<long>>();
-            var cumulatedReleasedBlockIds = new List<int>();
-
             while (true)
             {
                 var mergeResults = MergeBlocksWithReplacementsOneLayer(
@@ -386,8 +383,11 @@ namespace TrackDb.Lib.DataLifeCycle
                     var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                     var dataTableName = metaSchema.ParentSchema.TableName;
 
-                    cumulatedHardDeletedRecordIds.Add(dataTableName, hardDeletedRecordIds);
-                    cumulatedReleasedBlockIds.AddRange(releasedBlockIds);
+                    //  Hard delete records
+                    Database.DeleteTombstoneRecords(dataTableName, hardDeletedRecordIds, true, tx);
+                    //  Release block ids
+                    Database.SetNoLongerInUsedBlockIds(releasedBlockIds, tx);
+
                     if (metaBlockId == null)
                     {   //  The top of the hierarchy
                         //  Delete all in-memory meta records
@@ -403,14 +403,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                         var prunedBlockIds = PruneMetaTable(metadataTable, tx);
 
-                        //  Hard delete records
-                        foreach (var p in cumulatedHardDeletedRecordIds)
-                        {
-                            Database.DeleteTombstoneRecords(p.Key, p.Value, true, tx);
-                        }
-                        Database.SetNoLongerInUsedBlockIds(
-                            cumulatedReleasedBlockIds.Concat(prunedBlockIds),
-                            tx);
+                        Database.SetNoLongerInUsedBlockIds(prunedBlockIds, tx);
 
                         return true;
                     }
