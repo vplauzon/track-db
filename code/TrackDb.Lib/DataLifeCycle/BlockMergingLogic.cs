@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 
@@ -471,7 +472,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         //  In-place:  this isn't new data, just new representation
                         tableLog.CommittedDataBlock!.AppendBlock(mergeResult.NewBlock);
 
-                        var prunedBlockIds = PruneMetaTable(metadataTable, tx);
+                        var prunedBlockIds = PruneHeadMetaTable(metadataTable, tx);
 
                         if (prunedBlockIds.Any())
                         {
@@ -734,22 +735,35 @@ namespace TrackDb.Lib.DataLifeCycle
         }
         #endregion
 
-        private IEnumerable<int> PruneMetaTable(Table metaTable, TransactionContext tx)
+        private IEnumerable<int> PruneHeadMetaTable(Table metaTable, TransactionContext tx)
         {
             var inMemoryRecordCount = metaTable.Query(tx)
-                .WithInMemoryOnly()
+                .Count();
+            var inMemoryCommittedRecordCount = metaTable.Query(tx)
+                .WithCommittedOnly()
                 .Count();
 
-            if (inMemoryRecordCount == 1)
+            //  We prune only if there is a unique block and it's committed
+            if (inMemoryRecordCount == 1 && inMemoryCommittedRecordCount == 1)
             {   //  Unique block persisted
                 var metaSchema = (MetadataTableSchema)metaTable.Schema;
-                var inMemoryQuery = metaTable.Query(tx)
-                    .WithInMemoryOnly();
-                var uniqueBlockItem = inMemoryQuery
+                var metaTableName = metaSchema.TableName;
+
+                tx.LoadCommittedBlocksInTransaction(metaTableName);
+
+                var committedDataBlock = tx.TransactionState
+                    .UncommittedTransactionLog
+                    .TransactionTableLogMap[metaTableName]
+                    .CommittedDataBlock!;
+                var uniqueBlockItem = ((IBlock)committedDataBlock).Project(
+                    new object?[2],
+                    [metaSchema.BlockIdColumnIndex, metaSchema.ItemCountColumnIndex],
+                    [0],
+                    0)
                     .Select(r => new
                     {
-                        BlockId = (int)r.Span[metaSchema.BlockIdColumnIndex]!,
-                        ItemCount = (int)r.Span[metaSchema.ItemCountColumnIndex]!
+                        BlockId = (int)r.Span[0]!,
+                        ItemCount = (int)r.Span[1]!
                     })
                     .First();
 
@@ -764,15 +778,29 @@ namespace TrackDb.Lib.DataLifeCycle
                     var dataBlock = Database.GetOrLoadBlock(
                         uniqueBlockItem.BlockId,
                         dataTable.Schema);
+                    var transactionTableLogMap = tx.TransactionState
+                        .UncommittedTransactionLog
+                        .TransactionTableLogMap;
 
-                    //  Delete the meta data record
-                    inMemoryQuery.Delete();
-                    //  Insert record in data table
-                    tx.TransactionState.UncommittedTransactionLog.AppendBlock(dataBlock);
+                    tx.LoadCommittedBlocksInTransaction(dataTableName);
+                    if (!transactionTableLogMap.ContainsKey(dataTableName))
+                    {
+                        transactionTableLogMap.Add(
+                            dataTableName,
+                            new TransactionTableLog(
+                                new BlockBuilder(dataTable.Schema),
+                                new BlockBuilder(dataTable.Schema)));
+                    }
+                    //  Delete the meta data record in-place (in committed blocks)
+                    committedDataBlock.DeleteAll();
+                    //  Insert record in data table, in-place
+                    transactionTableLogMap[dataTableName]
+                        .CommittedDataBlock!
+                        .AppendBlock(dataBlock);
 
                     //  Recurse
                     return dataTableProperties.IsMetaDataTable
-                        ? PruneMetaTable(dataTable, tx)
+                        ? PruneHeadMetaTable(dataTable, tx)
                         .Prepend(uniqueBlockItem.BlockId)
                         : [uniqueBlockItem.BlockId];
                 }

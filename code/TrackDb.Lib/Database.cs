@@ -661,7 +661,6 @@ namespace TrackDb.Lib
         internal void CompleteTransaction(TransactionContext tx)
         {
             RunTriggers(tx);
-            DecrementActiveTransactionCount();
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
@@ -674,12 +673,12 @@ namespace TrackDb.Lib
                         tx.TransactionState.UncommittedTransactionLog);
                 }
             }
+            DecrementActiveTransactionCount();
         }
 
         internal async Task CompleteTransactionAsync(TransactionContext tx, CancellationToken ct)
         {
             RunTriggers(tx);
-            DecrementActiveTransactionCount();
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
@@ -693,6 +692,7 @@ namespace TrackDb.Lib
                         ct);
                 }
             }
+            DecrementActiveTransactionCount();
         }
 
         private long CompleteTransactionState(TransactionState transactionState, bool doLog)

@@ -33,37 +33,42 @@ namespace TrackDb.Lib.InMemory
 
         public InMemoryDatabase CommitLog(TransactionState transactionState)
         {
-            var logs = ImmutableDictionary<string, ImmutableTableTransactionLogs>
+            var logMap = ImmutableDictionary<string, ImmutableTableTransactionLogs>
                 .Empty
                 .ToBuilder();
 
-            logs.AddRange(TransactionTableLogsMap);
+            //  Copy of current in-memory state
+            logMap.AddRange(TransactionTableLogsMap);
+            //  Loop through the transaction data (tables)
             foreach (var pair in transactionState.UncommittedTransactionLog.TransactionTableLogMap)
             {
                 var tableName = pair.Key;
                 var txTableLog = pair.Value;
                 var inMemoryBlocks = ImmutableArray<IBlock>.Empty.ToBuilder();
 
-                if (logs.ContainsKey(tableName))
+                //  First copy what's currently in db
+                if (logMap.ContainsKey(tableName) && txTableLog.CommittedDataBlock == null)
                 {
-                    if (txTableLog.CommittedDataBlock == null)
-                    {
-                        inMemoryBlocks.AddRange(logs[tableName].InMemoryBlocks);
-                    }
-                    else
-                    {   //  Replace committed
-                        var inTransactionCommittedCount = transactionState
-                            .InMemoryDatabase
-                            .TransactionTableLogsMap[tableName]
-                            .InMemoryBlocks
-                            .Count;
+                    inMemoryBlocks.AddRange(logMap[tableName].InMemoryBlocks);
+                }
+                //  Replace committed
+                if (txTableLog.CommittedDataBlock != null)
+                {
+                    var transactionTableLogsMap = transactionState
+                        .InMemoryDatabase
+                        .TransactionTableLogsMap;
+                    var inTransactionCommittedCount = transactionTableLogsMap.ContainsKey(tableName)
+                        ? transactionTableLogsMap[tableName].InMemoryBlocks.Count
+                        : 0;
 
-                        inMemoryBlocks.AddRange(logs[tableName].InMemoryBlocks
+                    if (inTransactionCommittedCount > 0)
+                    {
+                        inMemoryBlocks.AddRange(logMap[tableName].InMemoryBlocks
                             .Skip(inTransactionCommittedCount));
-                        if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
-                        {
-                            inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
-                        }
+                    }
+                    if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
+                    {
+                        inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
                     }
                 }
 
@@ -74,16 +79,16 @@ namespace TrackDb.Lib.InMemory
                 }
                 if (inMemoryBlocks.Count > 0)
                 {
-                    logs[tableName] =
+                    logMap[tableName] =
                         new ImmutableTableTransactionLogs(inMemoryBlocks.ToImmutable());
                 }
-                else if (logs.ContainsKey(tableName))
+                else if (logMap.ContainsKey(tableName))
                 {   //  The transaction emptied the blocks
-                    logs.Remove(tableName);
+                    logMap.Remove(tableName);
                 }
             }
 
-            return new InMemoryDatabase(logs.ToImmutable());
+            return new InMemoryDatabase(logMap.ToImmutable());
         }
     }
 }
