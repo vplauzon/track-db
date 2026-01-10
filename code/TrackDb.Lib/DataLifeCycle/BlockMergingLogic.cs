@@ -162,7 +162,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 IImmutableSet<int> blockIdsToCompact,
                 TransactionContext tx)
             {
-                return TransformResult.NoTransform;
+                return ForceCompact(tx);
             }
 
             TransformResult IBlockFacade.TryMerge(IBlockFacade right, TransactionContext tx)
@@ -539,7 +539,7 @@ namespace TrackDb.Lib.DataLifeCycle
             IEnumerable<BlockBuilder> blocksToAdd,
             TransactionContext tx)
         {
-            (var blockStack, var originalBlockIds) = LoadBlockFacades(
+            (var blockFacades, var originalBlockIds) = LoadBlockFacades(
                 metadataTableName,
                 metaBlockId,
                 blockIdsToRemove,
@@ -548,7 +548,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metadataTable = Database.GetAnyTable(metadataTableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var mergedResult = MergeBlocks(
-                blockStack,
+                blockFacades,
                 blockIdsToCompact,
                 metaSchema,
                 tx);
