@@ -206,7 +206,17 @@ namespace TrackDb.Lib.DataLifeCycle
 
             MetaDataBlockFacade IBlockFacade.Persist(TransactionContext tx)
             {
-                var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
+                var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
+#if DEBUG
+                var size = BlockBuilder.GetSerializationSize();
+
+                if (size > maxBlockSize)
+                {
+                    throw new InvalidOperationException(
+                        $"Oversized ({size}) block cannot be persisted");
+                }
+#endif
+                var buffer = new byte[maxBlockSize];
                 var blockStats = BlockBuilder.Serialize(buffer);
 
                 if (blockStats.Size > buffer.Length)
