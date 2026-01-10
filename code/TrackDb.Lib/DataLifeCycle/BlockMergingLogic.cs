@@ -311,18 +311,30 @@ namespace TrackDb.Lib.DataLifeCycle
                     var list = new List<BlockBuilder>();
                     var recordIndex = 0;
                     var totalRecordCount = ((IBlock)blockBuilder).RecordCount;
+                    var schema = ((IBlock)blockBuilder).TableSchema;
+                    var columnCount = schema.Columns.Count;
 
                     foreach (var size in sizes)
                     {
                         var subBlockBuilder = new BlockBuilder(((IBlock)blockBuilder).TableSchema);
+                        var records = ((IBlock)blockBuilder).Project(
+                            new object?[columnCount+2],
+                            Enumerable.Range(0, columnCount)
+                            .Append(schema.RecordIdColumnIndex)
+                            .Append(schema.CreationTimeColumnIndex)
+                            .ToImmutableArray(),
+                            Enumerable.Range(recordIndex, size.ItemCount),
+                            42);
 
-                        subBlockBuilder.AppendBlock(blockBuilder);
-                        //  Remove records after
-                        subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
-                            recordIndex + size.ItemCount,
-                            totalRecordCount - (recordIndex + size.ItemCount)));
-                        //  Remove records before
-                        subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, recordIndex));
+                        foreach(var record in records)
+                        {
+                            var recordSpan = record.Span;
+                            var recordId = (long)recordSpan[columnCount]!;
+                            var creationTime = (DateTime)recordSpan[columnCount + 1]!;
+                            var coreRecordSpan = recordSpan.Slice(0, columnCount);
+
+                            subBlockBuilder.AppendRecord(creationTime, recordId, coreRecordSpan);
+                        }
                         recordIndex += size.ItemCount;
 
                         list.Add(subBlockBuilder);
