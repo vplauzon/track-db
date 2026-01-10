@@ -9,6 +9,38 @@ namespace TrackDb.PerfTest
 {
     public class AppendTest
     {
+        [Fact]
+        public async Task AppendAndSegment()
+        {
+            const int RECORD_COUNT = 5000;
+
+            await using (var db = await VolumeTestDatabase.CreateAsync())
+            {
+                var random = new Random();
+                var records = Enumerable.Range(0, RECORD_COUNT)
+                    .Select(i => new VolumeTestDatabase.Employee(
+                        $"{i}",
+                        $"Bob{i} Smith{i + 50}"))
+                    .ToImmutableArray();
+
+                //  Append in one transaction
+                db.EmployeeTable.AppendRecords(records);
+                await db.Database.ForceDataManagementAsync(
+                    DataManagementActivity.PersistAllNonMetaData
+                    | DataManagementActivity.PersistAllMetaDataFirstLevel);
+
+                var min = db.EmployeeTable.Query()
+                    .Min(e => int.Parse(e.EmployeeId));
+                var max = db.EmployeeTable.Query()
+                    .Max(e => int.Parse(e.EmployeeId));
+
+                Assert.Equal(0, min);
+                Assert.Equal(RECORD_COUNT - 1, max);
+
+                Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
+            }
+        }
+
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
@@ -71,7 +103,7 @@ namespace TrackDb.PerfTest
                 Assert.Equal(
                     records.Sum(r => long.Parse(r.EmployeeId.Split('-')[1])),
                     resultsAll.Sum(r => long.Parse(r.EmployeeId.Split('-')[1])));
-             
+
                 Console.WriteLine($"Stats:  {db.Database.GetDatabaseStatistics()}");
             }
         }
