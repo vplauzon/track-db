@@ -153,18 +153,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             int IBlockFacade.ComputeSize()
             {
-                if (((IBlock)BlockBuilder).RecordCount > 0)
-                {
-                    var segments = BlockBuilder.SegmentRecords(
-                        Database.DatabasePolicy.StoragePolicy.BlockSize);
-
-                    return segments
-                        .Sum(s => s.Size);
-                }
-                else
-                {
-                    return 0;
-                }
+                return BlockBuilder.GetSerializationSize();
             }
 
             int IBlockFacade.ItemCount => ((IBlock)BlockBuilder).RecordCount;

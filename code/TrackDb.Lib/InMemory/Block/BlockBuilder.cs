@@ -175,6 +175,24 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
+        /// <summary>Returns the size serialization size of the entire block.</summary>
+        /// <returns></returns>
+        public int GetSerializationSize()
+        {
+            IBlock block = this;
+            var totalRecordCount = block.RecordCount;
+            var maxRecordCount = totalRecordCount;
+            var motherArray = new int[_dataColumns.Count * totalRecordCount];
+
+            var segmentSize = ComputerSegmentSize(
+                maxRecordCount,
+                0,
+                motherArray,
+                int.MaxValue);
+
+            return segmentSize.Size;
+        }
+
         /// <summary>
         /// Segments the block's records into batches that can be serialized within a buffer of
         /// size <paramref name="maxBufferLength"/>.
