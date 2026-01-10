@@ -289,7 +289,26 @@ namespace TrackDb.Lib.InMemory.Block
 
         public BlockStats Serialize(Span<byte> buffer)
         {
-            return Serialize(buffer, 0, ((IBlock)this).RecordCount);
+#if DEBUG
+            var size = GetSerializationSize();
+
+            if (size > buffer.Length)
+            {
+                throw new InvalidOperationException($"Oversized block ({size}) cannot serialize");
+            }
+#endif
+
+            var stats = Serialize(buffer, 0, ((IBlock)this).RecordCount);
+
+#if DEBUG
+            if (size != stats.Size)
+            {
+                throw new InvalidOperationException(
+                    $"Block size is not estimated properly:  {size} != {stats.Size}");
+            }
+#endif
+
+            return stats;
         }
 
         public BlockStats Serialize(Span<byte> buffer, int skipRows, int takeRows)

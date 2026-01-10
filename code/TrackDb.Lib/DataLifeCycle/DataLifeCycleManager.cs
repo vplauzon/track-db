@@ -46,7 +46,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 //new NonMetaRecordPersistanceAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database));
-                //new MetaRecordPersistanceAgent(database));
+            //new MetaRecordPersistanceAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -91,7 +91,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private async Task DataMaintanceAsync()
         {
             var lastReleaseBlock = DateTime.Now;
-            
+
             //  This loop is continuous as long as the object exists
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
@@ -179,20 +179,16 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
-            using (var tx = _database.CreateTransaction())
+            foreach (var agent in _dataLifeCycleAgents)
             {
-                foreach (var agent in _dataLifeCycleAgents)
+                if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    if (!_dataMaintenanceStopSource.Task.IsCompleted)
-                    {
-                        agent.Run(forcedDataManagementActivity, tx);
-                    }
-                    else
-                    {   //  We stop running agent
-                        return;
-                    }
+                    agent.Run(forcedDataManagementActivity);
                 }
-                tx.Complete();
+                else
+                {   //  We stop running agent
+                    return;
+                }
             }
         }
     }

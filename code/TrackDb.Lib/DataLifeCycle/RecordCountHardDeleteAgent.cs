@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -14,21 +16,31 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(
-            DataManagementActivity forcedDataManagementActivity,
-            TransactionContext tx)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
             var doHardDeleteAll =
                 (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll)
                 == DataManagementActivity.HardDeleteAll;
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            while (Iteration(doHardDeleteAll, maxTombstonedRecords, tx))
+            while (Iteration(doHardDeleteAll, maxTombstonedRecords))
             {
             }
         }
 
-        private bool Iteration(
+        private bool Iteration(bool doHardDeleteAll, int maxTombstonedRecords)
+        {
+            using (var tx = Database.CreateTransaction())
+            {
+                var result = TransactionalIteration(doHardDeleteAll, maxTombstonedRecords, tx);
+
+                tx.Complete();
+
+                return result;
+            }
+        }
+
+        private bool TransactionalIteration(
             bool doHardDeleteAll,
             int maxTombstonedRecords,
             TransactionContext tx)

@@ -14,16 +14,26 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(
-            DataManagementActivity forcedDataManagementActivity,
-            TransactionContext tx)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
-            while (HardDeleteIteration(tx))
+            while (HardDeleteIteration())
             {
             }
         }
 
-        private bool HardDeleteIteration(TransactionContext tx)
+        private bool HardDeleteIteration()
+        {
+            using (var tx = Database.CreateTransaction())
+            {
+                var result = HardDeleteTransactionalIteration(tx);
+
+                tx.Complete();
+
+                return result;
+            }
+        }
+
+        private bool HardDeleteTransactionalIteration(TransactionContext tx)
         {
             var thresholdTimestamp = DateTime.Now
                 - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;

@@ -323,6 +323,7 @@ namespace TrackDb.Lib.DataLifeCycle
                             totalRecordCount - (recordIndex + size.ItemCount)));
                         //  Remove records before
                         subBlockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, recordIndex));
+                        recordIndex += size.ItemCount;
 
                         list.Add(subBlockBuilder);
                     }
