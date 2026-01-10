@@ -134,7 +134,10 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private record BlockBuilderFacade(Database Database, BlockBuilder BlockBuilder)
+        private record BlockBuilderFacade(
+            Database Database,
+            BlockBuilder BlockBuilder,
+            bool IsCompacted = false)
             : IBlockFacade
         {
             long IBlockFacade.ComputeRecordIdMax()
@@ -230,57 +233,67 @@ namespace TrackDb.Lib.DataLifeCycle
 
             public TransformResult ForceCompact(TransactionContext tx)
             {
-                var schema = ((IBlock)BlockBuilder).TableSchema;
-                //  Take a copy of the block
-                var blockBuilderCopy = new BlockBuilder(schema);
-
-                blockBuilderCopy.AppendBlock(BlockBuilder);
-
-                //  First let's find all record IDs in the block
-                var allRecordIds = ((IBlock)blockBuilderCopy).Project(
-                    new object?[1],
-                    [schema.RecordIdColumnIndex],
-                    Enumerable.Range(0, ((IBlock)blockBuilderCopy).RecordCount),
-                    0)
-                    .Select(r => (long)r.Span[0]!)
-                    .ToImmutableArray();
-                var tombstoneRecordIdColumnIndex =
-                    Database.TombstoneTable.Schema.RecordIdColumnIndex;
-                var deletedRecordIdColumnIndex =
-                    Database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId);
-                //  Then, let's find which ones are deleted
-                var tombstoneRecords = Database.TombstoneTable.Query(tx)
-                    .WithCommittedOnly()
-                    .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
-                    .Where(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
-                    .TableQuery
-                    .WithProjection(deletedRecordIdColumnIndex.Prepend(tombstoneRecordIdColumnIndex))
-                    .Select(r => new
-                    {
-                        TombstoneRecordId = (long)r.Span[0]!,
-                        DeletedRecordId = (long)r.Span[1]!
-                    })
-                    .ToImmutableArray();
-
-                if (tombstoneRecords.Length > 0)
-                {   //  Delete records in the block
-                    blockBuilderCopy.DeleteRecordsByRecordId(
-                        tombstoneRecords.Select(t => t.DeletedRecordId));
-
-                    //  Segment resulting block builder
-                    var segments = SegmentBlockBuilder(blockBuilderCopy);
-                    var blocks = segments
-                        .Select(s => new BlockBuilderFacade(Database, s))
-                        .ToImmutableArray();
-
-                    return new TransformResult(
-                        true,
-                        tombstoneRecords.Select(t => t.TombstoneRecordId),
-                        blocks);
+                if (IsCompacted)
+                {
+                    return TransformResult.NoTransform;
                 }
                 else
                 {
-                    return new TransformResult(true, Array.Empty<long>(), [this]);
+                    var schema = ((IBlock)BlockBuilder).TableSchema;
+                    //  Take a copy of the block
+                    var blockBuilderCopy = new BlockBuilder(schema);
+
+                    blockBuilderCopy.AppendBlock(BlockBuilder);
+
+                    //  First let's find all record IDs in the block
+                    var allRecordIds = ((IBlock)blockBuilderCopy).Project(
+                        new object?[1],
+                        [schema.RecordIdColumnIndex],
+                        Enumerable.Range(0, ((IBlock)blockBuilderCopy).RecordCount),
+                        0)
+                        .Select(r => (long)r.Span[0]!)
+                        .ToImmutableArray();
+                    var tombstoneRecordIdColumnIndex =
+                        Database.TombstoneTable.Schema.RecordIdColumnIndex;
+                    var deletedRecordIdColumnIndex =
+                        Database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId);
+                    //  Then, let's find which ones are deleted
+                    var tombstoneRecords = Database.TombstoneTable.Query(tx)
+                        .WithCommittedOnly()
+                        .Where(pf => pf.Equal(t => t.TableName, schema.TableName))
+                        .Where(pf => pf.In(t => t.DeletedRecordId, allRecordIds))
+                        .TableQuery
+                        .WithProjection(deletedRecordIdColumnIndex.Prepend(tombstoneRecordIdColumnIndex))
+                        .Select(r => new
+                        {
+                            TombstoneRecordId = (long)r.Span[0]!,
+                            DeletedRecordId = (long)r.Span[1]!
+                        })
+                        .ToImmutableArray();
+
+                    if (tombstoneRecords.Length > 0)
+                    {   //  Delete records in the block
+                        blockBuilderCopy.DeleteRecordsByRecordId(
+                            tombstoneRecords.Select(t => t.DeletedRecordId));
+
+                        //  Segment resulting block builder
+                        var segments = SegmentBlockBuilder(blockBuilderCopy);
+                        var blocks = segments
+                            .Select(s => new BlockBuilderFacade(Database, s, true))
+                            .ToImmutableArray();
+
+                        return new TransformResult(
+                            true,
+                            tombstoneRecords.Select(t => t.TombstoneRecordId),
+                            blocks);
+                    }
+                    else
+                    {
+                        return new TransformResult(
+                            true,
+                            Array.Empty<long>(),
+                            [this with { IsCompacted = true }]);
+                    }
                 }
             }
 
