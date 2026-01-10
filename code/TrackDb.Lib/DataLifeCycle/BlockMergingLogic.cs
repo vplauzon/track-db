@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.InMemory;
@@ -240,16 +241,12 @@ namespace TrackDb.Lib.DataLifeCycle
                 else
                 {
                     var schema = ((IBlock)BlockBuilder).TableSchema;
-                    //  Take a copy of the block
-                    var blockBuilderCopy = new BlockBuilder(schema);
-
-                    blockBuilderCopy.AppendBlock(BlockBuilder);
 
                     //  First let's find all record IDs in the block
-                    var allRecordIds = ((IBlock)blockBuilderCopy).Project(
+                    var allRecordIds = ((IBlock)BlockBuilder).Project(
                         new object?[1],
                         [schema.RecordIdColumnIndex],
-                        Enumerable.Range(0, ((IBlock)blockBuilderCopy).RecordCount),
+                        Enumerable.Range(0, ((IBlock)BlockBuilder).RecordCount),
                         0)
                         .Select(r => (long)r.Span[0]!)
                         .ToImmutableArray();
@@ -271,8 +268,14 @@ namespace TrackDb.Lib.DataLifeCycle
                         })
                         .ToImmutableArray();
 
-                    if (tombstoneRecords.Length > 0)
+                    if (tombstoneRecords.Length > 0
+                        || BlockBuilder.GetSerializationSize()
+                        > Database.DatabasePolicy.StoragePolicy.BlockSize)
                     {   //  Delete records in the block
+                        //  Take a copy of the block
+                        var blockBuilderCopy = new BlockBuilder(schema);
+
+                        blockBuilderCopy.AppendBlock(BlockBuilder);
                         blockBuilderCopy.DeleteRecordsByRecordId(
                             tombstoneRecords.Select(t => t.DeletedRecordId));
 
@@ -318,7 +321,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var subBlockBuilder = new BlockBuilder(((IBlock)blockBuilder).TableSchema);
                         var records = ((IBlock)blockBuilder).Project(
-                            new object?[columnCount+2],
+                            new object?[columnCount + 2],
                             Enumerable.Range(0, columnCount)
                             .Append(schema.RecordIdColumnIndex)
                             .Append(schema.CreationTimeColumnIndex)
@@ -326,7 +329,7 @@ namespace TrackDb.Lib.DataLifeCycle
                             Enumerable.Range(recordIndex, size.ItemCount),
                             42);
 
-                        foreach(var record in records)
+                        foreach (var record in records)
                         {
                             var recordSpan = record.Span;
                             var recordId = (long)recordSpan[columnCount]!;
@@ -564,7 +567,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 tx);
             var metadataTable = Database.GetAnyTable(metadataTableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
-            var mergedResult = MergeBlocks(
+            var mergedResult = MergeBlockAlgorithm(
                 blockFacades,
                 blockIdsToCompact,
                 metaSchema,
@@ -674,14 +677,14 @@ namespace TrackDb.Lib.DataLifeCycle
         #endregion
 
         #region Merge algorithm
-        private BlockFacadeMergeResult MergeBlocks(
+        private BlockFacadeMergeResult MergeBlockAlgorithm(
             IEnumerable<IBlockFacade> blocks,
             IEnumerable<int> blockIdsToCompact,
             MetadataTableSchema metaSchema,
             TransactionContext tx)
         {
             var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
-            var blockStack = new Stack<IBlockFacade>(blocks);
+            var blockStack = new Stack<IBlockFacade>(blocks.Reverse());
             var blockIdsToCompactSet = blockIdsToCompact.ToImmutableHashSet();
             var processedBlocks = new List<MetaDataBlock>(blockStack.Count);
             var cummulatedTombstoneRecordIdsToDelete = new List<long>();
@@ -721,13 +724,13 @@ namespace TrackDb.Lib.DataLifeCycle
                         }
                         else if (rightBlock.ItemCount > 0)
                         {
-                            var mergedBlocks = leftBlock.TryMerge(rightBlock, tx);
+                            var mergedResult = leftBlock.TryMerge(rightBlock, tx);
 
-                            if (mergedBlocks.IsTransformed)
+                            if (mergedResult.IsTransformed)
                             {
                                 cummulatedTombstoneRecordIdsToDelete.AddRange(
-                                    mergedBlocks.TombstoneRecordIdsToDelete);
-                                PushRange(mergedBlocks.Blocks);
+                                    mergedResult.TombstoneRecordIdsToDelete);
+                                PushRange(mergedResult.Blocks);
                             }
                             else
                             {   //  No merge occured
