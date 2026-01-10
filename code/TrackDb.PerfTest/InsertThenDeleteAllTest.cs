@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using TrackDb.Lib;
 using Xunit;
 
 namespace TrackDb.PerfTest
@@ -89,6 +90,7 @@ namespace TrackDb.PerfTest
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
                     db.EmployeeTable.Query().Count());
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
                     db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
