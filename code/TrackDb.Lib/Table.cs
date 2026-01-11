@@ -86,16 +86,6 @@ namespace TrackDb.Lib
             }
         }
 
-        internal void AppendCommittedRecord(ReadOnlySpan<object?> record, TransactionContext tx)
-        {
-            tx.LoadCommittedBlocksInTransaction(Schema.TableName);
-            tx.TransactionState.UncommittedTransactionLog.AppendCommittedRecord(
-                DateTime.Now,
-                NewRecordId(),
-                record,
-                Schema);
-        }
-
         public void AppendRecords(
             IEnumerable<ReadOnlySpan<object?>> records,
             TransactionContext? tx = null)

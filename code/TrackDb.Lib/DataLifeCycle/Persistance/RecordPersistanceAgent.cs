@@ -71,7 +71,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 }
 
                 Database.PersistBlock(blockIds[i], buffer.AsSpan().Slice(0, blockStats.Size), tx);
-                metadataTable.AppendCommittedRecord(
+                metadataTable.AppendRecord(
                     metaSchema.CreateMetadataRecord(blockIds[i], blockStats).Span,
                     tx);
                 skipRows += blockStats.ItemCount;
