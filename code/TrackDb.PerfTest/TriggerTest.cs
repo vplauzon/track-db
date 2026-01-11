@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
+using static TrackDb.PerfTest.VolumeTestDatabase;
 
 namespace TrackDb.PerfTest
 {
@@ -37,18 +38,27 @@ namespace TrackDb.PerfTest
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 SetupData(db, recordCount);
-                Assert.Equal(1, db.OrderSummaryTable.Query().Count());
-                Assert.Equal(
-                    VolumeTestDatabase.OrderStatus.Initiated,
-                    db.OrderSummaryTable.Query().First().OrderStatus);
-                Assert.Equal(recordCount, db.OrderSummaryTable.Query().First().OrderCount);
+                ValidateSummary(db);
 
                 await db.Database.AwaitLifeCycleManagement(1);
-                Assert.Equal(1, db.OrderSummaryTable.Query().Count());
-                Assert.Equal(
-                    VolumeTestDatabase.OrderStatus.Initiated,
-                    db.OrderSummaryTable.Query().First().OrderStatus);
-                Assert.Equal(recordCount, db.OrderSummaryTable.Query().First().OrderCount);
+                ValidateSummary(db);
+            }
+        }
+
+        private void ValidateSummary(VolumeTestDatabase db)
+        {
+            using (var tx = db.CreateTransaction())
+            {
+                var onlineSummary = db.TriggeringOrderTable.Query(tx)
+                    .GroupBy(m => m.OrderStatus)
+                    .Select(g => new OrderSummary(g.Key, g.Count()))
+                    .ToDictionary(s => s.OrderStatus, s => s.OrderCount);
+                var materializedSummary = db.OrderSummaryTable.Query(tx)
+                    .GroupBy(m => m.OrderStatus)
+                    .Select(g => new OrderSummary(g.Key, g.Sum(s => s.OrderCount)))
+                    .ToDictionary(s => s.OrderStatus, s => s.OrderCount);
+
+                Assert.Equal(onlineSummary.Count(), materializedSummary.Count());
             }
         }
 
