@@ -499,7 +499,7 @@ namespace TrackDb.Lib
 
         private IEnumerable<IdentifiedBlock> ListBlocks(TransactionContext tx)
         {
-            if (_inMemoryOnly)
+            if (_inMemoryOnly || _inTxOnly)
             {
                 return ListUnpersistedBlocks(tx);
             }
