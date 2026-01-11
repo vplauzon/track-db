@@ -31,7 +31,7 @@ namespace TrackDb.PerfTest
         public enum OrderStatus
         {
             Initiated,
-            Intreatment,
+            Processing,
             Completed
         }
 

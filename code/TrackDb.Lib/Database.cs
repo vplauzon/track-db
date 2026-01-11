@@ -252,6 +252,8 @@ namespace TrackDb.Lib
         {
             bool IsToleranceExceeded()
             {
+                //  We use <= (lesser or equal) so that we don't spin
+                //  when tolerance==1
                 using (var tx = CreateTransaction())
                 {
                     var state = GetDatabaseStateSnapshot();
@@ -261,7 +263,7 @@ namespace TrackDb.Lib
                         .InMemoryDatabase
                         .GetMaxInMemoryBlocksPerTable();
 
-                    if (maxBlocksPerTable < tolerance * policy.MaxBlocksPerTable)
+                    if (maxBlocksPerTable <= tolerance * policy.MaxBlocksPerTable)
                     {
                         var totalNonMetaDataRecords = tableMap.Values
                             .Where(p => p.IsPersisted)
@@ -269,7 +271,7 @@ namespace TrackDb.Lib
                             .Select(p => p.Table.Query(tx).WithInMemoryOnly().Count())
                             .Sum();
 
-                        if (totalNonMetaDataRecords < tolerance * policy.MaxNonMetaDataRecords)
+                        if (totalNonMetaDataRecords <= tolerance * policy.MaxNonMetaDataRecords)
                         {
                             var totalMetaDataRecords = tableMap.Values
                                 .Where(p => p.IsPersisted)
@@ -292,10 +294,8 @@ namespace TrackDb.Lib
                     return true;
                 }
             }
-            if (tolerance <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(tolerance));
-            }
+
+            tolerance = Math.Min(1, tolerance);
             while (IsToleranceExceeded())
             {
                 await Task.Delay(DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod / 4);
