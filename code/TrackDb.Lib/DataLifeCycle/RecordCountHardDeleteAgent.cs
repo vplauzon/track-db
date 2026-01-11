@@ -54,18 +54,10 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .Count();
 
-            if (doHardDeleteAll && tombstoneCardinality > 0)
+            if ((doHardDeleteAll && tombstoneCardinality > 0)
+                || tombstoneCardinality > maxTombstonedRecords)
             {
-                CleanOneBlock((int)tombstoneCardinality, doIncludeSystemTables, tx);
-
-                return true;
-            }
-            else if (tombstoneCardinality > maxTombstonedRecords)
-            {
-                CleanOneBlock(
-                    (int)(tombstoneCardinality - maxTombstonedRecords),
-                    doIncludeSystemTables,
-                    tx);
+                CleanOneBlock(doIncludeSystemTables, tx);
 
                 return true;
             }
@@ -75,10 +67,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void CleanOneBlock(
-            int recordCountToHardDelete,
-            bool doIncludeSystemTables,
-            TransactionContext tx)
+        private void CleanOneBlock(bool doIncludeSystemTables, TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var topBlocks = Database.TombstoneTable.Query(tx)
@@ -94,7 +83,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 })
                 .OrderByDescending(o => o.RecordCount)
                 //  Cap the collection to required item count
-                .CapSumValues(o => o.RecordCount, recordCountToHardDelete);
+                .Take(2 * Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords);
             var tableName = topBlocks.First().TableName;
             var hasNullBlocks = topBlocks
                 .Where(o => o.TableName == tableName)
