@@ -17,17 +17,5 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <summary>Runs an agent logic.</summary>
         /// <param name="forcedDataManagementActivity"></param>
         public abstract void Run(DataManagementActivity forcedDataManagementActivity);
-
-        protected bool MergeTableTransactionLogs(string tableName)
-        {
-            using (var tx = Database.CreateTransaction())
-            {
-                var hasChanged = tx.LoadCommittedBlocksInTransaction(tableName);
-
-                tx.Complete();
-
-                return hasChanged;
-            }
-        }
     }
 }
