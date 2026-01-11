@@ -103,7 +103,6 @@ namespace TrackDb.PerfTest
 
                         tx.Complete();
                     }
-                    //Console.WriteLine(i);
                     await db.Database.AwaitLifeCycleManagement(5);
                 }
 
