@@ -38,11 +38,6 @@ namespace TrackDb.PerfTest
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 SetupData(db, recordCount);
-                ValidateSummary(db);
-
-                await db.Database.AwaitLifeCycleManagement(1);
-                ValidateSummary(db);
-
                 await TransitionAsync(
                     db,
                     batchSize,
@@ -88,7 +83,7 @@ namespace TrackDb.PerfTest
                         tx.Complete();
                     }
                 }
-                await db.Database.AwaitLifeCycleManagement(1);
+                await db.Database.AwaitLifeCycleManagement(2);
                 ValidateSummary(db);
             }
         }

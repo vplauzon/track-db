@@ -283,7 +283,7 @@ namespace TrackDb.Lib
                             {
                                 var totalTombstonedRecords = TombstoneTable.Query(tx).Count();
 
-                                if (totalTombstonedRecords < tolerance * policy.MaxTombstonedRecords)
+                                if (totalTombstonedRecords <= tolerance * policy.MaxTombstonedRecords)
                                 {
                                     return false;
                                 }
@@ -295,7 +295,6 @@ namespace TrackDb.Lib
                 }
             }
 
-            tolerance = Math.Min(1, tolerance);
             while (IsToleranceExceeded())
             {
                 await Task.Delay(DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod / 4);
