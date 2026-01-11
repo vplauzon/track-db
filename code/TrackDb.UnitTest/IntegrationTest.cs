@@ -125,7 +125,7 @@ namespace TrackDb.UnitTest
 
             var result3 = table.Query()
                 .Where(pf => pf.LessThan(e => e.LegacyId, entity2.LegacyId))
-                .OrderByDesc(e => e.Step)
+                .OrderByDescending(e => e.Step)
                 .Take(1)
                 .ToImmutableArray();
 
@@ -139,7 +139,7 @@ namespace TrackDb.UnitTest
 
             var result4 = table.Query()
                 .Where(pf => pf.LessThan(e => e.Timestamp, entity3.Timestamp))
-                .OrderByDesc(e => e.Timestamp)
+                .OrderByDescending(e => e.Timestamp)
                 .Take(1)
                 .ToImmutableArray();
 
@@ -153,7 +153,7 @@ namespace TrackDb.UnitTest
 
             var result5 = table.Query()
                 .Where(pf => pf.NotEqual(e => e.Status, Status.Completed))
-                .OrderByDesc(e => e.Status)
+                .OrderByDescending(e => e.Status)
                 .ToImmutableArray();
 
             Assert.Equal(3, result5.Length);

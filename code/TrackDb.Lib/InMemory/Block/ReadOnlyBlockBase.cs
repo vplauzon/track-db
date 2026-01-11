@@ -223,7 +223,7 @@ namespace TrackDb.Lib.InMemory.Block
             var columns = projectionColumnIndexes
                 .Select(index => index <= Schema.RecordIdColumnIndex
                 ? GetDataColumn(index)
-                : index == Schema.RowIndexColumnIndex
+                : index == Schema.RecordIndexColumnIndex
                 ? new RowIndexColumn()
                 : index == Schema.ParentBlockIdColumnIndex
                 ? new BlockIdColumn(blockId)
@@ -369,6 +369,6 @@ namespace TrackDb.Lib.InMemory.Block
                 return dataTable;
             }
         }
-        #endregion    }
+        #endregion
     }
 }

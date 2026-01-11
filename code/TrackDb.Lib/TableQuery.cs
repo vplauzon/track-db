@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
@@ -265,6 +266,32 @@ namespace TrackDb.Lib
             else
             {
                 throw new InvalidOperationException("No columns would be projected.");
+            }
+        }
+        #endregion
+
+        #region Debug View
+        /// <summary>To be used in debugging only.</summary>
+        internal DataTable DebugView
+        {
+            get
+            {
+                var columnNames = _table.Schema.ColumnProperties
+                    .Select(c => c.ColumnSchema.ColumnName);
+                var dataTable = new DataTable();
+                var query = this.WithProjection(
+                    Enumerable.Range(0, _table.Schema.ColumnProperties.Count));
+
+                foreach (var columnName in columnNames)
+                {
+                    dataTable.Columns.Add(columnName);
+                }
+                foreach (var record in query)
+                {
+                    dataTable.Rows.Add(record.ToArray());
+                }
+
+                return dataTable;
             }
         }
         #endregion
@@ -544,7 +571,7 @@ namespace TrackDb.Lib
                 .ToImmutableArray();
             //  Second phase:  re-query blocks to project results
             var materializedProjectionColumnIndexes = projectionColumnIndexes
-                .Append(_table.Schema.RowIndexColumnIndex)
+                .Append(_table.Schema.RecordIndexColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
@@ -594,7 +621,7 @@ namespace TrackDb.Lib
                 : ImmutableHashSet<long>.Empty;
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
-                .Append(_table.Schema.RowIndexColumnIndex)
+                .Append(_table.Schema.RecordIndexColumnIndex)
                 .Append(_table.Schema.ParentBlockIdColumnIndex)
                 .Append(_table.Schema.RecordIdColumnIndex)
                 .ToImmutableArray();

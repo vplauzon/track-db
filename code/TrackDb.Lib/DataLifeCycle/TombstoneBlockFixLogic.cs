@@ -55,8 +55,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  Parallel transaction could break that assertion
                 Database.DeleteTombstoneRecords(
                     tableName,
-                    orphansDeletedRecordMap.Keys.Distinct(),
-                    false,
+                    orphansDeletedRecordMap.Keys,
                     tx);
                 //  This was deleted from committed logs and can hence be hard-deleted there
                 Database.TombstoneTable.AppendRecords(foundRecords, tx);
@@ -91,21 +90,27 @@ namespace TrackDb.Lib.DataLifeCycle
                 table.Schema.ParentBlockIdColumnIndex
             };
             var newTombstoneRecords = table.Query(tx)
+                .WithCommittedOnly()
                 .WithIgnoreDeleted()
                 .WithPredicate(predicate)
                 .WithProjection(projectionColumnIndexes)
+                .Select(r => new
+                {
+                    RecordId = (long)r.Span[0]!,
+                    ParentBlockId = (int)r.Span[1]!
+                })
                 .Select(r => new TombstoneRecord(
-                    (long)r.Span[0]!,
+                    r.RecordId,
                     tableName,
-                    (int)r.Span[1]!,
-                    orphansDeletedRecordIdMap[(long)r.Span[0]!]));
+                    r.ParentBlockId,
+                    orphansDeletedRecordIdMap[r.RecordId]));
             //  The delete was on "committed only", the fixed version should be there too
             var tombstoneCommittedDataBlock = tx.TransactionState.UncommittedTransactionLog
                 .TransactionTableLogMap[Database.TombstoneTable.Schema.TableName]
                 .CommittedDataBlock!;
 
             //  Delete those records in tombstone table
-            Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordIdMap.Keys, false, tx);
+            Database.DeleteTombstoneRecords(tableName, orphansDeletedRecordIdMap.Keys, tx);
             foreach (var record in newTombstoneRecords)
             {
                 var columnRecord = Database.TombstoneTable.Schema.FromObjectToColumns(record);

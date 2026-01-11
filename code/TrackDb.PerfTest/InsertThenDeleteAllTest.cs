@@ -2,13 +2,14 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
+using TrackDb.Lib;
 using Xunit;
 
 namespace TrackDb.PerfTest
 {
     public class InsertThenDeleteAllTest
     {
-        private const int BULK_SIZE = 10000;
+        private const int BULK_SIZE = 20000;
 
         [Fact]
         public async Task DeleteAll()
@@ -35,20 +36,18 @@ namespace TrackDb.PerfTest
                     .ToImmutableArray();
 
                 //  Delete out-of-order, one at the time
-                foreach (var employeeId in shuffledEmployeeIds)
+                for (var i = 0; i != shuffledEmployeeIds.Length; ++i)
                 {
+                    var employeeId = shuffledEmployeeIds[i];
+
                     db.EmployeeTable.Query()
                         .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
                         .Delete();
 
                     await db.Database.AwaitLifeCycleManagement(4);
                 }
-                Assert.Equal(
-                    0,
-                    db.EmployeeTable.Query().Count());
-                Assert.Equal(
-                    0,
-                    db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
+                Assert.Equal(0, db.EmployeeTable.Query().Count());
+                Assert.Equal(0, db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
             }
         }
 
@@ -91,6 +90,7 @@ namespace TrackDb.PerfTest
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
                     db.EmployeeTable.Query().Count());
+                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
                     db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());

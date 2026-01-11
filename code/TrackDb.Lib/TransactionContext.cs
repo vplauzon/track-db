@@ -110,17 +110,20 @@ namespace TrackDb.Lib
             if (transactionState.LoadCommittedBlocksInTransaction(tableName))
             {
                 if (tableName != _database.TombstoneTable.Schema.TableName)
-                {
-                    var deletedRecordIds = _database.GetDeletedRecordIds(tableName, this)
+                {   //  We hard delete only out-of-transaction tombstones
+                    var deletedRecordIds = _database.TombstoneTable.Query(this)
+                        .WithCommittedOnly()
+                        .Where(pf => pf.Equal(t => t.TableName, tableName))
+                        .Select(t => t.DeletedRecordId)
                         .ToImmutableArray();
 
                     if (deletedRecordIds.Any())
                     {
-                        var tableBlockBuilder = transactionState.UncommittedTransactionLog
+                        var committedDataBlock = transactionState.UncommittedTransactionLog
                             .TransactionTableLogMap[tableName]
                             .CommittedDataBlock!;
                         //  Hard delete in-memory records in the table
-                        var hardDeletedRecordIds = tableBlockBuilder.DeleteRecordsByRecordId(
+                        var hardDeletedRecordIds = committedDataBlock.DeleteRecordsByRecordId(
                             deletedRecordIds);
 
                         if (hardDeletedRecordIds.Any())
@@ -128,7 +131,6 @@ namespace TrackDb.Lib
                             _database.DeleteTombstoneRecords(
                                 tableName,
                                 hardDeletedRecordIds,
-                                false,
                                 this);
                         }
                     }

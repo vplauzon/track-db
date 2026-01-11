@@ -109,7 +109,7 @@ namespace TrackDb.Lib
 
         public int RecordIdColumnIndex => Columns.Count + 1;
 
-        public int RowIndexColumnIndex => Columns.Count + 2;
+        public int RecordIndexColumnIndex => Columns.Count + 2;
 
         public int ParentBlockIdColumnIndex => Columns.Count + 3;
         #endregion

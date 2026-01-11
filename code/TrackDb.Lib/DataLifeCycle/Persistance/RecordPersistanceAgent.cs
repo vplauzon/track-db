@@ -20,11 +20,16 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             _persistanceCandidateProvider = persistanceCandidateProvider;
         }
 
-        public override void Run(DataManagementActivity activity, TransactionContext tx)
+        public override void Run(DataManagementActivity activity)
         {
-            foreach (var candidate in _persistanceCandidateProvider.FindCandidates(activity, tx))
+            using (var tx = Database.CreateTransaction())
             {
-                PersistTable(candidate, tx);
+                foreach (var candidate in _persistanceCandidateProvider.FindCandidates(activity, tx))
+                {
+                    PersistTable(candidate, tx);
+                }
+
+                tx.Complete();
             }
         }
 
@@ -33,29 +38,29 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             tx.LoadCommittedBlocksInTransaction(candidate.Table.Schema.TableName);
 
             //  We persist as much blocks from the table as possible
-            var tableBlockBuilder = tx.TransactionState.UncommittedTransactionLog
+            var committedDataBlock = tx.TransactionState.UncommittedTransactionLog
                 .TransactionTableLogMap[candidate.Table.Schema.TableName]
                 .CommittedDataBlock;
 
-            if (tableBlockBuilder == null)
+            if (committedDataBlock == null)
             {
                 throw new InvalidOperationException("CommittedDataBlock shouldn't be null");
             }
 
-            tableBlockBuilder.OrderByRecordId();
+            committedDataBlock.OrderByRecordId();
 
-            IBlock tableBlock = tableBlockBuilder;
+            IBlock tableBlock = committedDataBlock;
             var metadataTable = Database.GetMetaDataTable(tableBlock.TableSchema.TableName);
             var metaSchema = (MetadataTableSchema)metadataTable.Schema;
             var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
-            var segments = tableBlockBuilder.SegmentRecords(buffer.Length);
+            var segments = committedDataBlock.SegmentRecords(buffer.Length);
             var blockIds = Database.UseAvailableBlockIds(segments.Count, tx);
             var skipRows = 0;
 
             for (int i = 0; i != segments.Count; ++i)
             {
                 var blockStats =
-                    tableBlockBuilder.Serialize(buffer, skipRows, segments[i].ItemCount);
+                    committedDataBlock.Serialize(buffer, skipRows, segments[i].ItemCount);
 
                 if (blockStats.Size != segments[i].Size)
                 {
@@ -70,7 +75,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     tx);
                 skipRows += blockStats.ItemCount;
             }
-            tableBlockBuilder.Clear();
+            committedDataBlock.Clear();
         }
     }
 }

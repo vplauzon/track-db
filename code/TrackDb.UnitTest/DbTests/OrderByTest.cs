@@ -93,9 +93,9 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var results = db.MultiIntegerTable.Query()
-                    .OrderByDesc(m => m.Integer1)
+                    .OrderByDescending(m => m.Integer1)
                     .ThenBy(m => m.Integer2)
-                    .ThenByDesc(m => m.Integer4)
+                    .ThenByDescending(m => m.Integer4)
                     .Take(3)
                     .ToImmutableList();
                 //  We should get:
@@ -162,9 +162,9 @@ namespace TrackDb.UnitTest.DbTests
                     : DataManagementActivity.None);
 
                 var results = db.MultiIntegerTable.Query()
-                    .OrderByDesc(m => m.Integer1)
+                    .OrderByDescending(m => m.Integer1)
                     .ThenBy(m => m.Integer2)
-                    .ThenByDesc(m => m.Integer4)
+                    .ThenByDescending(m => m.Integer4)
                     .Take(3)
                     .ToImmutableList();
                 //  We should get:

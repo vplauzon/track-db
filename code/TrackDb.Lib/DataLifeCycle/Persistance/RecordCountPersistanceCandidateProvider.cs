@@ -54,9 +54,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     {
                         var newNewRecordCount = GetRecordCount(topCandidate.Table, tx);
 
-                        tableRecordCounts.Add(
-                            new TableRecordCount(topCandidate.Table, newNewRecordCount, true));
-                        Sort(tableRecordCounts);
+                        //  We filter out tables with only one record since storing the meta record
+                        //  in memory is equivalent to storing the record itself
+                        if (newNewRecordCount > 1)
+                        {
+                            tableRecordCounts.Add(
+                                new TableRecordCount(topCandidate.Table, newNewRecordCount, true));
+                            Sort(tableRecordCounts);
+                        }
                     }
                 }
                 else

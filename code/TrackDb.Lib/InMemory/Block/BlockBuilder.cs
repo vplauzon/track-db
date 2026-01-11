@@ -11,10 +11,6 @@ namespace TrackDb.Lib.InMemory.Block
 {
     internal class BlockBuilder : ReadOnlyBlockBase
     {
-        private const int START_TRUNCATE_ROW_COUNT = 100;
-        private const int MAX_TRUNCATE_ROW_COUNT = short.MaxValue;
-        private const int MAX_ITERATION_COUNT = 5;
-
         private readonly IImmutableList<IDataColumn> _dataColumns;
 
         protected override int RecordCount => _dataColumns.First().RecordCount;
@@ -179,6 +175,24 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Serialization
+        /// <summary>Returns the size serialization size of the entire block.</summary>
+        /// <returns></returns>
+        public int GetSerializationSize()
+        {
+            IBlock block = this;
+            var totalRecordCount = block.RecordCount;
+            var maxRecordCount = totalRecordCount;
+            var motherArray = new int[_dataColumns.Count * totalRecordCount];
+
+            var segmentSize = ComputerSegmentSize(
+                maxRecordCount,
+                0,
+                motherArray,
+                int.MaxValue);
+
+            return segmentSize.Size;
+        }
+
         /// <summary>
         /// Segments the block's records into batches that can be serialized within a buffer of
         /// size <paramref name="maxBufferLength"/>.
@@ -275,7 +289,26 @@ namespace TrackDb.Lib.InMemory.Block
 
         public BlockStats Serialize(Span<byte> buffer)
         {
-            return Serialize(buffer, 0, ((IBlock)this).RecordCount);
+#if DEBUG
+            var size = GetSerializationSize();
+
+            if (size > buffer.Length)
+            {
+                throw new InvalidOperationException($"Oversized block ({size}) cannot serialize");
+            }
+#endif
+
+            var stats = Serialize(buffer, 0, ((IBlock)this).RecordCount);
+
+#if DEBUG
+            if (size != stats.Size)
+            {
+                throw new InvalidOperationException(
+                    $"Block size is not estimated properly:  {size} != {stats.Size}");
+            }
+#endif
+
+            return stats;
         }
 
         public BlockStats Serialize(Span<byte> buffer, int skipRows, int takeRows)

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -14,21 +16,31 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        public override void Run(
-            DataManagementActivity forcedDataManagementActivity,
-            TransactionContext tx)
+        public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
             var doHardDeleteAll =
                 (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll)
                 == DataManagementActivity.HardDeleteAll;
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            while (Iteration(doHardDeleteAll, maxTombstonedRecords, tx))
+            while (Iteration(doHardDeleteAll, maxTombstonedRecords))
             {
             }
         }
 
-        private bool Iteration(
+        private bool Iteration(bool doHardDeleteAll, int maxTombstonedRecords)
+        {
+            using (var tx = Database.CreateTransaction())
+            {
+                var result = TransactionalIteration(doHardDeleteAll, maxTombstonedRecords, tx);
+
+                tx.Complete();
+
+                return result;
+            }
+        }
+
+        private bool TransactionalIteration(
             bool doHardDeleteAll,
             int maxTombstonedRecords,
             TransactionContext tx)
@@ -42,18 +54,10 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .Count();
 
-            if (doHardDeleteAll && tombstoneCardinality > 0)
+            if ((doHardDeleteAll && tombstoneCardinality > 0)
+                || tombstoneCardinality > maxTombstonedRecords)
             {
-                CleanOneBlock((int)tombstoneCardinality, doIncludeSystemTables, tx);
-
-                return true;
-            }
-            else if (tombstoneCardinality > maxTombstonedRecords)
-            {
-                CleanOneBlock(
-                    (int)(tombstoneCardinality - maxTombstonedRecords),
-                    doIncludeSystemTables,
-                    tx);
+                CleanOneBlock(doIncludeSystemTables, tx);
 
                 return true;
             }
@@ -63,10 +67,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void CleanOneBlock(
-            int recordCountToHardDelete,
-            bool doIncludeSystemTables,
-            TransactionContext tx)
+        private void CleanOneBlock(bool doIncludeSystemTables, TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var topBlocks = Database.TombstoneTable.Query(tx)
@@ -82,13 +83,18 @@ namespace TrackDb.Lib.DataLifeCycle
                 })
                 .OrderByDescending(o => o.RecordCount)
                 //  Cap the collection to required item count
-                .CapSumValues(o => o.RecordCount, recordCountToHardDelete);
+                .Take(2 * Database.DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords);
             var tableName = topBlocks.First().TableName;
             var hasNullBlocks = topBlocks
                 .Where(o => o.TableName == tableName)
                 .Where(o => o.BlockId == null)
                 .Any();
 
+            if (tableMap[tableName].IsMetaDataTable)
+            {
+                throw new InvalidOperationException(
+                    $"A metadata table ({tableName}) has tombstone entries");
+            }
             if (hasNullBlocks)
             {
                 var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
@@ -104,10 +110,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Select(o => o.BlockId!.Value)
                     .ToImmutableArray();
 
-                if (!tableMap[tableName].IsMetaDataTable)
-                {
-                    CompactBlock(tableName, blockId, otherBlockIds, tx);
-                }
+                CompactBlock(tableName, blockId, otherBlockIds, tx);
             }
         }
 

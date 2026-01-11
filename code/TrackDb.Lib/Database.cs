@@ -24,6 +24,8 @@ namespace TrackDb.Lib
     /// </summary>
     public class Database : IAsyncDisposable
     {
+        private const int BLOCK_INCREMENT = 256;
+
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
@@ -332,23 +334,22 @@ namespace TrackDb.Lib
             {
                 var newRecords = availableBlockIds
                     .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
-
-                _availableBlockTable.Query(tx)
+                var deletedCount = _availableBlockTable.Query(tx)
                     .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
                     .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
                     .Delete();
+
+                if (deletedCount != availableBlockIds.Length)
+                {
+                    throw new InvalidOperationException($"Corrupted available blocks");
+                }
                 _availableBlockTable.AppendRecords(newRecords, tx);
 
                 return availableBlockIds;
             }
             else
             {
-                var blockIds = _dbFileManager.Value.CreateBlockBatch()
-                    .ToImmutableArray();
-
-                _availableBlockTable.AppendRecords(blockIds
-                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available)),
-                    tx);
+                IncrementBlockCount(tx);
 
                 //  Now that there are available block, let's try again
                 return UseAvailableBlockIds(blockIdCount, tx);
@@ -364,37 +365,56 @@ namespace TrackDb.Lib
 
         internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
+            var materializedBlockIds = blockIds.ToImmutableArray();
             var invalidBlockCount = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
                 .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Count();
 
             if (invalidBlockCount > 0)
             {   //  For Debug
-                var invalidBlocks = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.In(a => a.BlockId, blockIds))
-                    .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
+#if DEBUG
+                var blocks = _availableBlockTable.Query(tx)
+                    .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
                     .ToImmutableArray();
+                var duplicates = _availableBlockTable.Query(tx)
+                    .GroupBy(a => a.BlockId)
+                    .Where(g => g.Count() > 1)
+                    .ToImmutableArray();
+#endif
 
                 throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
                     $"i.e. not InUsed");
             }
 
             var deletedUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, blockIds))
+                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
                 .Delete();
 
-            if (deletedUsedBlocks != blockIds.Count())
+            if (deletedUsedBlocks != materializedBlockIds.Count())
             {
                 throw new InvalidOperationException(
-                    $"Corrupted available blocks:  {blockIds.Count()} to release from use, " +
-                    $"{deletedUsedBlocks} found");
+                    $"Corrupted available blocks:  {materializedBlockIds.Count()} " +
+                    $"to release from use, {deletedUsedBlocks} found");
             }
             _availableBlockTable.AppendRecords(
-                blockIds
+                materializedBlockIds
                 .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
                 tx);
+        }
+
+        internal void CheckAvailabilityDuplicates(TransactionContext tx)
+        {
+            var duplicates = _availableBlockTable.Query(tx)
+                .GroupBy(a => a.BlockId)
+                .Where(g => g.Count() > 1)
+                .ToImmutableArray();
+
+            if (duplicates.Length > 0)
+            {
+                throw new InvalidOperationException("Duplicates available blocks");
+            }
         }
 
         internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
@@ -418,6 +438,22 @@ namespace TrackDb.Lib
             {
                 return false;
             }
+        }
+
+        private void IncrementBlockCount(TransactionContext tx)
+        {
+            var maxBlockId = _availableBlockTable.Query(tx)
+                .OrderByDescending(a => a.BlockId)
+                .Take(1)
+                .Select(a => a.BlockId)
+                .FirstOrDefault();
+            var targetCapacity = maxBlockId + BLOCK_INCREMENT;
+            var newBlockIds = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT);
+            var newAvailableBlocks = newBlockIds
+                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available));
+
+            _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
+            _availableBlockTable.AppendRecords(newAvailableBlocks, tx);
         }
         #endregion
         #endregion
@@ -625,7 +661,6 @@ namespace TrackDb.Lib
         internal void CompleteTransaction(TransactionContext tx)
         {
             RunTriggers(tx);
-            DecrementActiveTransactionCount();
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
@@ -638,12 +673,12 @@ namespace TrackDb.Lib
                         tx.TransactionState.UncommittedTransactionLog);
                 }
             }
+            DecrementActiveTransactionCount();
         }
 
         internal async Task CompleteTransactionAsync(TransactionContext tx, CancellationToken ct)
         {
             RunTriggers(tx);
-            DecrementActiveTransactionCount();
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
@@ -657,6 +692,7 @@ namespace TrackDb.Lib
                         ct);
                 }
             }
+            DecrementActiveTransactionCount();
         }
 
         private long CompleteTransactionState(TransactionState transactionState, bool doLog)
@@ -830,48 +866,38 @@ namespace TrackDb.Lib
         internal void DeleteTombstoneRecords(
             string tableName,
             IEnumerable<long> recordIds,
-            bool forceDeleteWithinTransaction,
             TransactionContext tx)
         {
             var tombstoneTableName = TombstoneTable.Schema.TableName;
+            var materializedRecordIds = recordIds.Distinct().ToImmutableArray();
 
             tx.LoadCommittedBlocksInTransaction(tombstoneTableName);
 
             var transactionTableLog = tx.TransactionState
                 .UncommittedTransactionLog
                 .TransactionTableLogMap[tombstoneTableName];
-            var committedBlockBuilder = transactionTableLog.CommittedDataBlock;
-            var newBlockBuilder = transactionTableLog.NewDataBlock;
-            var materializedRecordIds = recordIds.Distinct().ToImmutableArray();
-            var tombstoneQueryBase = forceDeleteWithinTransaction
-                ? TombstoneTable.Query(tx)
-                : TombstoneTable.Query(tx).WithCommittedOnly();
-            var tombstoneQuery = tombstoneQueryBase
+            var committedDataBlock = transactionTableLog.CommittedDataBlock;
+            var newDataBlock = transactionTableLog.NewDataBlock;
+            var tombstonePredicate = TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds));
+                .Where(pf => pf.In(t => t.DeletedRecordId, materializedRecordIds))
+                .Predicate;
 
-            if (tombstoneQuery.Select(t => t.DeletedRecordId).Distinct().Count()
-                != materializedRecordIds.Length)
+            if (committedDataBlock != null && ((IBlock)committedDataBlock).RecordCount > 0)
             {
-                throw new InvalidOperationException("Mismatch tombstone");
-            }
-            if (committedBlockBuilder != null && ((IBlock)committedBlockBuilder).RecordCount > 0)
-            {
-                var rowIndexes = ((IBlock)committedBlockBuilder)
-                    .Filter(tombstoneQuery.Predicate, false)
+                var rowIndexes = ((IBlock)committedDataBlock)
+                    .Filter(tombstonePredicate, false)
                     .RowIndexes;
 
-                committedBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                committedDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
             }
-            if (forceDeleteWithinTransaction
-                && newBlockBuilder != null
-                && ((IBlock)newBlockBuilder).RecordCount > 0)
+            if (newDataBlock != null && ((IBlock)newDataBlock).RecordCount > 0)
             {
-                var rowIndexes = ((IBlock)newBlockBuilder)
-                    .Filter(tombstoneQuery.Predicate, false)
+                var rowIndexes = ((IBlock)newDataBlock)
+                    .Filter(tombstonePredicate, false)
                     .RowIndexes;
 
-                newBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                newDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
             }
         }
         #endregion
