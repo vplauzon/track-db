@@ -59,6 +59,17 @@ namespace TrackDb.Lib.InMemory
                 .AppendRecord(creationTime, recordId, record);
         }
 
+        internal void AppendCommittedRecord(
+            DateTime creationTime,
+            long recordId,
+            ReadOnlySpan<object?> record,
+            TableSchema schema)
+        {
+            TransactionTableLogMap[schema.TableName]
+                .CommittedDataBlock!
+                .AppendRecord(creationTime, recordId, record);
+        }
+
         public void AppendBlock(IBlock block)
         {
             EnsureTable(block.TableSchema);

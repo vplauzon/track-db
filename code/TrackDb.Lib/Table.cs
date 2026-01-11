@@ -68,38 +68,40 @@ namespace TrackDb.Lib
         #endregion
 
         #region Append
-        public void AppendRecord(
-            ReadOnlySpan<object?> record,
-            TransactionContext? transactionContext = null)
+        public void AppendRecord(ReadOnlySpan<object?> record, TransactionContext? tx = null)
         {
-            if (record.Length != Schema.Columns.Count)
-            {
-                throw new ArgumentOutOfRangeException(
-                    $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
-                    nameof(record));
-            }
             //  Database.ExecuteWithinTransactionContext doesn't work with ReadOnlySpan<object?>
-            if (transactionContext != null)
+            if (tx != null)
             {
-                AppendRecordInternal(record, transactionContext);
+                AppendRecordInternal(record, tx);
             }
             else
             {
-                using (transactionContext = Database.CreateTransaction())
+                using (tx = Database.CreateTransaction())
                 {
-                    AppendRecordInternal(record, transactionContext);
+                    AppendRecordInternal(record, tx);
 
-                    transactionContext.Complete();
+                    tx.Complete();
                 }
             }
         }
 
+        internal void AppendCommittedRecord(ReadOnlySpan<object?> record, TransactionContext tx)
+        {
+            tx.LoadCommittedBlocksInTransaction(Schema.TableName);
+            tx.TransactionState.UncommittedTransactionLog.AppendCommittedRecord(
+                DateTime.Now,
+                NewRecordId(),
+                record,
+                Schema);
+        }
+
         public void AppendRecords(
             IEnumerable<ReadOnlySpan<object?>> records,
-            TransactionContext? transactionContext = null)
+            TransactionContext? tx = null)
         {
             Database.ExecuteWithinTransactionContext(
-                transactionContext,
+                tx,
                 tc =>
                 {
                     foreach (var record in records)
@@ -111,9 +113,15 @@ namespace TrackDb.Lib
 
         private void AppendRecordInternal(
             ReadOnlySpan<object?> record,
-            TransactionContext transactionContext)
+            TransactionContext tx)
         {
-            transactionContext.TransactionState.UncommittedTransactionLog.AppendRecord(
+            if (record.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
+                    nameof(record));
+            }
+            tx.TransactionState.UncommittedTransactionLog.AppendRecord(
                 DateTime.Now,
                 NewRecordId(),
                 record,
