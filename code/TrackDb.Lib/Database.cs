@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -186,6 +187,12 @@ namespace TrackDb.Lib
 
         #region Public interface
         public DatabasePolicy DatabasePolicy { get; }
+
+        /// <summary>
+        /// For DEBUG purposes.
+        /// Action executed before and after a transaction completion (in DEBUG only).
+        /// </summary>
+        internal Action TransactionAction = () => { };
 
         public Table GetTable(string tableName)
         {
@@ -662,8 +669,11 @@ namespace TrackDb.Lib
             RunTriggers(tx);
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
+                RunTransactionAction();
+                
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-
+                
+                RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
                 if (tx.DoLog && _logTransactionWriter != null)
                 {
@@ -680,8 +690,11 @@ namespace TrackDb.Lib
             RunTriggers(tx);
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
+                RunTransactionAction();
+                
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
 
+                RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
                 if (tx.DoLog && _logTransactionWriter != null)
                 {
@@ -692,6 +705,15 @@ namespace TrackDb.Lib
                 }
             }
             DecrementActiveTransactionCount();
+        }
+
+        [Conditional("DEBUG")]
+        private void RunTransactionAction()
+        {
+            if (TransactionAction != null)
+            {
+                TransactionAction();
+            }
         }
 
         private long CompleteTransactionState(TransactionState transactionState, bool doLog)

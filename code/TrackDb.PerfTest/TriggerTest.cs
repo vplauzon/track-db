@@ -21,17 +21,19 @@ namespace TrackDb.PerfTest
             await RunPerformanceTestAsync(100, 1);
         }
 
-
-
         [Fact]
         public async Task Test01000By01()
         {
             await RunPerformanceTestAsync(1000, 1);
         }
+
         [Fact]
         public async Task Test01000By10()
         {
-            await RunPerformanceTestAsync(1000, 10);
+            for (var i = 0; i != 1000; ++i)
+            {
+                await RunPerformanceTestAsync(1000, 10);
+            }
         }
 
         [Fact]
@@ -110,7 +112,7 @@ namespace TrackDb.PerfTest
                     .ToDictionary(s => s.OrderStatus, s => s.OrderCount);
 
                 Assert.Equal(onlineSummary.Count(), materializedSummary.Count());
-                foreach(var status in onlineSummary.Keys)
+                foreach (var status in onlineSummary.Keys)
                 {
                     Assert.Equal(onlineSummary[status], materializedSummary[status]);
                 }
