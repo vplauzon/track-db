@@ -10,17 +10,24 @@ namespace TrackDb.PerfTest
     public class TriggerTest
     {
         [Fact]
-        public async Task Test00010By1()
+        public async Task Test00010By01()
         {
             await RunPerformanceTestAsync(10, 1);
         }
 
         [Fact]
-        public async Task Test00100By1()
+        public async Task Test00100By01()
         {
             await RunPerformanceTestAsync(100, 1);
         }
 
+
+
+        [Fact]
+        public async Task Test01000By01()
+        {
+            await RunPerformanceTestAsync(1000, 1);
+        }
         [Fact]
         public async Task Test01000By10()
         {
