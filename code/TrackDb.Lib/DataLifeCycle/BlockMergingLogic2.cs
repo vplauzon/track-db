@@ -20,10 +20,7 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="metaBlockId">If <c>null</c>, use in-memory meta block.</param>
         /// <param name="tx"></param>
         /// <returns></returns>
-        public int CompactMerge(
-            string tableName,
-            int? metaBlockId,
-            TransactionContext tx)
+        public int CompactMerge(string tableName, int? metaBlockId, TransactionContext tx)
         {
             throw new NotImplementedException();
         }

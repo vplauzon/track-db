@@ -139,7 +139,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var metaBlockIds = new Stack<int?>(ComputeOptimalMetaBlocks(tableName, tx));
                     var blockMergingLogic = new BlockMergingLogic2(Database);
 
-                    while (targetHardDeleteCount > 0 && metaBlockIds.Any())
+                    while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
                     {
                         var metaBlockId = metaBlockIds.Pop();
                         var hardDeletedCount =
@@ -200,7 +200,7 @@ namespace TrackDb.Lib.DataLifeCycle
                             .WithCommittedOnly()
                             .Where(pf => pf.Equal(t => t.TableName, tableName))
                             .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
-                            .Or(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
+                            .And(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
                             .Count();
                         var tombstoneBlock = new TombstoneBlock(m.BlockId, recordCount);
 
