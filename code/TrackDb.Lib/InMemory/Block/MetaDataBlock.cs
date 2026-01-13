@@ -7,22 +7,38 @@ using System.Linq;
 namespace TrackDb.Lib.InMemory.Block
 {
     /// <summary>
-    /// Adapter to a metadata block.
+    /// Metadata block generic (non schema specific) information.
     /// </summary>
-    /// <param name="MetadataRecord"></param>
-    /// <param name="Schema"></param>
-    internal record MetaDataBlock(
-        ReadOnlyMemory<object?> MetadataRecord,
-        MetadataTableSchema Schema)
+    internal record MetadataBlock(
+        MetadataTableSchema Schema,
+        int BlockId,
+        int ItemCount,
+        int Size,
+        long MinRecordId,
+        long MaxRecordId)
     {
-        public int ItemCount => (int)MetadataRecord.Span[Schema.ItemCountColumnIndex]!;
+        public static IImmutableList<int> GetColumnIndexes(MetadataTableSchema Schema)
+        {
+            return [
+                Schema.BlockIdColumnIndex,
+                Schema.ItemCountColumnIndex,
+                Schema.SizeColumnIndex,
+                Schema.RecordIdMinColumnIndex,
+                Schema.RecordIdMaxColumnIndex
+                ];
+        }
 
-        public int Size => (int)MetadataRecord.Span[Schema.SizeColumnIndex]!;
-
-        public int BlockId => (int)MetadataRecord.Span[Schema.BlockIdColumnIndex]!;
-
-        public long RecordIdMin => (long)MetadataRecord.Span[Schema.RecordIdMinColumnIndex]!;
-        
-        public long RecordIdMax => (long)MetadataRecord.Span[Schema.RecordIdMaxColumnIndex]!;
+        public static MetadataBlock Create(
+            MetadataTableSchema Schema,
+            ReadOnlySpan<object?> metadataRecord)
+        {
+            return new(
+                Schema,
+                (int)metadataRecord[0]!,
+                (int)metadataRecord[1]!,
+                (int)metadataRecord[2]!,
+                (long)metadataRecord[3]!,
+                (long)metadataRecord[4]!);
+        }
     }
 }

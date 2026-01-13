@@ -472,7 +472,7 @@ namespace TrackDb.Lib
 
             if (existingMap.TryGetValue(tableName, out var table))
             {
-                return table.MetaDataTableName != null;
+                return table.MetadataTableName != null;
             }
             else
             {
@@ -493,16 +493,16 @@ namespace TrackDb.Lib
                 {
                     throw new InvalidOperationException($"Table '{tableName}' can't be persisted");
                 }
-                if (table.MetaDataTableName != null)
+                if (table.MetadataTableName != null)
                 {
-                    if (map.TryGetValue(table.MetaDataTableName, out var metaTable))
+                    if (map.TryGetValue(table.MetadataTableName, out var metaTable))
                     {
                         return metaTable.Table;
                     }
                     else
                     {
                         throw new InvalidOperationException(
-                            $"Metadata table '{table.MetaDataTableName}' can't be found");
+                            $"Metadata table '{table.MetadataTableName}' can't be found");
                     }
                 }
                 else
@@ -528,7 +528,7 @@ namespace TrackDb.Lib
                                     true))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
-                                MetaDataTableName = metaDataSchema.TableName
+                                MetadataTableName = metaDataSchema.TableName
                             });
                             var newState = state with
                             {
