@@ -25,11 +25,11 @@ namespace TrackDb.UnitTest.DbTests
 
                 var state = db.Database.GetDatabaseStateSnapshot();
                 var map = state.TableMap;
-                var metadataTableName = map[db.PrimitiveTable.Schema.TableName].MetaDataTableName;
+                var metadataTableName = map[db.PrimitiveTable.Schema.TableName].MetadataTableName;
 
                 Assert.NotNull(metadataTableName);
 
-                var metaMetadataTableName = map[metadataTableName].MetaDataTableName;
+                var metaMetadataTableName = map[metadataTableName].MetadataTableName;
 
                 Assert.Null(metaMetadataTableName);
 
@@ -43,7 +43,7 @@ namespace TrackDb.UnitTest.DbTests
                 state = db.Database.GetDatabaseStateSnapshot();
                 map = state.TableMap;
 
-                metaMetadataTableName = map[metadataTableName].MetaDataTableName;
+                metaMetadataTableName = map[metadataTableName].MetadataTableName;
 
                 //  Meta records got merged
                 Assert.Null(metaMetadataTableName);
