@@ -15,7 +15,7 @@ namespace TrackDb.Lib.DataLifeCycle
     {
         #region Inner Types
         private record BlockFacadeMergeResult(
-            IEnumerable<MetaDataBlock> MetaDataBlocks,
+            IEnumerable<MetadataBlock> MetaDataBlocks,
             IEnumerable<long> TombstoneRecordIdsToDelete);
 
         private record OneLayerMergeResult(
@@ -66,10 +66,10 @@ namespace TrackDb.Lib.DataLifeCycle
             MetaDataBlockFacade Persist(TransactionContext tx);
         }
 
-        private record MetaDataBlockFacade(Database Database, MetaDataBlock MetaDataBlock)
+        private record MetaDataBlockFacade(Database Database, MetadataBlock MetaDataBlock)
             : IBlockFacade
         {
-            long IBlockFacade.ComputeRecordIdMax() => MetaDataBlock.RecordIdMin;
+            long IBlockFacade.ComputeRecordIdMax() => MetaDataBlock.MinRecordId;
 
             int IBlockFacade.ComputeSize() => MetaDataBlock.Size;
 
@@ -221,10 +221,10 @@ namespace TrackDb.Lib.DataLifeCycle
                 var blockId = Database.GetAvailableBlockId(tx);
                 var tableName = ((IBlock)BlockBuilder).TableSchema.TableName;
                 var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                var metadataTable = tableMap[tableMap[tableName].MetaDataTableName!].Table;
+                var metadataTable = tableMap[tableMap[tableName].MetadataTableName!].Table;
                 var metaSchema = (MetadataTableSchema)metadataTable.Schema;
                 var metaRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
-                var metaBlock = new MetaDataBlock(metaRecord, metaSchema);
+                var metaBlock = new MetadataBlock(metaRecord, metaSchema);
 
                 Database.PersistBlock(blockId, buffer.AsSpan().Slice(0, blockStats.Size), tx);
 
@@ -373,7 +373,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             var tableProperties = tableMap[dataTableName];
             var schema = tableProperties.Table.Schema;
-            var metadataTableName = tableProperties.MetaDataTableName;
+            var metadataTableName = tableProperties.MetadataTableName;
 
             if (tableProperties.IsMetaDataTable)
             {
@@ -505,7 +505,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     else
                     {   //  Climb the hierarchy
                         var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                        var metaMetaDataTableName = tableMap[metadataTableName].MetaDataTableName!;
+                        var metaMetaDataTableName = tableMap[metadataTableName].MetadataTableName!;
                         var metaMetaDataTable = Database.GetAnyTable(metaMetaDataTableName);
                         var schema = (MetadataTableSchema)metaMetaDataTable.Schema;
                         var predicate = new BinaryOperatorPredicate(
@@ -602,7 +602,7 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         #region Block loading
-        private IImmutableList<MetaDataBlock> LoadMetaDataBlocks(
+        private IImmutableList<MetadataBlock> LoadMetaDataBlocks(
             string metadataTableName,
             int? metaBlockId,
             TransactionContext tx)
@@ -610,7 +610,7 @@ namespace TrackDb.Lib.DataLifeCycle
             if (metaBlockId != null)
             {
                 var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-                var metaMetadataTableName = tableMap[metadataTableName].MetaDataTableName;
+                var metaMetadataTableName = tableMap[metadataTableName].MetadataTableName;
                 var metaMetadataTable = Database.GetAnyTable(metaMetadataTableName!);
                 var metadataTable = Database.GetAnyTable(metadataTableName!);
                 var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
@@ -621,7 +621,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     Enumerable.Range(0, block.RecordCount),
                     0);
                 var metaDataBlocks = results
-                    .Select(r => new MetaDataBlock(r.ToArray(), metadataTableSchema))
+                    .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
                     .ToImmutableArray();
 
                 return metaDataBlocks;
@@ -635,7 +635,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     //  We just want to deal with what is committed
                     .WithCommittedOnly()
                     .WithInMemoryOnly()
-                    .Select(r => new MetaDataBlock(r.ToArray(), metadataTableSchema))
+                    .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
                     .ToImmutableArray();
 
                 return metaDataBlocks;
@@ -685,7 +685,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
             var blockStack = new Stack<IBlockFacade>(blocks.Reverse());
             var blockIdsToCompactSet = blockIdsToCompact.ToImmutableHashSet();
-            var processedBlocks = new List<MetaDataBlock>(blockStack.Count);
+            var processedBlocks = new List<MetadataBlock>(blockStack.Count);
             var cummulatedTombstoneRecordIdsToDelete = new List<long>();
 
             void PushRange(IEnumerable<IBlockFacade> blocks)

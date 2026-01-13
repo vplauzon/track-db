@@ -164,17 +164,17 @@ namespace TrackDb.Lib.DataLifeCycle
             string tableName,
             TransactionContext tx)
         {
-            var metaMetaDataTable = GetMetaMetaDataTable(tableName);
+            var metaMetadataTable = GetMetaMetadataTable(tableName);
 
-            if (metaMetaDataTable == null)
+            if (metaMetadataTable == null)
             {
                 return [null];
             }
             else
             {
                 var tombstoneExtrema = GetTombstoneRecordIdExtrema(tableName, tx);
-                var metaMetaSchema = (MetadataTableSchema)metaMetaDataTable.Schema;
-                var metaMetaRecords = metaMetaDataTable.Query(tx)
+                var metaMetaSchema = (MetadataTableSchema)metaMetadataTable.Schema;
+                var metaMetaRecords = metaMetadataTable.Query(tx)
                     .WithCommittedOnly()
                     .WithProjection(
                     metaMetaSchema.BlockIdColumnIndex,
@@ -228,23 +228,23 @@ namespace TrackDb.Lib.DataLifeCycle
             return aggregate;
         }
 
-        private Table? GetMetaMetaDataTable(string tableName)
+        private Table? GetMetaMetadataTable(string tableName)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var metaDataTableName = tableMap[tableName].MetaDataTableName;
+            var metadataTableName = tableMap[tableName].MetadataTableName;
 
-            if (metaDataTableName == null)
+            if (metadataTableName == null)
             {
                 throw new InvalidOperationException(
                     $"Table {tableName} doesn't have an associated metadata table when " +
                     $"hard delete occure");
             }
 
-            var metaMetaDataTableName = tableMap[metaDataTableName].MetaDataTableName;
+            var metaMetadataTableName = tableMap[metadataTableName].MetadataTableName;
 
-            return metaMetaDataTableName == null
+            return metaMetadataTableName == null
                 ? null
-                : tableMap[metaMetaDataTableName].Table;
+                : tableMap[metaMetadataTableName].Table;
         }
     }
 }
