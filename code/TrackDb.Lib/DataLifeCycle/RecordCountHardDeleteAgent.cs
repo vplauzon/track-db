@@ -89,11 +89,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  As it creates a forever loop with the available-blocks table
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .Count();
+            var targetHardDeleteCount = doHardDeleteAll
+                ? tombstoneCardinality
+                : tombstoneCardinality - maxTombstonedRecords;
 
-            if ((doHardDeleteAll && tombstoneCardinality > 0)
-                || tombstoneCardinality > maxTombstonedRecords)
+            if (targetHardDeleteCount > 0)
             {
-                HardDeleteRecords(doIncludeSystemTables, tx);
+                HardDeleteRecords(doIncludeSystemTables, targetHardDeleteCount, tx);
                 //CleanOneBlock(doIncludeSystemTables, tx);
 
                 return true;
@@ -104,7 +106,10 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private void HardDeleteRecords(bool doIncludeSystemTables, TransactionContext tx)
+        private void HardDeleteRecords(
+            bool doIncludeSystemTables,
+            int targetHardDeleteCount,
+            TransactionContext tx)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             //  Take the table with the most tombstones
@@ -131,12 +136,16 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (!tx.LoadCommittedBlocksInTransaction(tableName))
                 {
-                    var metaBlockIds = ComputeOptimalMetaBlocks(tableName, tx);
+                    var metaBlockIds = new Stack<int?>(ComputeOptimalMetaBlocks(tableName, tx));
                     var blockMergingLogic = new BlockMergingLogic2(Database);
 
-                    foreach (var metaBlockId in metaBlockIds)
+                    while (targetHardDeleteCount > 0 && metaBlockIds.Any())
                     {
-                        blockMergingLogic.CompactMerge(tableName, metaBlockId, tx);
+                        var metaBlockId = metaBlockIds.Pop();
+                        var hardDeletedCount =
+                            blockMergingLogic.CompactMerge(tableName, metaBlockId, tx);
+
+                        targetHardDeleteCount -= hardDeletedCount;
                     }
                 }
             }
@@ -184,7 +193,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {   //  Check if the meta block might have tombstone records
                     //  This is to avoid doing a tombstone query for each meta block
                     //  We test for intersection
-                    if(tombstoneExtrema.Max >= m.MinRecordId
+                    if (tombstoneExtrema.Max >= m.MinRecordId
                         && m.MaxRecordId >= tombstoneExtrema.Min)
                     {
                         var recordCount = Database.TombstoneTable.Query(tx)
