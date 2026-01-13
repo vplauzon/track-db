@@ -1,16 +1,52 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
+        #region Inner Types
+        private record MinMaxRecordId(long Min, long Max);
+
+        private record TombstoneBlock(int? BlockId, long TombstoneCount);
+
+        private class TopTombstoneBlocks
+        {
+            private readonly int _capacity;
+            private readonly PriorityQueue<TombstoneBlock, long> _blocks = new();
+
+            public TopTombstoneBlocks(int capacity)
+            {
+                _capacity = capacity;
+            }
+
+            public void Add(TombstoneBlock block)
+            {
+                if (_blocks.Count == _capacity
+                    && _blocks.Peek().TombstoneCount < block.TombstoneCount)
+                {   //  We let the lowest count go
+                    _blocks.Dequeue();
+                }
+                if (_blocks.Count < _capacity)
+                {
+                    _blocks.Enqueue(block, block.TombstoneCount);
+                }
+            }
+
+            public IEnumerable<int?> TopTombstoneBlockIds =>
+                _blocks.UnorderedItems
+                .Select(t => t.Element)
+                .OrderByDescending(t => t.TombstoneCount)
+                .Select(t => t.BlockId);
+        }
+        #endregion
+
+        private readonly int META_BLOCK_COUNT = 10;
+
         public RecordCountHardDeleteAgent(Database database)
             : base(database)
         {
@@ -57,7 +93,8 @@ namespace TrackDb.Lib.DataLifeCycle
             if ((doHardDeleteAll && tombstoneCardinality > 0)
                 || tombstoneCardinality > maxTombstonedRecords)
             {
-                CleanOneBlock(doIncludeSystemTables, tx);
+                HardDeleteRecords(doIncludeSystemTables, tx);
+                //CleanOneBlock(doIncludeSystemTables, tx);
 
                 return true;
             }
@@ -65,6 +102,141 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 return false;
             }
+        }
+
+        private void HardDeleteRecords(bool doIncludeSystemTables, TransactionContext tx)
+        {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            //  Take the table with the most tombstones
+            var topTable = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
+                .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
+                .CountBy(t => t.TableName)
+                .Select(p => new
+                {
+                    TableName = p.Key,
+                    RecordCount = p.Value
+                })
+                .OrderByDescending(o => o.RecordCount)
+                .FirstOrDefault();
+
+            if (topTable == null)
+            {
+                throw new InvalidOperationException(
+                    "There should be at least one table with tombtoned records");
+            }
+            else
+            {
+                var tableName = topTable.TableName;
+
+                if (!tx.LoadCommittedBlocksInTransaction(tableName))
+                {
+                    var metaBlockIds = ComputeOptimalMetaBlocks(tableName, tx);
+                    var blockMergingLogic = new BlockMergingLogic2(Database);
+
+                    foreach (var metaBlockId in metaBlockIds)
+                    {
+                        blockMergingLogic.CompactMerge(tableName, metaBlockId, tx);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// We return multiple meta block IDs.  This allows us to leverage one scan but mostly it's
+        /// in case tombstone records aren't in the meta block (phantom tombstone records or overlapping
+        /// meta blocks).
+        /// 
+        /// So we return the top-N optimal meta blocks.
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="tx"></param>
+        /// <returns></returns>
+        private IEnumerable<int?> ComputeOptimalMetaBlocks(
+            string tableName,
+            TransactionContext tx)
+        {
+            var metaMetaDataTable = GetMetaMetaDataTable(tableName);
+
+            if (metaMetaDataTable == null)
+            {
+                return [null];
+            }
+            else
+            {
+                var tombstoneExtrema = GetTombstoneRecordIdExtrema(tableName, tx);
+                var metaMetaSchema = (MetadataTableSchema)metaMetaDataTable.Schema;
+                var metaMetaRecords = metaMetaDataTable.Query(tx)
+                    .WithCommittedOnly()
+                    .WithProjection(
+                    metaMetaSchema.BlockIdColumnIndex,
+                    metaMetaSchema.RecordIdMinColumnIndex,
+                    metaMetaSchema.RecordIdMaxColumnIndex)
+                    .Select(r => new
+                    {
+                        BlockId = (int?)r.Span[0],
+                        MinRecordId = (long)r.Span[1]!,
+                        MaxRecordId = (long)r.Span[2]!
+                    });
+                var tombstoneBlocks = new TopTombstoneBlocks(META_BLOCK_COUNT);
+
+                foreach (var m in metaMetaRecords)
+                {   //  Check if the meta block might have tombstone records
+                    //  This is to avoid doing a tombstone query for each meta block
+                    //  We test for intersection
+                    if(tombstoneExtrema.Max >= m.MinRecordId
+                        && m.MaxRecordId >= tombstoneExtrema.Min)
+                    {
+                        var recordCount = Database.TombstoneTable.Query(tx)
+                            .WithCommittedOnly()
+                            .Where(pf => pf.Equal(t => t.TableName, tableName))
+                            .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
+                            .Or(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
+                            .Count();
+                        var tombstoneBlock = new TombstoneBlock(m.BlockId, recordCount);
+
+                        tombstoneBlocks.Add(tombstoneBlock);
+                    }
+                }
+
+                return tombstoneBlocks.TopTombstoneBlockIds;
+            }
+        }
+
+        private MinMaxRecordId GetTombstoneRecordIdExtrema(string tableName, TransactionContext tx)
+        {
+            var query = Database.TombstoneTable.Query(tx)
+                .WithCommittedOnly()
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .TableQuery
+                .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
+                    t => t.DeletedRecordId))
+                .Select(r => (long)r.Span[0]!);
+            var aggregate = query
+                .Aggregate(new MinMaxRecordId(0, 0), (aggregate, recordId) => new MinMaxRecordId(
+                    Math.Min(aggregate.Min, recordId),
+                    Math.Max(aggregate.Max, recordId)));
+
+            return aggregate;
+        }
+
+        private Table? GetMetaMetaDataTable(string tableName)
+        {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var metaDataTableName = tableMap[tableName].MetaDataTableName;
+
+            if (metaDataTableName == null)
+            {
+                throw new InvalidOperationException(
+                    $"Table {tableName} doesn't have an associated metadata table when " +
+                    $"hard delete occure");
+            }
+
+            var metaMetaDataTableName = tableMap[metaDataTableName].MetaDataTableName;
+
+            return metaMetaDataTableName == null
+                ? null
+                : tableMap[metaMetaDataTableName].Table;
         }
 
         private void CleanOneBlock(bool doIncludeSystemTables, TransactionContext tx)
