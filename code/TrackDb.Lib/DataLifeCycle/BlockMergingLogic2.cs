@@ -44,14 +44,15 @@ namespace TrackDb.Lib.DataLifeCycle
             var metadataTableName = tableMap[tableName].MetadataTableName!;
             var metadataTable = tableMap[metadataTableName].Table;
             var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
-            var columnIndexes = MetadataBlock.GetColumnIndexes(metadataTableSchema);
+            var columnIndexes = Enumerable.Range(0, metadataTableSchema.Columns.Count)
+                .ToImmutableArray();
 
             IEnumerable<ReadOnlyMemory<object?>> ReadFromMetaBlock(int metaBlockId)
             {
                 var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metadataTable.Schema);
                 var results = metaMetaBlock.Project(
-                    new object?[columnIndexes.Count],
-                    columnIndexes.ToImmutableArray(),
+                    new object?[metadataTableSchema.Columns.Count],
+                    columnIndexes,
                     Enumerable.Range(0, metaMetaBlock.RecordCount),
                     0);
 
@@ -73,7 +74,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 ? ReadFromMetaBlock(metaBlockId.Value)
                 : ReadFromMemoryBlocks();
             var blocks = results
-                .Select(r => MetadataBlock.Create(r.Span))
+                .Select(r => new MetadataBlock(r, metadataTableSchema))
                 .ToImmutableArray();
 
             return blocks;
