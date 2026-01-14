@@ -34,9 +34,14 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <returns></returns>
         public int CompactMerge(string tableName, int? metaBlockId, TransactionContext tx)
         {
-            var blocks = LoadBlocks(tableName, metaBlockId, tx);
+            var originalBlocks = LoadBlocks(tableName, metaBlockId, tx);
+            var compactionResult = CompactMergeBlocks(tableName, originalBlocks, tx);
+            var removedBlockIds = originalBlocks
+                .Select(b => b.BlockId)
+                .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
+                .ToImmutableArray();
 
-            CompactMergeBlocks(tableName, blocks, tx);
+            Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
 
             throw new NotImplementedException();
         }
