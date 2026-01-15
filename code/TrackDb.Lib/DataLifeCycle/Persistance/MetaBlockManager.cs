@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
@@ -28,6 +30,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         #region Inner types
         private record ExtremaRecordId(long Min, long Max)
         {
+            public static ExtremaRecordId Seed { get; } =
+                new ExtremaRecordId(long.MaxValue, long.MinValue);
+
             public static ExtremaRecordId ComputeExtrema(IEnumerable<long> recordIds)
             {
                 var aggregate = recordIds
@@ -42,7 +47,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 IEnumerable<(long RecordIdMin, long RecordIdMax)> extrema)
             {
                 var aggregate = extrema
-                    .Aggregate(new ExtremaRecordId(0, 0), (aggregate, extremum) => new ExtremaRecordId(
+                    .Aggregate(Seed, (aggregate, extremum) => new ExtremaRecordId(
                         Math.Min(aggregate.Min, extremum.RecordIdMin),
                         Math.Max(aggregate.Max, extremum.RecordIdMax)));
 
@@ -62,10 +67,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         #region ListMetaMetaBlocks
         public IEnumerable<MetaMetaBlockStat> ListMetaMetaBlocks(string tableName)
         {
-            var metaMetaBlocks = ListNonNullMetaMetaBlocks(tableName)
-                .Concat(ListNullMetaMetaBlock(tableName));
+            var nonNullMetaMetaBlocks = ListNonNullMetaMetaBlocks(tableName);
+            var nullMetaMetaBlocks = ListNullMetaMetaBlock(tableName);
+            var metaMetaBlocks = nonNullMetaMetaBlocks.Concat(nullMetaMetaBlocks);
             var tombstoneExtrema = GetTombstoneRecordIdExtrema(tableName);
-            var extremaRecordId = GetTombstoneRecordIdExtrema(tableName);
 
             foreach (var m in metaMetaBlocks)
             {   //  Check if the meta block might have tombstone records
@@ -124,7 +129,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .Select(r => ((long)r.Span[0]!, (long)r.Span[1]!));
             var metaExtremum = ExtremaRecordId.ComputeExtrema(extrema);
 
-            if (metaExtremum.Min == 0)
+            if (metaExtremum == ExtremaRecordId.Seed)
             {
                 return Array.Empty<MetaMetaBlockStat>();
             }
@@ -146,6 +151,53 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var aggregate = ExtremaRecordId.ComputeExtrema(query);
 
             return aggregate;
+        }
+        #endregion
+
+        #region Load Blocks
+        public IEnumerable<MetadataBlock> LoadBlocks(string tableName, int? metaBlockId)
+        {
+            var metadataTable = Database.GetMetaDataTable(tableName);
+            var metaMetadataTable = Database.GetMetaDataTable(metadataTable.Schema.TableName);
+            var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
+            var columnIndexes = Enumerable.Range(0, metadataTableSchema.Columns.Count)
+                .ToImmutableArray();
+
+            IEnumerable<ReadOnlyMemory<object?>> LoadNullBlocks(
+                string tableName)
+            {
+                var results = metadataTable.Query(Tx)
+                    //  Especially relevant for availability-block:
+                    //  We just want to deal with what is committed
+                    .WithCommittedOnly()
+                    .WithInMemoryOnly()
+                    .WithProjection(columnIndexes);
+
+                return results;
+            }
+
+            IEnumerable<ReadOnlyMemory<object?>> LoadNonNullBlocks(
+                string tableName,
+                int metaBlockId)
+            {
+                var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metadataTable.Schema);
+                var results = metaMetaBlock.Project(
+                    new object?[metadataTableSchema.Columns.Count],
+                    columnIndexes,
+                    Enumerable.Range(0, metaMetaBlock.RecordCount),
+                    0);
+
+                return results;
+            }
+
+            var results = metaBlockId == null
+                    ? LoadNullBlocks(tableName)
+                    : LoadNonNullBlocks(tableName, metaBlockId.Value);
+            var blocks = results
+                .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
+                .ToImmutableArray();
+
+            return blocks;
         }
         #endregion
     }

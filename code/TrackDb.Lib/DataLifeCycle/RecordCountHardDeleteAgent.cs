@@ -58,25 +58,19 @@ namespace TrackDb.Lib.DataLifeCycle
                 == DataManagementActivity.HardDeleteAll;
             var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
-            while (Iteration(doHardDeleteAll, maxTombstonedRecords))
-            {
-            }
-        }
-
-        private bool Iteration(bool doHardDeleteAll, int maxTombstonedRecords)
-        {
             using (var tx = Database.CreateTransaction())
             {
                 var metaBlockManager = new MetaBlockManager(Database, tx);
-                var result = TransactionalIteration(doHardDeleteAll, maxTombstonedRecords, metaBlockManager);
+
+                while (Iteration(doHardDeleteAll, maxTombstonedRecords, metaBlockManager))
+                {
+                }
 
                 tx.Complete();
-
-                return result;
             }
         }
 
-        private bool TransactionalIteration(
+        private bool Iteration(
             bool doHardDeleteAll,
             int maxTombstonedRecords,
             MetaBlockManager metaBlockManager)
@@ -138,13 +132,12 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var metaBlockIds = new Stack<int?>(
                         ComputeOptimalMetaBlocks(metaBlockManager, tableName));
-                    var blockMergingLogic = new BlockMergingLogic2(Database);
+                    var blockMergingLogic = new BlockMergingLogic2(Database, metaBlockManager);
 
                     while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
                     {
                         var metaBlockId = metaBlockIds.Pop();
-                        var hardDeletedCount =
-                            blockMergingLogic.CompactMerge(tableName, metaBlockId, metaBlockManager.Tx);
+                        var hardDeletedCount = blockMergingLogic.CompactMerge(tableName, metaBlockId);
 
                         targetHardDeleteCount -= hardDeletedCount;
                     }
