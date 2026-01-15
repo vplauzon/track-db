@@ -1,46 +1,45 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
+using static TrackDb.Lib.DataLifeCycle.Persistance.MetaBlockManager;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
         #region Inner Types
-        private record MinMaxRecordId(long Min, long Max);
-
-        private record TombstoneBlock(int? BlockId, long TombstoneCount);
-
         private class TopTombstoneBlocks
         {
             private readonly int _capacity;
-            private readonly PriorityQueue<TombstoneBlock, long> _blocks = new();
+            private readonly PriorityQueue<MetaMetaBlockStat, long> _blocks = new();
 
             public TopTombstoneBlocks(int capacity)
             {
                 _capacity = capacity;
             }
 
-            public void Add(TombstoneBlock block)
+            public void Add(MetaMetaBlockStat block)
             {
                 if (_blocks.Count == _capacity
-                    && _blocks.Peek().TombstoneCount < block.TombstoneCount)
+                    && _blocks.Peek().TombstonedRecordCount < block.TombstonedRecordCount)
                 {   //  We let the lowest count go
                     _blocks.Dequeue();
                 }
                 if (_blocks.Count < _capacity)
                 {
-                    _blocks.Enqueue(block, block.TombstoneCount);
+                    _blocks.Enqueue(block, block.TombstonedRecordCount);
                 }
             }
 
             public IEnumerable<int?> TopTombstoneBlockIds =>
                 _blocks.UnorderedItems
                 .Select(t => t.Element)
-                .OrderByDescending(t => t.TombstoneCount)
+                .OrderByDescending(t => t.TombstonedRecordCount)
                 .Select(t => t.BlockId);
         }
         #endregion
@@ -68,7 +67,8 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             using (var tx = Database.CreateTransaction())
             {
-                var result = TransactionalIteration(doHardDeleteAll, maxTombstonedRecords, tx);
+                var metaBlockManager = new MetaBlockManager(Database, tx);
+                var result = TransactionalIteration(doHardDeleteAll, maxTombstonedRecords, metaBlockManager);
 
                 tx.Complete();
 
@@ -79,11 +79,11 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool TransactionalIteration(
             bool doHardDeleteAll,
             int maxTombstonedRecords,
-            TransactionContext tx)
+            MetaBlockManager metaBlockManager)
         {
             var doIncludeSystemTables = !doHardDeleteAll;
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var tombstoneCardinality = Database.TombstoneTable.Query(tx)
+            var tombstoneCardinality = Database.TombstoneTable.Query(metaBlockManager.Tx)
                 .WithCommittedOnly()
                 //  We remove the combination of system table under doHardDeleteAll
                 //  As it creates a forever loop with the available-blocks table
@@ -95,7 +95,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (targetHardDeleteCount > 0)
             {
-                HardDeleteRecords(doIncludeSystemTables, targetHardDeleteCount, tx);
+                HardDeleteRecords(doIncludeSystemTables, targetHardDeleteCount, metaBlockManager);
 
                 return true;
             }
@@ -108,11 +108,11 @@ namespace TrackDb.Lib.DataLifeCycle
         private void HardDeleteRecords(
             bool doIncludeSystemTables,
             int targetHardDeleteCount,
-            TransactionContext tx)
+            MetaBlockManager metaBlockManager)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
             //  Take the table with the most tombstones
-            var topTable = Database.TombstoneTable.Query(tx)
+            var topTable = Database.TombstoneTable.Query(metaBlockManager.Tx)
                 .WithCommittedOnly()
                 .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
                 .CountBy(t => t.TableName)
@@ -133,16 +133,18 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var tableName = topTable.TableName;
 
-                if (!tx.LoadCommittedBlocksInTransaction(tableName))
+                //  If we see changes by loading data, we skip hard delete and let recompute top table
+                if (!metaBlockManager.Tx.LoadCommittedBlocksInTransaction(tableName))
                 {
-                    var metaBlockIds = new Stack<int?>(ComputeOptimalMetaBlocks(tableName, tx));
+                    var metaBlockIds = new Stack<int?>(
+                        ComputeOptimalMetaBlocks(metaBlockManager, tableName));
                     var blockMergingLogic = new BlockMergingLogic2(Database);
 
                     while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
                     {
                         var metaBlockId = metaBlockIds.Pop();
                         var hardDeletedCount =
-                            blockMergingLogic.CompactMerge(tableName, metaBlockId, tx);
+                            blockMergingLogic.CompactMerge(tableName, metaBlockId, metaBlockManager.Tx);
 
                         targetHardDeleteCount -= hardDeletedCount;
                     }
@@ -158,93 +160,21 @@ namespace TrackDb.Lib.DataLifeCycle
         /// So we return the top-N optimal meta blocks.
         /// </summary>
         /// <param name="tableName"></param>
-        /// <param name="tx"></param>
+        /// <param name="metaBlockManager"></param>
         /// <returns></returns>
         private IEnumerable<int?> ComputeOptimalMetaBlocks(
-            string tableName,
-            TransactionContext tx)
+            MetaBlockManager metaBlockManager,
+            string tableName)
         {
-            var metaMetadataTable = GetMetaMetadataTable(tableName);
+            var tombstoneBlocks = new TopTombstoneBlocks(META_BLOCK_COUNT);
+            var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocks(tableName);
 
-            if (metaMetadataTable == null)
+            foreach (var mb in metaMetaBlockStats)
             {
-                return [null];
-            }
-            else
-            {
-                var tombstoneExtrema = GetTombstoneRecordIdExtrema(tableName, tx);
-                var metaMetaSchema = (MetadataTableSchema)metaMetadataTable.Schema;
-                var metaMetaRecords = metaMetadataTable.Query(tx)
-                    .WithCommittedOnly()
-                    .WithProjection(
-                    metaMetaSchema.BlockIdColumnIndex,
-                    metaMetaSchema.RecordIdMinColumnIndex,
-                    metaMetaSchema.RecordIdMaxColumnIndex)
-                    .Select(r => new
-                    {
-                        BlockId = (int?)r.Span[0],
-                        MinRecordId = (long)r.Span[1]!,
-                        MaxRecordId = (long)r.Span[2]!
-                    });
-                var tombstoneBlocks = new TopTombstoneBlocks(META_BLOCK_COUNT);
-
-                foreach (var m in metaMetaRecords)
-                {   //  Check if the meta block might have tombstone records
-                    //  This is to avoid doing a tombstone query for each meta block
-                    //  We test for intersection
-                    if (tombstoneExtrema.Max >= m.MinRecordId
-                        && m.MaxRecordId >= tombstoneExtrema.Min)
-                    {
-                        var recordCount = Database.TombstoneTable.Query(tx)
-                            .WithCommittedOnly()
-                            .Where(pf => pf.Equal(t => t.TableName, tableName))
-                            .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
-                            .And(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
-                            .Count();
-                        var tombstoneBlock = new TombstoneBlock(m.BlockId, recordCount);
-
-                        tombstoneBlocks.Add(tombstoneBlock);
-                    }
-                }
-
-                return tombstoneBlocks.TopTombstoneBlockIds;
-            }
-        }
-
-        private MinMaxRecordId GetTombstoneRecordIdExtrema(string tableName, TransactionContext tx)
-        {
-            var query = Database.TombstoneTable.Query(tx)
-                .WithCommittedOnly()
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .TableQuery
-                .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
-                    t => t.DeletedRecordId))
-                .Select(r => (long)r.Span[0]!);
-            var aggregate = query
-                .Aggregate(new MinMaxRecordId(0, 0), (aggregate, recordId) => new MinMaxRecordId(
-                    Math.Min(aggregate.Min, recordId),
-                    Math.Max(aggregate.Max, recordId)));
-
-            return aggregate;
-        }
-
-        private Table? GetMetaMetadataTable(string tableName)
-        {
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var metadataTableName = tableMap[tableName].MetadataTableName;
-
-            if (metadataTableName == null)
-            {
-                throw new InvalidOperationException(
-                    $"Table {tableName} doesn't have an associated metadata table when " +
-                    $"hard delete occure");
+                tombstoneBlocks.Add(mb);
             }
 
-            var metaMetadataTableName = tableMap[metadataTableName].MetadataTableName;
-
-            return metaMetadataTableName == null
-                ? null
-                : tableMap[metaMetadataTableName].Table;
+            return tombstoneBlocks.TopTombstoneBlockIds;
         }
     }
 }

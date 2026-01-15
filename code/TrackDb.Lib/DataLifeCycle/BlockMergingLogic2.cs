@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.InMemory.Block;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -29,7 +30,8 @@ namespace TrackDb.Lib.DataLifeCycle
         /// it will compact tombstoned records.
         /// </summary>
         /// <param name="tableName"></param>
-        /// <param name="metaBlockId">If <c>null</c>, use in-memory meta block.</param>
+        /// <param name="metaBlockId">
+        /// </param>
         /// <param name="tx"></param>
         /// <returns></returns>
         public int CompactMerge(string tableName, int? metaBlockId, TransactionContext tx)
@@ -41,7 +43,47 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
                 .ToImmutableArray();
 
-            Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
+            if (removedBlockIds.Length > 0)
+            {   //  It could be zero if we only have phantom tombstones
+                Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
+            }
+
+            var hierarchyHardDeletedRecordIds = ReplaceMetaBlockInHierarchy(
+                tableName,
+                metaBlockId,
+                compactionResult.MetadataBlocks,
+                tx);
+            var allHardDeletedRecordIds = compactionResult.HardDeletedRecordIds
+                .Concat(hierarchyHardDeletedRecordIds)
+                .ToImmutableArray();
+
+            //  This is done after so we do not mess with queries during the processing
+            Database.DeleteTombstoneRecords(tableName, allHardDeletedRecordIds, tx);
+
+            return allHardDeletedRecordIds.Length;
+        }
+
+        private IEnumerable<long> ReplaceMetaBlockInHierarchy(
+            string tableName,
+            int? metaBlockId,
+            IEnumerable<MetadataBlock> metadataBlocks,
+            TransactionContext tx)
+        {
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
+            var metaTableProperties = tableMap[tableMap[tableName].MetadataTableName!];
+            var metaMetaTableProperties = tableMap[metaTableProperties.MetadataTableName!];
+            var metaMetaSchema = metaMetaTableProperties.Table.Schema;
+            var metaBuilder = new BlockBuilder(metaMetaSchema);
+
+            foreach (var metadataBlock in metadataBlocks)
+            {
+                var metadataSpan = metadataBlock.MetadataRecord.Span;
+                var recordId = (long)metadataSpan[metaMetaSchema.RecordIdColumnIndex]!;
+                var creationTime = (DateTime)metadataSpan[metaMetaSchema.CreationTimeColumnIndex]!;
+                var recordSpan = metadataSpan.Slice(0, metaMetaSchema.ColumnProperties.Count);
+
+                metaBuilder.AppendRecord(creationTime, recordId, recordSpan);
+            }
 
             throw new NotImplementedException();
         }
