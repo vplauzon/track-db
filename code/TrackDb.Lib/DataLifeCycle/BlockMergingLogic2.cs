@@ -65,38 +65,39 @@ namespace TrackDb.Lib.DataLifeCycle
             return allHardDeletedRecordIds.Length;
         }
 
+        #region Post Merge
         private IEnumerable<long> ReplaceMetaBlockInHierarchy(
             string tableName,
             int? metaBlockId,
             IEnumerable<MetadataBlock> metadataBlocks)
         {
             var tx = _metaBlockManager.Tx;
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var metaTableProperties = tableMap[tableMap[tableName].MetadataTableName!];
-            var metaMetaTableProperties = tableMap[metaTableProperties.MetadataTableName!];
-            var metaMetaSchema = metaMetaTableProperties.Table.Schema;
-            var metaBuilder = new BlockBuilder(metaMetaSchema);
+            var metaTable = Database.GetMetaDataTable(tableName);
+            var metaSchema = metaTable.Schema;
+            var metaBuilder = new BlockBuilder(metaSchema);
 
             foreach (var metadataBlock in metadataBlocks)
             {
                 var metadataSpan = metadataBlock.MetadataRecord.Span;
-                var recordId = (long)metadataSpan[metaMetaSchema.RecordIdColumnIndex]!;
-                var creationTime = (DateTime)metadataSpan[metaMetaSchema.CreationTimeColumnIndex]!;
-                var recordSpan = metadataSpan.Slice(0, metaMetaSchema.ColumnProperties.Count);
+                var recordId = metaTable.NewRecordId();
+                var recordSpan = metadataSpan.Slice(0, metaSchema.Columns.Count);
 
-                metaBuilder.AppendRecord(creationTime, recordId, recordSpan);
+                metaBuilder.AppendRecord(DateTime.Now, recordId, metadataSpan);
             }
 
             throw new NotImplementedException();
         }
+        #endregion
 
+        #region Merge logic
         private CompactionResult CompactMergeBlocks(
             string tableName,
             IEnumerable<MetadataBlock> blocks)
         {
             var tx = _metaBlockManager.Tx;
             var schema = Database.GetAnyTable(tableName).Schema;
-            var metadataSchema = (MetadataTableSchema)Database.GetMetaDataTable(tableName).Schema;
+            var metadataTable = Database.GetMetaDataTable(tableName);
+            var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
             var blockStack = new Stack<MetadataBlock>(blocks.OrderBy(b => b.MinRecordId));
             var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
             var hardDeletedRecordIds = new List<long>();
@@ -246,7 +247,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        #region Merge operations
+        #region Merge block operations
         private bool TryMerge(BlockBuilder blockBuilder, MetadataBlock currentBlock)
         {
             var tx = _metaBlockManager.Tx;
@@ -311,5 +312,6 @@ namespace TrackDb.Lib.DataLifeCycle
 
             hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
         }
+        #endregion
     }
 }

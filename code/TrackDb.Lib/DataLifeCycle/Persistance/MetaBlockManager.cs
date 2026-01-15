@@ -182,7 +182,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metadataTable.Schema);
                 var results = metaMetaBlock.Project(
-                    new object?[metadataTableSchema.Columns.Count],
+                    new object?[columnIndexes.Length],
                     columnIndexes,
                     Enumerable.Range(0, metaMetaBlock.RecordCount),
                     0);
