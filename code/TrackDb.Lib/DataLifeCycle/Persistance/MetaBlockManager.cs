@@ -100,6 +100,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaTable = Database.GetMetaDataTable(tableName);
             var metaMetaTable = Database.GetMetaDataTable(metaTable.Schema.TableName);
             var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
+            //  In theory, we could have multiple in-memory (i.e. non positive) meta-meta block
+            //  In practice, we'll only have one since it will sit in the committed part
+            //  of the transaction in one BlockBuilder
             var metaMetaRecords = metaMetaTable.Query(Tx)
                 .WithCommittedOnly()
                 .WithProjection(
@@ -200,5 +203,20 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             return blocks;
         }
         #endregion
+
+        public void ReplaceInMemoryBlocks(
+            string metaTableName,
+            BlockBuilder metaBuilder)
+        {
+            Tx.LoadCommittedBlocksInTransaction(metaTableName);
+
+            var committedDataBlock = Tx.TransactionState
+                .UncommittedTransactionLog
+                .TransactionTableLogMap[metaTableName]
+                .CommittedDataBlock!;
+
+            committedDataBlock.DeleteAll();
+            committedDataBlock.AppendBlock(metaBuilder);
+        }
     }
 }

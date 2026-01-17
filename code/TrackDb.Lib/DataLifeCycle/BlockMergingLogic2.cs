@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -28,18 +27,18 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         /// <summary>
-        /// Merge together blocks belonging to <paramref name="metaBlockId"/>.
+        /// Merge together blocks belonging to <paramref name="metaMetaBlockId"/>.
         /// If <paramref name="tableName"/> is a data table, i.e. is at the lowest level,
         /// it will compact tombstoned records.
         /// </summary>
         /// <param name="tableName"></param>
-        /// <param name="metaBlockId">
+        /// <param name="metaMetaBlockId">
         /// </param>
         /// <returns></returns>
-        public int CompactMerge(string tableName, int? metaBlockId)
+        public int CompactMerge(string tableName, int? metaMetaBlockId)
         {
             var tx = _metaBlockManager.Tx;
-            var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
+            var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaMetaBlockId);
             var compactionResult = CompactMergeBlocks(tableName, originalBlocks);
             var removedBlockIds = originalBlocks
                 .Select(b => b.BlockId)
@@ -51,26 +50,26 @@ namespace TrackDb.Lib.DataLifeCycle
                 Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
             }
 
-            var hierarchyHardDeletedRecordIds = ReplaceMetaBlockInHierarchy(
+            ReplaceMetaBlockInHierarchy(
                 tableName,
-                metaBlockId,
+                metaMetaBlockId,
                 compactionResult.MetadataBlocks);
-            var allHardDeletedRecordIds = compactionResult.HardDeletedRecordIds
-                .Concat(hierarchyHardDeletedRecordIds)
-                .ToImmutableArray();
 
             //  This is done after so we do not mess with queries during the processing
-            Database.DeleteTombstoneRecords(tableName, allHardDeletedRecordIds, tx);
+            Database.DeleteTombstoneRecords(
+                tableName,
+                compactionResult.HardDeletedRecordIds,
+                tx);
 
-            return allHardDeletedRecordIds.Length;
+            return compactionResult.HardDeletedRecordIds.Count();
         }
 
         #region Post Merge
-        private IEnumerable<long> ReplaceMetaBlockInHierarchy(
+        private void ReplaceMetaBlockInHierarchy(
             string tableName,
-            int? metaBlockId,
+            int? metaMetaBlockId,
             IEnumerable<MetadataBlock> metadataBlocks)
-        {
+        {   //  Build a block with the meta data blocks
             var tx = _metaBlockManager.Tx;
             var metaTable = Database.GetMetaDataTable(tableName);
             var metaSchema = metaTable.Schema;
@@ -85,7 +84,38 @@ namespace TrackDb.Lib.DataLifeCycle
                 metaBuilder.AppendRecord(DateTime.Now, recordId, metadataSpan);
             }
 
-            throw new NotImplementedException();
+            //  Replace that
+            ReplaceMetaBlockInHierarchy(
+                metaSchema.TableName,
+                metaMetaBlockId,
+                metaBuilder);
+        }
+
+        private void ReplaceMetaBlockInHierarchy(
+            string metaTableName,
+            int? metaMetaBlockId,
+            BlockBuilder metaBuilder)
+        {
+            if (metaMetaBlockId == null)
+            {   //  There are no meta-meta block containing the meta blocks
+                //  We simply replace in-memory meta blocks
+                _metaBlockManager.ReplaceInMemoryBlocks(metaTableName, metaBuilder);
+            }
+            else if (metaMetaBlockId <= 0)
+            {   //  In-memory meta meta block
+                if (metaMetaBlockId < 0)
+                {
+                    throw new InvalidOperationException(
+                        $"There should only be one meta meta block (0th), " +
+                        $"instead we have {metaMetaBlockId}");
+                }
+
+                throw new NotImplementedException();
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
         #endregion
 
@@ -260,7 +290,7 @@ namespace TrackDb.Lib.DataLifeCycle
             MetadataBlock metadataBlockB)
         {
             var tx = _metaBlockManager.Tx;
-           
+
             if (((IBlock)blockBuilder).RecordCount != 0)
             {
                 throw new ArgumentException(nameof(blockBuilder));
@@ -301,7 +331,7 @@ namespace TrackDb.Lib.DataLifeCycle
             List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
-            
+
             var schema = ((IBlock)blockBuilder).TableSchema;
             var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
 
