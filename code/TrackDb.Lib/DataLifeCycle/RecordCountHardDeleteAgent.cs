@@ -6,7 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TrackDb.Lib.DataLifeCycle.Persistance;
-using static TrackDb.Lib.DataLifeCycle.Persistance.MetaBlockManager;
+using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -45,6 +46,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #endregion
 
         private readonly int META_BLOCK_COUNT = 10;
+        private readonly int TOMBSTONE_CLEAN_COUNT = 1000;
 
         public RecordCountHardDeleteAgent(Database database)
             : base(database)
@@ -132,17 +134,66 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var metaBlockIds = new Stack<int?>(
                         ComputeOptimalMetaBlocks(metaBlockManager, tableName));
-                    var blockMergingLogic = new BlockMergingLogic2(Database, metaBlockManager);
 
-                    while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
+                    if (metaBlockIds.Count() > 0)
                     {
-                        var metaBlockId = metaBlockIds.Pop();
-                        var hardDeletedCount = blockMergingLogic.CompactMerge(tableName, metaBlockId);
+                        var blockMergingLogic = new BlockMergingLogic2(Database, metaBlockManager);
 
-                        targetHardDeleteCount -= hardDeletedCount;
+                        while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
+                        {
+                            var metaBlockId = metaBlockIds.Pop();
+                            var hardDeletedCount = blockMergingLogic.CompactMerge(tableName, metaBlockId);
+
+                            targetHardDeleteCount -= hardDeletedCount;
+                        }
+                    }
+                    else
+                    {   //  No tombstone found:  let's clean up phantom tombstones
+                        CleanPhantomTombstones(tableName, metaBlockManager.Tx);
                     }
                 }
             }
+        }
+
+        private void CleanPhantomTombstones(string tableName, TransactionContext tx)
+        {   //  We look for tombstone entries that can't be found in the table
+            var deleteRecordIdSet = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Take(TOMBSTONE_CLEAN_COUNT)
+                .Select(t => t.DeletedRecordId)
+                .ToHashSet();
+            var table = Database.GetAnyTable(tableName);
+            var foundRecordIds = table.Query(tx)
+                .WithPredicate(new InPredicate(
+                    table.Schema.RecordIdColumnIndex,
+                    deleteRecordIdSet.Cast<object?>()))
+                .Select(r => (long)r.Span[0]!)
+                .ToImmutableArray();
+            var phantomRecordIds = deleteRecordIdSet
+                .Except(foundRecordIds)
+                .ToImmutableArray();
+
+            if (phantomRecordIds.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Phantom records in table '{tableName}' but we can't find any");
+            }
+
+            //  We then hard delete those records
+            tx.LoadCommittedBlocksInTransaction(Database.TombstoneTable.Schema.TableName);
+
+            var block = tx.TransactionState
+                .UncommittedTransactionLog
+                .TransactionTableLogMap[Database.TombstoneTable.Schema.TableName]
+                .CommittedDataBlock!;
+            var predicate = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Where(pf => pf.In(t => t.DeletedRecordId, phantomRecordIds))
+                .Predicate;
+            var rowIndexes = ((IBlock)block).Filter(predicate, false)
+                .RowIndexes;
+
+            block.DeleteRecordsByRecordIndex(rowIndexes);
         }
 
         /// <summary>
