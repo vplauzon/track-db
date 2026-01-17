@@ -10,40 +10,34 @@ namespace TrackDb.PerfTest
     public class InsertThenDeleteRandomTest
     {
         [Fact]
-        public async Task Test000010()
+        public async Task TestGen1()
         {
-            await RunPerformanceTestAsync(10);
+            await RunPerformanceTestAsync(1);
         }
 
         [Fact]
-        public async Task Test000100()
+        public async Task TestGen2()
         {
-            await RunPerformanceTestAsync(100);
+            await RunPerformanceTestAsync(2);
         }
 
         [Fact]
-        public async Task Test001000()
+        public async Task TestGen3()
         {
-            await RunPerformanceTestAsync(1000);
+            await RunPerformanceTestAsync(3);
         }
 
         [Fact]
-        public async Task Test002000()
+        public async Task TestGen4()
         {
-            await RunPerformanceTestAsync(2000);
+            await RunPerformanceTestAsync(4);
         }
 
-        [Fact]
-        public async Task Test010000()
-        {
-            await RunPerformanceTestAsync(10000);
-        }
-
-        private async Task RunPerformanceTestAsync(int bulkSize)
+        private async Task RunPerformanceTestAsync(int generation)
         {
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
-                InsertBulk(db, bulkSize);
+                await InsertBulkAsync(db, generation);
 
                 var shuffledEmployeeIds = db.EmployeeTable.Query()
                     .Select(e => e.EmployeeId)
@@ -62,26 +56,56 @@ namespace TrackDb.PerfTest
                     await db.Database.AwaitLifeCycleManagement(4);
                     if (i % 100 == 0)
                     {
-                        Assert.Equal(bulkSize - i - 1, db.EmployeeTable.Query().Count());
+                        Assert.Equal(
+                            shuffledEmployeeIds.Length - i - 1,
+                            db.EmployeeTable.Query().Count());
                     }
                 }
                 Assert.Equal(0, db.EmployeeTable.Query().Count());
             }
         }
 
-        private static void InsertBulk(VolumeTestDatabase db, int bulkSize)
+        private static async Task InsertBulkAsync(VolumeTestDatabase db, int generation)
         {
-            using (var tx = db.Database.CreateTransaction())
+            const int GEN1_BATCH_SIZE = 50;
+            const int GENERAL_BATCH_SIZE = 500;
+
+            int employeeId = 1;
+            bool hasReachedGeneration = false;
+
+            while (!hasReachedGeneration)
             {
-                var employees = Enumerable.Range(0, bulkSize)
-                    .Select(j => new VolumeTestDatabase.Employee(
-                        $"Employee-{j}",
-                        $"EmployeeName-{j}"));
+                using (var tx = db.Database.CreateTransaction())
+                {
+                    var bulkSize = generation == 1 ? GEN1_BATCH_SIZE : GENERAL_BATCH_SIZE;
+                    var employees = Enumerable.Range(employeeId, bulkSize)
+                        .Select(j => new VolumeTestDatabase.Employee(
+                            $"Employee-{j}",
+                            $"EmployeeName-{j}"));
 
-                db.EmployeeTable.AppendRecords(employees, tx);
+                    db.EmployeeTable.AppendRecords(employees, tx);
+                    employeeId += bulkSize;
 
-                tx.Complete();
+                    tx.Complete();
+                }
+                await db.Database.AwaitLifeCycleManagement(2);
+
+                //  Evaluate hasReachedGeneration
+
+                var table = GetTableGeneration(db.Database, db.EmployeeTable, generation);
+                
+                hasReachedGeneration = table.Query().Take(1).Any();
             }
+        }
+
+        private static Table GetTableGeneration(Database database, Table table, int generation)
+        {
+            for (var i = 0; i != generation - 1; ++i)
+            {
+                table = database.GetMetaDataTable(table.Schema.TableName);
+            }
+
+            return table;
         }
     }
 }
