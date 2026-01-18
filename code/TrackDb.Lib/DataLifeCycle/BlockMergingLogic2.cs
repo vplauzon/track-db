@@ -106,16 +106,16 @@ namespace TrackDb.Lib.DataLifeCycle
                     $"There should only be one meta meta block (0th), " +
                     $"instead we have {metaBlockId}");
             }
-            else if (metaBlockId == 0)
-            {   //  In-memory meta meta block
-                throw new NotImplementedException();
-            }
             else
             {
                 var metaMetaTable = Database.GetMetaDataTable(metaTableName);
+                var metaMetaMetaTable = Database.GetMetaDataTable(metaMetaTable.Schema.TableName);
                 var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
                     metaMetaTable.Schema.TableName,
                     metaBlockId.Value);
+                var q = _metaBlockManager.LoadBlocks(
+                    metaMetaTable.Schema.TableName,
+                    metaMetaBlockId);
 
                 throw new NotImplementedException();
             }

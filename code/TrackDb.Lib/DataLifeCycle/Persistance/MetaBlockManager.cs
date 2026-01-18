@@ -167,8 +167,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var columnIndexes = Enumerable.Range(0, metadataTableSchema.Columns.Count)
                 .ToImmutableArray();
 
-            IEnumerable<ReadOnlyMemory<object?>> LoadNullBlocks(
-                string tableName)
+            IEnumerable<ReadOnlyMemory<object?>> LoadNullBlocks(string tableName)
             {
                 var results = metadataTable.Query(Tx)
                     //  Especially relevant for availability-block:
@@ -180,7 +179,12 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 return results;
             }
 
-            IEnumerable<ReadOnlyMemory<object?>> LoadNonNullBlocks(
+            IEnumerable<ReadOnlyMemory<object?>> LoadZeroBlocks(string tableName)
+            {
+                throw new NotImplementedException();
+            }
+
+            IEnumerable<ReadOnlyMemory<object?>> LoadPositiveBlocks(
                 string tableName,
                 int metaBlockId)
             {
@@ -196,7 +200,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             var results = metaBlockId == null
                     ? LoadNullBlocks(tableName)
-                    : LoadNonNullBlocks(tableName, metaBlockId.Value);
+                    : metaBlockId == 0
+                    ? LoadZeroBlocks(tableName)
+                    : LoadPositiveBlocks(tableName, metaBlockId.Value);
             var blocks = results
                 .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
                 .ToImmutableArray();
@@ -222,25 +228,33 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         public int? GetMetaBlockId(string metaTableName, int blockId)
         {
-            var table = Database.GetAnyTable(metaTableName);
-            var metaSchema = (MetadataTableSchema)table.Schema;
-            var parentBlockIds = table.Query(Tx)
-                .WithPredicate(new BinaryOperatorPredicate(
-                    metaSchema.BlockIdColumnIndex,
-                    blockId,
-                    BinaryOperator.Equal))
-                .WithProjection(metaSchema.ParentBlockIdColumnIndex)
-                .Take(1)
-                .Select(r => (int?)r.Span[0]!)
-                .ToImmutableArray();
-
-            if (parentBlockIds.Length == 0)
+            if (blockId == 0)
             {
-                throw new InvalidOperationException(
-                    $"Can't find block ID '{blockId}' in table {metaTableName}");
+                return null;
             }
+            else
+            {
+                var table = Database.GetAnyTable(metaTableName);
+                var metaSchema = (MetadataTableSchema)table.Schema;
+                var parentBlockIds = table.Query(Tx)
+                    .WithCommittedOnly()
+                    .WithPredicate(new BinaryOperatorPredicate(
+                        metaSchema.BlockIdColumnIndex,
+                        blockId,
+                        BinaryOperator.Equal))
+                    .WithProjection(metaSchema.ParentBlockIdColumnIndex)
+                    .Take(1)
+                    .Select(r => (int?)r.Span[0]!)
+                    .ToImmutableArray();
 
-            return parentBlockIds[0];
+                if (parentBlockIds.Length == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Can't find block ID '{blockId}' in table {metaTableName}");
+                }
+
+                return parentBlockIds[0];
+            }
         }
     }
 }
