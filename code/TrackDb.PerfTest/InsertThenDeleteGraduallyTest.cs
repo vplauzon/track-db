@@ -10,6 +10,12 @@ namespace TrackDb.PerfTest
     public class InsertThenDeleteRandomTest
     {
         [Fact]
+        public async Task TestGen0()
+        {
+            await RunPerformanceTestAsync(0);
+        }
+
+        [Fact]
         public async Task TestGen1()
         {
             await RunPerformanceTestAsync(1);
@@ -25,12 +31,6 @@ namespace TrackDb.PerfTest
         public async Task TestGen3()
         {
             await RunPerformanceTestAsync(3);
-        }
-
-        [Fact]
-        public async Task TestGen4()
-        {
-            await RunPerformanceTestAsync(4);
         }
 
         private async Task RunPerformanceTestAsync(int generation)
@@ -67,7 +67,7 @@ namespace TrackDb.PerfTest
 
         private static async Task InsertBulkAsync(VolumeTestDatabase db, int generation)
         {
-            const int GEN1_BATCH_SIZE = 50;
+            const int GEN0_BATCH_SIZE = 50;
             const int GENERAL_BATCH_SIZE = 500;
 
             int employeeId = 1;
@@ -77,7 +77,7 @@ namespace TrackDb.PerfTest
             {
                 using (var tx = db.Database.CreateTransaction())
                 {
-                    var bulkSize = generation == 1 ? GEN1_BATCH_SIZE : GENERAL_BATCH_SIZE;
+                    var bulkSize = generation == 0 ? GEN0_BATCH_SIZE : GENERAL_BATCH_SIZE;
                     var employees = Enumerable.Range(employeeId, bulkSize)
                         .Select(j => new VolumeTestDatabase.Employee(
                             $"Employee-{j}",
@@ -93,14 +93,14 @@ namespace TrackDb.PerfTest
                 //  Evaluate hasReachedGeneration
 
                 var table = GetTableGeneration(db.Database, db.EmployeeTable, generation);
-                
+
                 hasReachedGeneration = table.Query().Take(1).Any();
             }
         }
 
         private static Table GetTableGeneration(Database database, Table table, int generation)
         {
-            for (var i = 0; i != generation - 1; ++i)
+            for (var i = 0; i != generation; ++i)
             {
                 table = database.GetMetaDataTable(table.Schema.TableName);
             }

@@ -100,15 +100,14 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  We simply replace in-memory meta blocks
                 _metaBlockManager.ReplaceInMemoryBlocks(metaTableName, metaBuilder);
             }
-            else if (metaBlockId <= 0)
+            else if (metaBlockId < 0)
+            {
+                throw new InvalidOperationException(
+                    $"There should only be one meta meta block (0th), " +
+                    $"instead we have {metaBlockId}");
+            }
+            else if (metaBlockId == 0)
             {   //  In-memory meta meta block
-                if (metaBlockId < 0)
-                {
-                    throw new InvalidOperationException(
-                        $"There should only be one meta meta block (0th), " +
-                        $"instead we have {metaBlockId}");
-                }
-
                 throw new NotImplementedException();
             }
             else
@@ -298,12 +297,6 @@ namespace TrackDb.Lib.DataLifeCycle
             List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
-
-            if (((IBlock)blockBuilder).RecordCount != 0)
-            {
-                throw new ArgumentException(nameof(blockBuilder));
-            }
-
             var totalSize = blockBuilder.GetSerializationSize() + nextMetadataBlock.Size;
 
             if (totalSize <= _maxBlockSize)
