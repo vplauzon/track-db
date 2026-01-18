@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
@@ -217,6 +218,29 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             committedDataBlock.DeleteAll();
             committedDataBlock.AppendBlock(metaBuilder);
+        }
+
+        public int? GetMetaBlockId(string metaTableName, int blockId)
+        {
+            var table = Database.GetAnyTable(metaTableName);
+            var metaSchema = (MetadataTableSchema)table.Schema;
+            var parentBlockIds = table.Query(Tx)
+                .WithPredicate(new BinaryOperatorPredicate(
+                    metaSchema.BlockIdColumnIndex,
+                    blockId,
+                    BinaryOperator.Equal))
+                .WithProjection(metaSchema.ParentBlockIdColumnIndex)
+                .Take(1)
+                .Select(r => (int?)r.Span[0]!)
+                .ToImmutableArray();
+
+            if (parentBlockIds.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Can't find block ID '{blockId}' in table {metaTableName}");
+            }
+
+            return parentBlockIds[0];
         }
     }
 }

@@ -27,18 +27,17 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         /// <summary>
-        /// Merge together blocks belonging to <paramref name="metaMetaBlockId"/>.
+        /// Merge together blocks belonging to <paramref name="metaBlockId"/>.
         /// If <paramref name="tableName"/> is a data table, i.e. is at the lowest level,
         /// it will compact tombstoned records.
         /// </summary>
         /// <param name="tableName"></param>
-        /// <param name="metaMetaBlockId">
-        /// </param>
+        /// <param name="metaBlockId"></param>
         /// <returns></returns>
-        public int CompactMerge(string tableName, int? metaMetaBlockId)
+        public int CompactMerge(string tableName, int? metaBlockId)
         {
             var tx = _metaBlockManager.Tx;
-            var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaMetaBlockId);
+            var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
             var compactionResult = CompactMergeBlocks(tableName, originalBlocks);
             var removedBlockIds = originalBlocks
                 .Select(b => b.BlockId)
@@ -52,7 +51,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             ReplaceMetaBlockInHierarchy(
                 tableName,
-                metaMetaBlockId,
+                metaBlockId,
                 compactionResult.MetadataBlocks);
 
             //  This is done after so we do not mess with queries during the processing
@@ -67,7 +66,7 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Post Merge
         private void ReplaceMetaBlockInHierarchy(
             string tableName,
-            int? metaMetaBlockId,
+            int? metaBlockId,
             IEnumerable<MetadataBlock> metadataBlocks)
         {   //  Build a block with the meta data blocks
             var tx = _metaBlockManager.Tx;
@@ -87,33 +86,38 @@ namespace TrackDb.Lib.DataLifeCycle
             //  Replace that
             ReplaceMetaBlockInHierarchy(
                 metaSchema.TableName,
-                metaMetaBlockId,
+                metaBlockId,
                 metaBuilder);
         }
 
         private void ReplaceMetaBlockInHierarchy(
             string metaTableName,
-            int? metaMetaBlockId,
+            int? metaBlockId,
             BlockBuilder metaBuilder)
         {
-            if (metaMetaBlockId == null)
+            if (metaBlockId == null)
             {   //  There are no meta-meta block containing the meta blocks
                 //  We simply replace in-memory meta blocks
                 _metaBlockManager.ReplaceInMemoryBlocks(metaTableName, metaBuilder);
             }
-            else if (metaMetaBlockId <= 0)
+            else if (metaBlockId <= 0)
             {   //  In-memory meta meta block
-                if (metaMetaBlockId < 0)
+                if (metaBlockId < 0)
                 {
                     throw new InvalidOperationException(
                         $"There should only be one meta meta block (0th), " +
-                        $"instead we have {metaMetaBlockId}");
+                        $"instead we have {metaBlockId}");
                 }
 
                 throw new NotImplementedException();
             }
             else
             {
+                var metaMetaTable = Database.GetMetaDataTable(metaTableName);
+                var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
+                    metaMetaTable.Schema.TableName,
+                    metaBlockId.Value);
+
                 throw new NotImplementedException();
             }
         }
@@ -201,7 +205,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {
-                    var isMerged = TryMerge(blockBuilder, currentBlock);
+                    var isMerged = TryMerge(
+                        blockBuilder,
+                        currentBlock,
+                        blockTombstonedRecordIds,
+                        hardDeletedRecordIds);
 
                     if (!isMerged)
                     {   //  Can't merge
@@ -212,7 +220,12 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else
             {   //  previousBlock != null
-                var isMerged = TryMerge(blockBuilder, previousBlock, currentBlock);
+                var isMerged = TryMerge(
+                    blockBuilder,
+                    previousBlock,
+                    currentBlock,
+                    blockTombstonedRecordIds,
+                    hardDeletedRecordIds);
 
                 if (!isMerged)
                 {   //  Can't merge
@@ -278,16 +291,60 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         #region Merge block operations
-        private bool TryMerge(BlockBuilder blockBuilder, MetadataBlock currentBlock)
+        private bool TryMerge(
+            BlockBuilder blockBuilder,
+            MetadataBlock nextMetadataBlock,
+            IImmutableList<long> blockTombstonedRecordIds,
+            List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
-            throw new NotImplementedException();
+
+            if (((IBlock)blockBuilder).RecordCount != 0)
+            {
+                throw new ArgumentException(nameof(blockBuilder));
+            }
+
+            var totalSize = blockBuilder.GetSerializationSize() + nextMetadataBlock.Size;
+
+            if (totalSize <= _maxBlockSize)
+            {
+                var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
+                var nextBlock = Database.GetOrLoadBlock(
+                    nextMetadataBlock.BlockId,
+                    nextMetadataBlock.Schema);
+
+                blockBuilder.AppendBlock(nextBlock);
+
+                var actuallyDeletedRecordIds =
+                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
+
+                if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
+                {
+                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+
+                    return true;
+                }
+                else
+                {
+                    blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
+                        recordCountBefore,
+                        ((IBlock)blockBuilder).RecordCount - recordCountBefore));
+
+                    return false;
+                }
+            }
+            else
+            {
+                return true;
+            }
         }
 
         private bool TryMerge(
             BlockBuilder blockBuilder,
             MetadataBlock metadataBlockA,
-            MetadataBlock metadataBlockB)
+            MetadataBlock metadataBlockB,
+            IImmutableList<long> blockTombstonedRecordIds,
+            List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
 
@@ -306,8 +363,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 blockBuilder.AppendBlock(blockA);
                 blockBuilder.AppendBlock(blockB);
 
+                var actuallyDeletedRecordIds =
+                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
+
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
+                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+
                     return true;
                 }
                 else
