@@ -12,20 +12,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
     /// Encapsulation of data management around metablocks.
     /// Everything is done on committed data (no uncommitted data).
     /// </summary>
-    /// <remarks>
-    /// The semantic of the blockId field is as follow:
-    /// <list type="bullet">
-    /// <item>Positive numbers:  an actual meta block ID persisted on disk.</item>
-    /// <item>
-    /// Non-positive number (including zero):  a meta block living in the in-memory
-    /// part of the meta-meta table.
-    /// </item>
-    /// <item>
-    /// Null:  blocks are living in the meta table with no meta meta block (the
-    /// meta meta table might not event exist).
-    /// </item>
-    /// </list>
-    /// </remarks>
     internal partial class MetaBlockManager : LogicBase
     {
         #region Inner types
@@ -159,33 +145,33 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         #endregion
 
         #region Load Blocks
+        /// <summary>
+        /// Load blocks for table <paramref name="tableName"/> that belong to the meta block
+        /// <paramref name="metaBlockId"/>.
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="metaBlockId"></param>
+        /// <returns></returns>
         public IEnumerable<MetadataBlock> LoadBlocks(string tableName, int? metaBlockId)
         {
-            var metadataTable = Database.GetMetaDataTable(tableName);
-            var metaMetadataTable = Database.GetMetaDataTable(metadataTable.Schema.TableName);
-            var metadataTableSchema = (MetadataTableSchema)metadataTable.Schema;
+            if (metaBlockId != null && metaBlockId <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(metaBlockId));
+            }
+
+            Table metaDataTable = Database.GetMetaDataTable(tableName);
+            Table metaMetaDataTable = Database.GetMetaDataTable(metaDataTable.Schema.TableName);
+            var metadataTableSchema = (MetadataTableSchema)metaDataTable.Schema;
             var columnIndexes = Enumerable.Range(0, metadataTableSchema.Columns.Count)
                 .ToImmutableArray();
 
             IEnumerable<ReadOnlyMemory<object?>> LoadNullBlocks(string tableName)
             {
-                var results = metadataTable.Query(Tx)
+                var results = metaDataTable.Query(Tx)
                     //  Especially relevant for availability-block:
                     //  We just want to deal with what is committed
                     .WithCommittedOnly()
                     .WithInMemoryOnly()
-                    .WithProjection(columnIndexes);
-
-                return results;
-            }
-
-            IEnumerable<ReadOnlyMemory<object?>> LoadZeroBlocks(string tableName)
-            {
-                var results = metadataTable.Query(Tx)
-                    .WithCommittedOnly()
-                    .WithInMemoryOnly()
-                    //  Especially relevant for availability-block:
-                    //  We just want to deal with what is committed
                     .WithProjection(columnIndexes);
 
                 return results;
@@ -195,7 +181,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 string tableName,
                 int metaBlockId)
             {
-                var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metadataTable.Schema);
+                var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metaDataTable.Schema);
                 var results = metaMetaBlock.Project(
                     new object?[columnIndexes.Length],
                     columnIndexes,
@@ -207,8 +193,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             var results = metaBlockId == null
                     ? LoadNullBlocks(tableName)
-                    : metaBlockId == 0
-                    ? LoadZeroBlocks(tableName)
                     : LoadPositiveBlocks(tableName, metaBlockId.Value);
             var blocks = results
                 .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
@@ -235,15 +219,15 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         public int? GetMetaBlockId(string metaTableName, int blockId)
         {
-            if (blockId == 0)
+            if (blockId <= 0)
             {
-                return null;
+                throw new ArgumentOutOfRangeException(nameof(blockId));
             }
             else
             {
-                var table = Database.GetAnyTable(metaTableName);
-                var metaSchema = (MetadataTableSchema)table.Schema;
-                var parentBlockIds = table.Query(Tx)
+                var metaTable = Database.GetAnyTable(metaTableName);
+                var metaSchema = (MetadataTableSchema)metaTable.Schema;
+                var parentBlockIds = metaTable.Query(Tx)
                     .WithCommittedOnly()
                     .WithPredicate(new BinaryOperatorPredicate(
                         metaSchema.BlockIdColumnIndex,
@@ -260,7 +244,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         $"Can't find block ID '{blockId}' in table {metaTableName}");
                 }
 
-                return parentBlockIds[0];
+                var metaBlockId = parentBlockIds[0];
+
+                return metaBlockId > 0 ? metaBlockId : null;
             }
         }
     }

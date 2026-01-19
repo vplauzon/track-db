@@ -105,16 +105,18 @@ namespace TrackDb.Lib.DataLifeCycle
             int? metaBlockId,
             BlockBuilder metaBuilder)
         {
+            if (((IBlock)metaBuilder).TableSchema.TableName != metaTableName)
+            {
+                throw new ArgumentException(nameof(metaBuilder));
+            }
             if (metaBlockId == null)
             {   //  There are no meta-meta block containing the meta blocks
                 //  We simply replace in-memory meta blocks
                 _metaBlockManager.ReplaceInMemoryBlocks(metaTableName, metaBuilder);
             }
-            else if (metaBlockId < 0)
+            else if (metaBlockId <= 0)
             {
-                throw new InvalidOperationException(
-                    $"There should only be one meta meta block (0th), " +
-                    $"instead we have {metaBlockId}");
+                throw new ArgumentOutOfRangeException(nameof(metaBlockId));
             }
             else
             {
@@ -127,6 +129,21 @@ namespace TrackDb.Lib.DataLifeCycle
                     metaTableName,
                     metaMetaBlockId);
 
+                if (!metaMetaBlocks.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Block ID {metaMetaBlockId} on table '{metaTableName}' has not data");
+                }
+                if (metaMetaBlocks.First().Schema.TableName != metaMetaSchema.TableName)
+                {
+                    throw new InvalidOperationException("Inconsistant schema");
+                }
+                if (metaMetaBlocks.Where(mmb => mmb.BlockId == metaBlockId.Value).Count() != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Block ID {metaMetaBlockId} on table '{metaTableName}' doesn't " +
+                        $"contain block {metaBlockId}");
+                }
                 if (((IBlock)metaBuilder).RecordCount > 0)
                 {
                     var minRecordId = ((IBlock)metaBuilder).Project(
@@ -162,7 +179,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                     //  Persist that new block into the meta blocks list
                     PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
-                    
+
                     var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
 
                     ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
@@ -357,12 +374,19 @@ namespace TrackDb.Lib.DataLifeCycle
             var tx = _metaBlockManager.Tx;
             var totalSize = blockBuilder.GetSerializationSize() + nextMetadataBlock.Size;
 
+#if DEBUG
+            if (Database.GetMetaDataTable(((IBlock)blockBuilder).TableSchema.TableName).Schema.TableName
+                != nextMetadataBlock.Schema.TableName)
+            {
+                throw new InvalidOperationException("Inconsistant schema");
+            }
+#endif
             if (totalSize <= _maxBlockSize)
             {
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
                 var nextBlock = Database.GetOrLoadBlock(
                     nextMetadataBlock.BlockId,
-                    nextMetadataBlock.Schema);
+                    nextMetadataBlock.Schema.ParentSchema);
 
                 blockBuilder.AppendBlock(nextBlock);
 
@@ -408,8 +432,12 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (totalSize <= _maxBlockSize)
             {
-                var blockA = Database.GetOrLoadBlock(metadataBlockA.BlockId, metadataBlockA.Schema);
-                var blockB = Database.GetOrLoadBlock(metadataBlockA.BlockId, metadataBlockA.Schema);
+                var blockA = Database.GetOrLoadBlock(
+                    metadataBlockA.BlockId,
+                    metadataBlockA.Schema.ParentSchema);
+                var blockB = Database.GetOrLoadBlock(
+                    metadataBlockA.BlockId,
+                    metadataBlockA.Schema.ParentSchema);
 
                 blockBuilder.AppendBlock(blockA);
                 blockBuilder.AppendBlock(blockB);
