@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
@@ -110,14 +111,56 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var metaMetaTable = Database.GetMetaDataTable(metaTableName);
                 var metaMetaMetaTable = Database.GetMetaDataTable(metaMetaTable.Schema.TableName);
+                var metaMetaMetaSchema = (MetadataTableSchema)metaMetaMetaTable.Schema;
                 var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
                     metaMetaTable.Schema.TableName,
                     metaBlockId.Value);
-                var q = _metaBlockManager.LoadBlocks(
-                    metaMetaTable.Schema.TableName,
+                var metaMetaBlocks = _metaBlockManager.LoadBlocks(
+                    metaTableName,
                     metaMetaBlockId);
 
-                throw new NotImplementedException();
+                if (((IBlock)metaBuilder).RecordCount > 0)
+                {
+                    var minRecordId = ((IBlock)metaBuilder).Project(
+                        new object?[1],
+                        [((IBlock)metaBuilder).TableSchema.RecordIdColumnIndex],
+                        Enumerable.Range(0, ((IBlock)metaBuilder).RecordCount),
+                        0)
+                        .Max(r => (long)r.Span[0]!);
+                    var orderedMetaMetaBlocks = metaMetaBlocks
+                        //  Remove the current that got modified
+                        .Where(mmb => mmb.BlockId != metaBlockId.Value)
+                        .OrderBy(mmb => Math.Abs(mmb.MinRecordId - minRecordId));
+                    var stack = new Stack<MetadataBlock>(orderedMetaMetaBlocks.Reverse());
+                    var procesedMetaBlocks = new List<MetadataBlock>(stack.Count + 1);
+                    var tombstonedRecordIds = ImmutableArray<long>.Empty;
+                    var hardDeleteRecordIds = new List<long>();
+
+                    //  Try to merge the new block as much as possible
+                    while (stack.Any())
+                    {
+                        var metaMetaBlock = stack.Pop();
+
+                        if (!TryMerge(
+                            metaBuilder,
+                            metaMetaBlock,
+                            tombstonedRecordIds,
+                            hardDeleteRecordIds))
+                        {   //  We are complete
+                            procesedMetaBlocks.Add(metaMetaBlock);
+                            procesedMetaBlocks.AddRange(stack);
+                            stack.Clear();
+                        }
+                    }
+                    //  Persist that new block into the meta blocks list
+                    PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaMetaSchema);
+
+                    throw new NotImplementedException();
+                }
+                else
+                {
+                    throw new NotImplementedException();
+                }
             }
         }
         #endregion
@@ -328,7 +371,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else
             {
-                return true;
+                return false;
             }
         }
 

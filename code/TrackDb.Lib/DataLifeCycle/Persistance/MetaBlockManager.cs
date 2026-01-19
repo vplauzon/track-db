@@ -181,7 +181,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             IEnumerable<ReadOnlyMemory<object?>> LoadZeroBlocks(string tableName)
             {
-                throw new NotImplementedException();
+                var results = metadataTable.Query(Tx)
+                    .WithCommittedOnly()
+                    .WithInMemoryOnly()
+                    //  Especially relevant for availability-block:
+                    //  We just want to deal with what is committed
+                    .WithProjection(columnIndexes);
+
+                return results;
             }
 
             IEnumerable<ReadOnlyMemory<object?>> LoadPositiveBlocks(
