@@ -54,7 +54,7 @@ namespace TrackDb.PerfTest
                         .Delete();
 
                     await db.Database.AwaitLifeCycleManagement(4);
-                    if (i % 100 == 0)
+                    //if (i % 100 == 0)
                     {
                         Assert.Equal(
                             shuffledEmployeeIds.Length - i - 1,

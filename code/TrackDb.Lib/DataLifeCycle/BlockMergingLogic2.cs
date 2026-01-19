@@ -45,6 +45,12 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Select(b => b.BlockId)
                 .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
                 .ToImmutableArray();
+#if DEBUG
+            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
+            var tableCountWithDeleteBefore = Database.GetAnyTable(tableName).Query(tx)
+                .WithIgnoreDeleted()
+                .Count();
+#endif
 
             if (removedBlockIds.Length > 0)
             {   //  It could be zero if we only have phantom tombstones
@@ -62,6 +68,22 @@ namespace TrackDb.Lib.DataLifeCycle
                 compactionResult.HardDeletedRecordIds,
                 tx);
 
+#if DEBUG
+            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
+            var tableCountWithDeleteAfter = Database.GetAnyTable(tableName).Query(tx)
+                .WithIgnoreDeleted()
+                .Count();
+
+            if (tableCountBefore != tableCountAfter)
+            {
+                throw new InvalidOperationException("Lost records in compaction");
+            }
+            if (tableCountWithDeleteBefore
+                != tableCountWithDeleteAfter + compactionResult.HardDeletedRecordIds.Count())
+            {
+                throw new InvalidOperationException("Inconsistant hard delete");
+            }
+#endif
             return compactionResult.HardDeletedRecordIds.Count();
         }
 
