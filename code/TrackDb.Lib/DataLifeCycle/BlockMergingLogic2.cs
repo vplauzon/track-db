@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
 using System.Reflection.Metadata;
 using System.Text;
@@ -73,6 +74,18 @@ namespace TrackDb.Lib.DataLifeCycle
             var tx = _metaBlockManager.Tx;
             var metaTable = Database.GetMetaDataTable(tableName);
             var metaSchema = metaTable.Schema;
+            var metaBuilder = ToBlockBuilder(metadataBlocks, metaTable);
+
+            //  Replace that
+            ReplaceMetaBlockInHierarchy(
+                metaSchema.TableName,
+                metaBlockId,
+                metaBuilder);
+        }
+
+        private static BlockBuilder ToBlockBuilder(IEnumerable<MetadataBlock> metadataBlocks, Table metaTable)
+        {
+            var metaSchema = metaTable.Schema;
             var metaBuilder = new BlockBuilder(metaSchema);
 
             foreach (var metadataBlock in metadataBlocks)
@@ -84,11 +97,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 metaBuilder.AppendRecord(DateTime.Now, recordId, metadataSpan);
             }
 
-            //  Replace that
-            ReplaceMetaBlockInHierarchy(
-                metaSchema.TableName,
-                metaBlockId,
-                metaBuilder);
+            return metaBuilder;
         }
 
         private void ReplaceMetaBlockInHierarchy(
@@ -110,8 +119,7 @@ namespace TrackDb.Lib.DataLifeCycle
             else
             {
                 var metaMetaTable = Database.GetMetaDataTable(metaTableName);
-                var metaMetaMetaTable = Database.GetMetaDataTable(metaMetaTable.Schema.TableName);
-                var metaMetaMetaSchema = (MetadataTableSchema)metaMetaMetaTable.Schema;
+                var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
                 var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
                     metaMetaTable.Schema.TableName,
                     metaBlockId.Value);
@@ -153,13 +161,20 @@ namespace TrackDb.Lib.DataLifeCycle
                         }
                     }
                     //  Persist that new block into the meta blocks list
-                    PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaMetaSchema);
+                    PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
+                    
+                    var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
 
-                    throw new NotImplementedException();
+                    ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
                 }
                 else
-                {
-                    throw new NotImplementedException();
+                {   //  Empty metaBuilder
+                    var remainingMetaMetaBlocks = metaMetaBlocks
+                        //  Remove the current that got modified
+                        .Where(mmb => mmb.BlockId != metaBlockId.Value);
+                    var metaMetaBuilder = ToBlockBuilder(remainingMetaMetaBlocks, metaMetaTable);
+
+                    ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
                 }
             }
         }
