@@ -60,6 +60,9 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else
             {
+#if DEBUG
+                var countBefore = Database.GetAnyTable(tableName).Query(tx).Count();
+#endif
                 if (removedBlockIds.Length > 0)
                 {   //  It could be zero if we only have phantom tombstones
                     Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
@@ -75,6 +78,15 @@ namespace TrackDb.Lib.DataLifeCycle
                     tableName,
                     compactionResult.HardDeletedRecordIds,
                     tx);
+
+#if DEBUG
+                var countAfter = Database.GetAnyTable(tableName).Query(tx).Count();
+
+                if (countBefore != countAfter)
+                {
+                    throw new InvalidOperationException("Inconsistent merge");
+                }
+#endif
 
                 return compactionResult.HardDeletedRecordIds.Count();
             }
