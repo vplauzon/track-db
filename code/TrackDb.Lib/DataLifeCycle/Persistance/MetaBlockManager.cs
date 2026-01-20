@@ -287,6 +287,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         //  Single record
                         var record = table.Query(Tx)
                             .WithCommittedOnly()
+                            .WithProjection(Enumerable.Range(0, schema.ColumnProperties.Count))
                             .First();
                         var coreRecord = record.Span.Slice(0, schema.Columns.Count);
                         var recordId = (long)record.Span[schema.RecordIdColumnIndex]!;
