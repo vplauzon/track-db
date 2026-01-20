@@ -345,26 +345,21 @@ namespace TrackDb.Lib
                             tx,
                             true,
                             [_table.Schema.RecordIdColumnIndex, _table.Schema.ParentBlockIdColumnIndex])
-                        .Select(r => new
-                        {
-                            RecordId = (long)r.Span[0]!,
-                            BlockId = (int)r.Span[1]!
-                        })
+                        .Select(r => (long)r.Span[0]!)
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted ONLY
                         var hardDeletedRecordIds = transactionTableLog
                         ?.NewDataBlock
-                        .DeleteRecordsByRecordId(deletedRecordIds.Select(r => r.RecordId))
+                        .DeleteRecordsByRecordId(deletedRecordIds)
                         .ToArray();
 
-                        foreach (var r in deletedRecordIds)
+                        foreach (var recordId in deletedRecordIds)
                         {
                             if (hardDeletedRecordIds == null
-                                || !hardDeletedRecordIds.Contains(r.RecordId))
+                                || !hardDeletedRecordIds.Contains(recordId))
                             {
                                 _table.Database.DeleteRecord(
-                                    r.RecordId,
-                                    r.BlockId <= 0 ? null : r.BlockId,
+                                    recordId,
                                     _table.Schema.TableName,
                                     tx);
                             }

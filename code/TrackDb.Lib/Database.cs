@@ -864,12 +864,11 @@ namespace TrackDb.Lib
 
         internal void DeleteRecord(
             long recordId,
-            int? blockId,
             string tableName,
             TransactionContext tx)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, DateTime.Now),
                 tx);
         }
 
