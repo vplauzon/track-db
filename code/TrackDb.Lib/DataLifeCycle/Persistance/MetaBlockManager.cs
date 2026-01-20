@@ -251,54 +251,62 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private void PruneHeadMetadata(string metaTableName)
         {
-            Tx.LoadCommittedBlocksInTransaction(metaTableName);
+            var metaTable = Database.GetAnyTable(metaTableName);
 
-            var metaBlock = Tx.TransactionState
-                .UncommittedTransactionLog
-                .TransactionTableLogMap[metaTableName]
-                .CommittedDataBlock;
-
-            //  We want a single block on the head
-            if (metaBlock != null && ((IBlock)metaBlock).RecordCount == 1)
+            //  We want the meta table to be...  a metadata table
+            if (metaTable.Schema is MetadataTableSchema metaSchema)
             {
-                var metaTable = Database.GetAnyTable(metaTableName);
-                var metaSchema = (MetadataTableSchema)metaTable.Schema;
+                var metaRecords = metaTable.Query(Tx)
+                    .WithCommittedOnly()
+                    .WithInMemoryOnly()
+                    .WithProjection(metaSchema.ItemCountColumnIndex, metaSchema.BlockIdColumnIndex)
+                    //  We take 2 to detect if there is more than one
+                    .Take(2)
+                    .Select(r => new
+                    {
+                        ItemCount = (int)r.Span[0]!,
+                        BlockId = (int)r.Span[1]!,
+                    })
+                    .ToImmutableArray();
 
-                //  We want the table underneath to be a meta table
-                if (metaSchema.ParentSchema is MetadataTableSchema schema)
+                //  We want a single meta record with a single record
+                if (metaRecords.Length == 1 && metaRecords[0].ItemCount == 1)
                 {
-                    var tableInMemoryCount = Database.GetAnyTable(schema.TableName).Query(Tx)
+                    var schema = metaSchema.ParentSchema;
+                    var table = Database.GetAnyTable(schema.TableName);
+                    var recordCount = table.Query(Tx)
+                        .WithCommittedOnly()
                         .WithInMemoryOnly()
                         .Count();
 
-                    //  We want the table to have only one block from the meta block / none in-memory
-                    if (tableInMemoryCount == 0)
-                    {
-                        var metaRecord = ((IBlock)metaBlock).Project(
-                            new object?[2],
-                            [schema.BlockIdColumnIndex, schema.ItemCountColumnIndex],
-                            [0],
-                            0)
-                            .Select(r => new
-                            {
-                                BlockId = (int)r.Span[0]!,
-                                ItemCount = (int)r.Span[1]!
-                            })
+                    //  We want no record in-memory:  a single record in the block
+                    if (recordCount == 0)
+                    {   //  Let's promote the meta block
+                        Tx.LoadCommittedBlocksInTransaction(metaTableName);
+
+                        //  Single record
+                        var record = table.Query(Tx)
+                            .WithCommittedOnly()
                             .First();
-                        var block = Database.GetOrLoadBlock(metaRecord.BlockId, schema);
-
-                        //  We remove the metablock
-                        Database.SetNoLongerInUsedBlockIds([metaRecord.BlockId], Tx);
-                        metaBlock.DeleteAll();
-                        //  We promote the block listed in the metablock in-memory
-                        Tx.LoadCommittedBlocksInTransaction(schema.TableName);
-
-                        var committedDataBlock = Tx.TransactionState
+                        var coreRecord = record.Span.Slice(0, schema.Columns.Count);
+                        var recordId = (long)record.Span[schema.RecordIdColumnIndex]!;
+                        var creationTime = (DateTime)record.Span[schema.CreationTimeColumnIndex]!;
+                        var metaBlock = Tx.TransactionState
                             .UncommittedTransactionLog
-                            .TransactionTableLogMap[schema.TableName]
+                            .TransactionTableLogMap[metaTableName]
                             .CommittedDataBlock!;
 
-                        committedDataBlock.AppendBlock(block);
+                        //  Promote the data in persisted block in-tx
+                        Tx.TransactionState.UncommittedTransactionLog.AppendRecord(
+                            creationTime,
+                            recordId,
+                            coreRecord,
+                            schema);
+                        //  Delete meta blocks (only one)
+                        metaBlock.DeleteAll();
+                        //  We GC the block
+                        Database.SetNoLongerInUsedBlockIds([metaRecords[0].BlockId], Tx);
+                        //  Recurse
                         PruneHeadMetadata(schema.TableName);
                     }
                 }

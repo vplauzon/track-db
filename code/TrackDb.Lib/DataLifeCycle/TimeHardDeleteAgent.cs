@@ -47,16 +47,23 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (oldestTombstoneRecord != null)
             {
-                CompactForRecord(
-                    oldestTombstoneRecord.TableName,
-                    oldestTombstoneRecord.DeletedRecordId,
-                    tx);
-                CheckRecordHardDeleted(
-                    oldestTombstoneRecord.TableName,
-                    oldestTombstoneRecord.DeletedRecordId,
-                    tx);
+                if (tx.LoadCommittedBlocksInTransaction(oldestTombstoneRecord.TableName))
+                {   //  Let's re-evaluate the oldest tombstone
+                    return HardDeleteTransactionalIteration(tx);
+                }
+                else
+                {
+                    CompactForRecord(
+                        oldestTombstoneRecord.TableName,
+                        oldestTombstoneRecord.DeletedRecordId,
+                        tx);
+                    CheckRecordHardDeleted(
+                        oldestTombstoneRecord.TableName,
+                        oldestTombstoneRecord.DeletedRecordId,
+                        tx);
 
-                return true;
+                    return true;
+                }
             }
             else
             {
@@ -91,6 +98,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 BinaryOperator.Equal);
             var blockIds = table.Query(tx)
                 .WithCommittedOnly()
+                .WithIgnoreDeleted()
                 .WithPredicate(predicate)
                 .WithProjection(schema.ParentBlockIdColumnIndex)
                 .Select(r => (int)r.Span[0]!)
@@ -109,7 +117,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {   //  Let's find the meta-block
-                    CompactBlock(table, blockIds[1], tx);
+                    CompactBlock(table, blockIds[0], tx);
                 }
             }
             else
@@ -127,7 +135,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 metaSchema.BlockIdColumnIndex,
                 blockId,
                 BinaryOperator.Equal);
-            var metaBlockIds = table.Query(tx)
+            var metaBlockIds = metaTable.Query(tx)
                 .WithCommittedOnly()
                 .WithPredicate(predicate)
                 .WithProjection(metaSchema.ParentBlockIdColumnIndex)
