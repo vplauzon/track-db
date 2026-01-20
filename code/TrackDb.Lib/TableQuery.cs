@@ -205,7 +205,7 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 _sortColumns,
                 _takeCount,
-                true,
+                _ignoreDeleted,
                 queryTag);
         }
 
@@ -222,7 +222,7 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 _sortColumns,
                 _takeCount,
-                true,
+                _ignoreDeleted,
                 _queryTag);
         }
 
@@ -239,7 +239,7 @@ namespace TrackDb.Lib
                 _projectionColumnIndexes,
                 _sortColumns,
                 _takeCount,
-                true,
+                _ignoreDeleted,
                 _queryTag);
         }
         #endregion

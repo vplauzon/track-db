@@ -47,6 +47,14 @@ namespace TrackDb.Lib.DataLifeCycle
                 .ToImmutableArray();
 #if DEBUG
             var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+            var idsBefore = Database.GetAnyTable(tableName).Query(tx)
+                .WithCommittedOnly()
+                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                .Select(r => (long)r.Span[0]!)
+                .OrderBy(id => id)
+                .ToImmutableArray();
+            var tombstonedBefore = Database.GetDeletedRecordIds(tableName, tx).OrderBy(id => id).ToImmutableArray();
+            var zombieBefore = idsBefore.Intersect(tombstonedBefore).ToImmutableArray();
 #endif
 
             if (removedBlockIds.Length > 0)
@@ -61,6 +69,15 @@ namespace TrackDb.Lib.DataLifeCycle
 
 #if DEBUG
             var tableCountInBetween = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+            var tombstonedInBetween = Database.GetDeletedRecordIds(tableName, tx).OrderBy(id => id).ToImmutableArray();
+            var idsInBetween = Database.GetAnyTable(tableName).Query(tx)
+                .WithCommittedOnly()
+                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                .Select(r => (long)r.Span[0]!)
+                .OrderBy(id => id)
+                .ToImmutableArray();
+            var removedIds = idsBefore.Except(idsInBetween).ToImmutableArray();
+            var zombieInBetween = idsInBetween.Intersect(tombstonedInBetween).ToImmutableArray();
 
             if (tableCountBefore != tableCountInBetween)
             {
@@ -76,6 +93,12 @@ namespace TrackDb.Lib.DataLifeCycle
 
 #if DEBUG
             var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+            var idsAfter = Database.GetAnyTable(tableName).Query(tx)
+                .WithCommittedOnly()
+                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                .Select(r => (long)r.Span[0]!)
+                .OrderBy(id => id)
+                .ToImmutableArray();
 
             if (tableCountBefore != tableCountAfter)
             {
