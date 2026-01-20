@@ -118,7 +118,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             var metadataShema = (MetadataTableSchema)topCandidate.Table.Schema;
             var schema = metadataShema.ParentSchema;
-            var blockMergingLogic2 = new BlockMergingLogic2(
+            var blockMergingLogic2 = new BlockMergingLogic(
                 Database,
                 new MetaBlockManager(Database, tx));
             var hasChanged = blockMergingLogic2.CompactMerge(schema.TableName, null);

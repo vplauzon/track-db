@@ -141,7 +141,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                     if (metaBlockIds.Count() > 0)
                     {
-                        var blockMergingLogic = new BlockMergingLogic2(Database, metaBlockManager);
+                        var blockMergingLogic = new BlockMergingLogic(Database, metaBlockManager);
 
                         while (doNeedCompaction() && metaBlockIds.Count > 0)
                         {

@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class BlockMergingLogic2 : LogicBase
+    internal class BlockMergingLogic : LogicBase
     {
         #region Inner Types
         private record CompactionResult(
@@ -21,7 +20,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private readonly int _maxBlockSize;
         private readonly MetaBlockManager _metaBlockManager;
 
-        public BlockMergingLogic2(Database database, MetaBlockManager metaBlockManager)
+        public BlockMergingLogic(Database database, MetaBlockManager metaBlockManager)
             : base(database)
         {
             _maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;

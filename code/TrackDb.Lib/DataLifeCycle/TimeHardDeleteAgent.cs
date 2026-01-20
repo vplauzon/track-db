@@ -157,7 +157,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void CompactMetaBlock(string tableName, int? metaBlockId, TransactionContext tx)
         {
-            var blockMergingLogic = new BlockMergingLogic2(
+            var blockMergingLogic = new BlockMergingLogic(
                Database,
                new MetaBlockManager(Database, tx));
 
