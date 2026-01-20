@@ -46,10 +46,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
                 .ToImmutableArray();
 #if DEBUG
-            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
-            var tableCountWithDeleteBefore = Database.GetAnyTable(tableName).Query(tx)
-                .WithIgnoreDeleted()
-                .Count();
+            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
 #endif
 
             if (removedBlockIds.Length > 0)
@@ -62,6 +59,15 @@ namespace TrackDb.Lib.DataLifeCycle
                 metaBlockId,
                 compactionResult.MetadataBlocks);
 
+#if DEBUG
+            var tableCountInBetween = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+
+            if (tableCountBefore != tableCountInBetween)
+            {
+                throw new InvalidOperationException("Lost records in compaction");
+            }
+#endif
+
             //  This is done after so we do not mess with queries during the processing
             Database.DeleteTombstoneRecords(
                 tableName,
@@ -69,19 +75,11 @@ namespace TrackDb.Lib.DataLifeCycle
                 tx);
 
 #if DEBUG
-            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
-            var tableCountWithDeleteAfter = Database.GetAnyTable(tableName).Query(tx)
-                .WithIgnoreDeleted()
-                .Count();
+            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
 
             if (tableCountBefore != tableCountAfter)
             {
                 throw new InvalidOperationException("Lost records in compaction");
-            }
-            if (tableCountWithDeleteBefore
-                != tableCountWithDeleteAfter + compactionResult.HardDeletedRecordIds.Count())
-            {
-                throw new InvalidOperationException("Inconsistant hard delete");
             }
 #endif
             return compactionResult.HardDeletedRecordIds.Count();
@@ -99,10 +97,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metaBuilder = ToBlockBuilder(metadataBlocks, metaTable);
 
             //  Replace that
-            ReplaceMetaBlockInHierarchy(
-                metaSchema.TableName,
-                metaBlockId,
-                metaBuilder);
+            ReplaceMetaBlockInHierarchy(metaSchema.TableName, metaBlockId, metaBuilder);
         }
 
         private static BlockBuilder ToBlockBuilder(IEnumerable<MetadataBlock> metadataBlocks, Table metaTable)
@@ -147,10 +142,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
                     metaMetaTable.Schema.TableName,
                     metaBlockId.Value);
-                var metaMetaBlocks = _metaBlockManager.LoadBlocks(
-                    metaTableName,
-                    metaMetaBlockId);
+                var metaMetaBlocks = _metaBlockManager.LoadBlocks(metaTableName, metaMetaBlockId);
 
+                Database.SetNoLongerInUsedBlockIds([metaBlockId.Value], _metaBlockManager.Tx);
                 if (!metaMetaBlocks.Any())
                 {
                     throw new InvalidOperationException(
@@ -375,7 +369,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         skipRows += size.ItemCount;
                     }
                     if (skipRows == ((IBlock)blockBuilder).RecordCount)
-                    {
+                    {   //  Optimization as DeleteAll is more efficient than DeleteRecordsByRecordIndex
                         blockBuilder.DeleteAll();
                     }
                     else
@@ -494,7 +488,6 @@ namespace TrackDb.Lib.DataLifeCycle
             List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
-
             var schema = ((IBlock)blockBuilder).TableSchema;
             var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
 
