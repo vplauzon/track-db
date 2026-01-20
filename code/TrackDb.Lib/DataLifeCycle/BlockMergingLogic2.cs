@@ -157,43 +157,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 if (((IBlock)metaBuilder).RecordCount > 0)
                 {
-                    var minRecordId = ((IBlock)metaBuilder).Project(
-                        new object?[1],
-                        [((IBlock)metaBuilder).TableSchema.RecordIdColumnIndex],
-                        Enumerable.Range(0, ((IBlock)metaBuilder).RecordCount),
-                        0)
-                        .Max(r => (long)r.Span[0]!);
-                    var orderedMetaMetaBlocks = metaMetaBlocks
-                        //  Remove the current that got modified
-                        .Where(mmb => mmb.BlockId != metaBlockId.Value)
-                        .OrderBy(mmb => Math.Abs(mmb.MinRecordId - minRecordId));
-                    var stack = new Stack<MetadataBlock>(orderedMetaMetaBlocks.Reverse());
-                    var procesedMetaBlocks = new List<MetadataBlock>(stack.Count + 1);
-                    var tombstonedRecordIds = ImmutableArray<long>.Empty;
-                    var hardDeleteRecordIds = new List<long>();
-
-                    //  Try to merge the new block as much as possible
-                    while (stack.Any())
-                    {
-                        var metaMetaBlock = stack.Pop();
-
-                        if (!TryMerge(
-                            metaBuilder,
-                            metaMetaBlock,
-                            tombstonedRecordIds,
-                            hardDeleteRecordIds))
-                        {   //  We are complete
-                            procesedMetaBlocks.Add(metaMetaBlock);
-                            procesedMetaBlocks.AddRange(stack);
-                            stack.Clear();
-                        }
-                    }
-                    //  Persist that new block into the meta blocks list
-                    PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
-
-                    var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
-
-                    ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
+                    CompactMetaBlock(
+                        metaBlockId.Value,
+                        metaBuilder,
+                        metaMetaTable,
+                        metaMetaSchema,
+                        metaMetaBlockId,
+                        metaMetaBlocks);
                 }
                 else
                 {   //  Empty metaBuilder
@@ -205,6 +175,53 @@ namespace TrackDb.Lib.DataLifeCycle
                     ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
                 }
             }
+        }
+
+        private void CompactMetaBlock(
+            int metaBlockId,
+            BlockBuilder metaBuilder,
+            Table metaMetaTable,
+            MetadataTableSchema metaMetaSchema,
+            int? metaMetaBlockId,
+            IEnumerable<MetadataBlock> metaMetaBlocks)
+        {
+            var minRecordId = ((IBlock)metaBuilder).Project(
+                new object?[1],
+                [((IBlock)metaBuilder).TableSchema.RecordIdColumnIndex],
+                Enumerable.Range(0, ((IBlock)metaBuilder).RecordCount),
+                0)
+                .Max(r => (long)r.Span[0]!);
+            var orderedMetaMetaBlocks = metaMetaBlocks
+                //  Remove the current that got modified
+                .Where(mmb => mmb.BlockId != metaBlockId)
+                .OrderBy(mmb => Math.Abs(mmb.MinRecordId - minRecordId));
+            var stack = new Stack<MetadataBlock>(orderedMetaMetaBlocks.Reverse());
+            var procesedMetaBlocks = new List<MetadataBlock>(stack.Count + 1);
+            var tombstonedRecordIds = ImmutableArray<long>.Empty;
+            var hardDeleteRecordIds = new List<long>();
+
+            //  Try to merge the new block as much as possible
+            while (stack.Any())
+            {
+                var metaMetaBlock = stack.Pop();
+
+                if (!TryMerge(
+                    metaBuilder,
+                    metaMetaBlock,
+                    tombstonedRecordIds,
+                    hardDeleteRecordIds))
+                {   //  We are complete
+                    procesedMetaBlocks.Add(metaMetaBlock);
+                    procesedMetaBlocks.AddRange(stack);
+                    stack.Clear();
+                }
+            }
+            //  Persist that new block into the meta blocks list
+            PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
+
+            var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
+
+            ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
         }
         #endregion
 
