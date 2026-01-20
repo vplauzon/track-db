@@ -12,28 +12,28 @@ namespace TrackDb.PerfTest
         [Fact]
         public async Task TestGen0()
         {
-            await RunPerformanceTestAsync(0);
+            await RunPerformanceTestAsync(0, 1);
         }
 
         [Fact]
         public async Task TestGen1()
         {
-            await RunPerformanceTestAsync(1);
+            await RunPerformanceTestAsync(1, 1);
         }
 
         [Fact]
         public async Task TestGen2()
         {
-            await RunPerformanceTestAsync(2);
+            await RunPerformanceTestAsync(2, 5);
         }
 
         [Fact]
         public async Task TestGen3()
         {
-            await RunPerformanceTestAsync(3);
+            await RunPerformanceTestAsync(3, 150);
         }
 
-        private async Task RunPerformanceTestAsync(int generation)
+        private async Task RunPerformanceTestAsync(int generation, int deleteBatchSize)
         {
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
@@ -43,21 +43,25 @@ namespace TrackDb.PerfTest
                     .Select(e => e.EmployeeId)
                     .Shuffle()
                     .ToImmutableArray();
+                var i = 0;
 
                 //  Delete out-of-order, one at the time
-                for (var i = 0; i != shuffledEmployeeIds.Length; ++i)
+                while (i < shuffledEmployeeIds.Length)
                 {
-                    var employeeId = shuffledEmployeeIds[i];
+                    var remainingIdCount = shuffledEmployeeIds.Length - i;
+                    var employeeIds = Enumerable.Range(i, Math.Min(deleteBatchSize, remainingIdCount))
+                        .Select(j => shuffledEmployeeIds[j]);
 
                     db.EmployeeTable.Query()
-                        .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
+                        .Where(pf => pf.In(e => e.EmployeeId, employeeIds))
                         .Delete();
+                    i += deleteBatchSize;
 
                     await db.Database.AwaitLifeCycleManagement(4);
-                    if (i % 100 == 0)
+                    if (i % (5 * deleteBatchSize) == 0)
                     {
                         Assert.Equal(
-                            shuffledEmployeeIds.Length - i - 1,
+                            shuffledEmployeeIds.Length - i,
                             db.EmployeeTable.Query().Count());
                     }
                 }
