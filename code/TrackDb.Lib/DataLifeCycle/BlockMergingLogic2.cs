@@ -45,67 +45,79 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Select(b => b.BlockId)
                 .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
                 .ToImmutableArray();
-#if DEBUG
-            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
-            var idsBefore = Database.GetAnyTable(tableName).Query(tx)
-                .WithCommittedOnly()
-                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
-                .Select(r => (long)r.Span[0]!)
-                .OrderBy(id => id)
-                .ToImmutableArray();
-            var tombstonedBefore = Database.GetDeletedRecordIds(tableName, tx).OrderBy(id => id).ToImmutableArray();
-            var zombieBefore = idsBefore.Intersect(tombstonedBefore).ToImmutableArray();
-#endif
 
-            if (removedBlockIds.Length > 0)
-            {   //  It could be zero if we only have phantom tombstones
-                Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
-            }
-
-            ReplaceMetaBlockInHierarchy(
-                tableName,
-                metaBlockId,
-                compactionResult.MetadataBlocks);
-
-#if DEBUG
-            var tableCountInBetween = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
-            var tombstonedInBetween = Database.GetDeletedRecordIds(tableName, tx).OrderBy(id => id).ToImmutableArray();
-            var idsInBetween = Database.GetAnyTable(tableName).Query(tx)
-                .WithCommittedOnly()
-                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
-                .Select(r => (long)r.Span[0]!)
-                .OrderBy(id => id)
-                .ToImmutableArray();
-            var removedIds = idsBefore.Except(idsInBetween).ToImmutableArray();
-            var zombieInBetween = idsInBetween.Intersect(tombstonedInBetween).ToImmutableArray();
-
-            if (tableCountBefore != tableCountInBetween)
+            if (removedBlockIds.Any() && !compactionResult.HardDeletedRecordIds.Any())
             {
-                throw new InvalidOperationException("Lost records in compaction");
+                throw new InvalidOperationException("Altered blocks but no hard deleted records");
             }
+            if (!removedBlockIds.Any() && compactionResult.HardDeletedRecordIds.Any())
+            {
+                throw new InvalidOperationException("No altered block but some hard deleted records");
+            }
+            if (!removedBlockIds.Any())
+            {
+                return 0;
+            }
+            else
+            {
+#if DEBUG
+                var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+                var idsBefore = Database.GetAnyTable(tableName).Query(tx)
+                    .WithCommittedOnly()
+                    .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                    .Select(r => (long)r.Span[0]!)
+                    .OrderBy(id => id)
+                    .ToImmutableArray();
 #endif
 
-            //  This is done after so we do not mess with queries during the processing
-            Database.DeleteTombstoneRecords(
-                tableName,
-                compactionResult.HardDeletedRecordIds,
-                tx);
+                if (removedBlockIds.Length > 0)
+                {   //  It could be zero if we only have phantom tombstones
+                    Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
+                }
+
+                ReplaceMetaBlockInHierarchy(
+                    tableName,
+                    metaBlockId,
+                    compactionResult.MetadataBlocks);
 
 #if DEBUG
-            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
-            var idsAfter = Database.GetAnyTable(tableName).Query(tx)
-                .WithCommittedOnly()
-                .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
-                .Select(r => (long)r.Span[0]!)
-                .OrderBy(id => id)
-                .ToImmutableArray();
+                var tableCountInBetween = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+                var tombstonedInBetween = Database.GetDeletedRecordIds(tableName, tx).OrderBy(id => id).ToImmutableArray();
+                var idsInBetween = Database.GetAnyTable(tableName).Query(tx)
+                    .WithCommittedOnly()
+                    .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                    .Select(r => (long)r.Span[0]!)
+                    .OrderBy(id => id)
+                    .ToImmutableArray();
 
-            if (tableCountBefore != tableCountAfter)
-            {
-                throw new InvalidOperationException("Lost records in compaction");
-            }
+                if (tableCountBefore != tableCountInBetween)
+                {
+                    throw new InvalidOperationException("Lost records in compaction");
+                }
 #endif
-            return compactionResult.HardDeletedRecordIds.Count();
+
+                //  This is done after so we do not mess with queries during the processing
+                Database.DeleteTombstoneRecords(
+                    tableName,
+                    compactionResult.HardDeletedRecordIds,
+                    tx);
+
+#if DEBUG
+                var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).WithCommittedOnly().Count();
+                var idsAfter = Database.GetAnyTable(tableName).Query(tx)
+                    .WithCommittedOnly()
+                    .WithProjection(Database.GetAnyTable(tableName).Schema.RecordIdColumnIndex)
+                    .Select(r => (long)r.Span[0]!)
+                    .OrderBy(id => id)
+                    .ToImmutableArray();
+
+                if (tableCountBefore != tableCountAfter)
+                {
+                    throw new InvalidOperationException("Lost records in compaction");
+                }
+#endif
+                return compactionResult.HardDeletedRecordIds.Count();
+            }
         }
 
         #region Post Merge
@@ -273,6 +285,13 @@ namespace TrackDb.Lib.DataLifeCycle
                     ref previousBlock,
                     processedBlocks,
                     hardDeletedRecordIds);
+            }
+            if (previousBlock != null)
+            {
+                processedBlocks.Add(previousBlock);
+            }
+            if (!hardDeletedRecordIds.Any())
+            {
             }
             //  Flush whatever remains
             PersistBlockBuilder(
@@ -499,7 +518,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else
             {
-                return true;
+                return false;
             }
         }
         #endregion
