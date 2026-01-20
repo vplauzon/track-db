@@ -36,7 +36,7 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <param name="tableName"></param>
         /// <param name="metaBlockId"></param>
         /// <returns></returns>
-        public int CompactMerge(string tableName, int? metaBlockId)
+        public bool CompactMerge(string tableName, int? metaBlockId)
         {
             var tx = _metaBlockManager.Tx;
             var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
@@ -46,17 +46,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
                 .ToImmutableArray();
 
-            if (removedBlockIds.Any() && !compactionResult.HardDeletedRecordIds.Any())
-            {
-                throw new InvalidOperationException("Altered blocks but no hard deleted records");
-            }
             if (!removedBlockIds.Any() && compactionResult.HardDeletedRecordIds.Any())
             {
                 throw new InvalidOperationException("No altered block but some hard deleted records");
             }
             if (!removedBlockIds.Any())
             {
-                return 0;
+                return false;
             }
             else
             {
@@ -88,7 +84,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
 #endif
 
-                return compactionResult.HardDeletedRecordIds.Count();
+                return true;
             }
         }
 

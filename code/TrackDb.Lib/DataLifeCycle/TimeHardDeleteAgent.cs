@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -68,13 +69,11 @@ namespace TrackDb.Lib.DataLifeCycle
                         .Select(t => t.BlockId!.Value)
                         .Distinct()
                         .ToImmutableArray();
-                    var blockMergingLogic = new BlockMergingLogic(Database);
+                    var blockMergingLogic = new BlockMergingLogic2(
+                        Database,
+                        new MetaBlockManager(Database, tx));
 
-                    if (!blockMergingLogic.CompactBlock(
-                        argMaxTableName,
-                        argMaxBlockId.Value,
-                        otherBlockIds,
-                        tx))
+                    if (!blockMergingLogic.CompactMerge(argMaxTableName, argMaxBlockId.Value))
                     {
                         var tombstoneBlockFixLogic = new TombstoneBlockFixLogic(Database);
 

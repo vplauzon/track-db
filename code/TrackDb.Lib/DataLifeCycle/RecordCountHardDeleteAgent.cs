@@ -58,13 +58,12 @@ namespace TrackDb.Lib.DataLifeCycle
             var doHardDeleteAll =
                 (forcedDataManagementActivity & DataManagementActivity.HardDeleteAll)
                 == DataManagementActivity.HardDeleteAll;
-            var maxTombstonedRecords = Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
             using (var tx = Database.CreateTransaction())
             {
                 var metaBlockManager = new MetaBlockManager(Database, tx);
 
-                while (Iteration(doHardDeleteAll, maxTombstonedRecords, metaBlockManager))
+                while (Iteration(doHardDeleteAll, metaBlockManager))
                 {
                 }
 
@@ -72,26 +71,31 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private bool Iteration(
-            bool doHardDeleteAll,
-            int maxTombstonedRecords,
-            MetaBlockManager metaBlockManager)
+        private bool Iteration(bool doHardDeleteAll, MetaBlockManager metaBlockManager)
         {
             var doIncludeSystemTables = !doHardDeleteAll;
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var tombstoneCardinality = Database.TombstoneTable.Query(metaBlockManager.Tx)
-                .WithCommittedOnly()
-                //  We remove the combination of system table under doHardDeleteAll
-                //  As it creates a forever loop with the available-blocks table
-                .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
-                .Count();
-            var targetHardDeleteCount = doHardDeleteAll
-                ? tombstoneCardinality
-                : tombstoneCardinality - maxTombstonedRecords;
 
-            if (targetHardDeleteCount > 0)
+            bool DoNeedCompaction()
             {
-                HardDeleteRecords(doIncludeSystemTables, targetHardDeleteCount, metaBlockManager);
+                var tombstoneCardinality = Database.TombstoneTable.Query(metaBlockManager.Tx)
+                    .WithCommittedOnly()
+                    //  We remove the combination of system table under doHardDeleteAll
+                    //  As it creates a forever loop with the available-blocks table
+                    .Where(t => doIncludeSystemTables || !tableMap[t.TableName].IsSystemTable)
+                    .Count();
+                var maxTombstonedRecords =
+                    Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
+                var targetHardDeleteCount = doHardDeleteAll
+                    ? tombstoneCardinality
+                    : tombstoneCardinality - maxTombstonedRecords;
+
+                return targetHardDeleteCount > 0;
+            }
+
+            if (DoNeedCompaction())
+            {
+                HardDeleteRecords(doIncludeSystemTables, DoNeedCompaction, metaBlockManager);
 
                 return true;
             }
@@ -103,7 +107,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void HardDeleteRecords(
             bool doIncludeSystemTables,
-            int targetHardDeleteCount,
+            Func<bool> doNeedCompaction,
             MetaBlockManager metaBlockManager)
         {
             var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
@@ -139,12 +143,11 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockMergingLogic = new BlockMergingLogic2(Database, metaBlockManager);
 
-                        while (targetHardDeleteCount > 0 && metaBlockIds.Count() > 0)
+                        while (doNeedCompaction() && metaBlockIds.Count > 0)
                         {
                             var metaBlockId = metaBlockIds.Pop();
-                            var hardDeletedCount = blockMergingLogic.CompactMerge(tableName, metaBlockId);
 
-                            targetHardDeleteCount -= hardDeletedCount;
+                            blockMergingLogic.CompactMerge(tableName, metaBlockId);
                         }
                     }
                     else
