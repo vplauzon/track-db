@@ -290,9 +290,6 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 processedBlocks.Add(previousBlock);
             }
-            if (!hardDeletedRecordIds.Any())
-            {
-            }
             //  Flush whatever remains
             PersistBlockBuilder(
                 blockBuilder,
