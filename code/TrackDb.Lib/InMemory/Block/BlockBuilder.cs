@@ -112,12 +112,6 @@ namespace TrackDb.Lib.InMemory.Block
                 .AppendValue(recordId);
         }
 
-        /// <summary>Deletes all records in the block.</summary>
-        public void DeleteAll()
-        {
-            DeleteRecordsByRecordIndex(Enumerable.Range(0, ((IBlock)this).RecordCount));
-        }
-
         /// <summary>Tries to delete records passed in.</summary>
         /// <param name="recordIds"></param>
         /// <returns>The deleted record IDs.</returns>

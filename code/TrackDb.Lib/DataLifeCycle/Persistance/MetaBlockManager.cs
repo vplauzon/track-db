@@ -206,7 +206,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .TransactionTableLogMap[metaTableName]
                 .CommittedDataBlock!;
 
-            committedDataBlock.DeleteAll();
+            committedDataBlock.Clear();
             committedDataBlock.AppendBlock(metaBuilder);
             PruneHeadMetadata(metaTableName);
         }
@@ -294,8 +294,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                             coreRecord,
                             schema);
                         //  Delete meta blocks (only one)
-                        metaMap.CommittedDataBlock?.DeleteAll();
-                        metaMap.NewDataBlock.DeleteAll();
+                        metaMap.CommittedDataBlock?.Clear();
+                        metaMap.NewDataBlock.Clear();
                         //  We GC the block
                         Database.SetNoLongerInUsedBlockIds([metaRecords[0].BlockId], Tx);
                         //  Recurse

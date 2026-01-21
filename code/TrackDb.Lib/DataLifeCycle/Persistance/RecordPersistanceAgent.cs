@@ -62,6 +62,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 var blockStats =
                     committedDataBlock.Serialize(buffer, skipRows, segments[i].ItemCount);
+                var metaRecord = metaSchema.CreateMetadataRecord(blockIds[i], blockStats).Span;
 
                 if (blockStats.Size != segments[i].Size)
                 {
@@ -71,9 +72,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 }
 
                 Database.PersistBlock(blockIds[i], buffer.AsSpan().Slice(0, blockStats.Size), tx);
-                metadataTable.AppendRecord(
-                    metaSchema.CreateMetadataRecord(blockIds[i], blockStats).Span,
-                    tx);
+                metadataTable.AppendRecord(metaRecord, tx);
                 skipRows += blockStats.ItemCount;
             }
             committedDataBlock.Clear();

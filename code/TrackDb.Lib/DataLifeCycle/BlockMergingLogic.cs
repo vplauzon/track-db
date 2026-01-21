@@ -37,6 +37,7 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <returns></returns>
         public bool CompactMerge(string tableName, int? metaBlockId)
         {
+            Console.WriteLine($"CompactMerge:  {tableName}");
             var tx = _metaBlockManager.Tx;
             var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
             var compactionResult = CompactMergeBlocks(tableName, originalBlocks);
@@ -295,58 +296,62 @@ namespace TrackDb.Lib.DataLifeCycle
             var tx = _metaBlockManager.Tx;
 
             if (blockTombstonedRecordIds.Count > 0)
-            {
+            {   //  Tombstones identified for the block
                 if (previousBlock != null)
                 {
                     processedBlocks.Add(previousBlock);
                     previousBlock = null;
                 }
-                CompactBlock(
+                if (TryCompactBlock(
                     currentBlock,
                     blockBuilder,
                     blockTombstonedRecordIds,
-                    hardDeletedRecordIds);
-                //  Persist the head of the block if there is too much data to fit in a block
-                PersistBlockBuilder(blockBuilder, false, processedBlocks, metaSchema);
-            }
-            else if (previousBlock == null)
-            {
-                if (((IBlock)blockBuilder).RecordCount == 0)
-                {
-                    previousBlock = currentBlock;
+                    hardDeletedRecordIds))
+                {   //  Persist the head of the block if there is too much data to fit in a block
+                    PersistBlockBuilder(blockBuilder, false, processedBlocks, metaSchema);
                 }
-                else
+            }
+            else   //  No tombstones
+            {
+                if (previousBlock == null)
+                {
+                    if (((IBlock)blockBuilder).RecordCount == 0)
+                    {
+                        previousBlock = currentBlock;
+                    }
+                    else
+                    {
+                        var isMerged = TryMerge(
+                            blockBuilder,
+                            currentBlock,
+                            blockTombstonedRecordIds,
+                            hardDeletedRecordIds);
+
+                        if (!isMerged)
+                        {   //  Can't merge
+                            PersistBlockBuilder(blockBuilder, true, processedBlocks, metaSchema);
+                            previousBlock = currentBlock;
+                        }
+                    }
+                }
+                else   //  previousBlock != null
                 {
                     var isMerged = TryMerge(
                         blockBuilder,
+                        previousBlock,
                         currentBlock,
                         blockTombstonedRecordIds,
                         hardDeletedRecordIds);
 
                     if (!isMerged)
                     {   //  Can't merge
-                        PersistBlockBuilder(blockBuilder, true, processedBlocks, metaSchema);
+                        processedBlocks.Add(previousBlock);
                         previousBlock = currentBlock;
                     }
-                }
-            }
-            else
-            {   //  previousBlock != null
-                var isMerged = TryMerge(
-                    blockBuilder,
-                    previousBlock,
-                    currentBlock,
-                    blockTombstonedRecordIds,
-                    hardDeletedRecordIds);
-
-                if (!isMerged)
-                {   //  Can't merge
-                    processedBlocks.Add(previousBlock);
-                    previousBlock = currentBlock;
-                }
-                else
-                {
-                    previousBlock = null;
+                    else
+                    {
+                        previousBlock = null;
+                    }
                 }
             }
         }
@@ -392,7 +397,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                     if (skipRows == ((IBlock)blockBuilder).RecordCount)
                     {   //  Optimization as DeleteAll is more efficient than DeleteRecordsByRecordIndex
-                        blockBuilder.DeleteAll();
+                        blockBuilder.Clear();
                     }
                     else
                     {
@@ -439,9 +444,9 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {
-                    blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(
-                        recordCountBefore,
-                        ((IBlock)blockBuilder).RecordCount - recordCountBefore));
+                    blockBuilder.DeleteRecordsByRecordIndex(
+                        Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount)
+                        .Where(i => i >= recordCountBefore));
 
                     return false;
                 }
@@ -474,8 +479,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     metadataBlockA.BlockId,
                     metadataBlockA.Schema.ParentSchema);
                 var blockB = Database.GetOrLoadBlock(
-                    metadataBlockA.BlockId,
-                    metadataBlockA.Schema.ParentSchema);
+                    metadataBlockB.BlockId,
+                    metadataBlockB.Schema.ParentSchema);
 
                 blockBuilder.AppendBlock(blockA);
                 blockBuilder.AppendBlock(blockB);
@@ -491,7 +496,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 else
                 {
-                    blockBuilder.DeleteAll();
+                    blockBuilder.Clear();
 
                     return false;
                 }
@@ -503,7 +508,7 @@ namespace TrackDb.Lib.DataLifeCycle
         }
         #endregion
 
-        private void CompactBlock(
+        private bool TryCompactBlock(
             MetadataBlock metadataBlock,
             BlockBuilder blockBuilder,
             IEnumerable<long> blockTombstonedRecordIds,
@@ -512,13 +517,31 @@ namespace TrackDb.Lib.DataLifeCycle
             var tx = _metaBlockManager.Tx;
             var schema = ((IBlock)blockBuilder).TableSchema;
             var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
+            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
             blockBuilder.AppendBlock(block);
 
             var actuallyDeletedRecordIds =
                 blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
 
-            hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+            if (actuallyDeletedRecordIds.Any())
+            {   //  Compaction worked
+                hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+
+                return true;
+            }
+            else
+            {   //  Rollback the compact
+                var recordCountAfter = ((IBlock)blockBuilder).RecordCount;
+
+                blockBuilder.DeleteRecordsByRecordIndex(
+                    Enumerable.Range(0, recordCountAfter)
+                    .Where(i => i >= recordCountBefore));
+
+                Console.WriteLine($"Rollback TryCompactBlock:  {schema.TableName}");
+
+                return false;
+            }
         }
         #endregion
     }
