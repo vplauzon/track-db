@@ -247,7 +247,6 @@ namespace TrackDb.Lib.DataLifeCycle
             var blockBuilder = new BlockBuilder(schema);
             MetadataBlock? previousBlock = null;
             var tombstoneBaseQuery = Database.TombstoneTable.Query(tx)
-                .WithCommittedOnly()
                 .Where(pf => pf.Equal(t => t.TableName, schema.TableName));
 
             while (blockStack.Count > 0)

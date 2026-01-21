@@ -67,7 +67,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     && m.MaxRecordId >= tombstoneExtrema.Min)
                 {
                     var recordCount = Database.TombstoneTable.Query(Tx)
-                        .WithCommittedOnly()
                         .Where(pf => pf.Equal(t => t.TableName, tableName))
                         .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
                         .And(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
@@ -91,7 +90,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             //  In practice, we'll only have one since it will sit in the committed part
             //  of the transaction in one BlockBuilder
             var metaMetaRecords = metaMetaTable.Query(Tx)
-                .WithCommittedOnly()
                 .WithProjection(
                 metaMetaSchema.BlockIdColumnIndex,
                 metaMetaSchema.RecordIdMinColumnIndex,
@@ -113,7 +111,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaSchema = (MetadataTableSchema)metaTable.Schema;
             //  Take only the blocks in-memory:  that is the "null blockId"
             var extrema = metaTable.Query(Tx)
-                .WithCommittedOnly()
                 .WithInMemoryOnly()
                 .WithProjection(metaSchema.RecordIdMinColumnIndex, metaSchema.RecordIdMaxColumnIndex)
                 .Select(r => ((long)r.Span[0]!, (long)r.Span[1]!));
@@ -132,7 +129,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         private ExtremaRecordId GetTombstoneRecordIdExtrema(string tableName)
         {
             var query = Database.TombstoneTable.Query(Tx)
-                .WithCommittedOnly()
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .TableQuery
                 .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
@@ -170,7 +166,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 var results = metaDataTable.Query(Tx)
                     //  Especially relevant for availability-block:
                     //  We just want to deal with what is committed
-                    .WithCommittedOnly()
                     .WithInMemoryOnly()
                     .WithProjection(columnIndexes);
 
@@ -227,7 +222,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 var metaTable = Database.GetAnyTable(metaTableName);
                 var metaSchema = (MetadataTableSchema)metaTable.Schema;
                 var parentBlockIds = metaTable.Query(Tx)
-                    .WithCommittedOnly()
                     .WithPredicate(new BinaryOperatorPredicate(
                         metaSchema.BlockIdColumnIndex,
                         blockId,
@@ -257,7 +251,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             if (metaTable.Schema is MetadataTableSchema metaSchema)
             {
                 var metaRecords = metaTable.Query(Tx)
-                    .WithCommittedOnly()
                     .WithInMemoryOnly()
                     .WithProjection(metaSchema.ItemCountColumnIndex, metaSchema.BlockIdColumnIndex)
                     //  We take 2 to detect if there is more than one
@@ -275,7 +268,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     var schema = metaSchema.ParentSchema;
                     var table = Database.GetAnyTable(schema.TableName);
                     var recordCount = table.Query(Tx)
-                        .WithCommittedOnly()
                         .WithInMemoryOnly()
                         .Count();
 
@@ -286,7 +278,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                         //  Single record
                         var record = table.Query(Tx)
-                            .WithCommittedOnly()
                             .WithProjection(Enumerable.Range(0, schema.ColumnProperties.Count))
                             .First();
                         var coreRecord = record.Span.Slice(0, schema.Columns.Count);
