@@ -283,10 +283,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         var coreRecord = record.Span.Slice(0, schema.Columns.Count);
                         var recordId = (long)record.Span[schema.RecordIdColumnIndex]!;
                         var creationTime = (DateTime)record.Span[schema.CreationTimeColumnIndex]!;
-                        var metaBlock = Tx.TransactionState
+                        var metaMap = Tx.TransactionState
                             .UncommittedTransactionLog
-                            .TransactionTableLogMap[metaTableName]
-                            .CommittedDataBlock!;
+                            .TransactionTableLogMap[metaTableName];
 
                         //  Promote the data in persisted block in-tx
                         Tx.TransactionState.UncommittedTransactionLog.AppendRecord(
@@ -295,7 +294,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                             coreRecord,
                             schema);
                         //  Delete meta blocks (only one)
-                        metaBlock.DeleteAll();
+                        metaMap.CommittedDataBlock?.DeleteAll();
+                        metaMap.NewDataBlock.DeleteAll();
                         //  We GC the block
                         Database.SetNoLongerInUsedBlockIds([metaRecords[0].BlockId], Tx);
                         //  Recurse
