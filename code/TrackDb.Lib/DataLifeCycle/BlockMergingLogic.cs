@@ -317,7 +317,7 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             else if (previousBlock != null)
             {
-                if(TryMerge(
+                if (TryMerge(
                     blockBuilder,
                     previousBlock,
                     currentBlock,

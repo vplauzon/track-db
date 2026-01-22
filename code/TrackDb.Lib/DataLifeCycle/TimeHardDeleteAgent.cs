@@ -79,6 +79,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var recordCount = Database.TombstoneTable.Query(tx)
                 .WithCommittedOnly()
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
                 .Where(pf => pf.Equal(t => t.DeletedRecordId, deletedRecordId))
                 .Count();
 
