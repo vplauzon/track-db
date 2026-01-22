@@ -79,7 +79,8 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (countBefore != countAfter)
                 {
-                    throw new InvalidOperationException("Inconsistent merge");
+                    throw new InvalidOperationException(
+                        $"Inconsistent merge:  before ({countBefore}) vs after ({countAfter})");
                 }
 #endif
 
