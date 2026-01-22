@@ -7,7 +7,7 @@ using Xunit;
 
 namespace TrackDb.PerfTest
 {
-    public class InsertThenDeleteRandomTest
+    public abstract class DeleteGraduallyTestBase
     {
         [Fact]
         public async Task TestGen0()
@@ -33,24 +33,27 @@ namespace TrackDb.PerfTest
             await RunPerformanceTestAsync(3, 150);
         }
 
+        protected abstract IImmutableList<string> ManipulateEmployeeIds(
+            IImmutableList<string> employeeIds);
+
         private async Task RunPerformanceTestAsync(int generation, int deleteBatchSize)
         {
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 await InsertBulkAsync(db, generation);
 
-                var shuffledEmployeeIds = db.EmployeeTable.Query()
+                var originalEmployeeIds = db.EmployeeTable.Query()
                     .Select(e => e.EmployeeId)
-                    .Shuffle()
                     .ToImmutableArray();
+                var actualEmployeeIds = ManipulateEmployeeIds(originalEmployeeIds);
                 var i = 0;
 
                 //  Delete out-of-order, one at the time
-                while (i < shuffledEmployeeIds.Length)
+                while (i < actualEmployeeIds.Count)
                 {
-                    var remainingIdCount = shuffledEmployeeIds.Length - i;
+                    var remainingIdCount = actualEmployeeIds.Count - i;
                     var employeeIds = Enumerable.Range(i, Math.Min(deleteBatchSize, remainingIdCount))
-                        .Select(j => shuffledEmployeeIds[j]);
+                        .Select(j => actualEmployeeIds[j]);
 
                     db.EmployeeTable.Query()
                         .Where(pf => pf.In(e => e.EmployeeId, employeeIds))
@@ -61,7 +64,7 @@ namespace TrackDb.PerfTest
                     if (i % (5 * deleteBatchSize) == 0)
                     {
                         Assert.Equal(
-                            shuffledEmployeeIds.Length - i,
+                            actualEmployeeIds.Count - i,
                             db.EmployeeTable.Query().Count());
                     }
                 }
