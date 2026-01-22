@@ -37,7 +37,6 @@ namespace TrackDb.Lib.DataLifeCycle
         /// <returns></returns>
         public bool CompactMerge(string tableName, int? metaBlockId)
         {
-            Console.WriteLine($"CompactMerge:  {tableName}");
             var tx = _metaBlockManager.Tx;
             var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
             var compactionResult = CompactMergeBlocks(tableName, originalBlocks);
@@ -295,64 +294,49 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tx = _metaBlockManager.Tx;
 
-            if (blockTombstonedRecordIds.Count > 0)
-            {   //  Tombstones identified for the block
+            if (((IBlock)blockBuilder).RecordCount > 0 && previousBlock != null)
+            {
+                throw new InvalidOperationException("Both blocks can't exist at the same time");
+            }
+
+            //  We try to compact regardless if the blockBuilder has records or not
+            //  If it doesn't we compact, if it does, we defacto merge
+            if (TryCompactBlock(
+                currentBlock,
+                blockBuilder,
+                blockTombstonedRecordIds,
+                hardDeletedRecordIds))
+            {
                 if (previousBlock != null)
                 {
                     processedBlocks.Add(previousBlock);
                     previousBlock = null;
                 }
-                if (TryCompactBlock(
-                    currentBlock,
+                //  Persist the head of the block if there is too much data to fit in a block
+                PersistBlockBuilder(blockBuilder, false, processedBlocks, metaSchema);
+            }
+            else if (previousBlock != null)
+            {
+                if(TryMerge(
                     blockBuilder,
+                    previousBlock,
+                    currentBlock,
                     blockTombstonedRecordIds,
                     hardDeletedRecordIds))
-                {   //  Persist the head of the block if there is too much data to fit in a block
-                    PersistBlockBuilder(blockBuilder, false, processedBlocks, metaSchema);
+                {
+                    previousBlock = null;
+                }
+                else
+                {
+                    processedBlocks.Add(previousBlock);
+                    previousBlock = currentBlock;
                 }
             }
-            else   //  No tombstones
-            {
-                if (previousBlock == null)
-                {
-                    if (((IBlock)blockBuilder).RecordCount == 0)
-                    {
-                        previousBlock = currentBlock;
-                    }
-                    else
-                    {
-                        var isMerged = TryMerge(
-                            blockBuilder,
-                            currentBlock,
-                            blockTombstonedRecordIds,
-                            hardDeletedRecordIds);
-
-                        if (!isMerged)
-                        {   //  Can't merge
-                            PersistBlockBuilder(blockBuilder, true, processedBlocks, metaSchema);
-                            previousBlock = currentBlock;
-                        }
-                    }
-                }
-                else   //  previousBlock != null
-                {
-                    var isMerged = TryMerge(
-                        blockBuilder,
-                        previousBlock,
-                        currentBlock,
-                        blockTombstonedRecordIds,
-                        hardDeletedRecordIds);
-
-                    if (!isMerged)
-                    {   //  Can't merge
-                        processedBlocks.Add(previousBlock);
-                        previousBlock = currentBlock;
-                    }
-                    else
-                    {
-                        previousBlock = null;
-                    }
-                }
+            else
+            {   //  previousBlock == null
+                //  We flush the block builder and replace it by currentBlock
+                PersistBlockBuilder(blockBuilder, true, processedBlocks, metaSchema);
+                previousBlock = currentBlock;
             }
         }
 
@@ -364,7 +348,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             var tx = _metaBlockManager.Tx;
 
-            if (((IBlock)blockBuilder).RecordCount != 0)
+            if (((IBlock)blockBuilder).RecordCount > 0)
             {
                 blockBuilder.OrderByRecordId();
 
@@ -511,36 +495,41 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool TryCompactBlock(
             MetadataBlock metadataBlock,
             BlockBuilder blockBuilder,
-            IEnumerable<long> blockTombstonedRecordIds,
+            IImmutableList<long> blockTombstonedRecordIds,
             List<long> hardDeletedRecordIds)
         {
-            var tx = _metaBlockManager.Tx;
-            var schema = ((IBlock)blockBuilder).TableSchema;
-            var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
-            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-
-            blockBuilder.AppendBlock(block);
-
-            var actuallyDeletedRecordIds =
-                blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
-
-            if (actuallyDeletedRecordIds.Any())
-            {   //  Compaction worked
-                hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
-
-                return true;
+            if (blockTombstonedRecordIds.Count == 0)
+            {
+                return false;
             }
             else
-            {   //  Rollback the compact
-                var recordCountAfter = ((IBlock)blockBuilder).RecordCount;
+            {
+                var tx = _metaBlockManager.Tx;
+                var schema = ((IBlock)blockBuilder).TableSchema;
+                var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
+                var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
-                blockBuilder.DeleteRecordsByRecordIndex(
-                    Enumerable.Range(0, recordCountAfter)
-                    .Where(i => i >= recordCountBefore));
+                blockBuilder.AppendBlock(block);
 
-                Console.WriteLine($"Rollback TryCompactBlock:  {schema.TableName}");
+                var actuallyDeletedRecordIds =
+                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
 
-                return false;
+                if (actuallyDeletedRecordIds.Any())
+                {   //  Compaction worked
+                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+
+                    return true;
+                }
+                else
+                {   //  Rollback the compact
+                    var recordCountAfter = ((IBlock)blockBuilder).RecordCount;
+
+                    blockBuilder.DeleteRecordsByRecordIndex(
+                        Enumerable.Range(0, recordCountAfter)
+                        .Where(i => i >= recordCountBefore));
+
+                    return false;
+                }
             }
         }
         #endregion
