@@ -201,13 +201,13 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             Tx.LoadCommittedBlocksInTransaction(metaTableName);
 
-            var committedDataBlock = Tx.TransactionState
+            var map = Tx.TransactionState
                 .UncommittedTransactionLog
-                .TransactionTableLogMap[metaTableName]
-                .CommittedDataBlock!;
+                .TransactionTableLogMap[metaTableName];
 
-            committedDataBlock.Clear();
-            committedDataBlock.AppendBlock(metaBuilder);
+            map.CommittedDataBlock!.Clear();
+            map.CommittedDataBlock!.AppendBlock(metaBuilder);
+            map.NewDataBlock.Clear();
             PruneHeadMetadata(metaTableName);
         }
 

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -58,11 +59,6 @@ namespace TrackDb.Lib.DataLifeCycle
 #if DEBUG
                 var countBefore = Database.GetAnyTable(tableName).Query(tx).Count();
 #endif
-                if (removedBlockIds.Length > 0)
-                {   //  It could be zero if we only have phantom tombstones
-                    Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
-                }
-
                 ReplaceMetaBlockInHierarchy(
                     tableName,
                     metaBlockId,
@@ -73,6 +69,10 @@ namespace TrackDb.Lib.DataLifeCycle
                     tableName,
                     compactionResult.HardDeletedRecordIds,
                     tx);
+                if (removedBlockIds.Length > 0)
+                {   //  It could be zero if we only have phantom tombstones
+                    Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
+                }
 
 #if DEBUG
                 var countAfter = Database.GetAnyTable(tableName).Query(tx).Count();
