@@ -13,39 +13,6 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
-        #region Inner Types
-        private class TopTombstoneBlocks
-        {
-            private readonly int _capacity;
-            private readonly PriorityQueue<MetaMetaBlockStat, long> _blocks = new();
-
-            public TopTombstoneBlocks(int capacity)
-            {
-                _capacity = capacity;
-            }
-
-            public void Add(MetaMetaBlockStat block)
-            {
-                if (_blocks.Count == _capacity
-                    && _blocks.Peek().TombstonedRecordCount < block.TombstonedRecordCount)
-                {   //  We let the lowest count go
-                    _blocks.Dequeue();
-                }
-                if (_blocks.Count < _capacity)
-                {
-                    _blocks.Enqueue(block, block.TombstonedRecordCount);
-                }
-            }
-
-            public IEnumerable<int?> TopTombstoneBlockIds =>
-                _blocks.UnorderedItems
-                .Select(t => t.Element)
-                .OrderByDescending(t => t.TombstonedRecordCount)
-                .Select(t => t.BlockId);
-        }
-        #endregion
-
-        private readonly int META_BLOCK_COUNT = 10;
         private readonly int TOMBSTONE_CLEAN_COUNT = 1000;
 
         public RecordCountHardDeleteAgent(Database database)
@@ -136,19 +103,14 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  If we see changes by loading data, we skip hard delete and let recompute top table
                 if (!metaBlockManager.Tx.LoadCommittedBlocksInTransaction(tableName))
                 {
-                    var metaBlockIds = new Stack<int?>(
-                        ComputeOptimalMetaBlocks(metaBlockManager, tableName));
+                    var metaBlockIds = ComputeOptimalMetaMetaBlock(metaBlockManager, tableName);
 
                     if (metaBlockIds.Count() > 0)
                     {
                         var blockMergingLogic = new BlockMergingLogic(Database, metaBlockManager);
+                        var metaBlockId = metaBlockIds.First();
 
-                        while (doNeedCompaction() && metaBlockIds.Count > 0)
-                        {
-                            var metaBlockId = metaBlockIds.Pop();
-
-                            blockMergingLogic.CompactMerge(tableName, metaBlockId);
-                        }
+                        blockMergingLogic.CompactMerge(tableName, metaBlockId);
                     }
                     else
                     {   //  No tombstone found:  let's clean up phantom tombstones
@@ -199,29 +161,23 @@ namespace TrackDb.Lib.DataLifeCycle
             block.DeleteRecordsByRecordIndex(rowIndexes);
         }
 
-        /// <summary>
-        /// We return multiple meta block IDs.  This allows us to leverage one scan but mostly it's
-        /// in case tombstone records aren't in the meta block (phantom tombstone records or overlapping
-        /// meta blocks).
-        /// 
-        /// So we return the top-N optimal meta blocks.
-        /// </summary>
-        /// <param name="tableName"></param>
-        /// <param name="metaBlockManager"></param>
-        /// <returns></returns>
-        private IEnumerable<int?> ComputeOptimalMetaBlocks(
+        private IEnumerable<int?> ComputeOptimalMetaMetaBlock(
             MetaBlockManager metaBlockManager,
             string tableName)
         {
-            var tombstoneBlocks = new TopTombstoneBlocks(META_BLOCK_COUNT);
             var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocks(tableName);
+            var seed = new MetaMetaBlockStat(null, 0, 0, 0);
+            var argMax = metaMetaBlockStats
+                .Aggregate(seed, (mmb, acc) => mmb.TombstonedRecordCount > acc.TombstonedRecordCount ? mmb : acc);
 
-            foreach (var mb in metaMetaBlockStats)
+            if (argMax.TombstonedRecordCount == 0)
             {
-                tombstoneBlocks.Add(mb);
+                return Array.Empty<int?>();
             }
-
-            return tombstoneBlocks.TopTombstoneBlockIds;
+            else
+            {
+                return [argMax.BlockId];
+            }
         }
     }
 }
