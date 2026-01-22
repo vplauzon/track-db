@@ -241,7 +241,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var schema = Database.GetAnyTable(tableName).Schema;
             var metadataTable = Database.GetMetaDataTable(tableName);
             var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
-            var blockStack = new Stack<MetadataBlock>(blocks.OrderBy(b => b.MinRecordId));
+            var blockStack = new Stack<MetadataBlock>(blocks.OrderByDescending(b => b.MinRecordId));
             var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
             var hardDeletedRecordIds = new List<long>();
             var blockBuilder = new BlockBuilder(schema);
