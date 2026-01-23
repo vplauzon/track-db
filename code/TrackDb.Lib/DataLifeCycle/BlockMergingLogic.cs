@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -228,8 +227,15 @@ namespace TrackDb.Lib.DataLifeCycle
             PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
 
             var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
+            var removedBlockIds = orderedMetaMetaBlocks.Select(mmb => mmb.BlockId).Except(
+                procesedMetaBlocks.Select(mmb => mmb.BlockId))
+                .ToImmutableArray();
 
             ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
+            if (removedBlockIds.Length > 0)
+            {
+                Database.SetNoLongerInUsedBlockIds(removedBlockIds, _metaBlockManager.Tx);
+            }
         }
         #endregion
 

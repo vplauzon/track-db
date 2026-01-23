@@ -208,6 +208,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             map.CommittedDataBlock!.Clear();
             map.CommittedDataBlock!.AppendBlock(metaBuilder);
             map.NewDataBlock.Clear();
+            
             PruneHeadMetadata(metaTableName);
         }
 
