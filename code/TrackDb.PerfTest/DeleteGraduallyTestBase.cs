@@ -69,7 +69,6 @@ namespace TrackDb.PerfTest
                     }
                 }
                 Assert.Equal(0, db.EmployeeTable.Query().Count());
-                await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
             }
         }
 
