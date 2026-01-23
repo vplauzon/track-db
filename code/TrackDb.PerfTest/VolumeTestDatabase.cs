@@ -27,11 +27,24 @@ namespace TrackDb.PerfTest
             RequestStatus RequestStatus);
 
         public record Document(string RequestCode, string DocumentContent);
+
+        public enum OrderStatus
+        {
+            Initiated,
+            Processing,
+            Completed
+        }
+
+        public record TriggeringOrder(string OrderId, OrderStatus OrderStatus);
+        
+        public record OrderSummary(OrderStatus OrderStatus, int OrderCount);
         #endregion
 
         private const string EMPLOYEE_TABLE = "Employee";
         private const string REQUEST_TABLE = "Request";
         private const string DOCUMENT_TABLE = "Document";
+        private const string ORDER_TABLE = "TriggeringOrder";
+        private const string ORDER_SUMMARY_TABLE = "OrderSummary";
 
         #region Constructor
         public static async Task<VolumeTestDatabase> CreateAsync(
@@ -49,7 +62,11 @@ namespace TrackDb.PerfTest
                 .AddPrimaryKeyProperty(p => p.EmployeeId),
                 TypedTableSchema<Request>.FromConstructor(REQUEST_TABLE)
                 .AddPrimaryKeyProperty(p => p.RequestCode),
-                TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE));
+                TypedTableSchema<Document>.FromConstructor(DOCUMENT_TABLE),
+                TypedTableSchema<TriggeringOrder>.FromConstructor(ORDER_TABLE)
+                .AddPrimaryKeyProperty(o => o.OrderId)
+                .AddTrigger((db, tx) => TriggerOrder((VolumeTestDatabase)db, tx)),
+                TypedTableSchema<OrderSummary>.FromConstructor(ORDER_SUMMARY_TABLE));
 
             return db;
         }
@@ -68,5 +85,28 @@ namespace TrackDb.PerfTest
 
         public TypedTable<Document> DocumentTable
             => Database.GetTypedTable<Document>(DOCUMENT_TABLE);
+
+        public TypedTable<TriggeringOrder> TriggeringOrderTable
+            => Database.GetTypedTable<TriggeringOrder>(ORDER_TABLE);
+
+        public TypedTable<OrderSummary> OrderSummaryTable
+            => Database.GetTypedTable<OrderSummary>(ORDER_SUMMARY_TABLE);
+
+        private static void TriggerOrder(VolumeTestDatabase db, TransactionContext tx)
+        {
+            var accumulations = db.TriggeringOrderTable.Query(tx)
+            .WithinTransactionOnly()
+            .GroupBy(m => m.OrderStatus)
+            .Select(g => new OrderSummary(g.Key, g.Count()));
+            var decumulations = db.TriggeringOrderTable.TombstonedWithinTransaction(tx)
+            .GroupBy(m => m.OrderStatus)
+            .Select(g => new OrderSummary(g.Key, -g.Count()));
+            var integratedAccumulations = accumulations
+            .Concat(decumulations)
+            .GroupBy(m => m.OrderStatus)
+            .Select(g => new OrderSummary(g.Key, g.Sum(m => m.OrderCount)));
+
+            db.OrderSummaryTable.AppendRecords(integratedAccumulations, tx);
+        }
     }
 }

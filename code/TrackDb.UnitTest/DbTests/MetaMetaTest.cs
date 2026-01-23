@@ -23,15 +23,13 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(record2);
                 await db.Database.ForceDataManagementAsync(activity);
 
-                var state = db.Database.GetDatabaseStateSnapshot();
-                var map = state.TableMap;
-                var metadataTableName = map[db.PrimitiveTable.Schema.TableName].MetaDataTableName;
+                var metadataTable =
+                    db.Database.GetMetaDataTable(db.PrimitiveTable.Schema.TableName);
+                var metaMetadataTable =
+                    db.Database.GetMetaDataTable(metadataTable.Schema.TableName);
 
-                Assert.NotNull(metadataTableName);
-
-                var metaMetadataTableName = map[metadataTableName].MetaDataTableName;
-
-                Assert.Null(metaMetadataTableName);
+                Assert.True(metadataTable.Query().Count() > 0);
+                Assert.False(metaMetadataTable.Query().Count() > 0);
 
                 var record3 = new TestDatabase.Primitives(3);
                 var record4 = new TestDatabase.Primitives(4);
@@ -40,13 +38,9 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(record4);
                 await db.Database.ForceDataManagementAsync(activity);
 
-                state = db.Database.GetDatabaseStateSnapshot();
-                map = state.TableMap;
-
-                metaMetadataTableName = map[metadataTableName].MetaDataTableName;
-
                 //  Meta records got merged
-                Assert.Null(metaMetadataTableName);
+                Assert.True(metadataTable.Query().Count() > 0);
+                Assert.False(metaMetadataTable.Query().Count() > 0);
             }
         }
 
@@ -164,7 +158,7 @@ namespace TrackDb.UnitTest.DbTests
                     DataManagementActivity.PersistAllMetaDataFirstLevel);
 
                 db.PrimitiveTable.Query()
-                    .Where(pf=>pf.Equal(p => p.Integer, record2.Integer))
+                    .Where(pf => pf.Equal(p => p.Integer, record2.Integer))
                     .Delete();
                 //  This will trigger a rebuild of metablocks
                 await db.Database.ForceDataManagementAsync(

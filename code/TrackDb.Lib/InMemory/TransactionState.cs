@@ -29,7 +29,7 @@ namespace TrackDb.Lib.InMemory
                 {
                     yield return ttl.NewDataBlock;
                 }
-                if (ttl.CommittedDataBlock != null)
+                if (ttl.CommittedDataBlock != null && !inTxOnly)
                 {
                     doOverrideCommitted = true;
                     yield return ttl.CommittedDataBlock;

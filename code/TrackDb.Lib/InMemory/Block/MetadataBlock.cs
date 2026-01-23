@@ -11,7 +11,7 @@ namespace TrackDb.Lib.InMemory.Block
     /// </summary>
     /// <param name="MetadataRecord"></param>
     /// <param name="Schema"></param>
-    internal record MetaDataBlock(
+    internal record MetadataBlock(
         ReadOnlyMemory<object?> MetadataRecord,
         MetadataTableSchema Schema)
     {
@@ -21,8 +21,8 @@ namespace TrackDb.Lib.InMemory.Block
 
         public int BlockId => (int)MetadataRecord.Span[Schema.BlockIdColumnIndex]!;
 
-        public long RecordIdMin => (long)MetadataRecord.Span[Schema.RecordIdMinColumnIndex]!;
-        
-        public long RecordIdMax => (long)MetadataRecord.Span[Schema.RecordIdMaxColumnIndex]!;
+        public long MinRecordId => (long)MetadataRecord.Span[Schema.RecordIdMinColumnIndex]!;
+
+        public long MaxRecordId => (long)MetadataRecord.Span[Schema.RecordIdMaxColumnIndex]!;
     }
 }

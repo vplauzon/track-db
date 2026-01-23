@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -133,7 +134,7 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
                 .Append(new TableProperties(TombstoneTable, 1, null, true, false))
-                .Append(new TableProperties(_availableBlockTable, 1, null, true, true))
+                .Append(new TableProperties(_availableBlockTable, 1, null, true, false))
                 .Append(new TableProperties(QueryExecutionTable, 1, null, true, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
@@ -186,6 +187,12 @@ namespace TrackDb.Lib
 
         #region Public interface
         public DatabasePolicy DatabasePolicy { get; }
+
+        /// <summary>
+        /// For DEBUG purposes.
+        /// Action executed before and after a transaction completion (in DEBUG only).
+        /// </summary>
+        internal Action TransactionAction = () => { };
 
         public Table GetTable(string tableName)
         {
@@ -252,6 +259,8 @@ namespace TrackDb.Lib
         {
             bool IsToleranceExceeded()
             {
+                //  We use <= (lesser or equal) so that we don't spin
+                //  when tolerance==1
                 using (var tx = CreateTransaction())
                 {
                     var state = GetDatabaseStateSnapshot();
@@ -261,7 +270,7 @@ namespace TrackDb.Lib
                         .InMemoryDatabase
                         .GetMaxInMemoryBlocksPerTable();
 
-                    if (maxBlocksPerTable < tolerance * policy.MaxBlocksPerTable)
+                    if (maxBlocksPerTable <= tolerance * policy.MaxBlocksPerTable)
                     {
                         var totalNonMetaDataRecords = tableMap.Values
                             .Where(p => p.IsPersisted)
@@ -269,7 +278,7 @@ namespace TrackDb.Lib
                             .Select(p => p.Table.Query(tx).WithInMemoryOnly().Count())
                             .Sum();
 
-                        if (totalNonMetaDataRecords < tolerance * policy.MaxNonMetaDataRecords)
+                        if (totalNonMetaDataRecords <= tolerance * policy.MaxNonMetaDataRecords)
                         {
                             var totalMetaDataRecords = tableMap.Values
                                 .Where(p => p.IsPersisted)
@@ -281,7 +290,7 @@ namespace TrackDb.Lib
                             {
                                 var totalTombstonedRecords = TombstoneTable.Query(tx).Count();
 
-                                if (totalTombstonedRecords < tolerance * policy.MaxTombstonedRecords)
+                                if (totalTombstonedRecords <= tolerance * policy.MaxTombstonedRecords)
                                 {
                                     return false;
                                 }
@@ -292,10 +301,7 @@ namespace TrackDb.Lib
                     return true;
                 }
             }
-            if (tolerance <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(tolerance));
-            }
+
             while (IsToleranceExceeded())
             {
                 await Task.Delay(DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod / 4);
@@ -466,7 +472,7 @@ namespace TrackDb.Lib
 
             if (existingMap.TryGetValue(tableName, out var table))
             {
-                return table.MetaDataTableName != null;
+                return table.MetadataTableName != null;
             }
             else
             {
@@ -487,16 +493,16 @@ namespace TrackDb.Lib
                 {
                     throw new InvalidOperationException($"Table '{tableName}' can't be persisted");
                 }
-                if (table.MetaDataTableName != null)
+                if (table.MetadataTableName != null)
                 {
-                    if (map.TryGetValue(table.MetaDataTableName, out var metaTable))
+                    if (map.TryGetValue(table.MetadataTableName, out var metaTable))
                     {
                         return metaTable.Table;
                     }
                     else
                     {
                         throw new InvalidOperationException(
-                            $"Metadata table '{table.MetaDataTableName}' can't be found");
+                            $"Metadata table '{table.MetadataTableName}' can't be found");
                     }
                 }
                 else
@@ -522,7 +528,7 @@ namespace TrackDb.Lib
                                     true))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
-                                MetaDataTableName = metaDataSchema.TableName
+                                MetadataTableName = metaDataSchema.TableName
                             });
                             var newState = state with
                             {
@@ -663,8 +669,11 @@ namespace TrackDb.Lib
             RunTriggers(tx);
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
+                RunTransactionAction();
+                
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-
+                
+                RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
                 if (tx.DoLog && _logTransactionWriter != null)
                 {
@@ -681,8 +690,11 @@ namespace TrackDb.Lib
             RunTriggers(tx);
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
+                RunTransactionAction();
+                
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
 
+                RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
                 if (tx.DoLog && _logTransactionWriter != null)
                 {
@@ -693,6 +705,15 @@ namespace TrackDb.Lib
                 }
             }
             DecrementActiveTransactionCount();
+        }
+
+        [Conditional("DEBUG")]
+        private void RunTransactionAction()
+        {
+            if (TransactionAction != null)
+            {
+                TransactionAction();
+            }
         }
 
         private long CompleteTransactionState(TransactionState transactionState, bool doLog)
@@ -843,12 +864,11 @@ namespace TrackDb.Lib
 
         internal void DeleteRecord(
             long recordId,
-            int? blockId,
             string tableName,
             TransactionContext tx)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, DateTime.Now),
                 tx);
         }
 

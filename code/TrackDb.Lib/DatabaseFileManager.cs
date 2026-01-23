@@ -46,6 +46,10 @@ namespace TrackDb.Lib
         #region Block read / write
         public byte[] ReadBlock(int blockId)
         {
+            if (blockId < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(blockId));
+            }
             lock (_lock)
             {
                 var position = GetBlockPosition(blockId);
