@@ -30,10 +30,7 @@ namespace TrackDb.PerfTest
         [Fact]
         public async Task Test01000By10()
         {
-            for (var i = 0; i != 1000; ++i)
-            {
-                await RunPerformanceTestAsync(1000, 10);
-            }
+            await RunPerformanceTestAsync(1000, 10);
         }
 
         [Fact]

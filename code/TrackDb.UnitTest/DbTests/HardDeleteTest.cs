@@ -106,7 +106,7 @@ namespace TrackDb.UnitTest.DbTests
 
                 var metaTableName = db.Database.GetDatabaseStateSnapshot()
                     .TableMap[db.PrimitiveTable.Schema.TableName]
-                    .MetaDataTableName;
+                    .MetadataTableName;
 
                 Assert.NotNull(metaTableName);
 

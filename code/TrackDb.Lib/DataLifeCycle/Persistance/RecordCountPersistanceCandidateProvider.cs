@@ -116,13 +116,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private bool MergeMetaRecords(TableRecordCount topCandidate, TransactionContext tx)
         {
-            var blockMergingLogic = new BlockMergingLogic(Database);
+            var metadataShema = (MetadataTableSchema)topCandidate.Table.Schema;
+            var schema = metadataShema.ParentSchema;
+            var blockMergingLogic = new BlockMergingLogic(
+                Database,
+                new MetaBlockManager(Database, tx));
+            var hasChanged = blockMergingLogic.CompactMerge(schema.TableName, null);
 
-            return blockMergingLogic.MergeBlocks(
-                topCandidate.Table.Schema.TableName,
-                null,
-                Array.Empty<int>(),
-                tx);
+            return hasChanged;
         }
     }
 }

@@ -21,8 +21,8 @@ namespace TrackDb.Lib.Statistics
                     .Select(p => new
                     {
                         p.Table,
-                        MetadataTable = p.MetaDataTableName != null
-                        ? tableMap[p.MetaDataTableName].Table
+                        MetadataTable = p.MetadataTableName != null
+                        ? tableMap[p.MetadataTableName].Table
                         : null
                     })
                     .Select(o => KeyValuePair.Create(
@@ -54,8 +54,8 @@ namespace TrackDb.Lib.Statistics
             {
                 var properties = tableMap[tableName];
 
-                return properties.MetaDataTableName != null
-                    ? 1 + GetTableGeneration(properties.MetaDataTableName, tableMap)
+                return properties.MetadataTableName != null
+                    ? 1 + GetTableGeneration(properties.MetadataTableName, tableMap)
                     : 1;
             }
 

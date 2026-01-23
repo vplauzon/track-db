@@ -61,11 +61,11 @@ namespace TrackDb.PerfTest
                 await db.Database.AwaitLifeCycleManagement(1);
 
                 var tableMap = db.Database.GetDatabaseStateSnapshot().TableMap;
-                var metaEmployee = tableMap[db.EmployeeTable.Schema.TableName].MetaDataTableName;
+                var metaEmployee = tableMap[db.EmployeeTable.Schema.TableName].MetadataTableName;
 
                 Assert.NotNull(metaEmployee);
 
-                var metaMetaEmployee = tableMap[metaEmployee].MetaDataTableName;
+                var metaMetaEmployee = tableMap[metaEmployee].MetadataTableName;
 
                 Assert.NotNull(metaMetaEmployee);
                 Assert.True(tableMap[metaMetaEmployee].Table.Query().Count() > 0);

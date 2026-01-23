@@ -134,7 +134,7 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
                 .Append(new TableProperties(TombstoneTable, 1, null, true, false))
-                .Append(new TableProperties(_availableBlockTable, 1, null, true, true))
+                .Append(new TableProperties(_availableBlockTable, 1, null, true, false))
                 .Append(new TableProperties(QueryExecutionTable, 1, null, true, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
@@ -472,7 +472,7 @@ namespace TrackDb.Lib
 
             if (existingMap.TryGetValue(tableName, out var table))
             {
-                return table.MetaDataTableName != null;
+                return table.MetadataTableName != null;
             }
             else
             {
@@ -493,16 +493,16 @@ namespace TrackDb.Lib
                 {
                     throw new InvalidOperationException($"Table '{tableName}' can't be persisted");
                 }
-                if (table.MetaDataTableName != null)
+                if (table.MetadataTableName != null)
                 {
-                    if (map.TryGetValue(table.MetaDataTableName, out var metaTable))
+                    if (map.TryGetValue(table.MetadataTableName, out var metaTable))
                     {
                         return metaTable.Table;
                     }
                     else
                     {
                         throw new InvalidOperationException(
-                            $"Metadata table '{table.MetaDataTableName}' can't be found");
+                            $"Metadata table '{table.MetadataTableName}' can't be found");
                     }
                 }
                 else
@@ -528,7 +528,7 @@ namespace TrackDb.Lib
                                     true))
                             .SetItem(tableName, state.TableMap[tableName] with
                             {
-                                MetaDataTableName = metaDataSchema.TableName
+                                MetadataTableName = metaDataSchema.TableName
                             });
                             var newState = state with
                             {
@@ -864,12 +864,11 @@ namespace TrackDb.Lib
 
         internal void DeleteRecord(
             long recordId,
-            int? blockId,
             string tableName,
             TransactionContext tx)
         {
             TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, blockId, DateTime.Now),
+                new TombstoneRecord(recordId, tableName, DateTime.Now),
                 tx);
         }
 

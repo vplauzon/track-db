@@ -3,7 +3,7 @@
     internal record TableProperties(
         Table Table,
         int Generation,
-        string? MetaDataTableName,
+        string? MetadataTableName,
         bool IsSystemTable,
         bool IsPersisted)
     {
