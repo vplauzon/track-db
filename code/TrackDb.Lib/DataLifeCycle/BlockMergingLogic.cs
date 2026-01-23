@@ -107,7 +107,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var metaSchema = metaTable.Schema;
             var metaBuilder = new BlockBuilder(metaSchema);
 
-            foreach (var metadataBlock in metadataBlocks)
+            foreach (var metadataBlock in metadataBlocks.OrderBy(m => m.MinRecordId))
             {
                 var metadataSpan = metadataBlock.MetadataRecord.Span;
                 var recordId = metaTable.NewRecordId();
