@@ -967,6 +967,7 @@ namespace TrackDb.Lib
                     loggedTableNames,
                     tombstoneTableName);
 
+                transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
                 appendRecordCount += counts.AppendRecordCount;
                 tombstonedCount += counts.TombstoneRecordCount;
                 using (var tx = CreateTransaction(false, transactionLog))

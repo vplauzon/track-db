@@ -49,11 +49,21 @@ namespace TrackDb.LogTest
                     TestDatabase.WorkflowState.Started,
                     batchSize);
 
-                ValidateData(db, recordCount);
+                ValidateData(db, TestDatabase.WorkflowState.Started, recordCount);
             }
             await using (var db = await TestDatabase.CreateAsync(testId))
             {
-                ValidateData(db, recordCount);
+                ValidateData(db, TestDatabase.WorkflowState.Started, recordCount);
+                Transition(
+                    db,
+                    TestDatabase.WorkflowState.Started,
+                    TestDatabase.WorkflowState.Completed,
+                    batchSize);
+                ValidateData(db, TestDatabase.WorkflowState.Completed, recordCount);
+            }
+            await using (var db = await TestDatabase.CreateAsync(testId))
+            {
+                ValidateData(db, TestDatabase.WorkflowState.Completed, recordCount);
             }
         }
 
@@ -104,29 +114,38 @@ namespace TrackDb.LogTest
             }
         }
 
-        private static void ValidateData(TestDatabase db, int recordCount)
+        private static void ValidateData(
+            TestDatabase db,
+            TestDatabase.WorkflowState filledState,
+            int recordCount)
         {
             Assert.Equal(
                 recordCount,
                 db.WorkflowTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Started))
+                .Where(pf => pf.Equal(w => w.State, filledState))
                 .Count());
-            Assert.Equal(
-                0,
-                db.WorkflowTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Pending))
-                .Count());
-
             Assert.Equal(
                 recordCount,
                 db.WorkflowSummaryTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Started))
+                .Where(pf => pf.Equal(w => w.State, filledState))
                 .Sum(ws => ws.WorkflowCount));
-            Assert.Equal(
-                0,
-                db.WorkflowSummaryTable.Query()
-                .Where(pf => pf.Equal(w => w.State, TestDatabase.WorkflowState.Pending))
-                .Sum(ws => ws.WorkflowCount));
+
+            foreach (var state in Enum.GetValues<TestDatabase.WorkflowState>())
+            {
+                if (state != filledState)
+                {
+                    Assert.Equal(
+                        0,
+                        db.WorkflowTable.Query()
+                        .Where(pf => pf.Equal(w => w.State, state))
+                        .Count());
+                    Assert.Equal(
+                        0,
+                        db.WorkflowSummaryTable.Query()
+                        .Where(pf => pf.Equal(w => w.State, state))
+                        .Sum(ws => ws.WorkflowCount));
+                }
+            }
         }
     }
 }

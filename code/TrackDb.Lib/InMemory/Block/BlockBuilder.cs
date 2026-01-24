@@ -389,6 +389,24 @@ namespace TrackDb.Lib.InMemory.Block
                 _dataColumns[Schema.RecordIdColumnIndex].AppendValue(newRecordId);
             }
         }
+
+        public long? MaxRecordId()
+        {
+            var recordIdColumn = _dataColumns.Last();
+
+            if (recordIdColumn.RecordCount > 0)
+            {
+                var maxRecordId = Enumerable.Range(0, recordIdColumn.RecordCount)
+                    .Select(i => ((long)recordIdColumn.GetValue(i)!))
+                    .Max();
+
+                return maxRecordId;
+            }
+            else
+            {
+                return null;
+            }
+        }
         #endregion
     }
 }
