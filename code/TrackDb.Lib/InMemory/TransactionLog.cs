@@ -67,6 +67,31 @@ namespace TrackDb.Lib.InMemory
                 .AppendBlock(block);
         }
 
+        internal void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)
+        {
+            foreach (var p in TransactionTableLogMap)
+            {
+                var tableName = p.Key;
+                var tableLog = p.Value;
+                var maxRecordId = tableLog.NewDataBlock.MaxRecordId();
+
+                if (maxRecordId != null)
+                {
+                    if (tableToLastRecordIdMap.ContainsKey(tableName))
+                    {
+                        if (tableToLastRecordIdMap[tableName] < maxRecordId)
+                        {
+                            tableToLastRecordIdMap[tableName] = maxRecordId.Value;
+                        }
+                    }
+                    else
+                    {
+                        tableToLastRecordIdMap[tableName] = maxRecordId.Value;
+                    }
+                }
+            }
+        }
+
         private void EnsureTable(TableSchema schema)
         {
             if (!TransactionTableLogMap.ContainsKey(schema.TableName))
