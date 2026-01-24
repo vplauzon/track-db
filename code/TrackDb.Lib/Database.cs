@@ -666,13 +666,16 @@ namespace TrackDb.Lib
 
         internal void CompleteTransaction(TransactionContext tx)
         {
-            RunTriggers(tx);
+            if (tx.DoLog)
+            {
+                RunTriggers(tx);
+            }
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 RunTransactionAction();
-                
+
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-                
+
                 RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
                 if (tx.DoLog && _logTransactionWriter != null)
@@ -691,7 +694,7 @@ namespace TrackDb.Lib
             if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
             {
                 RunTransactionAction();
-                
+
                 var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
 
                 RunTransactionAction();
