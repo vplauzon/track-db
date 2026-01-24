@@ -1,7 +1,5 @@
 ﻿using Azure;
-using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Specialized;
-using Azure.Storage.Files.DataLake;
 using System;
 using System.Collections;
 using System.Collections.Generic;

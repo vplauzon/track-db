@@ -40,6 +40,8 @@ namespace TrackDb.LogTest
             WorkflowState State,
             DateTime StartTime);
 
+        public record WorkflowSummary(WorkflowState State, int WorkflowCount);
+
         public record Activity(
             string WorkflowName,
             string ActivityName,
@@ -56,6 +58,7 @@ namespace TrackDb.LogTest
         #endregion
 
         private const string WORKFLOW_TABLE = "Workflow";
+        private const string WORKFLOW_SUMMARY_TABLE = "WorkflowSummary";
         private const string ACTIVITY_TABLE = "Activity";
         private const string TASK_TABLE = "Task";
 
@@ -94,7 +97,9 @@ namespace TrackDb.LogTest
                 db => new TestDatabase(db),
                 CancellationToken.None,
                 TypedTableSchema<Workflow>.FromConstructor(WORKFLOW_TABLE)
-                .AddPrimaryKeyProperty(m => m.WorkflowName),
+                .AddPrimaryKeyProperty(m => m.WorkflowName)
+                .AddTrigger((db, tx) => TriggerWorkflow((TestDatabase)db, tx)),
+                TypedTableSchema<WorkflowSummary>.FromConstructor(WORKFLOW_SUMMARY_TABLE),
                 TypedTableSchema<Activity>.FromConstructor(ACTIVITY_TABLE)
                 .AddPrimaryKeyProperty(m => m.ActivityName),
                 TypedTableSchema<ActivityTask>.FromConstructor(TASK_TABLE)
@@ -113,10 +118,30 @@ namespace TrackDb.LogTest
         public TypedTable<Workflow> WorkflowTable
             => Database.GetTypedTable<Workflow>(WORKFLOW_TABLE);
 
+        public TypedTable<WorkflowSummary> WorkflowSummaryTable
+            => Database.GetTypedTable<WorkflowSummary>(WORKFLOW_SUMMARY_TABLE);
+
         public TypedTable<Activity> ActivityTable
             => Database.GetTypedTable<Activity>(ACTIVITY_TABLE);
 
         public TypedTable<ActivityTask> TaskTable
             => Database.GetTypedTable<ActivityTask>(TASK_TABLE);
+
+        private static void TriggerWorkflow(TestDatabase db, TransactionContext tx)
+        {
+            var accumulations = db.WorkflowTable.Query(tx)
+            .WithinTransactionOnly()
+            .GroupBy(w => w.State)
+            .Select(g => new WorkflowSummary(g.Key, g.Count()));
+            var decumulations = db.WorkflowTable.TombstonedWithinTransaction(tx)
+            .GroupBy(w => w.State)
+            .Select(g => new WorkflowSummary(g.Key, -g.Count()));
+            var integratedAccumulations = accumulations
+            .Concat(decumulations)
+            .GroupBy(w => w.State)
+            .Select(g => new WorkflowSummary(g.Key, g.Sum(m => m.WorkflowCount)));
+
+            db.WorkflowSummaryTable.AppendRecords(integratedAccumulations, tx);
+        }
     }
 }
