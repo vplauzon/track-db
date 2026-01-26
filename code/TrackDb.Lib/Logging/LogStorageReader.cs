@@ -108,7 +108,6 @@ namespace TrackDb.Lib.Logging
 
                 return lastCheckpoint;
             }
-            await loggingDirectory.CreateIfNotExistsAsync(cancellationToken: ct);
 
             var lastCheckpoint = await GetLastCheckpointAsync(loggingDirectory, ct);
 

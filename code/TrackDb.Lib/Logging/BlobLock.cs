@@ -30,15 +30,8 @@ namespace TrackDb.Lib.Logging
 
             try
             {
-                try
-                {
-                    await fileClient.CreateIfNotExistsAsync(cancellationToken: ct);
-                }
-                //  This is to workaround an issue in the DataLake SDK
-                catch (RequestFailedException ex)
-                when (ex.Status == 409 && ex.ErrorCode == "PathAlreadyExists")
-                {
-                }
+                await blobClients.Directory.CreateIfNotExistsAsync(cancellationToken: ct);
+                await fileClient.CreateIfNotExistsAsync(cancellationToken: ct);
                 await leaseClient.AcquireAsync(DEFAULT_LEASE_DURATION);
 
                 return new BlobLock(leaseClient, ct);
