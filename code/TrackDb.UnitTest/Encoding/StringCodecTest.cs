@@ -36,6 +36,15 @@ namespace TrackDb.UnitTest.Encoding
         }
 
         [Fact]
+        public void ManyEmpty()
+        {
+            TestScenario(
+                Enumerable.Range(0, 4000)
+                .Select(i=> string.Empty),
+                false);
+        }
+
+        [Fact]
         public void OnlyNulls()
         {
             TestScenario(new string?[] { null, null, null, null }, false);
@@ -121,12 +130,23 @@ namespace TrackDb.UnitTest.Encoding
             var buffer = new byte[10000];
             var writer = new ByteWriter(buffer);
             var reader = new ByteReader(buffer);
+            var size = ComputeSerializationSize(data);
             var package = StringCodec.Compress(data.ToArray(), ref writer);
             var decodedArray = new string?[data.Count()];
 
+            Assert.Equal(size, writer.Position);
             StringCodec.Decompress(ref reader, decodedArray);
 
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
+        }
+
+        private static int ComputeSerializationSize(IEnumerable<string?> data)
+        {
+            var dataArray = data.ToArray();
+            var sizes = new int[dataArray.Length];
+            var sizeCount = StringCodec.ComputeSerializationSizes(dataArray, sizes, int.MaxValue);
+
+            return sizes[sizeCount - 1];
         }
     }
 }

@@ -53,16 +53,16 @@ namespace TrackDb.Lib.Encoding
                     }
                     if (uniqueValues.Count != 0)
                     {
+                        var valueSequenceSize = valueSequenceMax == 0
+                            ? 0
+                            : BitPacker.PackSize(valueSequenceLength, valueSequenceMax);
                         var size =
                             sizeof(ushort)  //  Value sequence count
-                            + sizeof(byte);  //  Value sequence max
+                            + sizeof(byte)  //  Value sequence max
+                            //  Taking into account the corner case of [""]
+                            + valueSequenceSize //  Value sequence
+                            + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
 
-                        //  Taking into account the corner case of [""]
-                        if (valueSequenceMax > 0)
-                        {
-                            size += BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
-                                + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
-                        }
                         if (size >= maxSize)
                         {
                             return i;
