@@ -118,8 +118,7 @@ namespace TrackDb.Lib.Logging
             var tempCloudDirectory = BlobClients.Directory.GetSubDirectoryClient("temp");
             var checkpointHeader = new CheckpointHeader(CURRENT_HEADER_VERSION);
             var checkpointHeaderText = checkpointHeader.ToJson();
-            var deleteTempCloudDirectoryTask =
-                DeleteIfExistsAsync(tempCloudDirectory, ct);
+            var deleteTempCloudDirectoryTask = DeleteIfExistsAsync(tempCloudDirectory, ct);
 
             Directory.CreateDirectory(LocalFolder);
             //  Write locally
@@ -148,18 +147,17 @@ namespace TrackDb.Lib.Logging
                 BlobClients.Directory
                 .GetFileClient(checkpointFileName).Path,
                 cancellationToken: ct);
-            deleteTempCloudDirectoryTask =
-                tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
+            deleteTempCloudDirectoryTask = DeleteIfExistsAsync(tempCloudDirectory, ct);
             await deleteTempCloudDirectoryTask;
         }
 
         private static async Task DeleteIfExistsAsync(
-            DataLakeDirectoryClient tempCloudDirectory,
+            DataLakeDirectoryClient directoryClient,
             CancellationToken ct)
         {
-            if(!await tempCloudDirectory.ExistsAsync(cancellationToken: ct))
+            if (await directoryClient.ExistsAsync(cancellationToken: ct))
             {
-                await tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
+                await directoryClient.DeleteIfExistsAsync(cancellationToken: ct);
             }
         }
 
