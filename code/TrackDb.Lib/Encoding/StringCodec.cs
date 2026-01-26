@@ -55,10 +55,14 @@ namespace TrackDb.Lib.Encoding
                     {
                         var size =
                             sizeof(ushort)  //  Value sequence count
-                            + sizeof(byte)  //  Value sequence max
-                            + BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
-                            + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
+                            + sizeof(byte);  //  Value sequence max
 
+                        //  Taking into account the corner case of [""]
+                        if (valueSequenceMax > 0)
+                        {
+                            size += BitPacker.PackSize(valueSequenceLength, valueSequenceMax) //  Value sequence
+                                + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
+                        }
                         if (size >= maxSize)
                         {
                             return i;
@@ -182,7 +186,18 @@ namespace TrackDb.Lib.Encoding
 
             writer.WriteUInt16((ushort)valuesSequenceLength);
             writer.WriteByte((byte)valuesSequenceMax);
-            BitPacker.Pack(valuesSequenceSpan, valuesSequenceMax, ref writer);
+            //  Taking into account the corner case of [""]
+            if (valuesSequenceMax == 0)
+            {
+                if (valuesSequenceLength != 1)
+                {
+                    throw new InvalidOperationException("Unexpected case");
+                }
+            }
+            else
+            {
+                BitPacker.Pack(valuesSequenceSpan, valuesSequenceMax, ref writer);
+            }
         }
 
         private static void WriteIndexes(
@@ -239,28 +254,65 @@ namespace TrackDb.Lib.Encoding
         #region Decompress
         public static void Decompress(ref ByteReader payloadReader, Span<string?> values)
         {
-            List<string> BreakStrings(ReadOnlySpan<ulong> valueSequence)
+            List<string> ExtractUniqueValues(
+                ref ByteReader payloadReader,
+                ushort valuesSequenceLength,
+                byte valuesSequenceMax)
             {
-                var values = new List<string>();
-                Span<char> charArray = valueSequence.Length <= 1024
-                    ? stackalloc char[valueSequence.Length]
-                    : new char[valueSequence.Length];
-                var i = 0;
-
-                foreach (var value in valueSequence)
+                List<string> BreakStrings(ReadOnlySpan<ulong> valueSequence)
                 {
-                    if (value == 0)
+                    var values = new List<string>();
+                    Span<char> charArray = valueSequence.Length <= 1024
+                        ? stackalloc char[valueSequence.Length]
+                        : new char[valueSequence.Length];
+                    var i = 0;
+
+                    foreach (var value in valueSequence)
                     {
-                        values.Add(new string(charArray.Slice(0, i)));
-                        i = 0;
+                        if (value == 0)
+                        {
+                            values.Add(new string(charArray.Slice(0, i)));
+                            i = 0;
+                        }
+                        else
+                        {
+                            charArray[i++] = (char)(value - 1);
+                        }
                     }
-                    else
-                    {
-                        charArray[i++] = (char)(value - 1);
-                    }
+
+                    return values;
                 }
 
-                return values;
+                //  Taking into account the corner case of [""]
+                if (valuesSequenceMax == 0)
+                {
+                    if (valuesSequenceLength != 1)
+                    {
+                        throw new InvalidOperationException("Unexpected case");
+                    }
+
+                    return new List<string>(1)
+                    {
+                        string.Empty
+                    };
+                }
+                else
+                {
+                    var valuesSequencePackedSpan = payloadReader.SliceForward(
+                        BitPacker.PackSize(valuesSequenceLength, valuesSequenceMax));
+                    Span<ulong> valueSequenceUnpackedSpan = valuesSequenceLength <= 1024
+                        ? stackalloc ulong[valuesSequenceLength]
+                        : new ulong[valuesSequenceLength];
+
+                    BitPacker.Unpack(
+                        valuesSequencePackedSpan,
+                        valuesSequenceMax,
+                        valueSequenceUnpackedSpan);
+
+                    var uniqueValues = BreakStrings(valueSequenceUnpackedSpan);
+
+                    return uniqueValues;
+                }
             }
 
             var valuesSequenceLength = payloadReader.ReadUInt16();
@@ -269,18 +321,10 @@ namespace TrackDb.Lib.Encoding
             {
                 //  Values sequence
                 var valuesSequenceMax = payloadReader.ReadByte();
-                var valuesSequencePackedSpan = payloadReader.SliceForward(
-                    BitPacker.PackSize(valuesSequenceLength, valuesSequenceMax));
-                Span<ulong> valueSequenceUnpackedSpan = valuesSequenceLength <= 1024
-                    ? stackalloc ulong[valuesSequenceLength]
-                    : new ulong[valuesSequenceLength];
-
-                BitPacker.Unpack(
-                    valuesSequencePackedSpan,
-                    valuesSequenceMax,
-                    valueSequenceUnpackedSpan);
-
-                var uniqueValues = BreakStrings(valueSequenceUnpackedSpan);
+                var uniqueValues = ExtractUniqueValues(
+                    ref payloadReader,
+                    valuesSequenceLength,
+                    valuesSequenceMax);
                 //  Indexes
                 Span<ulong> indexesUnpackedSpan = values.Length <= 1024
                     ? stackalloc ulong[values.Length]

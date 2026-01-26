@@ -30,9 +30,21 @@ namespace TrackDb.UnitTest.Encoding
         }
 
         [Fact]
+        public void OnlyEmpty()
+        {
+            TestScenario([string.Empty, string.Empty, string.Empty, string.Empty], false);
+        }
+
+        [Fact]
         public void OnlyNulls()
         {
             TestScenario(new string?[] { null, null, null, null }, false);
+        }
+
+        [Fact]
+        public void EmptyAndNulls()
+        {
+            TestScenario([string.Empty, null, string.Empty, null], false);
         }
 
         [Fact]
@@ -111,7 +123,7 @@ namespace TrackDb.UnitTest.Encoding
             var reader = new ByteReader(buffer);
             var package = StringCodec.Compress(data.ToArray(), ref writer);
             var decodedArray = new string?[data.Count()];
-                
+
             StringCodec.Decompress(ref reader, decodedArray);
 
             Assert.True(Enumerable.SequenceEqual(decodedArray, data));
