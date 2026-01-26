@@ -1,45 +1,49 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <Version>1.5.2</Version>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <WarningLevel>9999</WarningLevel>
-    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
-  </PropertyGroup>
+	<PropertyGroup>
+		<Version>1.5.3</Version>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<WarningLevel>9999</WarningLevel>
+		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+	</PropertyGroup>
 
-  <!--NuGet settings-->
-  <PropertyGroup>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <Authors>Vincent-Philippe Lauzon</Authors>
-    <PackageProjectUrl>https://github.com/vplauzon/track-db</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/vplauzon/track-db</RepositoryUrl>
-    <Title>Track-DB</Title>
-    <PackageId>track-db</PackageId>
-    <Product>Track-DB</Product>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Description>Track-DB</Description>
-    <Copyright />
-  </PropertyGroup>
+	<!--NuGet settings-->
+	<PropertyGroup>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<Authors>Vincent-Philippe Lauzon</Authors>
+		<PackageProjectUrl>https://github.com/vplauzon/track-db</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/vplauzon/track-db</RepositoryUrl>
+		<Title>Track-DB</Title>
+		<PackageId>track-db</PackageId>
+		<Product>Track-DB</Product>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<Description>Track-DB</Description>
+		<Copyright />
+		<!--Include symbols and source code to help debugging on the other end-->
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<EmbedAllSources>true</EmbedAllSources>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="Settings\**" />
-    <EmbeddedResource Remove="Settings\**" />
-    <None Remove="Settings\**" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="Settings\**" />
+		<EmbeddedResource Remove="Settings\**" />
+		<None Remove="Settings\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Azure.Storage.Files.DataLake" Version="12.24.0" />
-    <PackageReference Include="Polly" Version="8.6.5" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Azure.Storage.Files.DataLake" Version="12.24.0" />
+		<PackageReference Include="Polly" Version="8.6.5" />
+	</ItemGroup>
 
 </Project>
