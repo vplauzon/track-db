@@ -28,15 +28,20 @@ namespace TrackDb.Lib.Logging
             public CheckpointState(
                 long CheckpointIndex,
                 long LogBlobIndex,
-                AppendBlobClient LogBlob)
-                : this(CheckpointIndex, LogBlobIndex, LogBlob, CreateIfNotExistsAsync(LogBlob))
+                AppendBlobClient LogBlob,
+                CancellationToken ct)
+                : this(CheckpointIndex, LogBlobIndex, LogBlob, CreateIfNotExistsAsync(LogBlob, ct))
             {
             }
 
-            private static async Task CreateIfNotExistsAsync(AppendBlobClient LogBlob)
+            private static async Task CreateIfNotExistsAsync(
+                AppendBlobClient LogBlob,
+                CancellationToken ct)
             {
-                await Handle409Policy.ExecuteAsync(
-                    async () => await LogBlob.CreateIfNotExistsAsync());
+                if (!await LogBlob.ExistsAsync(cancellationToken: ct))
+                {
+                    await LogBlob.CreateIfNotExistsAsync(cancellationToken: ct);
+                }
             }
         }
         #endregion
@@ -57,8 +62,10 @@ namespace TrackDb.Lib.Logging
                 localFolder,
                 blobClients,
                 currentCheckpointIndex ?? 1,
-                currentLogBlobIndex ?? 1);
-            var checkpointState = logStorageWriter.GetCheckpointState(currentCheckpointIndex ?? 1);
+                currentLogBlobIndex ?? 1,
+                ct);
+            var checkpointState =
+                logStorageWriter.GetCheckpointState(currentCheckpointIndex ?? 1, ct);
 
             if (currentLogBlobIndex == null)
             {
@@ -76,13 +83,15 @@ namespace TrackDb.Lib.Logging
             string localFolder,
             BlobClients blobClients,
             long currentCheckpointIndex,
-            long currentLogBlobIndex)
+            long currentLogBlobIndex,
+            CancellationToken ct)
             : base(logPolicy, localFolder, blobClients)
         {
             var currentState = new CheckpointState(
                 currentCheckpointIndex,
                 currentLogBlobIndex,
-                GetAppendBlobClient(currentLogBlobIndex));
+                GetAppendBlobClient(currentLogBlobIndex),
+                ct);
             var dummyState = new CheckpointState(0, 0, GetAppendBlobClient(0), Task.CompletedTask);
 
             _checkpointStates = [currentState, dummyState];
@@ -103,7 +112,7 @@ namespace TrackDb.Lib.Logging
             IAsyncEnumerable<string> transactionTexts,
             CancellationToken ct)
         {
-            var state = GetCheckpointState(checkpointIndex);
+            var state = GetCheckpointState(checkpointIndex, ct);
             var checkpointFileName = GetCheckpointFileName(state.CheckpointIndex);
             var checkpointFilePath = Path.Combine(LocalFolder, checkpointFileName);
             var tempCloudDirectory = BlobClients.Directory.GetSubDirectoryClient("temp");
@@ -148,8 +157,10 @@ namespace TrackDb.Lib.Logging
             DataLakeDirectoryClient tempCloudDirectory,
             CancellationToken ct)
         {
-            await Handle409Policy.ExecuteAsync(
-                async () => await tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct));
+            if(!await tempCloudDirectory.ExistsAsync(cancellationToken: ct))
+            {
+                await tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
+            }
         }
 
         private AppendBlobClient GetAppendBlobClient(long logBlobIndex)
@@ -176,7 +187,7 @@ namespace TrackDb.Lib.Logging
             IEnumerable<string> transactionTexts,
             CancellationToken ct)
         {
-            var state = GetCheckpointState(checkpointIndex);
+            var state = GetCheckpointState(checkpointIndex, ct);
 
             try
             {
@@ -188,7 +199,8 @@ namespace TrackDb.Lib.Logging
                 var newState = new CheckpointState(
                     state.CheckpointIndex,
                     state.LogBlobIndex + 1,
-                    logBlob);
+                    logBlob,
+                    ct);
 
                 if (_checkpointStates[0].CheckpointIndex == checkpointIndex)
                 {
@@ -281,7 +293,7 @@ namespace TrackDb.Lib.Logging
         }
         #endregion
 
-        private CheckpointState GetCheckpointState(long checkpointIndex)
+        private CheckpointState GetCheckpointState(long checkpointIndex, CancellationToken ct)
         {
             var state1 = _checkpointStates[0];
             var state2 = _checkpointStates[1];
@@ -300,7 +312,8 @@ namespace TrackDb.Lib.Logging
                 var state = new CheckpointState(
                     checkpointIndex,
                     checkpointIndex,
-                    GetAppendBlobClient(checkpointIndex));
+                    GetAppendBlobClient(checkpointIndex),
+                    ct);
 
                 if (state1.CheckpointIndex < state2.CheckpointIndex)
                 {
