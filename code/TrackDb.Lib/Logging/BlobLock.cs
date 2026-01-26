@@ -1,5 +1,7 @@
 ﻿using Azure;
 using Azure.Storage.Blobs.Specialized;
+using Polly;
+using Polly.Retry;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,6 +17,10 @@ namespace TrackDb.Lib.Logging
         private static readonly TimeSpan DEFAULT_LEASE_DURATION = TimeSpan.FromSeconds(60);
         private static readonly TimeSpan DEFAULT_LEASE_RENEWAL_PERIOD = TimeSpan.FromSeconds(40);
 #endif
+        /// <summary>Workaround for Data lake SDK.</summary>
+        private static readonly AsyncRetryPolicy _handle409Policy = Policy
+            .Handle<RequestFailedException>(ex => ex.Status == 409 && ex.ErrorCode == "PathAlreadyExists")
+            .RetryAsync(0); // 0 retries = just swallow the exception
 
         private readonly Task _backgroundTask;
         private readonly TaskCompletionSource _backgroundCompletedSource = new();
@@ -30,8 +36,11 @@ namespace TrackDb.Lib.Logging
 
             try
             {
-                await blobClients.Directory.CreateIfNotExistsAsync(cancellationToken: ct);
-                await fileClient.CreateIfNotExistsAsync(cancellationToken: ct);
+                await _handle409Policy.ExecuteAsync(
+                    async () => await blobClients.Directory.CreateIfNotExistsAsync(
+                        cancellationToken: ct));
+                await _handle409Policy.ExecuteAsync(
+                    async () => await fileClient.CreateIfNotExistsAsync(cancellationToken: ct));
                 await leaseClient.AcquireAsync(DEFAULT_LEASE_DURATION);
 
                 return new BlobLock(leaseClient, ct);

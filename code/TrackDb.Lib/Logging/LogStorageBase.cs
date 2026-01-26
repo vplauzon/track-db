@@ -1,5 +1,6 @@
-﻿using Azure.Storage.Blobs;
-using Azure.Storage.Files.DataLake;
+﻿using Azure;
+using Polly;
+using Polly.Retry;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -16,6 +17,11 @@ namespace TrackDb.Lib.Logging
         protected static readonly string SEPARATOR = "\n";
 
         protected static Version CURRENT_HEADER_VERSION = new(1, 0);
+
+        /// <summary>Workaround for Data lake SDK.</summary>
+        protected static readonly AsyncRetryPolicy Handle409Policy = Policy
+            .Handle<RequestFailedException>(ex => ex.Status == 409 && ex.ErrorCode == "PathAlreadyExists")
+            .RetryAsync(0); // 0 retries = just swallow the exception
 
         protected LogStorageBase(LogPolicy logPolicy, string localFolder, BlobClients blobClients)
         {

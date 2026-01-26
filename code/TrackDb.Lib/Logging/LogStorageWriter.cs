@@ -1,12 +1,11 @@
 ﻿using Azure;
 using Azure.Storage.Blobs.Specialized;
+using Azure.Storage.Files.DataLake;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.Policies;
@@ -30,8 +29,14 @@ namespace TrackDb.Lib.Logging
                 long CheckpointIndex,
                 long LogBlobIndex,
                 AppendBlobClient LogBlob)
-                : this(CheckpointIndex, LogBlobIndex, LogBlob, LogBlob.CreateIfNotExistsAsync())
+                : this(CheckpointIndex, LogBlobIndex, LogBlob, CreateIfNotExistsAsync(LogBlob))
             {
+            }
+
+            private static async Task CreateIfNotExistsAsync(AppendBlobClient LogBlob)
+            {
+                await Handle409Policy.ExecuteAsync(
+                    async () => await LogBlob.CreateIfNotExistsAsync());
             }
         }
         #endregion
@@ -105,7 +110,7 @@ namespace TrackDb.Lib.Logging
             var checkpointHeader = new CheckpointHeader(CURRENT_HEADER_VERSION);
             var checkpointHeaderText = checkpointHeader.ToJson();
             var deleteTempCloudDirectoryTask =
-                tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
+                DeleteIfExistsAsync(tempCloudDirectory, ct);
 
             Directory.CreateDirectory(LocalFolder);
             //  Write locally
@@ -137,6 +142,14 @@ namespace TrackDb.Lib.Logging
             deleteTempCloudDirectoryTask =
                 tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct);
             await deleteTempCloudDirectoryTask;
+        }
+
+        private static async Task DeleteIfExistsAsync(
+            DataLakeDirectoryClient tempCloudDirectory,
+            CancellationToken ct)
+        {
+            await Handle409Policy.ExecuteAsync(
+                async () => await tempCloudDirectory.DeleteIfExistsAsync(cancellationToken: ct));
         }
 
         private AppendBlobClient GetAppendBlobClient(long logBlobIndex)
