@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using TrackDb.Lib.Encoding;
 using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Logging;
@@ -376,7 +377,18 @@ namespace TrackDb.Lib.InMemory.Block
         {
             for (var i = 0; i != Schema.Columns.Count; ++i)
             {
-                _dataColumns[i].AppendLogValues(content.Columns[Schema.Columns[i].ColumnName]);
+                var columnName = Schema.Columns[i].ColumnName;
+
+                if (content.Columns.ContainsKey(columnName))
+                {
+                    _dataColumns[i].AppendLogValues(content.Columns[columnName]);
+                }
+                else
+                {
+                    var nullValue = JsonDocument.Parse("null").RootElement;
+
+                    _dataColumns[i].AppendLogValues(content.CreationTimes.Select(i => nullValue));
+                }
             }
             //  Creation time
             foreach (var creationTime in content.CreationTimes)
