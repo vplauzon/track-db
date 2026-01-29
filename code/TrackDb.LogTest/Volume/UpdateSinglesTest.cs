@@ -42,6 +42,14 @@ namespace TrackDb.LogTest.Volume
         }
 
         [Fact]
+        public async Task ReloadTest01000()
+        {
+            var testId = GetTestId();
+
+            await RunPerformanceTestAsync(testId, 1000, 100);
+        }
+
+        [Fact]
         public async Task Test010000()
         {
             var testId = GetTestId();
@@ -49,13 +57,17 @@ namespace TrackDb.LogTest.Volume
             await RunPerformanceTestAsync(testId, 10000);
         }
 
-        private async Task RunPerformanceTestAsync(string testId, long cycleCount)
+        private async Task RunPerformanceTestAsync(
+            string testId,
+            long cycleCount,
+            int reloadCycleCount = 0)
         {
             var stopwatch = new Stopwatch();
 
             stopwatch.Start();
-            await using (var db = await TestDatabase.CreateAsync(testId))
             {
+                var db = await TestDatabase.CreateAsync(testId);
+
                 for (int i = 0; i != cycleCount; ++i)
                 {
                     var workflow = new TestDatabase.Workflow(
@@ -140,6 +152,11 @@ namespace TrackDb.LogTest.Volume
 
                     Assert.Empty(incompleteTasks);
                     await db.Database.AwaitLifeCycleManagement(5);
+                    if (i % reloadCycleCount == 0)
+                    {
+                        await ((IAsyncDisposable)db).DisposeAsync();
+                        db = await TestDatabase.CreateAsync(testId);
+                    }
                 }
 
                 CheckDb(db, cycleCount);
@@ -147,6 +164,7 @@ namespace TrackDb.LogTest.Volume
                 var stats = db.Database.GetDatabaseStatistics();
 
                 Console.WriteLine(stats);
+                await ((IAsyncDisposable)db).DisposeAsync();
             }
             //  Check final state after reloading
             await using (var db = await TestDatabase.CreateAsync(testId))
