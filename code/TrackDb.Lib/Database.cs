@@ -993,6 +993,7 @@ namespace TrackDb.Lib
         {
             long appendRecordCount = 0;
             long tombstoneRecordCount = 0;
+            var i = 0;
 
             await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
             {
@@ -1008,7 +1009,10 @@ namespace TrackDb.Lib
                 {
                     tx.Complete();
                 }
-                await AwaitLifeCycleManagementAsync(4, ct);
+                if (++i % 10 == 0)
+                {
+                    await AwaitLifeCycleManagementAsync(4, ct);
+                }
             }
 
             return (appendRecordCount, tombstoneRecordCount);
