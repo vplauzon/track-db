@@ -3,7 +3,6 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
-using static TrackDb.PerfTest.VolumeTestDatabase;
 
 namespace TrackDb.PerfTest
 {
@@ -58,7 +57,7 @@ namespace TrackDb.PerfTest
                         $"Employee-{i}",
                         $"Request-{i}-2",
                         VolumeTestDatabase.RequestStatus.Initiated)));
-                await db.Database.AwaitLifeCycleManagement(5);
+                await db.AwaitLifeCycleManagementAsync(5);
 
                 var employeeIds = db.EmployeeTable.Query()
                     .Select(e => e.EmployeeId)
@@ -102,7 +101,7 @@ namespace TrackDb.PerfTest
 
                         tx.Complete();
                     }
-                    await db.Database.AwaitLifeCycleManagement(5);
+                    await db.AwaitLifeCycleManagementAsync(5);
                     if (i % 5 == 0)
                     {
                         Assert.Equal(cycleCount, db.EmployeeTable.Query().Count());

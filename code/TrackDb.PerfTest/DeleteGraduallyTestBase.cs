@@ -60,7 +60,7 @@ namespace TrackDb.PerfTest
                         .Delete();
                     i += deleteBatchSize;
 
-                    await db.Database.AwaitLifeCycleManagement(4);
+                    await db.AwaitLifeCycleManagementAsync(4);
                     if (i % (5 * deleteBatchSize) == 0)
                     {
                         Assert.Equal(
@@ -95,7 +95,7 @@ namespace TrackDb.PerfTest
 
                     tx.Complete();
                 }
-                await db.Database.AwaitLifeCycleManagement(2);
+                await db.AwaitLifeCycleManagementAsync(2);
 
                 //  Evaluate hasReachedGeneration
 

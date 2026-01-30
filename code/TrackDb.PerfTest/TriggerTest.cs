@@ -89,7 +89,7 @@ namespace TrackDb.PerfTest
                         tx.Complete();
                     }
                 }
-                await db.Database.AwaitLifeCycleManagement(2);
+                await db.AwaitLifeCycleManagementAsync(2);
                 ValidateSummary(db);
             }
         }

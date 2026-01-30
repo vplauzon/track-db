@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.Policies;
 using TrackDb.Lib.Statistics;
@@ -29,9 +30,11 @@ namespace TrackDb.Lib
             return Database.CreateTransaction();
         }
 
-        public async Task AwaitLifeCycleManagement(double tolerance)
+        public async Task AwaitLifeCycleManagementAsync(
+            double tolerance,
+            CancellationToken ct = default)
         {
-            await Database.AwaitLifeCycleManagement(tolerance);
+            await Database.AwaitLifeCycleManagementAsync(tolerance, ct);
         }
 
         public DatabaseStatistics GetDatabaseStatistics()

@@ -71,7 +71,7 @@ namespace TrackDb.PerfTest
                             request2,
                             request2 with { RequestStatus = VolumeTestDatabase.RequestStatus.Completed });
                     }
-                    await db.Database.AwaitLifeCycleManagement(5);
+                    await db.AwaitLifeCycleManagementAsync(5);
                 }
 
                 Assert.Equal(db.EmployeeTable.Query().Count(), cycleCount);

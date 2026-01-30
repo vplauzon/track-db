@@ -151,7 +151,7 @@ namespace TrackDb.LogTest.Volume
                         .ToImmutableArray();
 
                     Assert.Empty(incompleteTasks);
-                    await db.Database.AwaitLifeCycleManagement(5);
+                    await db.AwaitLifeCycleManagementAsync(5);
                     if (i % reloadCycleCount == 0)
                     {
                         await ((IAsyncDisposable)db).DisposeAsync();

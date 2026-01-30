@@ -254,8 +254,9 @@ namespace TrackDb.Lib
         /// More concretely, this method looks at <see cref="DatabasePolicy.InMemoryPolicy"/>.
         /// </summary>
         /// <param name="tolerance"></param>
+        /// <param name="ct"></param>
         /// <returns></returns>
-        public async Task AwaitLifeCycleManagement(double tolerance)
+        public async Task AwaitLifeCycleManagementAsync(double tolerance, CancellationToken ct)
         {
             bool IsToleranceExceeded()
             {
@@ -304,7 +305,7 @@ namespace TrackDb.Lib
 
             while (IsToleranceExceeded())
             {
-                await Task.Delay(DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod / 4);
+                await ForceDataManagementAsync();
             }
         }
 
@@ -958,23 +959,13 @@ namespace TrackDb.Lib
             var loggedTableNames = GetDatabaseStateSnapshot().TableMap
                 .Where(t => t.Value.IsUserTable)
                 .Select(t => t.Key);
-            long appendRecordCount = 0;
-            long tombstonedCount = 0;
+            (var appendRecordCount, var tombstoneRecordCount) = await ProcessLoggedTransactionsAsync(
+                logTransactionReader,
+                tableToLastRecordIdMap,
+                tombstoneTableName,
+                loggedTableNames,
+                ct);
 
-            await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
-            {
-                var counts = transactionLog.GetLoggedRecordCounts(
-                    loggedTableNames,
-                    tombstoneTableName);
-
-                transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
-                appendRecordCount += counts.AppendRecordCount;
-                tombstonedCount += counts.TombstoneRecordCount;
-                using (var tx = CreateTransaction(false, transactionLog))
-                {
-                    tx.Complete();
-                }
-            }
             //  Set the current record ID for each table
             foreach (var pair in tableToLastRecordIdMap)
             {
@@ -989,8 +980,80 @@ namespace TrackDb.Lib
             {
                 CheckpointIndex = _logTransactionWriter.LastCheckpointIndex,
                 AppendRecordCount = appendRecordCount,
-                TombstoneRecordCount = tombstonedCount
+                TombstoneRecordCount = tombstoneRecordCount
             });
+        }
+
+        private async Task<(long AppendRecordCount, long TombstoneRecordCount)> ProcessLoggedTransactionsAsync(
+            LogTransactionReader logTransactionReader,
+            Dictionary<string, long> tableToLastRecordIdMap,
+            string tombstoneTableName,
+            IEnumerable<string> loggedTableNames,
+            CancellationToken ct)
+        {
+            long appendRecordCount = 0;
+            long tombstoneRecordCount = 0;
+
+            await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
+            {
+                var counts = transactionLog.GetLoggedRecordCounts(
+                    loggedTableNames,
+                    tombstoneTableName);
+
+                transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
+                appendRecordCount += counts.AppendRecordCount;
+                tombstoneRecordCount += counts.TombstoneRecordCount;
+                ValidateTombstones(transactionLog);
+                using (var tx = CreateTransaction(false, transactionLog))
+                {
+                    tx.Complete();
+                }
+                await AwaitLifeCycleManagementAsync(4, ct);
+            }
+
+            return (appendRecordCount, tombstoneRecordCount);
+        }
+
+        private void ValidateTombstones(TransactionLog transactionLog)
+        {
+            var tombstoneSchema = TombstoneTable.Schema;
+
+            if (transactionLog.TransactionTableLogMap.TryGetValue(
+                tombstoneSchema.TableName,
+                out var tableLog))
+            {
+                IBlock tombstoneBlock = tableLog.NewDataBlock;
+                var tombstoneGroups = tombstoneBlock.Project(
+                    new object?[2],
+                    tombstoneSchema.GetColumnIndexSubset(t => t.TableName)
+                    .Concat(tombstoneSchema.GetColumnIndexSubset(t => t.DeletedRecordId))
+                    .ToImmutableArray(),
+                    Enumerable.Range(0, tombstoneBlock.RecordCount),
+                    0)
+                    .Select(r => new
+                    {
+                        TableName = (string)r.Span[0]!,
+                        DeletedRecordId = (long)r.Span[1]!
+                    })
+                    .GroupBy(o => o.TableName, o => o.DeletedRecordId);
+
+                foreach (var g in tombstoneGroups)
+                {
+                    var table = GetAnyTable(g.Key);
+                    var schema = table.Schema;
+                    var predicate = new InPredicate(schema.RecordIdColumnIndex, g.Cast<object?>());
+                    var tombstoneHitCount = table.Query()
+                        .WithPredicate(predicate)
+                        .Count();
+
+                    if (tombstoneHitCount != g.Count())
+                    {
+                        throw new InvalidOperationException(
+                            $"Table '{schema.TableName}' misses tombstones:  {g.Count()} expected" +
+                            $"over {tombstoneHitCount} found");
+                    }
+                }
+            }
         }
 
         private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(

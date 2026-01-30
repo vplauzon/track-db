@@ -103,7 +103,7 @@ namespace TrackDb.PerfTest
 
                         tx.Complete();
                     }
-                    await db.Database.AwaitLifeCycleManagement(5);
+                    await db.AwaitLifeCycleManagementAsync(5);
                 }
 
                 Assert.Equal(db.EmployeeTable.Query().Count(), cycleCount);

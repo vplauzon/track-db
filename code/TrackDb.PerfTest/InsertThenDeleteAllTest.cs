@@ -44,7 +44,7 @@ namespace TrackDb.PerfTest
                         .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
                         .Delete();
 
-                    await db.Database.AwaitLifeCycleManagement(4);
+                    await db.AwaitLifeCycleManagementAsync(4);
                 }
                 Assert.Equal(0, db.EmployeeTable.Query().Count());
                 Assert.Equal(0, db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
@@ -58,7 +58,7 @@ namespace TrackDb.PerfTest
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 InsertBulk(db);
-                await db.Database.AwaitLifeCycleManagement(1);
+                await db.AwaitLifeCycleManagementAsync(1);
 
                 var tableMap = db.Database.GetDatabaseStateSnapshot().TableMap;
                 var metaEmployee = tableMap[db.EmployeeTable.Schema.TableName].MetadataTableName;
@@ -85,7 +85,7 @@ namespace TrackDb.PerfTest
 
                     tx2.Complete();
                 }
-                await db.Database.AwaitLifeCycleManagement(1);
+                await db.AwaitLifeCycleManagementAsync(1);
 
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
