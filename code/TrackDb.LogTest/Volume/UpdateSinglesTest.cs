@@ -152,7 +152,7 @@ namespace TrackDb.LogTest.Volume
 
                     Assert.Empty(incompleteTasks);
                     await db.AwaitLifeCycleManagementAsync(5);
-                    if (i % reloadCycleCount == 0)
+                    if (reloadCycleCount != 0 && i % reloadCycleCount == 0)
                     {
                         await ((IAsyncDisposable)db).DisposeAsync();
                         db = await TestDatabase.CreateAsync(testId);

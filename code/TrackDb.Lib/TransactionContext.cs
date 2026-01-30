@@ -67,6 +67,12 @@ namespace TrackDb.Lib
             }
         }
 
+        /// <summary>
+        /// Guarantee the transaction (and everyone before) is flushed to logs upon return.
+        /// </summary>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public async Task CompleteAsync(CancellationToken ct = default)
         {
             if (_status == TransactionStatus.Open)

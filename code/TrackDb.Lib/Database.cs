@@ -679,10 +679,10 @@ namespace TrackDb.Lib
 
                 RunTransactionAction();
                 _dataLifeCycleManager.TriggerDataManagement();
-                if (tx.DoLog && _logTransactionWriter != null)
+                if (tx.DoLog && _logTransactionWriter != null && checkpointIndex != null)
                 {
                     _logTransactionWriter.QueueContent(
-                        checkpointIndex,
+                        checkpointIndex.Value,
                         tx.TransactionState.UncommittedTransactionLog);
                 }
             }
@@ -692,21 +692,18 @@ namespace TrackDb.Lib
         internal async Task CompleteTransactionAsync(TransactionContext tx, CancellationToken ct)
         {
             RunTriggers(tx);
-            if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
+            RunTransactionAction();
+
+            var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
+
+            RunTransactionAction();
+            _dataLifeCycleManager.TriggerDataManagement();
+            if (tx.DoLog && _logTransactionWriter != null && checkpointIndex != null)
             {
-                RunTransactionAction();
-
-                var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-
-                RunTransactionAction();
-                _dataLifeCycleManager.TriggerDataManagement();
-                if (tx.DoLog && _logTransactionWriter != null)
-                {
-                    await _logTransactionWriter.CommitContentAsync(
-                        checkpointIndex,
-                        tx.TransactionState.UncommittedTransactionLog,
-                        ct);
-                }
+                await _logTransactionWriter.CommitContentAsync(
+                    checkpointIndex.Value,
+                    tx.TransactionState.UncommittedTransactionLog,
+                    ct);
             }
             DecrementActiveTransactionCount();
         }
@@ -720,7 +717,7 @@ namespace TrackDb.Lib
             }
         }
 
-        private long CompleteTransactionState(TransactionState transactionState, bool doLog)
+        private long? CompleteTransactionState(TransactionState transactionState, bool doLog)
         {
             if (doLog && _logTransactionWriter != null)
             {
@@ -764,9 +761,13 @@ namespace TrackDb.Lib
                         {   //  Get rid of that transaction only at the end
                             DecrementActiveTransactionCount();
                         });
-                }
 
-                return states.NewState!.CheckpointIndex;
+                    return null;
+                }
+                else
+                {
+                    return states.NewState!.CheckpointIndex;
+                }
             }
             else
             {
@@ -944,21 +945,20 @@ namespace TrackDb.Lib
         #region Logging
         private async Task InitLogsAsync(BlobClients blobClients, CancellationToken ct)
         {
-            var tableMap = GetDatabaseStateSnapshot().TableMap;
+            var userTableSchemas = GetDatabaseStateSnapshot().TableMap.Values
+                .Where(p => p.IsUserTable)
+                .Select(p => p.Table.Schema);
             var logTransactionReader = await LogTransactionReader.CreateAsync(
                 DatabasePolicy.LogPolicy,
                 Path.Combine(Path.GetTempPath(), "track-db", Guid.NewGuid().ToString()),
                 blobClients,
-                tableMap.Values
-                .Where(p => p.IsUserTable)
-                .Select(p => p.Table.Schema),
+                userTableSchemas,
                 TombstoneTable,
                 ct);
             var tableToLastRecordIdMap = new Dictionary<string, long>();
             var tombstoneTableName = TombstoneTable.Schema.TableName;
-            var loggedTableNames = GetDatabaseStateSnapshot().TableMap
-                .Where(t => t.Value.IsUserTable)
-                .Select(t => t.Key);
+            var loggedTableNames = userTableSchemas
+                .Select(t => t.TableName);
             (var appendRecordCount, var tombstoneRecordCount) = await ProcessLoggedTransactionsAsync(
                 logTransactionReader,
                 tableToLastRecordIdMap,
@@ -972,7 +972,7 @@ namespace TrackDb.Lib
                 var tableName = pair.Key;
                 var maxRecordId = pair.Value;
 
-                tableMap[tableName].Table.InitRecordId(maxRecordId);
+                GetAnyTable(tableName).InitRecordId(maxRecordId);
             }
 
             _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
@@ -1011,7 +1011,7 @@ namespace TrackDb.Lib
                 }
                 if (++i % 10 == 0)
                 {
-                    await AwaitLifeCycleManagementAsync(4, ct);
+                    await AwaitLifeCycleManagementAsync(2, ct);
                 }
             }
 
@@ -1053,8 +1053,8 @@ namespace TrackDb.Lib
                     if (tombstoneHitCount != g.Count())
                     {
                         throw new InvalidOperationException(
-                            $"Table '{schema.TableName}' misses tombstones:  {g.Count()} expected" +
-                            $"over {tombstoneHitCount} found");
+                            $"Table '{schema.TableName}' misses tombstones:  {g.Count()} expected " +
+                            $"vs {tombstoneHitCount} found");
                     }
                 }
             }
