@@ -222,7 +222,7 @@ namespace TrackDb.Lib.Logging
 
                 while (queue.Any()
                     && (doForcePersistance
-                    || queue.Peek().Timestamp > DateTime.Now - bufferingTimeWindow))
+                    || DateTime.Now > queue.Peek().Timestamp + bufferingTimeWindow))
                 {   //  Persist one batch
                     while (queue.TryPeek(out var item)
                         && (!transactionTextList.Any()
