@@ -15,7 +15,7 @@ namespace TrackDb.Lib.Logging
         IImmutableDictionary<string, TableTransactionContent> Tables)
         : ContentBase<TransactionContent>
     {
-        public static TransactionContent? FromTransactionLog(
+        public static TransactionContent FromTransactionLog(
             TransactionLog transactionLog,
             TypedTableSchema<TombstoneRecord> tombstoneSchema,
             IImmutableDictionary<string, TableSchema> tableSchemaMap)
@@ -64,9 +64,7 @@ namespace TrackDb.Lib.Logging
                 }
             }
 
-            return contentMapBuilder.Any()
-                ? new(contentMapBuilder.ToImmutable())
-                : null;
+            return new(contentMapBuilder.ToImmutable());
         }
 
         public TransactionLog ToTransactionLog(

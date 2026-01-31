@@ -126,15 +126,11 @@ namespace TrackDb.Lib.Logging
                 transactionLog,
                 _tombstoneTable.Schema,
                 _tableSchemaMap);
+            var item = new ContentItem(checkpointIndex, content.ToJson());
 
-            if (content != null)
+            if (!_channel.Writer.TryWrite(item))
             {
-                var item = new ContentItem(checkpointIndex, content.ToJson());
-
-                if (!_channel.Writer.TryWrite(item))
-                {
-                    throw new InvalidOperationException("Couldn't write content");
-                }
+                throw new InvalidOperationException("Couldn't write content");
             }
         }
 
@@ -147,19 +143,18 @@ namespace TrackDb.Lib.Logging
                 transactionLog,
                 _tombstoneTable.Schema,
                 _tableSchemaMap);
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var item = new ContentItem(
+                checkpointIndex,
+                content.Tables.Count > 0 ? content.ToJson() : string.Empty,
+                tcs);
 
-            if (content != null)
+            if (!_channel.Writer.TryWrite(item))
             {
-                var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                var item = new ContentItem(checkpointIndex, content.ToJson(), tcs);
-
-                if (!_channel.Writer.TryWrite(item))
-                {
-                    throw new InvalidOperationException("Couldn't write content");
-                }
-
-                await tcs.Task.WaitAsync(ct);
+                throw new InvalidOperationException("Couldn't write content");
             }
+
+            await tcs.Task.WaitAsync(ct);
         }
         #endregion
 
@@ -170,7 +165,7 @@ namespace TrackDb.Lib.Logging
 
             do
             {
-                //  Process items
+                //  Persist items
                 if (queueMap.Any())
                 {
                     await PersistItemsAsync(
@@ -180,13 +175,14 @@ namespace TrackDb.Lib.Logging
                 }
                 //  Get items from channel
                 if (!DrainChannel(queueMap))
-                {
-                    if (queueMap.Any())
-                    {
-                        var delay = queueMap.Values
+                {   //  Wait a little
+                    if (queueMap.Count > 0)
+                    {   //  Wait for the oldest element to age
+                        var oldestTimestamp = queueMap.Values
                             .Select(q => q.Peek().Timestamp)
-                            .Min()
-                            .Add(_logStorageWriter.LogPolicy.BufferingTimeWindow)
+                            .Min();
+                        var delay = oldestTimestamp
+                            + _logStorageWriter.LogPolicy.BufferingTimeWindow
                             - DateTime.Now;
 
                         if (delay > TimeSpan.Zero)
@@ -197,16 +193,16 @@ namespace TrackDb.Lib.Logging
                         }
                     }
                     else
-                    {
+                    {   //  Wait the full period since there are no elements
                         var delayTask = Task.Delay(_logStorageWriter.LogPolicy.BufferingTimeWindow);
 
-                        await Task.WhenAny(delayTask, _stopBackgroundProcessingSource.Task);
+                        await Task.WhenAny(_stopBackgroundProcessingSource.Task, delayTask);
                     }
                     //  Drain again after waiting
                     DrainChannel(queueMap);
                 }
             }
-            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queueMap.Any());
+            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queueMap.Count > 0);
         }
 
         private async Task PersistItemsAsync(
@@ -232,7 +228,10 @@ namespace TrackDb.Lib.Logging
                         && (!transactionTextList.Any()
                         || _logStorageWriter.CanFitInBatch(transactionTextList.Append(item.Content))))
                     {
-                        transactionTextList.Add(item.Content);
+                        if (!string.IsNullOrWhiteSpace(item.Content))
+                        {
+                            transactionTextList.Add(item.Content);
+                        }
                         if (item.Tcs != null)
                         {
                             tcsList.Add(item.Tcs);
@@ -245,14 +244,14 @@ namespace TrackDb.Lib.Logging
                             checkpointIndex,
                             transactionTextList,
                             ct);
-                        //  Confirm persistance
-                        foreach (var tcs in tcsList)
-                        {
-                            tcs.TrySetResult();
-                        }
-                        tcsList.Clear();
-                        transactionTextList.Clear();
                     }
+                    //  Confirm persistance
+                    foreach (var tcs in tcsList)
+                    {
+                        tcs.TrySetResult();
+                    }
+                    tcsList.Clear();
+                    transactionTextList.Clear();
                 }
                 if (!queue.Any())
                 {
