@@ -1009,6 +1009,7 @@ namespace TrackDb.Lib
                 {
                     tx.Complete();
                 }
+                Trace.WriteLine($"Process tx {i}");
                 if (++i % 10 == 0)
                 {
                     await AwaitLifeCycleManagementAsync(2, ct);
@@ -1053,8 +1054,8 @@ namespace TrackDb.Lib
                     if (tombstoneHitCount != g.Count())
                     {
                         throw new InvalidOperationException(
-                            $"Table '{schema.TableName}' misses tombstones:  {g.Count()} expected " +
-                            $"vs {tombstoneHitCount} found");
+                            $"Table '{schema.TableName}' tombstoned records can't be found:  " +
+                            $"{g.Count()} expected vs {tombstoneHitCount} found");
                     }
                 }
             }
