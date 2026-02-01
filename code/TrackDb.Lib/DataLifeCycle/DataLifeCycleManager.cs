@@ -94,9 +94,14 @@ namespace TrackDb.Lib.DataLifeCycle
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
                 var itemTask = _channel.Reader.WaitToReadAsync().AsTask();
-
+                var tempTimeOutTask = Task.Delay(TimeSpan.FromSeconds(5));
+                
                 //  Wait for the first item
-                await Task.WhenAny(itemTask, _dataMaintenanceStopSource.Task);
+                await Task.WhenAny(itemTask, _dataMaintenanceStopSource.Task, tempTimeOutTask);
+                if (tempTimeOutTask.IsCompleted)
+                {
+                    throw new InvalidOperationException("Time out!");
+                }
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
