@@ -183,14 +183,9 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    //agent.Run(forcedDataManagementActivity);
-
-                    var task = Task.Run(() => agent.Run(forcedDataManagementActivity));
-
-                    if (!task.Wait(TimeSpan.FromSeconds(15)))
-                    {
-                        System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} timed out");
-                    }
+                    System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} start");
+                    agent.Run(forcedDataManagementActivity);
+                    System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} ended");
                 }
                 else
                 {   //  We stop running agent
