@@ -1012,9 +1012,7 @@ namespace TrackDb.Lib
                 Trace.WriteLine($"Process tx {i}");
                 if (++i % 10 == 0)
                 {
-                    Trace.WriteLine("Awaiting life cycle");
                     await AwaitLifeCycleManagementAsync(2, ct);
-                    Trace.WriteLine("Life cycle done");
                 }
             }
 

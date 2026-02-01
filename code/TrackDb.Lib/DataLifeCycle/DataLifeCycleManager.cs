@@ -94,14 +94,9 @@ namespace TrackDb.Lib.DataLifeCycle
             while (!_dataMaintenanceStopSource.Task.IsCompleted)
             {
                 var itemTask = _channel.Reader.WaitToReadAsync().AsTask();
-                var tempTimeOutTask = Task.Delay(TimeSpan.FromSeconds(5));
-                
+
                 //  Wait for the first item
-                await Task.WhenAny(itemTask, _dataMaintenanceStopSource.Task, tempTimeOutTask);
-                if (tempTimeOutTask.IsCompleted)
-                {
-                    throw new InvalidOperationException("Time out!");
-                }
+                await Task.WhenAny(itemTask, _dataMaintenanceStopSource.Task);
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
@@ -146,7 +141,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 RunDataMaintance(dataManagementActivity);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 //  Signal the sources
                 foreach (var source in sourceList)
@@ -188,7 +183,14 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    agent.Run(forcedDataManagementActivity);
+                    //agent.Run(forcedDataManagementActivity);
+
+                    var task = Task.Run(() => agent.Run(forcedDataManagementActivity));
+
+                    if (!task.Wait(TimeSpan.FromSeconds(15)))
+                    {
+                        System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} timed out");
+                    }
                 }
                 else
                 {   //  We stop running agent
