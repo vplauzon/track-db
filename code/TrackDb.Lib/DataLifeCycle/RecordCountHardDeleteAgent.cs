@@ -114,13 +114,18 @@ namespace TrackDb.Lib.DataLifeCycle
                     }
                     else
                     {   //  No tombstone found:  let's clean up phantom tombstones
-                        CleanPhantomTombstones(tableName, metaBlockManager.Tx);
+                        System.Diagnostics.Trace.WriteLine($"No tombstone found in {tableName}");
+
+                        var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
+
+                        System.Diagnostics.Trace.WriteLine(
+                            $"Clean phantom tombstone in {tableName}:  {phantomRowCounts}");
                     }
                 }
             }
         }
 
-        private void CleanPhantomTombstones(string tableName, TransactionContext tx)
+        private int CleanPhantomTombstones(string tableName, TransactionContext tx)
         {   //  We look for tombstone entries that can't be found in the table
             var deleteRecordIdSet = Database.TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
@@ -159,6 +164,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 .RowIndexes;
 
             block.DeleteRecordsByRecordIndex(rowIndexes);
+
+            return rowIndexes.Count();
         }
 
         private IEnumerable<int?> ComputeOptimalMetaMetaBlock(
