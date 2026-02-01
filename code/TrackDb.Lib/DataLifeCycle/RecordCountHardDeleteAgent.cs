@@ -105,20 +105,26 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     var metaBlockIds = ComputeOptimalMetaMetaBlock(metaBlockManager, tableName);
 
-                    if (metaBlockIds.Count() > 0)
-                    {
-                        var blockMergingLogic = new BlockMergingLogic(Database, metaBlockManager);
-                        var metaBlockId = metaBlockIds.First();
-                        var hasMerged = blockMergingLogic.CompactMerge(tableName, metaBlockId);
-
-                        System.Diagnostics.Trace.WriteLine($"Has Merged ({hasMerged}) in {tableName}");
-                    }
-                    else
+                    if (metaBlockIds.Count() == 0
+                        || !BlockMergeMetaBlockIds(metaBlockManager, tableName, metaBlockIds.First()))
                     {   //  No tombstone found:  let's clean up phantom tombstones
                         var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
+
+                        System.Diagnostics.Trace.WriteLine($"Clean Phantom tombstones ({tableName}):  {phantomRowCounts}");
                     }
                 }
             }
+        }
+
+        private bool BlockMergeMetaBlockIds(
+            MetaBlockManager metaBlockManager,
+            string tableName,
+            int? metaBlockId)
+        {
+            var blockMergingLogic = new BlockMergingLogic(Database, metaBlockManager);
+            var hasMerged = blockMergingLogic.CompactMerge(tableName, metaBlockId);
+
+            return hasMerged;
         }
 
         private int CleanPhantomTombstones(string tableName, TransactionContext tx)
