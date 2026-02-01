@@ -1009,7 +1009,6 @@ namespace TrackDb.Lib
                 {
                     tx.Complete();
                 }
-                Trace.WriteLine($"Process tx {i}");
                 if (++i % 10 == 0)
                 {
                     await AwaitLifeCycleManagementAsync(2, ct);

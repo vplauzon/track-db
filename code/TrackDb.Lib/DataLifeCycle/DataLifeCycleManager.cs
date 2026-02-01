@@ -183,9 +183,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} start");
                     agent.Run(forcedDataManagementActivity);
-                    System.Diagnostics.Trace.WriteLine($"Agent {agent.GetType().Name} ended");
                 }
                 else
                 {   //  We stop running agent
