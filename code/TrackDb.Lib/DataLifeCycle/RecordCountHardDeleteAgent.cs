@@ -109,17 +109,13 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockMergingLogic = new BlockMergingLogic(Database, metaBlockManager);
                         var metaBlockId = metaBlockIds.First();
+                        var hasMerged = blockMergingLogic.CompactMerge(tableName, metaBlockId);
 
-                        blockMergingLogic.CompactMerge(tableName, metaBlockId);
+                        System.Diagnostics.Trace.WriteLine($"Has Merged ({hasMerged}) in {tableName}");
                     }
                     else
                     {   //  No tombstone found:  let's clean up phantom tombstones
-                        System.Diagnostics.Trace.WriteLine($"No tombstone found in {tableName}");
-
                         var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
-
-                        System.Diagnostics.Trace.WriteLine(
-                            $"Clean phantom tombstone in {tableName}:  {phantomRowCounts}");
                     }
                 }
             }
