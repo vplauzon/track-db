@@ -140,20 +140,22 @@ namespace TrackDb.Lib.DataLifeCycle
             try
             {
                 RunDataMaintance(dataManagementActivity);
-                //  Signal the sources
-                foreach (var source in sourceList)
-                {
-                    source.TrySetResult();
-                }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 //  Signal the sources
                 foreach (var source in sourceList)
                 {
                     source.TrySetException(ex);
                 }
-                throw;
+            }
+            finally
+            {
+                //  Signal the sources
+                foreach (var source in sourceList)
+                {
+                    source.TrySetResult();
+                }
             }
         }
 
