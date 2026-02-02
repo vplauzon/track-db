@@ -20,7 +20,7 @@ namespace TrackDb.Lib.Logging
                 ?? throw new InvalidDataException($"Can't deserialize '{json}'");
         }
 
-        public string ToJson()
+        public virtual string ToJson()
         {
             return JsonSerializer.Serialize((object)this, typeof(T), JSON_OPTIONS);
         }

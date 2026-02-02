@@ -146,7 +146,7 @@ namespace TrackDb.Lib.Logging
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var item = new ContentItem(
                 checkpointIndex,
-                content.Tables.Count > 0 ? content.ToJson() : string.Empty,
+                content.ToJson(),
                 tcs);
 
             if (!_channel.Writer.TryWrite(item))

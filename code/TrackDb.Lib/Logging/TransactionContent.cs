@@ -108,5 +108,17 @@ namespace TrackDb.Lib.Logging
 
             return transactionLog;
         }
+
+        public override string ToJson()
+        {
+            if (Tables.Count == 0)
+            {
+                return string.Empty;
+            }
+            else
+            {
+                return base.ToJson();
+            }
+        }
     }
 }
