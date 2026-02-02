@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -591,14 +592,13 @@ namespace TrackDb.Lib
         internal TransactionContext CreateTransaction(bool doLog, TransactionLog transactionLog)
         {
             _dataLifeCycleManager.ObserveBackgroundTask();
+            Interlocked.Increment(ref _activeTransactionCount);
 
             var transactionContext = new TransactionContext(
                 this,
                 _databaseState.InMemoryDatabase,
                 transactionLog,
                 doLog);
-
-            Interlocked.Increment(ref _activeTransactionCount);
 
             return transactionContext;
         }
@@ -750,6 +750,10 @@ namespace TrackDb.Lib
                     return newState;
                 });
 
+                if (DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
+                {
+                    ThrowOnPhantomTombstones(states.OldState);
+                }
                 if (states.NewState != null
                     && states.OldState.CheckpointIndex != states.NewState.CheckpointIndex)
                 {   //  Reserve a transaction so persistant blocks don't disappear
@@ -779,7 +783,50 @@ namespace TrackDb.Lib
                     };
                 });
 
+                if (DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
+                {
+                    ThrowOnPhantomTombstones(states.OldState);
+                }
+
                 return states.NewState!.CheckpointIndex;
+            }
+        }
+
+        private void ThrowOnPhantomTombstones(DatabaseState oldState)
+        {
+            Interlocked.Increment(ref _activeTransactionCount);
+
+            //  Load a tx with old state to run validations
+            using (var tx = new TransactionContext(
+                this,
+                oldState.InMemoryDatabase,
+                new TransactionLog(),
+                false))
+            {
+                var tombstoneRecordsByTable = TombstoneTable.Query(tx)
+                    .GroupBy(t => t.TableName);
+
+                foreach (var g in tombstoneRecordsByTable)
+                {
+                    var tableName = g.Key;
+                    var table = GetAnyTable(tableName);
+                    var predicate = new InPredicate(
+                        table.Schema.RecordIdColumnIndex,
+                        g.Select(t => t.DeletedRecordId).Cast<object?>());
+                    var foundRecordIds = table.Query(tx)
+                        .WithIgnoreDeleted()
+                        .WithPredicate(predicate)
+                        .WithProjection(table.Schema.RecordIdColumnIndex)
+                        .Select(r => (long)r.Span[0]!);
+                    var phantomRecordIds = g.Select(t => t.DeletedRecordId).Except(foundRecordIds);
+                    var phantomRecordCount = phantomRecordIds.Count();
+
+                    if (phantomRecordCount > 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Table {tableName} has {phantomRecordCount} phantom records");
+                    }
+                }
             }
         }
 
