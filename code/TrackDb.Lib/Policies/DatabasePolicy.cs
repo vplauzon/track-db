@@ -6,19 +6,22 @@ namespace TrackDb.Lib.Policies
         LifeCyclePolicy LifeCyclePolicy,
         InMemoryPolicy InMemoryPolicy,
         StoragePolicy StoragePolicy,
-        LogPolicy LogPolicy)
+        LogPolicy LogPolicy,
+        DiagnosticPolicy DiagnosticPolicy)
     {
         public static DatabasePolicy Create(
             LifeCyclePolicy? LifeCyclePolicy = null,
             InMemoryPolicy? InMemoryPolicy = null,
-            StoragePolicy? StoragePolicy=null,
-            LogPolicy? LogPolicy = null)
+            StoragePolicy? StoragePolicy = null,
+            LogPolicy? LogPolicy = null,
+            DiagnosticPolicy? DiagnosticPolicy = null)
         {
             return new DatabasePolicy(
-                LifeCyclePolicy?? LifeCyclePolicy.Create(),
+                LifeCyclePolicy ?? LifeCyclePolicy.Create(),
                 InMemoryPolicy ?? InMemoryPolicy.Create(),
-				StoragePolicy ?? StoragePolicy.Create(),
-                LogPolicy ?? LogPolicy.Create());
+                StoragePolicy ?? StoragePolicy.Create(),
+                LogPolicy ?? LogPolicy.Create(),
+                DiagnosticPolicy ?? DiagnosticPolicy.Create());
         }
     }
 }
