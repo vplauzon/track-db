@@ -82,7 +82,12 @@ namespace TrackDb.Lib.Logging
 
                 if (txContent != null)
                 {
-                    yield return txContent.ToJson();
+                    var json = txContent.ToJson();
+
+                    if (!string.IsNullOrWhiteSpace(json))
+                    {
+                        yield return json;
+                    }
                 }
             }
         }
@@ -115,6 +120,8 @@ namespace TrackDb.Lib.Logging
                 {
                     throw new InvalidOperationException("Couldn't write content");
                 }
+                //  Wait for all writes to happen
+                await tcs.Task;
                 //  Then create checkpoint
                 await CreateCheckpointAsync(transactionLogItem.TransactionLogsFunc(), ct);
             }
