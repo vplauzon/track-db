@@ -32,8 +32,8 @@ namespace TrackDb.Lib
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly IImmutableList<TableSchema> _schemaWithTriggers;
         private readonly BlobLock? _blobLock;
-        private DatabaseContextBase? _databaseContext;
         private LogTransactionWriter? _logTransactionWriter;
+        private DatabaseContextBase? _databaseContext;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
 
@@ -591,7 +591,7 @@ namespace TrackDb.Lib
         internal TransactionContext CreateTransaction(bool doLog, TransactionLog transactionLog)
         {
             _dataLifeCycleManager.ObserveBackgroundTask();
-            Interlocked.Increment(ref _activeTransactionCount);
+            IncrementActiveTransactionCount();
 
             var transactionContext = new TransactionContext(
                 this,
@@ -666,44 +666,29 @@ namespace TrackDb.Lib
 
         internal void CompleteTransaction(TransactionContext tx)
         {
-            if (tx.DoLog)
-            {
-                RunTriggers(tx);
-            }
-            if (!tx.TransactionState.UncommittedTransactionLog.IsEmpty)
-            {
-                RunTransactionAction();
-
-                var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-
-                RunTransactionAction();
-                _dataLifeCycleManager.TriggerDataManagement();
-                if (tx.DoLog && _logTransactionWriter != null && checkpointIndex != null)
-                {
-                    _logTransactionWriter.QueueContent(
-                        checkpointIndex.Value,
-                        tx.TransactionState.UncommittedTransactionLog);
-                }
-            }
-            DecrementActiveTransactionCount();
+            CompleteTransactionInternal(tx);
         }
 
         internal async Task CompleteTransactionAsync(TransactionContext tx, CancellationToken ct)
         {
-            RunTriggers(tx);
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            CompleteTransactionInternal(tx, tcs, ct);
+        }
+
+        private void CompleteTransactionInternal(
+            TransactionContext tx,
+            TaskCompletionSource? tcs = null,
+            CancellationToken ct = default)
+        {
+            if (tx.DoLog)
+            {
+                RunTriggers(tx);
+            }
             RunTransactionAction();
-
-            var checkpointIndex = CompleteTransactionState(tx.TransactionState, tx.DoLog);
-
+            CompleteTransactionState(tx.TransactionState, tx.DoLog, tcs, ct);
             RunTransactionAction();
             _dataLifeCycleManager.TriggerDataManagement();
-            if (tx.DoLog && _logTransactionWriter != null && checkpointIndex != null)
-            {
-                await _logTransactionWriter.CommitContentAsync(
-                    checkpointIndex.Value,
-                    tx.TransactionState.UncommittedTransactionLog,
-                    ct);
-            }
             DecrementActiveTransactionCount();
         }
 
@@ -716,73 +701,72 @@ namespace TrackDb.Lib
             }
         }
 
-        private long? CompleteTransactionState(TransactionState transactionState, bool doLog)
+        private void CompleteTransactionState(
+            TransactionState transactionState,
+            bool doLog,
+            TaskCompletionSource? tcs,
+            CancellationToken ct)
         {
-            if (doLog && _logTransactionWriter != null)
-            {
-                var counts = transactionState.UncommittedTransactionLog.GetLoggedRecordCounts(
+            var isTransactionLogged = doLog && _logTransactionWriter != null;
+            var counts = isTransactionLogged
+                ? transactionState.UncommittedTransactionLog.GetLoggedRecordCounts(
                     GetDatabaseStateSnapshot().TableMap
                     .Where(t => t.Value.IsUserTable)
                     .Select(t => t.Key),
-                    TombstoneTable.Schema.TableName);
-                var states = ChangeDatabaseState(currentDbState =>
+                    TombstoneTable.Schema.TableName)
+                : (0, 0);
+            var states = ChangeDatabaseState(oldState =>
+            {
+                var newState = oldState with
                 {
-                    var newState = currentDbState with
-                    {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState),
-                        AppendRecordCount = currentDbState.AppendRecordCount + counts.AppendRecordCount,
-                        TombstoneRecordCount = currentDbState.TombstoneRecordCount + counts.TombstoneRecordCount
-                    };
+                    InMemoryDatabase = oldState.InMemoryDatabase.CommitLog(transactionState),
+                    AppendRecordCount = oldState.AppendRecordCount + counts.AppendRecordCount,
+                    TombstoneRecordCount = oldState.TombstoneRecordCount + counts.TombstoneRecordCount
+                };
 
+                if (isTransactionLogged)
+                {
                     if (newState.AppendRecordCount >= DatabasePolicy.LogPolicy.MinRecordCountBeforeCheckpoint
-                        && newState.TombstoneRecordCount * 100
-                        > newState.AppendRecordCount * DatabasePolicy.LogPolicy.MinTombstonePercentBeforeCheckpoint)
-                    {
+                    && newState.TombstoneRecordCount * 100
+                    > newState.AppendRecordCount * DatabasePolicy.LogPolicy.MinTombstonePercentBeforeCheckpoint)
+                    {   //  Trigger checkpoint
                         newState = newState with
                         {
                             AppendRecordCount = 0,
                             TombstoneRecordCount = 0,
-                            CheckpointIndex = newState.CheckpointIndex + 1
+                            TransactionLogItems = new ReversedLinkedList<TransactionLogItem>(
+                                new TransactionLogItem(
+                                    null,
+                                    () => ListCheckpointTransactions(newState.InMemoryDatabase),
+                                    tcs,
+                                    ct),
+                                newState.TransactionLogItems)
                         };
                     }
-
-                    return newState;
-                });
-
-                ThrowOnPhantomTombstones(states.OldState, doLog);
-                if (states.NewState != null
-                    && states.OldState.CheckpointIndex != states.NewState.CheckpointIndex)
-                {   //  Reserve a transaction so persistant blocks don't disappear
-                    Interlocked.Increment(ref _activeTransactionCount);
-                    _logTransactionWriter.QueueCheckpoint(
-                        states.NewState.CheckpointIndex,
-                        ListCheckpointTransactions(states.NewState.InMemoryDatabase),
-                        () =>
-                        {   //  Get rid of that transaction only at the end
-                            DecrementActiveTransactionCount();
-                        });
-
-                    return null;
+                    else
+                    {   //  Just logs
+                        newState = newState with
+                        {
+                            TransactionLogItems = new ReversedLinkedList<TransactionLogItem>(
+                                new TransactionLogItem(
+                                    transactionState.UncommittedTransactionLog,
+                                    null,
+                                    tcs,
+                                    ct),
+                                newState.TransactionLogItems)
+                        };
+                    }
                 }
-                else
-                {
-                    return states.NewState!.CheckpointIndex;
-                }
-            }
-            else
-            {
-                var states = ChangeDatabaseState(currentDbState =>
-                {
-                    return currentDbState with
-                    {
-                        InMemoryDatabase = currentDbState.InMemoryDatabase.CommitLog(transactionState)
-                    };
-                });
 
-                ThrowOnPhantomTombstones(states.OldState, doLog);
+                return newState;
+            });
 
-                return states.NewState!.CheckpointIndex;
+            if (states.NewState!.TransactionLogItems != null
+                && states.NewState!.TransactionLogItems.Content.TransactionLogsFunc != null)
+            {   //  We increment here and decrement at the end of ListCheckpointTransactions
+                IncrementActiveTransactionCount();
             }
+            ThrowOnPhantomTombstones(states.OldState, doLog);
         }
 
         private void ThrowOnPhantomTombstones(DatabaseState oldState, bool doLog)
@@ -824,6 +808,11 @@ namespace TrackDb.Lib
                     }
                 }
             }
+        }
+
+        private void IncrementActiveTransactionCount()
+        {
+            Interlocked.Increment(ref _activeTransactionCount);
         }
 
         private void DecrementActiveTransactionCount()
@@ -986,6 +975,35 @@ namespace TrackDb.Lib
         #endregion
 
         #region Logging
+        internal async Task FlushTransactionLogItemsAsync(CancellationToken ct)
+        {
+            if (_logTransactionWriter != null)
+            {
+                var states = ChangeDatabaseState(oldState =>
+                {
+                    if (oldState.TransactionLogItems != null)
+                    {
+                        return oldState with
+                        {
+                            TransactionLogItems = null
+                        };
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                });
+
+                if (states.NewState != null && states.OldState.TransactionLogItems != null)
+                {
+                    foreach (var item in states.OldState.TransactionLogItems.ToEnumerable())
+                    {
+                        await _logTransactionWriter.QueueTransactionLogItemAsync(item, ct);
+                    }
+                }
+            }
+        }
+
         private async Task InitLogsAsync(BlobClients blobClients, CancellationToken ct)
         {
             var userTableSchemas = GetDatabaseStateSnapshot().TableMap.Values
@@ -1021,7 +1039,6 @@ namespace TrackDb.Lib
             _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
             ChangeDatabaseState(state => state with
             {
-                CheckpointIndex = _logTransactionWriter.LastCheckpointIndex,
                 AppendRecordCount = appendRecordCount,
                 TombstoneRecordCount = tombstoneRecordCount
             });
@@ -1103,43 +1120,48 @@ namespace TrackDb.Lib
             }
         }
 
-        private async IAsyncEnumerable<TransactionLog> ListCheckpointTransactions(
+        private IEnumerable<TransactionLog> ListCheckpointTransactions(
             InMemoryDatabase inMemoryDatabase)
         {
-            var userTables = GetDatabaseStateSnapshot().TableMap
-                .Where(t => t.Value.IsUserTable)
-                .Select(t => t.Value.Table);
-            var recordsPerTransaction = DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
-
-            await ValueTask.CompletedTask;
-            foreach (var table in userTables)
+            using (var tx = new TransactionContext(this, inMemoryDatabase, new(), false))
             {
-                var records = table.Query()
-                    //  Add hidden columns
-                    .WithProjection(Enumerable.Range(0, table.Schema.ColumnProperties.Count))
-                    .AsEnumerable();
-                var recordEnumerator = records.GetEnumerator();
-                var doContinue = true;
+                var userTables = GetDatabaseStateSnapshot().TableMap
+                    .Where(t => t.Value.IsUserTable)
+                    .Select(t => t.Value.Table);
+                var recordsPerTransaction = DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
 
-                while (doContinue)
+                foreach (var table in userTables)
                 {
-                    var txLog = new TransactionLog();
-                    var recordCount = 0;
+                    var records = table.Query(tx)
+                        //  Add hidden columns
+                        .WithProjection(Enumerable.Range(0, table.Schema.ColumnProperties.Count))
+                        .AsEnumerable();
+                    var recordEnumerator = records.GetEnumerator();
+                    var doContinue = true;
 
-                    for (var i = 0; i != recordsPerTransaction && recordEnumerator.MoveNext(); ++i)
+                    while (doContinue)
                     {
-                        var record = recordEnumerator.Current;
-                        var creationTime = (DateTime)record.Span[table.Schema.CreationTimeColumnIndex]!;
-                        var recordId = (long)record.Span[table.Schema.RecordIdColumnIndex]!;
-                        var trimmedRecord = record.Span.Slice(0, table.Schema.Columns.Count);
+                        var txLog = new TransactionLog();
+                        var recordCount = 0;
 
-                        txLog.AppendRecord(creationTime, recordId, trimmedRecord, table.Schema);
-                        ++recordCount;
+                        for (var i = 0; i != recordsPerTransaction && recordEnumerator.MoveNext(); ++i)
+                        {
+                            var record = recordEnumerator.Current;
+                            var creationTime = (DateTime)record.Span[table.Schema.CreationTimeColumnIndex]!;
+                            var recordId = (long)record.Span[table.Schema.RecordIdColumnIndex]!;
+                            var trimmedRecord = record.Span.Slice(0, table.Schema.Columns.Count);
+
+                            txLog.AppendRecord(creationTime, recordId, trimmedRecord, table.Schema);
+                            ++recordCount;
+                        }
+                        yield return txLog;
+                        doContinue = txLog.TransactionTableLogMap.Any()
+                            && recordCount == recordsPerTransaction;
                     }
-                    yield return txLog;
-                    doContinue = txLog.TransactionTableLogMap.Any()
-                        && recordCount == recordsPerTransaction;
                 }
+
+                //  At this point we decrement the active transaction count that was activated outside
+                tx.Complete();
             }
         }
         #endregion
