@@ -100,6 +100,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
+                    await _database.FlushTransactionLogItemsAsync(CancellationToken.None);
                     //  We wait a little before processing so we can catch multiple transactions at once
                     await Task.WhenAny(
                         Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
@@ -113,6 +114,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 }
                 ReleaseBlocks(ref lastReleaseBlock);
             }
+            await _database.FlushTransactionLogItemsAsync(CancellationToken.None);
         }
 
         private void ReleaseBlocks(ref DateTime lastReleaseBlock)

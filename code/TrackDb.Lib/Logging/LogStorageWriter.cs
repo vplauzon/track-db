@@ -46,7 +46,7 @@ namespace TrackDb.Lib.Logging
         }
         #endregion
 
-        private readonly CheckpointState[] _checkpointStates;
+        private CheckpointState _checkpointState;
 
         #region Constructor
         public static async Task<LogStorageWriter> CreateLogStorageWriterAsync(
@@ -64,15 +64,10 @@ namespace TrackDb.Lib.Logging
                 currentCheckpointIndex ?? 1,
                 currentLogBlobIndex ?? 1,
                 ct);
-            var checkpointState =
-                logStorageWriter.GetCheckpointState(currentCheckpointIndex ?? 1, ct);
 
             if (currentLogBlobIndex == null)
             {
-                await logStorageWriter.CreateCheckpointAsync(
-                    1,
-                    Array.Empty<string>().ToAsyncEnumerable(),
-                    ct);
+                await logStorageWriter.CreateCheckpointAsync(false, Array.Empty<string>(), ct);
             }
 
             return logStorageWriter;
@@ -87,14 +82,11 @@ namespace TrackDb.Lib.Logging
             CancellationToken ct)
             : base(logPolicy, localFolder, blobClients)
         {
-            var currentState = new CheckpointState(
+            _checkpointState = new CheckpointState(
                 currentCheckpointIndex,
                 currentLogBlobIndex,
                 GetAppendBlobClient(currentLogBlobIndex),
                 ct);
-            var dummyState = new CheckpointState(0, 0, GetAppendBlobClient(0), Task.CompletedTask);
-
-            _checkpointStates = [currentState, dummyState];
         }
         #endregion
 
@@ -103,17 +95,22 @@ namespace TrackDb.Lib.Logging
             await Task.CompletedTask;
         }
 
-        public long LastCheckpointIndex =>
-            Math.Max(_checkpointStates[0].CheckpointIndex, _checkpointStates[1].CheckpointIndex);
-
         #region Checkpoint
         public async Task CreateCheckpointAsync(
-            long checkpointIndex,
-            IAsyncEnumerable<string> transactionTexts,
+            bool createNewCheckpoint,
+            IEnumerable<string> transactionTexts,
             CancellationToken ct)
         {
-            var state = GetCheckpointState(checkpointIndex, ct);
-            var checkpointFileName = GetCheckpointFileName(state.CheckpointIndex);
+            if (createNewCheckpoint)
+            {
+                _checkpointState = new CheckpointState(
+                    _checkpointState.CheckpointIndex + 1,
+                    _checkpointState.CheckpointIndex + 1,
+                    GetAppendBlobClient(_checkpointState.CheckpointIndex + 1),
+                    ct);
+            }
+
+            var checkpointFileName = GetCheckpointFileName(_checkpointState.CheckpointIndex);
             var checkpointFilePath = Path.Combine(LocalFolder, checkpointFileName);
             var tempCloudDirectory = BlobClients.Directory.GetSubDirectoryClient("temp");
             var checkpointHeader = new CheckpointHeader(CURRENT_HEADER_VERSION);
@@ -126,7 +123,7 @@ namespace TrackDb.Lib.Logging
             using (var writer = new StreamWriter(stream))
             {
                 writer.Write(checkpointHeaderText);
-                await foreach (var tx in transactionTexts)
+                foreach (var tx in transactionTexts)
                 {
                     ct.ThrowIfCancellationRequested();
                     writer.Write(SEPARATOR);
@@ -176,44 +173,30 @@ namespace TrackDb.Lib.Logging
             int totalLength = GetTotalLength(transactionTexts);
 
             return totalLength <= Math.Min(
-                _checkpointStates[0].LogBlob.AppendBlobMaxAppendBlockBytes,
+                _checkpointState.LogBlob.AppendBlobMaxAppendBlockBytes,
                 LogPolicy.MaxBatchSizeInBytes);
         }
 
-        public async Task PersistBatchAsync(
-            long checkpointIndex,
-            IEnumerable<string> transactionTexts,
-            CancellationToken ct)
+        public async Task PersistBatchAsync(IEnumerable<string> transactionTexts, CancellationToken ct)
         {
-            var state = GetCheckpointState(checkpointIndex, ct);
-
             try
             {
-                await PersistBatchInternalAsync(state, transactionTexts, ct);
+                await PersistBatchInternalAsync(transactionTexts, ct);
             }
             catch (RequestFailedException ex) when (ex.ErrorCode == "MaxBlobBlocksExceeded")
             {   //  Increment log blob index
-                var logBlob = GetAppendBlobClient(state.LogBlobIndex + 1);
-                var newState = new CheckpointState(
-                    state.CheckpointIndex,
-                    state.LogBlobIndex + 1,
+                var logBlob = GetAppendBlobClient(_checkpointState.LogBlobIndex + 1);
+
+                _checkpointState = new CheckpointState(
+                    _checkpointState.CheckpointIndex,
+                    _checkpointState.LogBlobIndex + 1,
                     logBlob,
                     ct);
-
-                if (_checkpointStates[0].CheckpointIndex == checkpointIndex)
-                {
-                    _checkpointStates[0] = newState;
-                }
-                else
-                {
-                    _checkpointStates[1] = newState;
-                }
-                await PersistBatchAsync(checkpointIndex, transactionTexts, ct);
+                await PersistBatchAsync(transactionTexts, ct);
             }
         }
 
         private async Task PersistBatchInternalAsync(
-            CheckpointState checkpointState,
             IEnumerable<string> transactionTexts,
             CancellationToken ct)
         {
@@ -222,8 +205,8 @@ namespace TrackDb.Lib.Logging
             {
                 var totalLength = GetTotalLength(transactionTexts);
 
-                await checkpointState.CreateBlobTask;
-                if (totalLength > checkpointState.LogBlob.AppendBlobMaxAppendBlockBytes)
+                await _checkpointState.CreateBlobTask;
+                if (totalLength > _checkpointState.LogBlob.AppendBlobMaxAppendBlockBytes)
                 {
                     if (transactionTexts.Count() > 1)
                     {
@@ -242,7 +225,7 @@ namespace TrackDb.Lib.Logging
                                 0,
                                 Math.Min(
                                     transactionText.Length,
-                                    checkpointState.LogBlob.AppendBlobMaxAppendBlockBytes
+                                    _checkpointState.LogBlob.AppendBlobMaxAppendBlockBytes
                                     - SEPARATOR.Length));
 
                             stream.Position = 0;
@@ -255,7 +238,7 @@ namespace TrackDb.Lib.Logging
                             writer.Write(text);
                             writer.Flush();
                             stream.Position = 0;
-                            await checkpointState.LogBlob.AppendBlockAsync(
+                            await _checkpointState.LogBlob.AppendBlockAsync(
                                 stream,
                                 cancellationToken: ct);
                             transactionText = transactionText.Substring(text.Length);
@@ -276,7 +259,7 @@ namespace TrackDb.Lib.Logging
                         throw new InvalidDataException(
                             $"Expected batch size to be '{totalLength}' but is '{stream.Length}'");
                     }
-                    await checkpointState.LogBlob.AppendBlockAsync(stream, cancellationToken: ct);
+                    await _checkpointState.LogBlob.AppendBlockAsync(stream, cancellationToken: ct);
                 }
             }
         }
@@ -290,45 +273,5 @@ namespace TrackDb.Lib.Logging
             return totalLength;
         }
         #endregion
-
-        private CheckpointState GetCheckpointState(long checkpointIndex, CancellationToken ct)
-        {
-            var state1 = _checkpointStates[0];
-            var state2 = _checkpointStates[1];
-
-            if (state1.CheckpointIndex == checkpointIndex)
-            {
-                return state1;
-            }
-            else if (state2.CheckpointIndex == checkpointIndex)
-            {
-                return state2;
-            }
-            else if (checkpointIndex > state1.CheckpointIndex
-                && checkpointIndex > state2.CheckpointIndex)
-            {
-                var state = new CheckpointState(
-                    checkpointIndex,
-                    checkpointIndex,
-                    GetAppendBlobClient(checkpointIndex),
-                    ct);
-
-                if (state1.CheckpointIndex < state2.CheckpointIndex)
-                {
-                    _checkpointStates[0] = state;
-                }
-                else
-                {
-                    _checkpointStates[1] = state;
-                }
-
-                return state;
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"Checkpoint {checkpointIndex} is a regression");
-            }
-        }
     }
 }

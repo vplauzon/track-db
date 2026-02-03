@@ -19,18 +19,12 @@ namespace TrackDb.Lib.Logging
     {
         #region Inner types
         private record ContentItem(
-            long CheckpointIndex,
             string Content,
             DateTime Timestamp,
             TaskCompletionSource? Tcs)
         {
-            public ContentItem(long checkpointIndex, string content)
-                : this(checkpointIndex, content, DateTime.Now, null)
-            {
-            }
-
-            public ContentItem(long checkpointIndex, string content, TaskCompletionSource tcs)
-                : this(checkpointIndex, content, DateTime.Now, tcs)
+            public ContentItem(string content, TaskCompletionSource? tcs = null)
+                : this(content, DateTime.Now, tcs)
             {
             }
         }
@@ -43,7 +37,6 @@ namespace TrackDb.Lib.Logging
         private readonly TaskCompletionSource _stopBackgroundProcessingSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly Channel<ContentItem> _channel = Channel.CreateUnbounded<ContentItem>();
-        private Task _checkpointTask = Task.CompletedTask;
 
         public LogTransactionWriter(
             LogStorageWriter logStorageWriter,
@@ -63,48 +56,24 @@ namespace TrackDb.Lib.Logging
             await _backgroundProcessingTask;
         }
 
-        public long LastCheckpointIndex => _logStorageWriter.LastCheckpointIndex;
-
         #region Checkpoint
-        public void QueueCheckpoint(
-            long checkpointIndex,
-            IAsyncEnumerable<TransactionLog> transactionLogs,
-            Action postCheckpointAction)
-        {
-            if (!_checkpointTask.IsCompletedSuccessfully)
-            {
-                throw new InvalidOperationException("Last checkpoint isn't completed or failed");
-            }
-
-            _checkpointTask = CreateCheckpointAsync(
-                checkpointIndex,
-                transactionLogs,
-                postCheckpointAction);
-        }
-
         private async Task CreateCheckpointAsync(
-            long checkpointIndex,
-            IAsyncEnumerable<TransactionLog> transactions,
-            Action postCheckpointAction)
+            IEnumerable<TransactionLog> transactions,
+            CancellationToken ct)
         {
-            var cts = new CancellationTokenSource();
-
             await _logStorageWriter.CreateCheckpointAsync(
-                checkpointIndex,
-                ToTransactionText(transactions, cts),
-                cts.Token);
-            postCheckpointAction();
+                true,
+                ToTransactionText(transactions),
+                ct);
         }
 
-        private async IAsyncEnumerable<string> ToTransactionText(
-            IAsyncEnumerable<TransactionLog> transactions,
-            CancellationTokenSource cts)
+        private IEnumerable<string> ToTransactionText(IEnumerable<TransactionLog> transactions)
         {
-            await foreach (var tx in transactions)
+            foreach (var tx in transactions)
             {
                 if (_stopBackgroundProcessingSource.Task.IsCompletedSuccessfully)
                 {
-                    cts.Cancel();
+                    throw new OperationCanceledException();
                 }
                 var txContent = TransactionContent.FromTransactionLog(
                     tx,
@@ -113,74 +82,82 @@ namespace TrackDb.Lib.Logging
 
                 if (txContent != null)
                 {
-                    yield return txContent.ToJson();
+                    var json = txContent.ToJson();
+
+                    if (!string.IsNullOrWhiteSpace(json))
+                    {
+                        yield return json;
+                    }
                 }
             }
         }
         #endregion
 
         #region Push transaction
-        public void QueueContent(long checkpointIndex, TransactionLog transactionLog)
-        {
-            var content = TransactionContent.FromTransactionLog(
-                transactionLog,
-                _tombstoneTable.Schema,
-                _tableSchemaMap);
-            var item = new ContentItem(checkpointIndex, content.ToJson());
-
-            if (!_channel.Writer.TryWrite(item))
-            {
-                throw new InvalidOperationException("Couldn't write content");
-            }
-        }
-
-        public async Task CommitContentAsync(
-            long checkpointIndex,
-            TransactionLog transactionLog,
+        public async Task QueueTransactionLogItemAsync(
+            TransactionLogItem transactionLogItem,
             CancellationToken ct)
         {
-            var content = TransactionContent.FromTransactionLog(
-                transactionLog,
-                _tombstoneTable.Schema,
-                _tableSchemaMap);
-            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var item = new ContentItem(
-                checkpointIndex,
-                content.ToJson(),
-                tcs);
-
-            if (!_channel.Writer.TryWrite(item))
+            if (transactionLogItem.TransactionLog != null)
             {
-                throw new InvalidOperationException("Couldn't write content");
-            }
+                var content = TransactionContent.FromTransactionLog(
+                    transactionLogItem.TransactionLog,
+                    _tombstoneTable.Schema,
+                    _tableSchemaMap);
+                var contentItem = new ContentItem(content.ToJson(), transactionLogItem.Tcs);
 
-            await tcs.Task.WaitAsync(ct);
+                if (!_channel.Writer.TryWrite(contentItem))
+                {
+                    throw new InvalidOperationException("Couldn't write content");
+                }
+            }
+            else if (transactionLogItem.TransactionLogsFunc != null)
+            {   //  First flush the queue
+                var tcs = new TaskCompletionSource();
+                var waitItem = new ContentItem(string.Empty, tcs);
+
+                if (!_channel.Writer.TryWrite(waitItem))
+                {
+                    throw new InvalidOperationException("Couldn't write content");
+                }
+                //  Wait for all writes to happen
+                await tcs.Task;
+                //  Then create checkpoint
+                await CreateCheckpointAsync(transactionLogItem.TransactionLogsFunc(), ct);
+            }
+            else if (transactionLogItem.Tcs == null)
+            {
+                var contentItem = new ContentItem(string.Empty, transactionLogItem.Tcs);
+
+                if (!_channel.Writer.TryWrite(contentItem))
+                {
+                    throw new InvalidOperationException("Couldn't write content");
+                }
+            }
         }
         #endregion
 
         #region Content items processing
         private async Task ProcessContentItemsAsync(CancellationToken ct = default)
         {
-            var queueMap = new Dictionary<long, Queue<ContentItem>>();
+            var contentItemQueue = new Queue<ContentItem>();
 
             do
             {
                 //  Persist items
-                if (queueMap.Any())
+                if (contentItemQueue.Count > 0)
                 {
                     await PersistItemsAsync(
-                        queueMap,
+                        contentItemQueue,
                         _stopBackgroundProcessingSource.Task.IsCompleted,
                         ct);
                 }
                 //  Get items from channel
-                if (!DrainChannel(queueMap))
+                if (!DrainChannel(contentItemQueue))
                 {   //  Wait a little
-                    if (queueMap.Count > 0)
+                    if (contentItemQueue.Count > 0)
                     {   //  Wait for the oldest element to age
-                        var oldestTimestamp = queueMap.Values
-                            .Select(q => q.Peek().Timestamp)
-                            .Min();
+                        var oldestTimestamp = contentItemQueue.Peek().Timestamp;
                         var delay = oldestTimestamp
                             + _logStorageWriter.LogPolicy.BufferingTimeWindow
                             - DateTime.Now;
@@ -199,78 +176,60 @@ namespace TrackDb.Lib.Logging
                         await Task.WhenAny(_stopBackgroundProcessingSource.Task, delayTask);
                     }
                     //  Drain again after waiting
-                    DrainChannel(queueMap);
+                    DrainChannel(contentItemQueue);
                 }
             }
-            while (!_stopBackgroundProcessingSource.Task.IsCompleted || queueMap.Count > 0);
+            while (!_stopBackgroundProcessingSource.Task.IsCompleted || contentItemQueue.Count > 0);
         }
 
         private async Task PersistItemsAsync(
-            Dictionary<long, Queue<ContentItem>> queueMap,
+            Queue<ContentItem> contentItemQueue,
             bool doForcePersistance,
             CancellationToken ct)
         {
-            var tcsList = new List<TaskCompletionSource>(queueMap.Values.Sum(q => q.Count()));
+            var tcsList = new List<TaskCompletionSource>(contentItemQueue.Count());
             var transactionTextList = new List<string>();
             var bufferingTimeWindow = _logStorageWriter.LogPolicy.BufferingTimeWindow;
 
-            //  Materialize the queue map so we can delete keys within the loop
-            foreach (var pair in queueMap.ToImmutableArray())
-            {
-                var checkpointIndex = pair.Key;
-                var queue = pair.Value;
-
-                while (queue.Any()
-                    && (doForcePersistance
-                    || DateTime.Now > queue.Peek().Timestamp + bufferingTimeWindow))
-                {   //  Persist one batch
-                    while (queue.TryPeek(out var item)
-                        && (!transactionTextList.Any()
-                        || _logStorageWriter.CanFitInBatch(transactionTextList.Append(item.Content))))
-                    {
-                        if (!string.IsNullOrWhiteSpace(item.Content))
-                        {
-                            transactionTextList.Add(item.Content);
-                        }
-                        if (item.Tcs != null)
-                        {
-                            tcsList.Add(item.Tcs);
-                        }
-                        queue.Dequeue();
-                    }
-                    if (transactionTextList.Any())
-                    {
-                        await _logStorageWriter.PersistBatchAsync(
-                            checkpointIndex,
-                            transactionTextList,
-                            ct);
-                    }
-                    //  Confirm persistance
-                    foreach (var tcs in tcsList)
-                    {
-                        tcs.TrySetResult();
-                    }
-                    tcsList.Clear();
-                    transactionTextList.Clear();
-                }
-                if (!queue.Any())
+            while (contentItemQueue.Count > 0
+                && (doForcePersistance
+                || DateTime.Now > contentItemQueue.Peek().Timestamp + bufferingTimeWindow))
+            {   //  Persist one batch
+                while (contentItemQueue.TryPeek(out var item)
+                    && (!transactionTextList.Any()
+                    || _logStorageWriter.CanFitInBatch(transactionTextList.Append(item.Content))))
                 {
-                    queueMap.Remove(checkpointIndex);
+                    if (!string.IsNullOrWhiteSpace(item.Content))
+                    {
+                        transactionTextList.Add(item.Content);
+                    }
+                    if (item.Tcs != null)
+                    {
+                        tcsList.Add(item.Tcs);
+                    }
+                    contentItemQueue.Dequeue();
                 }
+                if (transactionTextList.Any())
+                {
+                    await _logStorageWriter.PersistBatchAsync(transactionTextList, ct);
+                }
+                //  Confirm persistance
+                foreach (var tcs in tcsList)
+                {
+                    tcs.TrySetResult();
+                }
+                tcsList.Clear();
+                transactionTextList.Clear();
             }
         }
 
-        private bool DrainChannel(Dictionary<long, Queue<ContentItem>> queueMap)
+        private bool DrainChannel(Queue<ContentItem> contentItemQueue)
         {
             bool hasOne = false;
 
             while (_channel.Reader.TryRead(out var item))
             {
-                if (!queueMap.ContainsKey(item.CheckpointIndex))
-                {
-                    queueMap[item.CheckpointIndex] = new();
-                }
-                queueMap[item.CheckpointIndex].Enqueue(item);
+                contentItemQueue.Enqueue(item);
                 hasOne = true;
             }
 
