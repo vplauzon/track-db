@@ -750,10 +750,7 @@ namespace TrackDb.Lib
                     return newState;
                 });
 
-                if (DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
-                {
-                    ThrowOnPhantomTombstones(states.OldState);
-                }
+                ThrowOnPhantomTombstones(states.OldState, doLog);
                 if (states.NewState != null
                     && states.OldState.CheckpointIndex != states.NewState.CheckpointIndex)
                 {   //  Reserve a transaction so persistant blocks don't disappear
@@ -783,48 +780,48 @@ namespace TrackDb.Lib
                     };
                 });
 
-                if (DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
-                {
-                    ThrowOnPhantomTombstones(states.OldState);
-                }
+                ThrowOnPhantomTombstones(states.OldState, doLog);
 
                 return states.NewState!.CheckpointIndex;
             }
         }
 
-        private void ThrowOnPhantomTombstones(DatabaseState oldState)
+        private void ThrowOnPhantomTombstones(DatabaseState oldState, bool doLog)
         {
-            Interlocked.Increment(ref _activeTransactionCount);
-
-            //  Load a tx with old state to run validations
-            using (var tx = new TransactionContext(
-                this,
-                oldState.InMemoryDatabase,
-                new TransactionLog(),
-                false))
+            if (doLog && DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
             {
-                var tombstoneRecordsByTable = TombstoneTable.Query(tx)
-                    .GroupBy(t => t.TableName);
+                Interlocked.Increment(ref _activeTransactionCount);
 
-                foreach (var g in tombstoneRecordsByTable)
+                //  Load a tx with old state to run validations
+                using (var tx = new TransactionContext(
+                    this,
+                    oldState.InMemoryDatabase,
+                    new TransactionLog(),
+                    false))
                 {
-                    var tableName = g.Key;
-                    var table = GetAnyTable(tableName);
-                    var predicate = new InPredicate(
-                        table.Schema.RecordIdColumnIndex,
-                        g.Select(t => t.DeletedRecordId).Cast<object?>());
-                    var foundRecordIds = table.Query(tx)
-                        .WithIgnoreDeleted()
-                        .WithPredicate(predicate)
-                        .WithProjection(table.Schema.RecordIdColumnIndex)
-                        .Select(r => (long)r.Span[0]!);
-                    var phantomRecordIds = g.Select(t => t.DeletedRecordId).Except(foundRecordIds);
-                    var phantomRecordCount = phantomRecordIds.Count();
+                    var tombstoneRecordsByTable = TombstoneTable.Query(tx)
+                        .GroupBy(t => t.TableName);
 
-                    if (phantomRecordCount > 0)
+                    foreach (var g in tombstoneRecordsByTable)
                     {
-                        throw new InvalidOperationException(
-                            $"Table {tableName} has {phantomRecordCount} phantom records");
+                        var tableName = g.Key;
+                        var table = GetAnyTable(tableName);
+                        var predicate = new InPredicate(
+                            table.Schema.RecordIdColumnIndex,
+                            g.Select(t => t.DeletedRecordId).Cast<object?>());
+                        var foundRecordIds = table.Query(tx)
+                            .WithIgnoreDeleted()
+                            .WithPredicate(predicate)
+                            .WithProjection(table.Schema.RecordIdColumnIndex)
+                            .Select(r => (long)r.Span[0]!);
+                        var phantomRecordIds = g.Select(t => t.DeletedRecordId).Except(foundRecordIds);
+                        var phantomRecordCount = phantomRecordIds.Count();
+
+                        if (phantomRecordCount > 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"Table {tableName} has {phantomRecordCount} phantom records");
+                        }
                     }
                 }
             }
