@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -110,7 +111,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     {   //  No tombstone found:  let's clean up phantom tombstones
                         var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
 
-                        System.Diagnostics.Trace.WriteLine($"Clean Phantom tombstones ({tableName}):  {phantomRowCounts}");
+                        Trace.TraceInformation(
+                            $"Clean Phantom tombstones ({tableName}):  {phantomRowCounts}");
                     }
                 }
             }
