@@ -674,6 +674,8 @@ namespace TrackDb.Lib
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
             CompleteTransactionInternal(tx, tcs, ct);
+
+            await tcs.Task;
         }
 
         private void CompleteTransactionInternal(
