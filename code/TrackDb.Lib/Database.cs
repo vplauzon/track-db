@@ -32,7 +32,7 @@ namespace TrackDb.Lib
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly IImmutableList<TableSchema> _schemaWithTriggers;
         private readonly BlobLock? _blobLock;
-        private LogTransactionWriter? _logTransactionWriter;
+        private LogFlushManager? _logFlushManager;
         private DatabaseContextBase? _databaseContext;
         private volatile DatabaseState _databaseState;
         private volatile int _activeTransactionCount = 0;
@@ -175,9 +175,9 @@ namespace TrackDb.Lib
             {
                 await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
             }
-            if (_logTransactionWriter != null)
+            if (_logFlushManager != null)
             {
-                await ((IAsyncDisposable)_logTransactionWriter).DisposeAsync();
+                await ((IAsyncDisposable)_logFlushManager).DisposeAsync();
             }
             if (_blobLock != null)
             {
@@ -709,7 +709,7 @@ namespace TrackDb.Lib
             TaskCompletionSource? tcs,
             CancellationToken ct)
         {
-            var isTransactionLogged = doLog && _logTransactionWriter != null;
+            var isTransactionLogged = doLog && _logFlushManager != null;
             var counts = isTransactionLogged
                 ? transactionState.UncommittedTransactionLog.GetLoggedRecordCounts(
                     GetDatabaseStateSnapshot().TableMap
@@ -767,6 +767,10 @@ namespace TrackDb.Lib
                 && states.NewState!.TransactionLogItems.Content.TransactionLogsFunc != null)
             {   //  We increment here and decrement at the end of ListCheckpointTransactions
                 IncrementActiveTransactionCount();
+            }
+            if (doLog)
+            {
+                _logFlushManager?.Push();
             }
             ThrowOnPhantomTombstones(states.OldState, doLog);
         }
@@ -977,32 +981,30 @@ namespace TrackDb.Lib
         #endregion
 
         #region Logging
-        internal async Task FlushTransactionLogItemsAsync(CancellationToken ct)
+        private IEnumerable<TransactionLogItem> FlushTransactionLogItems()
         {
-            if (_logTransactionWriter != null)
+            var states = ChangeDatabaseState(oldState =>
             {
-                var states = ChangeDatabaseState(oldState =>
+                if (oldState.TransactionLogItems != null)
                 {
-                    if (oldState.TransactionLogItems != null)
+                    return oldState with
                     {
-                        return oldState with
-                        {
-                            TransactionLogItems = null
-                        };
-                    }
-                    else
-                    {
-                        return null;
-                    }
-                });
-
-                if (states.NewState != null && states.OldState.TransactionLogItems != null)
-                {
-                    foreach (var item in states.OldState.TransactionLogItems.ToEnumerable())
-                    {
-                        await _logTransactionWriter.QueueTransactionLogItemAsync(item, ct);
-                    }
+                        TransactionLogItems = null
+                    };
                 }
+                else
+                {
+                    return null;
+                }
+            });
+
+            if (states.NewState != null && states.OldState.TransactionLogItems != null)
+            {
+                return states.OldState.TransactionLogItems.ToEnumerable();
+            }
+            else
+            {
+                return Array.Empty<TransactionLogItem>();
             }
         }
 
@@ -1037,13 +1039,16 @@ namespace TrackDb.Lib
 
                 GetAnyTable(tableName).InitRecordId(maxRecordId);
             }
-
-            _logTransactionWriter = await logTransactionReader.CreateLogTransactionWriterAsync(ct);
             ChangeDatabaseState(state => state with
             {
                 AppendRecordCount = appendRecordCount,
                 TombstoneRecordCount = tombstoneRecordCount
             });
+
+            var logTransactionWriter =
+                await logTransactionReader.CreateLogTransactionWriterAsync(ct);
+
+            _logFlushManager = new LogFlushManager(FlushTransactionLogItems, logTransactionWriter);
         }
 
         private async Task<(long AppendRecordCount, long TombstoneRecordCount)> ProcessLoggedTransactionsAsync(
