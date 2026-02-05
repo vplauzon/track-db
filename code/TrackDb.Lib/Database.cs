@@ -1071,7 +1071,6 @@ namespace TrackDb.Lib
                 transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
                 appendRecordCount += counts.AppendRecordCount;
                 tombstoneRecordCount += counts.TombstoneRecordCount;
-                ValidateTombstones(transactionLog);
                 using (var tx = CreateTransaction(false, transactionLog))
                 {
                     tx.Complete();
@@ -1083,48 +1082,6 @@ namespace TrackDb.Lib
             }
 
             return (appendRecordCount, tombstoneRecordCount);
-        }
-
-        private void ValidateTombstones(TransactionLog transactionLog)
-        {
-            var tombstoneSchema = TombstoneTable.Schema;
-
-            if (transactionLog.TransactionTableLogMap.TryGetValue(
-                tombstoneSchema.TableName,
-                out var tableLog))
-            {
-                IBlock tombstoneBlock = tableLog.NewDataBlock;
-                var tombstoneGroups = tombstoneBlock.Project(
-                    new object?[2],
-                    tombstoneSchema.GetColumnIndexSubset(t => t.TableName)
-                    .Concat(tombstoneSchema.GetColumnIndexSubset(t => t.DeletedRecordId))
-                    .ToImmutableArray(),
-                    Enumerable.Range(0, tombstoneBlock.RecordCount),
-                    0)
-                    .Select(r => new
-                    {
-                        TableName = (string)r.Span[0]!,
-                        DeletedRecordId = (long)r.Span[1]!
-                    })
-                    .GroupBy(o => o.TableName, o => o.DeletedRecordId);
-
-                foreach (var g in tombstoneGroups)
-                {
-                    var table = GetAnyTable(g.Key);
-                    var schema = table.Schema;
-                    var predicate = new InPredicate(schema.RecordIdColumnIndex, g.Cast<object?>());
-                    var tombstoneHitCount = table.Query()
-                        .WithPredicate(predicate)
-                        .Count();
-
-                    if (tombstoneHitCount != g.Count())
-                    {
-                        throw new InvalidOperationException(
-                            $"Table '{schema.TableName}' tombstoned records can't be found:  " +
-                            $"{g.Count()} expected vs {tombstoneHitCount} found");
-                    }
-                }
-            }
         }
 
         private IEnumerable<TransactionLog> ListCheckpointTransactions(
