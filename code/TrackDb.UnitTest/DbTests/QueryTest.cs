@@ -400,6 +400,13 @@ namespace TrackDb.UnitTest.DbTests
 
                 Assert.Single(results2);
                 Assert.Equal(record2, results2.First());
+
+                var results3 = db.OtherTypesTable.Query()
+                    .Where(pf => pf.Equal(r => r.IsTrue, true))
+                    .ToImmutableList();
+
+                Assert.Single(results3);
+                Assert.Equal(record1, results3.First());
             }
         }
 
