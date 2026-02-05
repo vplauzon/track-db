@@ -372,9 +372,9 @@ namespace TrackDb.UnitTest.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
-                var record1 = new TestDatabase.OtherTypes(new Uri("https://mine.org"));
-                var record2 = new TestDatabase.OtherTypes(new Uri("https://yours.org"));
-                var record3 = new TestDatabase.OtherTypes(new Uri("https://theirs.org"));
+                var record1 = new TestDatabase.OtherTypes(new Uri("https://mine.org"), true);
+                var record2 = new TestDatabase.OtherTypes(new Uri("https://yours.org"), false);
+                var record3 = new TestDatabase.OtherTypes(new Uri("https://theirs.org"), false);
 
                 db.OtherTypesTable.AppendRecord(record1);
                 await db.Database.ForceDataManagementAsync(doPushPendingData1

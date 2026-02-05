@@ -22,7 +22,7 @@ namespace TrackDb.UnitTest.DbTests
 
         public record CompoundKeys(VersionedName VersionedName, short Value);
 
-        public record OtherTypes(Uri Uri);
+        public record OtherTypes(Uri Uri, bool IsTrue);
         #endregion
 
         private const string PRIMITIVES_TABLE = "Primitives";

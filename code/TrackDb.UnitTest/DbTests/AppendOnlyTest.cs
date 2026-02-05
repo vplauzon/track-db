@@ -50,7 +50,7 @@ namespace TrackDb.UnitTest.DbTests
         {
             await using (var db = await TestDatabase.CreateAsync())
             {
-                var record = new TestDatabase.OtherTypes(new Uri("https://mine.org"));
+                var record = new TestDatabase.OtherTypes(new Uri("https://mine.org"), true);
 
                 db.OtherTypesTable.AppendRecord(record);
                 await db.Database.ForceDataManagementAsync(doPushPendingData
