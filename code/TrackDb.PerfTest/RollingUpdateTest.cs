@@ -13,37 +13,43 @@ namespace TrackDb.PerfTest
         }
 
         [Fact]
-        public async Task Test000010With03()
+        public async Task Test000010With003()
         {
             await RunPerformanceTestAsync(10, 3);
         }
 
         [Fact]
-        public async Task Test000100With03()
+        public async Task Test000100With003()
         {
             await RunPerformanceTestAsync(100, 3);
         }
 
         [Fact]
-        public async Task Test001000With03()
+        public async Task Test001000With003()
         {
             await RunPerformanceTestAsync(1000, 3);
         }
 
         [Fact]
-        public async Task Test001000With10()
+        public async Task Test001000With010()
         {
             await RunPerformanceTestAsync(1000, 10);
         }
 
         [Fact]
-        public async Task Test002000With10()
+        public async Task Test002000With010()
         {
             await RunPerformanceTestAsync(2000, 10);
         }
 
         [Fact]
-        public async Task Test010000With10()
+        public async Task Test002000With100()
+        {
+            await RunPerformanceTestAsync(2000, 100);
+        }
+
+        [Fact]
+        public async Task Test010000With010()
         {
             await RunPerformanceTestAsync(10000, 10);
         }
