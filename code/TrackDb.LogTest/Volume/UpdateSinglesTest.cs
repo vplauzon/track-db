@@ -73,6 +73,7 @@ namespace TrackDb.LogTest.Volume
                     var workflow = new TestDatabase.Workflow(
                         $"Workflow-{i}",
                         i,
+                        false,
                         TestDatabase.WorkflowState.Pending,
                         DateTime.Now);
                     var activity1 = new TestDatabase.Activity(

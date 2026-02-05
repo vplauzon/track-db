@@ -16,10 +16,8 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         {
             var boolValue = (bool?)value;
             var intValue = boolValue == null
-                ? null
-                : boolValue.Value
-                ? (int?)1
-                : 0;
+                ? (int?)null
+                : Convert.ToInt32(boolValue.Value);
 
             return intValue;
         }
@@ -28,17 +26,18 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         {
             var intValue = (int?)value;
             var boolValue = intValue == null
-                ? null
-                : intValue == 0
-                ? (bool?)false
-                : true;
+                ? (bool?)null
+                : Convert.ToBoolean(intValue.Value);
 
             return boolValue;
         }
 
         protected override JsonElement InToLogValue(object? value)
         {
-            var boolValue = (bool?)value;
+            var intValue = (int?)value;
+            var boolValue = intValue == null
+                ? (bool?)null
+                : Convert.ToBoolean(intValue.Value);
 
             return JsonSerializer.SerializeToElement(boolValue);
         }

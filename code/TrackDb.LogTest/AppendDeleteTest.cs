@@ -15,6 +15,7 @@ namespace TrackDb.LogTest
             var record1 = new TestDatabase.Workflow(
                 "My Workflow",
                 42,
+                true,
                 TestDatabase.WorkflowState.Started,
                 DateTime.Now);
             var record2 = record1 with { State = TestDatabase.WorkflowState.Pending };

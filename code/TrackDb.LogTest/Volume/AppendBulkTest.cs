@@ -84,6 +84,7 @@ namespace TrackDb.LogTest.Volume
                     .Select(i => new TestDatabase.Workflow(
                         $"Workflow-{i}",
                         i,
+                        true,
                         TestDatabase.WorkflowState.Pending,
                         DateTime.Now));
 

@@ -37,6 +37,7 @@ namespace TrackDb.LogTest
         public record Workflow(
             string WorkflowName,
             int WorkflowId,
+            bool IsTrue,
             WorkflowState State,
             DateTime StartTime);
 

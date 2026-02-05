@@ -21,6 +21,7 @@ namespace TrackDb.LogTest.Checkpoint
                     .Select(i => new TestDatabase.Workflow(
                         $"My Workflow-{i}",
                         i,
+                        false,
                         TestDatabase.WorkflowState.Started,
                         DateTime.Now));
 
@@ -47,6 +48,7 @@ namespace TrackDb.LogTest.Checkpoint
                     .Select(i => new TestDatabase.Workflow(
                         $"My Workflow-{i}",
                         i,
+                        true,
                         TestDatabase.WorkflowState.Started,
                         DateTime.Now));
 

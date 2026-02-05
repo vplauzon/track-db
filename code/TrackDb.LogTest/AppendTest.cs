@@ -15,6 +15,7 @@ namespace TrackDb.LogTest
             var record = new TestDatabase.Workflow(
                 "My Workflow",
                 42,
+                false,
                 TestDatabase.WorkflowState.Started,
                 DateTime.Now);
 
@@ -38,6 +39,7 @@ namespace TrackDb.LogTest
             var workflow = new TestDatabase.Workflow(
                 "My Workflow",
                 42,
+                true,
                 TestDatabase.WorkflowState.Started,
                 DateTime.Now);
             var activity1 = new TestDatabase.Activity(
@@ -103,11 +105,13 @@ namespace TrackDb.LogTest
             var record1 = new TestDatabase.Workflow(
                 "My Workflow",
                 42,
+                true,
                 TestDatabase.WorkflowState.Started,
                 DateTime.Now);
             var record2 = new TestDatabase.Workflow(
                 "My other Workflow",
                 43,
+                false,
                 TestDatabase.WorkflowState.Started,
                 DateTime.Now);
 

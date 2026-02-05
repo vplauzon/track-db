@@ -75,6 +75,7 @@ namespace TrackDb.LogTest
                     .Select(i => new TestDatabase.Workflow(
                         $"Workflow-{i}",
                         i,
+                        false,
                         TestDatabase.WorkflowState.Pending,
                         DateTime.Now));
 
