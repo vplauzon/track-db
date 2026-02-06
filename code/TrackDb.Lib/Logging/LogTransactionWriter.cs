@@ -56,6 +56,14 @@ namespace TrackDb.Lib.Logging
             await _backgroundProcessingTask;
         }
 
+        public void ObserveBackgroundTask()
+        {
+            if (_backgroundProcessingTask.IsCompleted)
+            {
+                _backgroundProcessingTask.Wait();
+            }
+        }
+
         #region Checkpoint
         private async Task CreateCheckpointAsync(
             IEnumerable<TransactionLog> transactions,
@@ -98,6 +106,7 @@ namespace TrackDb.Lib.Logging
             TransactionLogItem transactionLogItem,
             CancellationToken ct)
         {
+            ObserveBackgroundTask();
             if (transactionLogItem.TransactionLog != null)
             {
                 var content = TransactionContent.FromTransactionLog(

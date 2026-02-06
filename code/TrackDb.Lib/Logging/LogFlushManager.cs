@@ -30,8 +30,17 @@ namespace TrackDb.Lib.Logging
             await ((IAsyncDisposable)_logTransactionWriter).DisposeAsync();
         }
 
+        public void ObserveBackgroundTask()
+        {
+            if (_backgroundTask.IsCompleted)
+            {
+                _backgroundTask.Wait();
+            }
+        }
+
         public void Push()
         {
+            ObserveBackgroundTask();
             if (!_channel.Writer.TryWrite(true))
             {
                 throw new InvalidOperationException("Can't write to channel");
