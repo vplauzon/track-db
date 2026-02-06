@@ -73,6 +73,10 @@ namespace TrackDb.PerfTest
 
                 db.EmployeeTable.AppendRecords(employees);
                 db.RequestTable.AppendRecords(requests);
+
+                Assert.Equal(entityCount, db.EmployeeTable.Query().Count());
+                Assert.Equal(entityCount, db.RequestTable.Query().Count());
+                Assert.Equal(0, db.DocumentTable.Query().Count());
                 //  Transition from Initiated to Treating & create documents
                 for (int i = 0; i != entityCount; ++i)
                 {
@@ -81,6 +85,14 @@ namespace TrackDb.PerfTest
                         var request = db.RequestTable.Query(tx)
                             .Where(pf => pf.Equal(r => r.EmployeeId, $"Employee-{i}"))
                             .First();
+                        var documents = Enumerable.Range(0, subEntityCount)
+                            .Select(j => new VolumeTestDatabase.Document(
+                                $"Request-{i}",
+                                $"Doc-{j}-"
+                                + new string(
+                                    Enumerable.Range(0, 20)
+                                    .Select(j => (char)random.Next('A', 'Z'))
+                                    .ToArray())));
 
                         db.RequestTable.UpdateRecord(
                             request,
@@ -89,16 +101,21 @@ namespace TrackDb.PerfTest
                                 RequestStatus = VolumeTestDatabase.RequestStatus.Treating
                             },
                             tx);
+                        db.DocumentTable.AppendRecords(documents, tx);
 
                         tx.Complete();
                     }
                     await db.AwaitLifeCycleManagementAsync(2);
                 }
+                Assert.Equal(entityCount, db.EmployeeTable.Query().Count());
+                Assert.Equal(entityCount, db.RequestTable.Query().Count());
+                Assert.Equal(subEntityCount * entityCount, db.DocumentTable.Query().Count());
                 //  Delete everything
                 for (int i = 0; i != entityCount; ++i)
                 {
                     using (var tx = db.CreateTransaction())
                     {
+                        var j = i;
                         var employeeDeleteCount = db.EmployeeTable.Query(tx)
                             .Where(pf => pf.Equal(e => e.EmployeeId, $"Employee-{i}"))
                             .Delete();

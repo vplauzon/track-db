@@ -14,7 +14,8 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
-        private readonly int TOMBSTONE_CLEAN_COUNT = 1000;
+        private readonly int TOMBSTONE_CLEAN_COUNT = 2000;
+        private readonly int META_META_BLOCKS_TOP = 20;
 
         public RecordCountHardDeleteAgent(Database database)
             : base(database)
@@ -104,16 +105,21 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  If we see changes by loading data, we skip hard delete and let recompute top table
                 if (!metaBlockManager.Tx.LoadCommittedBlocksInTransaction(tableName))
                 {
-                    var metaBlockIds = ComputeOptimalMetaMetaBlock(metaBlockManager, tableName);
+                    var metaBlockIds = ComputeTopMetaMetaBlocks(metaBlockManager, tableName);
 
-                    if (metaBlockIds.Count() == 0
-                        || !BlockMergeMetaBlockIds(metaBlockManager, tableName, metaBlockIds.First()))
-                    {   //  No tombstone found:  let's clean up phantom tombstones
-                        var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
-
-                        Trace.TraceInformation(
-                            $"Clean Phantom tombstones ({tableName}):  {phantomRowCounts}");
+                    foreach (var metaBlockId in metaBlockIds)
+                    {
+                        if (BlockMergeMetaBlockIds(metaBlockManager, tableName, metaBlockId))
+                        {   //  We stop after the first one
+                            return;
+                        }
                     }
+                 
+                    //  No tombstone found:  let's clean up phantom tombstones
+                    var phantomRowCounts = CleanPhantomTombstones(tableName, metaBlockManager.Tx);
+
+                    Trace.TraceInformation(
+                        $"Clean Phantom tombstones ({tableName}):  {phantomRowCounts}");
                 }
             }
         }
@@ -138,6 +144,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 .ToHashSet();
             var table = Database.GetAnyTable(tableName);
             var foundRecordIds = table.Query(tx)
+                .WithIgnoreDeleted()
+                .WithProjection(table.Schema.RecordIdColumnIndex)
                 .WithPredicate(new InPredicate(
                     table.Schema.RecordIdColumnIndex,
                     deleteRecordIdSet.Cast<object?>()))
@@ -172,23 +180,33 @@ namespace TrackDb.Lib.DataLifeCycle
             return rowIndexes.Count();
         }
 
-        private IEnumerable<int?> ComputeOptimalMetaMetaBlock(
+        private IEnumerable<int?> ComputeTopMetaMetaBlocks(
             MetaBlockManager metaBlockManager,
             string tableName)
         {
             var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocks(tableName);
-            var seed = new MetaMetaBlockStat(null, 0, 0, 0);
-            var argMax = metaMetaBlockStats
-                .Aggregate(seed, (mmb, acc) => mmb.TombstonedRecordCount > acc.TombstonedRecordCount ? mmb : acc);
+            var queue = new PriorityQueue<MetaMetaBlockStat, long>(META_META_BLOCKS_TOP);
 
-            if (argMax.TombstonedRecordCount == 0)
+            //  Scan meta meta blocks and keep the top META_META_BLOCKS_TOP (by count)
+            foreach (var stats in metaMetaBlockStats)
             {
-                return Array.Empty<int?>();
+                if (queue.Count < META_META_BLOCKS_TOP
+                    || queue.Peek().TombstonedRecordCount < stats.TombstonedRecordCount)
+                {
+                    if (queue.Count == META_META_BLOCKS_TOP)
+                    {
+                        queue.Dequeue();
+                    }
+                    queue.Enqueue(stats, stats.TombstonedRecordCount);
+                }
             }
-            else
-            {
-                return [argMax.BlockId];
-            }
+
+            return queue.UnorderedItems
+                .AsEnumerable()
+                .Select(p => p.Element)
+                .OrderByDescending(s => s.TombstonedRecordCount)
+                .Select(s => s.BlockId)
+                .ToImmutableList();
         }
     }
 }
