@@ -12,6 +12,8 @@ namespace TrackDb.Lib.Logging
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonSerializable(typeof(CheckpointHeader))]
     [JsonSerializable(typeof(TransactionContent))]
+    [JsonSerializable(typeof(TableTransactionContent))]
+    [JsonSerializable(typeof(NewRecordsContent))]
     internal partial class ContentJsonContext : JsonSerializerContext
     {
     }
