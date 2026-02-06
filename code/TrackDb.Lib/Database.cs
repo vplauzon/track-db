@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -674,6 +675,11 @@ namespace TrackDb.Lib
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
             CompleteTransactionInternal(tx, tcs, ct);
+            if (!(tx.DoLog && _logFlushManager != null))
+            {
+                await ForceDataManagementAsync(DataManagementActivity.None);
+                tcs.TrySetResult();
+            }
 
             await tcs.Task;
         }
