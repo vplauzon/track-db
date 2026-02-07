@@ -117,8 +117,8 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void ReleaseBlocks(ref DateTime lastReleaseBlock)
         {
-            if (lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.BlockReleaseWaitPeriod)
-                > DateTime.Now)
+            if (DateTime.Now >
+                lastReleaseBlock.Add(_database.DatabasePolicy.LifeCyclePolicy.BlockReleaseWaitPeriod))
             {
                 if (!_database.HasActiveTransaction)
                 {
