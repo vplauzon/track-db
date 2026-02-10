@@ -471,6 +471,7 @@ namespace TrackDb.Lib
                         queryId,
                         _queryTag,
                         blockId,
+                        p.Iteration,
                         p.Predicate.ToString()));
 
                 _table.Database.QueryExecutionTable.AppendRecords(records);
@@ -528,6 +529,10 @@ namespace TrackDb.Lib
                     //  Must be optimize to filter only blocks with relevant data
                     .WithPredicate(AllInPredicate.Instance);
 
+                if (_queryTag != null)
+                {
+                    metaDataQuery = metaDataQuery.WithQueryTag(_queryTag);
+                }
                 foreach (var metaDataRow in metaDataQuery)
                 {
                     var blockId = (int)metaDataRow.Span[0]!;

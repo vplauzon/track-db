@@ -34,7 +34,7 @@ namespace TrackDb.Lib.Predicate
 
         public override string ToString()
         {
-            return $"{{{string.Join(", ", RecordIndexes)}}}";
+            return $"Result:  {{{string.Join(", ", RecordIndexes)}}}";
         }
     }
 }

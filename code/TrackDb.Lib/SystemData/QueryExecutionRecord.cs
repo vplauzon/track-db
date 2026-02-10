@@ -12,5 +12,6 @@ namespace TrackDb.Lib.SystemData
         string QueryId,
         string QueryTag,
         long BlockId,
+        int Iteration,
         string Predicate);
 }
