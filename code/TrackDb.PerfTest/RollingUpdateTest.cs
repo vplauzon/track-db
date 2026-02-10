@@ -110,6 +110,19 @@ namespace TrackDb.PerfTest
                 Assert.Equal(entityCount, db.EmployeeTable.Query().Count());
                 Assert.Equal(entityCount, db.RequestTable.Query().Count());
                 Assert.Equal(subEntityCount * entityCount, db.DocumentTable.Query().Count());
+
+                var oneDoc = db.DocumentTable.Query()
+                    .Take(1)
+                    .First();
+                var query = db.DocumentTable.Query()
+                    .WithQueryTag("myTag")
+                    .Where(pf => pf.Equal(d => d.RequestCode, oneDoc.RequestCode))
+                    .ToImmutableArray();
+                var blockCount = db.QueryQueryExecution()
+                    .Where(pf => pf.Equal(qe => qe.Iteration, 0))
+                    .Count();
+
+                Console.WriteLine($"Simple query block count:  {blockCount}");
                 //  Delete everything
                 for (int i = 0; i != entityCount; ++i)
                 {
