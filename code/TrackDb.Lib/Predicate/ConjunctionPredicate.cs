@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -79,6 +80,14 @@ namespace TrackDb.Lib.Predicate
                     ? new ConjunctionPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
                     : null;
             }
+        }
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            return new ConjunctionPredicate(
+                LeftPredicate.TransformToMetadata(correspondanceMap),
+                RightPredicate.TransformToMetadata(correspondanceMap));
         }
 
         public override string ToString()

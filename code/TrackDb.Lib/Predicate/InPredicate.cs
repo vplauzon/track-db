@@ -30,12 +30,59 @@ namespace TrackDb.Lib.Predicate
                 && ip.Values == Values;
         }
 
-        internal override QueryPredicate? Simplify() => null;
+        internal override QueryPredicate? Simplify() => Values.Count > 0
+            ? null
+            : ResultPredicate.Empty;
 
         internal override QueryPredicate? Substitute(
             QueryPredicate beforePredicate,
             QueryPredicate afterPredicate)
             => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            if (Values.Count == 0)
+            {
+                return ResultPredicate.Empty;
+            }
+            else if (Values.Contains(null))
+            {
+                return AllInPredicate.Instance;
+            }
+            else
+            {
+                var correspondance = correspondanceMap[ColumnIndex];
+
+                if (correspondance.MetaColumnIndex != null)
+                {
+                    throw new NotSupportedException("In-predicate on a stats column");
+                }
+                else
+                {
+                    var minMax = Values
+                        .Cast<IComparable>()
+                        .Aggregate(
+                        seed: (Min: (IComparable?)null, Max: (IComparable?)null),
+                        func: (acc, val) => (
+                        Min: acc.Min == null || val.CompareTo(acc.Min) < 0 ? val : acc.Min,
+                        Max: acc.Max == null || val.CompareTo(acc.Max) > 0 ? val : acc.Max
+                        ));
+
+                    //  x in set => min_x <= max(set) AND max_x >= min(set)
+                    return new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            correspondance.MetaMinColumnIndex!.Value,
+                            minMax.Max,
+                            BinaryOperator.LessThanOrEqual),
+                        new NegationPredicate(
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex!.Value,
+                                minMax.Min,
+                                BinaryOperator.LessThan)));
+                }
+            }
+        }
 
         public override string ToString()
         {

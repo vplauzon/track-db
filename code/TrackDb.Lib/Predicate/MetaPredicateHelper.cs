@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 
@@ -22,9 +23,19 @@ namespace TrackDb.Lib.Predicate
             MetadataTableSchema metaSchema)
         {
             var referencedColumnIndexes = predicate.ReferencedColumnIndexes.Distinct();
-            var correspondances = metaSchema.GetColumnCorrespondances();
+            var correspondanceMap = metaSchema.GetColumnCorrespondances()
+                .ToImmutableDictionary(c => c.ColumnIndex);
 
-            throw new NotImplementedException();
+            if (referencedColumnIndexes.Except(correspondanceMap.Keys).Any())
+            {
+                return AllInPredicate.Instance;
+            }
+            else
+            {
+                var newPredicate = predicate.TransformToMetadata(correspondanceMap);
+
+                return newPredicate;
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,6 +31,12 @@ namespace TrackDb.Lib.Predicate
             QueryPredicate beforePredicate,
             QueryPredicate afterPredicate)
             => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            return this;
+        }
 
         public override string ToString()
         {

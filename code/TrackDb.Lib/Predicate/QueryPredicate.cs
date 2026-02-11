@@ -41,5 +41,8 @@ namespace TrackDb.Lib.Predicate
         internal abstract QueryPredicate? Substitute(
             QueryPredicate beforePredicate,
             QueryPredicate afterPredicate);
+
+        internal abstract QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap);
     }
 }

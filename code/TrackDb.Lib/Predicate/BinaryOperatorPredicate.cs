@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -37,6 +37,74 @@ namespace TrackDb.Lib.Predicate
             QueryPredicate beforePredicate,
             QueryPredicate afterPredicate)
             => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            if (Value == null)
+            {
+                return AllInPredicate.Instance;
+            }
+            else
+            {
+                var correspondance = correspondanceMap[ColumnIndex];
+
+                switch (BinaryOperator)
+                {
+                    case BinaryOperator.Equal:
+                        if (correspondance.MetaColumnIndex == null)
+                        {   //  For x==a => min_x>=a && max_x<=a
+                            return new ConjunctionPredicate(
+                                new NegationPredicate(
+                                    new BinaryOperatorPredicate(
+                                        correspondance.MetaMinColumnIndex!.Value,
+                                        Value,
+                                        BinaryOperator.LessThan)),
+                                new BinaryOperatorPredicate(
+                                    correspondance.MetaMaxColumnIndex!.Value,
+                                    Value,
+                                    BinaryOperator.LessThanOrEqual));
+                        }
+                        else
+                        {
+                            throw new NotSupportedException(
+                                "We don't support x==a where 'x' is stats column");
+                        }
+                    case BinaryOperator.LessThan:
+                        if (correspondance.MetaColumnIndex == null)
+                        {   //  For x<a => max_x<a
+                            return new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex!.Value,
+                                Value,
+                                BinaryOperator.LessThan);
+                        }
+                        else
+                        {   //  For {min/max}_x<a => {min/max}_x<a
+                            return new BinaryOperatorPredicate(
+                                correspondance.MetaColumnIndex.Value,
+                                Value,
+                                BinaryOperator.LessThan);
+                        }
+                    case BinaryOperator.LessThanOrEqual:
+                        if (correspondance.MetaColumnIndex == null)
+                        {   //  For x<a => max_x<a
+                            return new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex!.Value,
+                                Value,
+                                BinaryOperator.LessThanOrEqual);
+                        }
+                        else
+                        {   //  For {min/max}_x<a => {min/max}_x<a
+                            return new BinaryOperatorPredicate(
+                                correspondance.MetaColumnIndex.Value,
+                                Value,
+                                BinaryOperator.LessThanOrEqual);
+                        }
+                    default:
+                        throw new NotSupportedException($"Binary operation '{BinaryOperator}'");
+                }
+            }
+        }
 
         public override string ToString()
         {

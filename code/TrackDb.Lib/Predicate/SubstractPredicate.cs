@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace TrackDb.Lib.Predicate
@@ -63,6 +64,14 @@ namespace TrackDb.Lib.Predicate
                     ? new SubstractPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
                     : null;
             }
+        }
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            return new SubstractPredicate(
+                LeftPredicate.TransformToMetadata(correspondanceMap),
+                RightPredicate.TransformToMetadata(correspondanceMap));
         }
 
         public override string ToString()
