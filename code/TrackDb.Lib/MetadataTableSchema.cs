@@ -128,6 +128,49 @@ namespace TrackDb.Lib
                 blockStats.Columns.Select(c => c.ColumnMaximum));
         }
 
+        public IEnumerable<MetadataColumnCorrespondance> GetColumnCorrespondances()
+        {
+            var metaColumnsByParentColumnName = ColumnProperties
+                .Index()
+                .Where(p => p.Item.ParentColumnSchema != null)
+                .GroupBy(p => p.Item.ParentColumnSchema!.Value.ColumnName)
+                .ToImmutableDictionary(g => g.Key);
+            var parentColumnProperties = ParentSchema.ColumnProperties;
+            var correspondances = new List<MetadataColumnCorrespondance>();
+
+            for (var i = 0; i != parentColumnProperties.Count; ++i)
+            {
+                if (metaColumnsByParentColumnName.TryGetValue(
+                    parentColumnProperties[i].ColumnSchema.ColumnName,
+                    out var metaColumns))
+                {
+                    if (metaColumns.Count() == 1)
+                    {
+                        correspondances.Add(new MetadataColumnCorrespondance(
+                            i,
+                            metaColumns.First().Index,
+                            null,
+                            null));
+                    }
+                    else if (metaColumns.Count() == 2)
+                    {
+                        correspondances.Add(new MetadataColumnCorrespondance(
+                            i,
+                            null,
+                            metaColumns.First().Index,
+                            metaColumns.Last().Index));
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            $"Meta columns count is {metaColumns.Count()}");
+                    }
+                }
+            }
+
+            return correspondances;
+        }
+
         private ReadOnlyMemory<object?> CreateMetadataRecord(
             int itemCount,
             int size,

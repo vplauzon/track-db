@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace TrackDb.Lib.Predicate
@@ -20,6 +21,9 @@ namespace TrackDb.Lib.Predicate
             TableSchema schema,
             MetadataTableSchema metaSchema)
         {
+            var referencedColumnIndexes = predicate.ReferencedColumnIndexes.Distinct();
+            var correspondances = metaSchema.GetColumnCorrespondances();
+
             throw new NotImplementedException();
         }
     }
