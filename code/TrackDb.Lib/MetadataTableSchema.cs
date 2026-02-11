@@ -28,15 +28,17 @@ namespace TrackDb.Lib
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$min-{schema.ColumnName}", schema.ColumnType),
                                 ColumnSchemaStat.Min,
-                                parentColumn.ColumnSchema),
+                                parentColumn),
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$max-{schema.ColumnName}", schema.ColumnType),
                                 ColumnSchemaStat.Max,
-                                parentColumn.ColumnSchema)];
+                                parentColumn)];
                     case ColumnSchemaStat.Min:
-                        return [parentColumn];
                     case ColumnSchemaStat.Max:
-                        return [parentColumn];
+                        return [new ColumnSchemaProperties(
+                            schema,
+                            parentColumn.ColumnSchemaStat,
+                            parentColumn)];
 
                     default:
                         throw new NotSupportedException(
@@ -100,14 +102,14 @@ namespace TrackDb.Lib
         public int RecordIdMinColumnIndex => ColumnProperties
             .Index()
             .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
-            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
             .Select(c => c.Index)
             .First();
 
         public int RecordIdMaxColumnIndex => ColumnProperties
             .Index()
             .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
-            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
             .Select(c => c.Index)
             .First();
         #endregion
@@ -132,8 +134,8 @@ namespace TrackDb.Lib
         {
             var metaColumnsByParentColumnName = ColumnProperties
                 .Index()
-                .Where(p => p.Item.ParentColumnSchema != null)
-                .GroupBy(p => p.Item.ParentColumnSchema!.Value.ColumnName)
+                .Where(p => p.Item.ParentColumnProperties != null)
+                .GroupBy(p => p.Item.ParentColumnProperties!.ColumnSchema.ColumnName)
                 .ToImmutableDictionary(g => g.Key);
             var parentColumnProperties = ParentSchema.ColumnProperties;
             var correspondances = new List<MetadataColumnCorrespondance>();
