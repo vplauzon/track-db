@@ -14,10 +14,8 @@ namespace TrackDb.Lib.Predicate
             return PredicateEquals(other);
         }
 
-        /// <summary>Compares two predicates.</summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        internal abstract bool PredicateEquals(QueryPredicate? other);
+        /// <summary>Column indexes used in the leaf predicates.</summary>
+        internal abstract IEnumerable<int> ReferencedColumnIndexes { get; }
 
         /// <summary>Leaf predicates in the chain.</summary>
         /// <remarks>
@@ -26,6 +24,11 @@ namespace TrackDb.Lib.Predicate
         /// The main exception is <see cref="AllInPredicate"/>.
         /// </remarks>
         internal abstract IEnumerable<QueryPredicate> LeafPredicates { get; }
+
+        /// <summary>Compares two predicates.</summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        internal abstract bool PredicateEquals(QueryPredicate? other);
 
         /// <summary>Applies any simplification rules.</summary>
         /// <returns>Simplified predicate (or <c>null</c> if unchanged).</returns>

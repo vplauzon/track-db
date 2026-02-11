@@ -16,15 +16,18 @@ namespace TrackDb.Lib.Predicate
         QueryPredicate RightPredicate)
         : QueryPredicate
     {
+        internal override IEnumerable<int> ReferencedColumnIndexes =>
+            LeftPredicate.ReferencedColumnIndexes.Concat(RightPredicate.ReferencedColumnIndexes);
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is DisjunctionPredicate cp
                 && cp.LeftPredicate.Equals(LeftPredicate)
                 && cp.RightPredicate.Equals(RightPredicate);
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
         internal override QueryPredicate? Simplify()
         {

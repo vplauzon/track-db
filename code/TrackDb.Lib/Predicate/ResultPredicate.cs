@@ -16,14 +16,16 @@ namespace TrackDb.Lib.Predicate
 
         public IImmutableSet<int> RecordIndexes { get; }
 
+        internal override IEnumerable<int> ReferencedColumnIndexes => Array.Empty<int>();
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => Array.Empty<QueryPredicate>();
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is ResultPredicate rp
                 && rp.RecordIndexes.SetEquals(RecordIndexes);
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => Array.Empty<QueryPredicate>();
 
         internal override QueryPredicate? Simplify() => null;
 

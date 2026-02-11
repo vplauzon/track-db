@@ -14,13 +14,15 @@ namespace TrackDb.Lib.Predicate
 
         public static AllInPredicate Instance { get; } = new AllInPredicate();
 
+        internal override IEnumerable<int> ReferencedColumnIndexes => Array.Empty<int>();
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => Array.Empty<QueryPredicate>();
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is AllInPredicate;
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => Array.Empty<QueryPredicate>();
 
         internal override QueryPredicate? Simplify() => null;
 

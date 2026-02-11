@@ -13,13 +13,7 @@ namespace TrackDb.Lib.Predicate
         BinaryOperator BinaryOperator)
         : QueryPredicate
     {
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is BinaryOperatorPredicate bop
-                && ColumnIndex == bop.ColumnIndex
-                && Value == bop.Value
-                && BinaryOperator == bop.BinaryOperator;
-        }
+        internal override IEnumerable<int> ReferencedColumnIndexes => [ColumnIndex];
 
         internal override IEnumerable<QueryPredicate> LeafPredicates
         {
@@ -29,7 +23,15 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        internal override QueryPredicate? Simplify()=> null;
+        internal override bool PredicateEquals(QueryPredicate? other)
+        {
+            return other is BinaryOperatorPredicate bop
+                && ColumnIndex == bop.ColumnIndex
+                && Value == bop.Value
+                && BinaryOperator == bop.BinaryOperator;
+        }
+
+        internal override QueryPredicate? Simplify() => null;
 
         internal override QueryPredicate? Substitute(
             QueryPredicate beforePredicate,

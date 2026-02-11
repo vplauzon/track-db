@@ -13,12 +13,7 @@ namespace TrackDb.Lib.Predicate
         {
         }
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is InPredicate ip
-                && ip.ColumnIndex == ColumnIndex
-                && ip.Values == Values;
-        }
+        internal override IEnumerable<int> ReferencedColumnIndexes => [ColumnIndex];
 
         internal override IEnumerable<QueryPredicate> LeafPredicates
         {
@@ -26,6 +21,13 @@ namespace TrackDb.Lib.Predicate
             {
                 yield return this;
             }
+        }
+
+        internal override bool PredicateEquals(QueryPredicate? other)
+        {
+            return other is InPredicate ip
+                && ip.ColumnIndex == ColumnIndex
+                && ip.Values == Values;
         }
 
         internal override QueryPredicate? Simplify() => null;

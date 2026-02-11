@@ -9,14 +9,16 @@ namespace TrackDb.Lib.Predicate
     public sealed record NegationPredicate(QueryPredicate InnerPredicate)
         : QueryPredicate
     {
+        internal override IEnumerable<int> ReferencedColumnIndexes => InnerPredicate.ReferencedColumnIndexes;
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => InnerPredicate.LeafPredicates;
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is NegationPredicate np
                 && np.InnerPredicate.Equals(InnerPredicate);
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => InnerPredicate.LeafPredicates;
 
         internal override QueryPredicate? Simplify()
         {
