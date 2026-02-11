@@ -17,7 +17,9 @@ namespace TrackDb.UnitTest.QueryPredicateTests
         {
             var schema = TypedTableSchema<MyEntity>.FromConstructor("name");
             var metaSchema = schema.CreateMetadataTableSchema();
+            var metaMetaSchema = metaSchema.CreateMetadataTableSchema();
             var correspondances = metaSchema.GetColumnCorrespondances();
+            var metaCorrespondances = metaMetaSchema.GetColumnCorrespondances();
         }
     }
 }
