@@ -148,6 +148,7 @@ namespace TrackDb.Lib
                     {
                         correspondances.Add(new MetadataColumnCorrespondance(
                             i,
+                            parentColumnProperties[i].ColumnSchema,
                             metaColumns.First().Index,
                             null,
                             null));
@@ -156,6 +157,7 @@ namespace TrackDb.Lib
                     {
                         correspondances.Add(new MetadataColumnCorrespondance(
                             i,
+                            parentColumnProperties[i].ColumnSchema,
                             null,
                             metaColumns.First().Index,
                             metaColumns.Last().Index));

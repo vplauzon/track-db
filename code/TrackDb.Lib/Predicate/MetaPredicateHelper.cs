@@ -16,7 +16,7 @@ namespace TrackDb.Lib.Predicate
         /// <param name="schema"></param>
         /// <param name="metaSchema"></param>
         /// <returns></returns>
-        public static QueryPredicate ToMetaData(
+        public static QueryPredicate GetCorrespondantPredicate(
             QueryPredicate predicate,
             TableSchema schema,
             MetadataTableSchema metaSchema)
