@@ -39,5 +39,30 @@ namespace TrackDb.UnitTest.QueryPredicateTests
             Assert.Equal(2, metaPredicate.ReferencedColumnIndexes.Count());
             Assert.Equal(2, metaMetaPredicate.ReferencedColumnIndexes.Count());
         }
+
+        [Fact]
+        public void In()
+        {
+            var schema = TypedTableSchema<MyEntity>.FromConstructor("MyEntity");
+            var metaSchema = schema.CreateMetadataTableSchema();
+            var metaMetaSchema = metaSchema.CreateMetadataTableSchema();
+            var predicate = new InPredicate(
+                schema.ColumnProperties.Index()
+                .Where(c => c.Item.ColumnSchema.ColumnName == nameof(MyEntity.Name))
+                .First()
+                .Index,
+                ["John", "Bob", "Peter"]);
+            var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
+                predicate,
+                schema,
+                metaSchema);
+            var metaMetaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
+                metaPredicate,
+                metaSchema,
+                metaMetaSchema);
+
+            Assert.Equal(2, metaPredicate.ReferencedColumnIndexes.Count());
+            Assert.Equal(2, metaMetaPredicate.ReferencedColumnIndexes.Count());
+        }
     }
 }
