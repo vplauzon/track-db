@@ -518,16 +518,19 @@ namespace TrackDb.Lib
             }
         }
 
-        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext tc)
+        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext tx)
         {
             if (_table.Database.HasMetaDataTable(_table.Schema.TableName))
             {
                 var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
                 var metaSchema = (MetadataTableSchema)metaDataTable.Schema;
-                var metaDataQuery = metaDataTable.Query(tc)
+                var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
+                    _predicate,
+                    _table.Schema,
+                    metaSchema);
+                var metaDataQuery = metaDataTable.Query(tx)
                     .WithProjection([metaSchema.BlockIdColumnIndex])
-                    //  Must be optimize to filter only blocks with relevant data
-                    .WithPredicate(AllInPredicate.Instance);
+                    .WithPredicate(metaPredicate);
 
                 if (_queryTag != null)
                 {

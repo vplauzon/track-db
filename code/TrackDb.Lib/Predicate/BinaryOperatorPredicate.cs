@@ -53,17 +53,17 @@ namespace TrackDb.Lib.Predicate
                 {
                     case BinaryOperator.Equal:
                         if (correspondance.MetaColumnIndex == null)
-                        {   //  For x==a => min_x>=a && max_x<=a
+                        {   //  For x==a => min_x<=a && max_x>=a
                             return new ConjunctionPredicate(
-                                new NegationPredicate(
-                                    new BinaryOperatorPredicate(
-                                        correspondance.MetaMinColumnIndex!.Value,
-                                        Value,
-                                        BinaryOperator.LessThan)),
                                 new BinaryOperatorPredicate(
-                                    correspondance.MetaMaxColumnIndex!.Value,
+                                    correspondance.MetaMinColumnIndex!.Value,
                                     Value,
-                                    BinaryOperator.LessThanOrEqual));
+                                    BinaryOperator.LessThanOrEqual),
+                            new NegationPredicate(
+                                    new BinaryOperatorPredicate(
+                                        correspondance.MetaMaxColumnIndex!.Value,
+                                        Value,
+                                        BinaryOperator.LessThan)));
                         }
                         else
                         {
