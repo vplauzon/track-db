@@ -7,8 +7,21 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib
 {
-    internal readonly record struct ColumnSchemaProperties(
+    internal record ColumnSchemaProperties(
         ColumnSchema ColumnSchema,
         ColumnSchemaStat ColumnSchemaStat,
-        ColumnSchema? ParentColumnSchema = null);
+        ColumnSchemaProperties? ParentColumnProperties = null)
+    {
+        public ColumnSchemaProperties GetAncestorZero()
+        {
+            if (ParentColumnProperties == null)
+            {
+                return this;
+            }
+            else
+            {
+                return ParentColumnProperties.GetAncestorZero();
+            }
+        }
+    }
 }

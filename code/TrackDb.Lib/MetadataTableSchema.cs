@@ -28,15 +28,17 @@ namespace TrackDb.Lib
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$min-{schema.ColumnName}", schema.ColumnType),
                                 ColumnSchemaStat.Min,
-                                parentColumn.ColumnSchema),
+                                parentColumn),
                             new ColumnSchemaProperties(
                                 new ColumnSchema($"$max-{schema.ColumnName}", schema.ColumnType),
                                 ColumnSchemaStat.Max,
-                                parentColumn.ColumnSchema)];
+                                parentColumn)];
                     case ColumnSchemaStat.Min:
-                        return [parentColumn];
                     case ColumnSchemaStat.Max:
-                        return [parentColumn];
+                        return [new ColumnSchemaProperties(
+                            schema,
+                            parentColumn.ColumnSchemaStat,
+                            parentColumn)];
 
                     default:
                         throw new NotSupportedException(
@@ -100,14 +102,14 @@ namespace TrackDb.Lib
         public int RecordIdMinColumnIndex => ColumnProperties
             .Index()
             .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
-            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
             .Select(c => c.Index)
             .First();
 
         public int RecordIdMaxColumnIndex => ColumnProperties
             .Index()
             .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
-            .Where(c => c.Item.ParentColumnSchema!.Value.ColumnName == RECORD_ID)
+            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
             .Select(c => c.Index)
             .First();
         #endregion
@@ -126,6 +128,51 @@ namespace TrackDb.Lib
                 blockId,
                 blockStats.Columns.Select(c => c.ColumnMinimum),
                 blockStats.Columns.Select(c => c.ColumnMaximum));
+        }
+
+        public IEnumerable<MetadataColumnCorrespondance> GetColumnCorrespondances()
+        {
+            var metaColumnsByParentColumnName = ColumnProperties
+                .Index()
+                .Where(p => p.Item.ParentColumnProperties != null)
+                .GroupBy(p => p.Item.ParentColumnProperties!.ColumnSchema.ColumnName)
+                .ToImmutableDictionary(g => g.Key);
+            var parentColumnProperties = ParentSchema.ColumnProperties;
+            var correspondances = new List<MetadataColumnCorrespondance>();
+
+            for (var i = 0; i != parentColumnProperties.Count; ++i)
+            {
+                if (metaColumnsByParentColumnName.TryGetValue(
+                    parentColumnProperties[i].ColumnSchema.ColumnName,
+                    out var metaColumns))
+                {
+                    if (metaColumns.Count() == 1)
+                    {
+                        correspondances.Add(new MetadataColumnCorrespondance(
+                            i,
+                            parentColumnProperties[i].ColumnSchema,
+                            metaColumns.First().Index,
+                            null,
+                            null));
+                    }
+                    else if (metaColumns.Count() == 2)
+                    {
+                        correspondances.Add(new MetadataColumnCorrespondance(
+                            i,
+                            parentColumnProperties[i].ColumnSchema,
+                            null,
+                            metaColumns.First().Index,
+                            metaColumns.Last().Index));
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException(
+                            $"Meta columns count is {metaColumns.Count()}");
+                    }
+                }
+            }
+
+            return correspondances;
         }
 
         private ReadOnlyMemory<object?> CreateMetadataRecord(

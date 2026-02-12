@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 
 namespace TrackDb.Lib.Predicate
@@ -8,15 +9,18 @@ namespace TrackDb.Lib.Predicate
         QueryPredicate LeftPredicate,
         QueryPredicate RightPredicate) : QueryPredicate
     {
+        internal override IEnumerable<int> ReferencedColumnIndexes =>
+            LeftPredicate.ReferencedColumnIndexes.Concat(RightPredicate.ReferencedColumnIndexes);
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is SubstractPredicate sp
                 && sp.LeftPredicate.Equals(LeftPredicate)
                 && sp.RightPredicate.Equals(RightPredicate);
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
         internal override QueryPredicate? Simplify()
         {
@@ -60,6 +64,14 @@ namespace TrackDb.Lib.Predicate
                     ? new SubstractPredicate(sl ?? LeftPredicate, sr ?? RightPredicate)
                     : null;
             }
+        }
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            return new SubstractPredicate(
+                LeftPredicate.TransformToMetadata(correspondanceMap),
+                RightPredicate.TransformToMetadata(correspondanceMap));
         }
 
         public override string ToString()

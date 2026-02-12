@@ -14,7 +14,14 @@ namespace TrackDb.Lib.Predicate
             RecordIndexes = recordIndexes.ToImmutableHashSet();
         }
 
+        public static ResultPredicate Empty { get; } = new ResultPredicate(Array.Empty<int>());
+
         public IImmutableSet<int> RecordIndexes { get; }
+
+        internal override IEnumerable<int> ReferencedColumnIndexes => Array.Empty<int>();
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => Array.Empty<QueryPredicate>();
 
         internal override bool PredicateEquals(QueryPredicate? other)
         {
@@ -22,15 +29,18 @@ namespace TrackDb.Lib.Predicate
                 && rp.RecordIndexes.SetEquals(RecordIndexes);
         }
 
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => Array.Empty<QueryPredicate>();
-
         internal override QueryPredicate? Simplify() => null;
 
         internal override QueryPredicate? Substitute(
             QueryPredicate beforePredicate,
             QueryPredicate afterPredicate)
             => beforePredicate.Equals(this) ? afterPredicate : null;
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            throw new InvalidOperationException();
+        }
 
         public override string ToString()
         {

@@ -87,7 +87,7 @@ namespace TrackDb.Lib
             TableName = tableName;
             Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
             ColumnProperties = columnProperties
-                .Append(new(new(CREATION_TIME, typeof(DateTime), areExtraColumnsIndexed), ColumnSchemaStat.Data))
+                .Append(new(new(CREATION_TIME, typeof(DateTime), false), ColumnSchemaStat.Data))
                 .Append(new(new(RECORD_ID, typeof(long), areExtraColumnsIndexed), ColumnSchemaStat.Data))
                 .ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();

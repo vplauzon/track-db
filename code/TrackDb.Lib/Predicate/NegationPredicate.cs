@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,14 +10,16 @@ namespace TrackDb.Lib.Predicate
     public sealed record NegationPredicate(QueryPredicate InnerPredicate)
         : QueryPredicate
     {
+        internal override IEnumerable<int> ReferencedColumnIndexes => InnerPredicate.ReferencedColumnIndexes;
+
+        internal override IEnumerable<QueryPredicate> LeafPredicates
+            => InnerPredicate.LeafPredicates;
+
         internal override bool PredicateEquals(QueryPredicate? other)
         {
             return other is NegationPredicate np
                 && np.InnerPredicate.Equals(InnerPredicate);
         }
-
-        internal override IEnumerable<QueryPredicate> LeafPredicates
-            => InnerPredicate.LeafPredicates;
 
         internal override QueryPredicate? Simplify()
         {
@@ -43,6 +46,12 @@ namespace TrackDb.Lib.Predicate
                     ? new NegationPredicate(si)
                     : null;
             }
+        }
+
+        internal override QueryPredicate TransformToMetadata(
+            IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
+        {
+            return new NegationPredicate(InnerPredicate.TransformToMetadata(correspondanceMap));
         }
 
         public override string ToString()
