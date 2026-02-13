@@ -52,54 +52,29 @@ namespace TrackDb.Lib.Predicate
                 switch (BinaryOperator)
                 {
                     case BinaryOperator.Equal:
-                        if (correspondance.MetaColumnIndex == null)
-                        {   //  For x==a => min_x<=a && max_x>=a
-                            return new ConjunctionPredicate(
-                                new BinaryOperatorPredicate(
-                                    correspondance.MetaMinColumnIndex!.Value,
-                                    Value,
-                                    BinaryOperator.LessThanOrEqual),
+                        //  For x==a => min_x<=a && max_x>=a
+                        return new ConjunctionPredicate(
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMinColumnIndex,
+                                Value,
+                                BinaryOperator.LessThanOrEqual),
                             new NegationPredicate(
-                                    new BinaryOperatorPredicate(
-                                        correspondance.MetaMaxColumnIndex!.Value,
-                                        Value,
-                                        BinaryOperator.LessThan)));
-                        }
-                        else
-                        {
-                            throw new NotSupportedException(
-                                "We don't support x==a where 'x' is stats column");
-                        }
+                                new BinaryOperatorPredicate(
+                                    correspondance.MetaMaxColumnIndex,
+                                    Value,
+                                    BinaryOperator.LessThan)));
                     case BinaryOperator.LessThan:
-                        if (correspondance.MetaColumnIndex == null)
-                        {   //  For x<a => max_x<a
-                            return new BinaryOperatorPredicate(
-                                correspondance.MetaMaxColumnIndex!.Value,
-                                Value,
-                                BinaryOperator.LessThan);
-                        }
-                        else
-                        {   //  For {min/max}_x<a => {min/max}_x<a
-                            return new BinaryOperatorPredicate(
-                                correspondance.MetaColumnIndex.Value,
-                                Value,
-                                BinaryOperator.LessThan);
-                        }
+                        //  For x<a => max_x<a
+                        return new BinaryOperatorPredicate(
+                            correspondance.MetaMaxColumnIndex,
+                            Value,
+                            BinaryOperator.LessThan);
                     case BinaryOperator.LessThanOrEqual:
-                        if (correspondance.MetaColumnIndex == null)
-                        {   //  For x<a => max_x<a
-                            return new BinaryOperatorPredicate(
-                                correspondance.MetaMaxColumnIndex!.Value,
-                                Value,
-                                BinaryOperator.LessThanOrEqual);
-                        }
-                        else
-                        {   //  For {min/max}_x<a => {min/max}_x<a
-                            return new BinaryOperatorPredicate(
-                                correspondance.MetaColumnIndex.Value,
-                                Value,
-                                BinaryOperator.LessThanOrEqual);
-                        }
+                        //  For x<=a => max_x<=a
+                        return new BinaryOperatorPredicate(
+                            correspondance.MetaMaxColumnIndex,
+                            Value,
+                            BinaryOperator.LessThanOrEqual);
                     default:
                         throw new NotSupportedException($"Binary operation '{BinaryOperator}'");
                 }

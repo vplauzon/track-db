@@ -3,7 +3,6 @@
     internal record MetadataColumnCorrespondance(
         int ColumnIndex,
         ColumnSchema ColumnSchema,
-        int? MetaColumnIndex,
-        int? MetaMinColumnIndex,
-        int? MetaMaxColumnIndex);
+        int MetaMinColumnIndex,
+        int MetaMaxColumnIndex);
 }
