@@ -39,7 +39,14 @@ namespace TrackDb.Lib.Predicate
         internal override QueryPredicate TransformToMetadata(
             IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
         {
-            throw new InvalidOperationException();
+            if (RecordIndexes.Count == 0)
+            {
+                return this;
+            }
+            else
+            {
+                throw new InvalidOperationException();
+            }
         }
 
         public override string ToString()

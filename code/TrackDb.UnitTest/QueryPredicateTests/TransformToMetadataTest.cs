@@ -51,7 +51,8 @@ namespace TrackDb.UnitTest.QueryPredicateTests
                 .Where(c => c.Item.ColumnSchema.ColumnName == nameof(MyEntity.Age))
                 .First()
                 .Index,
-                [45, 12, 98, 56]);
+                [45, 12, 98, 56],
+                true);
             var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
                 predicate,
                 schema,

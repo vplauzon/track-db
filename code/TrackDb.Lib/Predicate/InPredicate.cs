@@ -5,11 +5,14 @@ using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
-    public sealed record InPredicate(int ColumnIndex, IImmutableSet<object?> Values)
+    public sealed record InPredicate(
+        int ColumnIndex,
+        IImmutableSet<object?> Values,
+        bool IsIn)
         : QueryPredicate
     {
-        public InPredicate(int ColumnIndex, IEnumerable<object?> Values)
-            : this(ColumnIndex, Values.ToImmutableHashSet())
+        public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
+            : this(ColumnIndex, Values.ToImmutableHashSet(), IsIn)
         {
         }
 
@@ -42,38 +45,45 @@ namespace TrackDb.Lib.Predicate
         internal override QueryPredicate TransformToMetadata(
             IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
         {
-            if (Values.Count == 0)
+            if (IsIn)
             {
-                return ResultPredicate.Empty;
-            }
-            else if (Values.Contains(null))
-            {
-                return AllInPredicate.Instance;
+                if (Values.Count == 0)
+                {
+                    return ResultPredicate.Empty;
+                }
+                else if (Values.Contains(null))
+                {
+                    return AllInPredicate.Instance;
+                }
+                else
+                {
+                    var correspondance = correspondanceMap[ColumnIndex];
+
+                    var minMax = Values
+                        .Cast<IComparable>()
+                        .Aggregate(
+                        seed: (Min: (IComparable?)null, Max: (IComparable?)null),
+                        func: (acc, val) => (
+                        Min: acc.Min == null || val.CompareTo(acc.Min) < 0 ? val : acc.Min,
+                        Max: acc.Max == null || val.CompareTo(acc.Max) > 0 ? val : acc.Max
+                        ));
+
+                    //  x in set => min_x <= max(set) AND max_x >= min(set)
+                    return new ConjunctionPredicate(
+                        new BinaryOperatorPredicate(
+                            correspondance.MetaMinColumnIndex,
+                            minMax.Max,
+                            BinaryOperator.LessThanOrEqual),
+                        new NegationPredicate(
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex,
+                                minMax.Min,
+                                BinaryOperator.LessThan)));
+                }
             }
             else
             {
-                var correspondance = correspondanceMap[ColumnIndex];
-
-                var minMax = Values
-                    .Cast<IComparable>()
-                    .Aggregate(
-                    seed: (Min: (IComparable?)null, Max: (IComparable?)null),
-                    func: (acc, val) => (
-                    Min: acc.Min == null || val.CompareTo(acc.Min) < 0 ? val : acc.Min,
-                    Max: acc.Max == null || val.CompareTo(acc.Max) > 0 ? val : acc.Max
-                    ));
-
-                //  x in set => min_x <= max(set) AND max_x >= min(set)
-                return new ConjunctionPredicate(
-                    new BinaryOperatorPredicate(
-                        correspondance.MetaMinColumnIndex,
-                        minMax.Max,
-                        BinaryOperator.LessThanOrEqual),
-                    new NegationPredicate(
-                        new BinaryOperatorPredicate(
-                            correspondance.MetaMaxColumnIndex,
-                            minMax.Min,
-                            BinaryOperator.LessThan)));
+                return AllInPredicate.Instance;
             }
         }
 

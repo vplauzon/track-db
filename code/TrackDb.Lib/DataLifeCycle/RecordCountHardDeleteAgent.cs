@@ -148,7 +148,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 .WithProjection(table.Schema.RecordIdColumnIndex)
                 .WithPredicate(new InPredicate(
                     table.Schema.RecordIdColumnIndex,
-                    deleteRecordIdSet.Cast<object?>()))
+                    deleteRecordIdSet.Cast<object?>(),
+                    true))
                 .Select(r => (long)r.Span[0]!)
                 .ToImmutableArray();
             var phantomRecordIds = deleteRecordIdSet

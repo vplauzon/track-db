@@ -21,13 +21,45 @@ namespace TrackDb.Lib.Predicate
                 && np.InnerPredicate.Equals(InnerPredicate);
         }
 
+        /// <summary>Essentially implements De Morgan's Laws.</summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
         internal override QueryPredicate? Simplify()
         {
-            QueryPredicate sp = new SubstractPredicate(
-                AllInPredicate.Instance,
-                InnerPredicate.Simplify() ?? InnerPredicate);
+            BinaryOperator Negate(BinaryOperator bo)
+            {
+                return bo switch
+                {
+                    BinaryOperator.Equal => BinaryOperator.NotEqual,
+                    BinaryOperator.NotEqual => BinaryOperator.Equal,
+                    BinaryOperator.LessThan => BinaryOperator.GreaterThanOrEqual,
+                    BinaryOperator.LessThanOrEqual => BinaryOperator.GreaterThan,
+                    BinaryOperator.GreaterThan => BinaryOperator.LessThanOrEqual,
+                    BinaryOperator.GreaterThanOrEqual => BinaryOperator.LessThan,
+                    _ => throw new NotSupportedException($"{nameof(BinaryOperator)} '{bo}'")
+                };
+            }
 
-            return sp.Simplify() ?? sp;
+            switch (InnerPredicate)
+            {
+                case NegationPredicate np:
+                    return np.InnerPredicate;
+                case BinaryOperatorPredicate bop:
+                    return bop with { BinaryOperator = Negate(bop.BinaryOperator) };
+                case InPredicate ip:
+                    return ip with { IsIn = !ip.IsIn };
+                case ConjunctionPredicate cp:
+                    return new DisjunctionPredicate(
+                        new NegationPredicate(cp.LeftPredicate),
+                        new NegationPredicate(cp.RightPredicate));
+                case DisjunctionPredicate cp:
+                    return new ConjunctionPredicate(
+                        new NegationPredicate(cp.LeftPredicate),
+                        new NegationPredicate(cp.RightPredicate));
+                default:
+                    throw new NotSupportedException(
+                        $"Negating predicate type {InnerPredicate.GetType().Name}");
+            }
         }
 
         internal override QueryPredicate? Substitute(

@@ -71,19 +71,26 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder;
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
         {
-            var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
-
-            for (var i = 0; i != _itemCount; ++i)
+            if (isIn)
             {
-                if (values.Contains(_array[i]))
-                {
-                    matchBuilder.Add(i);
-                }
-            }
+                var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
 
-            return matchBuilder.ToImmutable();
+                for (var i = 0; i != _itemCount; ++i)
+                {
+                    if (values.Contains(_array[i]))
+                    {
+                        matchBuilder.Add(i);
+                    }
+                }
+
+                return matchBuilder.ToImmutable();
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
 
         int IReadOnlyDataColumn.ComputeSerializationSizes(

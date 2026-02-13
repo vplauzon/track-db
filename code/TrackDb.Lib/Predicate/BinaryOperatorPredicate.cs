@@ -58,11 +58,21 @@ namespace TrackDb.Lib.Predicate
                                 correspondance.MetaMinColumnIndex,
                                 Value,
                                 BinaryOperator.LessThanOrEqual),
-                            new NegationPredicate(
-                                new BinaryOperatorPredicate(
-                                    correspondance.MetaMaxColumnIndex,
-                                    Value,
-                                    BinaryOperator.LessThan)));
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex,
+                                Value,
+                                BinaryOperator.GreaterThanOrEqual));
+                    case BinaryOperator.NotEqual:
+                        //  For x!=a => min_x!=a || max_x!=a
+                        return new DisjunctionPredicate(
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMinColumnIndex,
+                                Value,
+                                BinaryOperator.NotEqual),
+                            new BinaryOperatorPredicate(
+                                correspondance.MetaMaxColumnIndex,
+                                Value,
+                                BinaryOperator.NotEqual));
                     case BinaryOperator.LessThan:
                         //  For x<a => min_x<a
                         return new BinaryOperatorPredicate(
@@ -75,6 +85,18 @@ namespace TrackDb.Lib.Predicate
                             correspondance.MetaMinColumnIndex,
                             Value,
                             BinaryOperator.LessThanOrEqual);
+                    case BinaryOperator.GreaterThan:
+                        //  For x>a => max_x>a
+                        return new BinaryOperatorPredicate(
+                            correspondance.MetaMaxColumnIndex,
+                            Value,
+                            BinaryOperator.GreaterThan);
+                    case BinaryOperator.GreaterThanOrEqual:
+                        //  For x>=a => max_x>=a
+                        return new BinaryOperatorPredicate(
+                            correspondance.MetaMaxColumnIndex,
+                            Value,
+                            BinaryOperator.GreaterThanOrEqual);
                     default:
                         throw new NotSupportedException($"Binary operation '{BinaryOperator}'");
                 }
@@ -86,8 +108,11 @@ namespace TrackDb.Lib.Predicate
             var operatorText = BinaryOperator switch
             {
                 BinaryOperator.Equal => "==",
+                BinaryOperator.NotEqual => "!=",
                 BinaryOperator.LessThan => "<",
                 BinaryOperator.LessThanOrEqual => "<=",
+                BinaryOperator.GreaterThan => ">",
+                BinaryOperator.GreaterThanOrEqual => ">=",
                 _ => throw new NotSupportedException(BinaryOperator.ToString())
             };
 

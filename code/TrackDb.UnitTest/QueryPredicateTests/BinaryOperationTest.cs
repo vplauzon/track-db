@@ -27,46 +27,24 @@ namespace TrackDb.UnitTest.QueryPredicateTests
             var testingPrimitivePairs = new[]
             {
                 (predicateEqual, BinaryOperator.Equal),
+                (predicateNotEqual, BinaryOperator.NotEqual),
                 (predicateLessThan, BinaryOperator.LessThan),
                 (predicateLessThanEqual, BinaryOperator.LessThanOrEqual),
-            };
-            var testingNegationPairs = new[]
-            {
-                (predicateNotEqual, BinaryOperator.Equal),
-                (predicateGreaterThan, BinaryOperator.LessThanOrEqual),
-                (predicateGreaterThanEqual, BinaryOperator.LessThan),
+                (predicateGreaterThan, BinaryOperator.GreaterThan),
+                (predicateGreaterThanEqual, BinaryOperator.GreaterThanOrEqual),
             };
 
             foreach (var testingPair in testingPrimitivePairs)
             {
                 var typedPredicate = testingPair.Item1;
                 var predicate = typedPredicate.QueryPredicate;
+                var simplifiedPredicate = predicate.Simplify() ?? predicate;
                 var binaryOperator = testingPair.Item2;
 
                 Assert.IsType<TypedQueryPredicate<IntegerOnly>>(typedPredicate);
-                Assert.IsType<BinaryOperatorPredicate>(predicate);
+                Assert.IsType<BinaryOperatorPredicate>(simplifiedPredicate);
 
-                var binaryOperatorPredicate = (BinaryOperatorPredicate)predicate;
-
-                Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
-                Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
-                Assert.Equal(5, binaryOperatorPredicate.Value);
-            }
-            foreach (var testingPair in testingNegationPairs)
-            {
-                var typedPredicate = testingPair.Item1;
-                var predicate = typedPredicate.QueryPredicate;
-                var binaryOperator = testingPair.Item2;
-
-                Assert.IsType<TypedQueryPredicate<IntegerOnly>>(typedPredicate);
-                Assert.IsType<NegationPredicate>(predicate);
-
-                var negationPredicate = (NegationPredicate)predicate;
-
-                Assert.IsType<BinaryOperatorPredicate>(negationPredicate.InnerPredicate);
-
-                var binaryOperatorPredicate =
-                    (BinaryOperatorPredicate)negationPredicate.InnerPredicate;
+                var binaryOperatorPredicate = (BinaryOperatorPredicate)simplifiedPredicate;
 
                 Assert.Equal(0, binaryOperatorPredicate.ColumnIndex);
                 Assert.Equal(binaryOperator, binaryOperatorPredicate.BinaryOperator);
