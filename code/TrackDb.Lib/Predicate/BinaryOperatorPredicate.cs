@@ -64,15 +64,15 @@ namespace TrackDb.Lib.Predicate
                                     Value,
                                     BinaryOperator.LessThan)));
                     case BinaryOperator.LessThan:
-                        //  For x<a => max_x<a
+                        //  For x<a => min_x<a
                         return new BinaryOperatorPredicate(
-                            correspondance.MetaMaxColumnIndex,
+                            correspondance.MetaMinColumnIndex,
                             Value,
                             BinaryOperator.LessThan);
                     case BinaryOperator.LessThanOrEqual:
-                        //  For x<=a => max_x<=a
+                        //  For x<=a => min_x<=a
                         return new BinaryOperatorPredicate(
-                            correspondance.MetaMaxColumnIndex,
+                            correspondance.MetaMinColumnIndex,
                             Value,
                             BinaryOperator.LessThanOrEqual);
                     default:
