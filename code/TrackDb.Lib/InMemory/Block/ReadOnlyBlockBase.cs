@@ -194,6 +194,17 @@ namespace TrackDb.Lib.InMemory.Block
 
         int IBlock.RecordCount => RecordCount;
 
+        ReadOnlySpan<long> IBlock.RecordIds
+        {
+            get
+            {
+                var recordColumn =
+                    (ITypedReadOnlyDataColumn<long>)GetDataColumn(Schema.RecordIdColumnIndex);
+
+                return recordColumn.RecordValues;
+            }
+        }
+
         FilterOutput IBlock.Filter(QueryPredicate predicate, bool provideAuditTrail)
         {
             var auditTrails = new List<PredicateAuditTrail>();

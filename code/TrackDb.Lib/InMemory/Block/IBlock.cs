@@ -11,6 +11,8 @@ namespace TrackDb.Lib.InMemory.Block
 
         int RecordCount { get; }
 
+        ReadOnlySpan<long> RecordIds { get; }
+
         /// <summary>Filters the rows given a predicate.</summary>
         /// <param name="predicate"></param>
         /// <param name="provideAuditTrail"></param>
