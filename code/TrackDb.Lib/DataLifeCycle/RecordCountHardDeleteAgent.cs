@@ -185,7 +185,7 @@ namespace TrackDb.Lib.DataLifeCycle
             MetaBlockManager metaBlockManager,
             string tableName)
         {
-            var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocks(tableName);
+            var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocksWithTombstones(tableName);
             var queue = new PriorityQueue<MetaMetaBlockStat, long>(META_META_BLOCKS_TOP);
 
             //  Scan meta meta blocks and keep the top META_META_BLOCKS_TOP (by count)
