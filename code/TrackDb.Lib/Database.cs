@@ -173,7 +173,7 @@ namespace TrackDb.Lib
             await ((IAsyncDisposable)_dataLifeCycleManager).DisposeAsync();
             if (_dbFileManager.IsValueCreated)
             {
-                await ((IAsyncDisposable)_dbFileManager.Value).DisposeAsync();
+                ((IDisposable)_dbFileManager.Value).Dispose();
             }
             if (_logFlushManager != null)
             {
