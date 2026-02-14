@@ -425,8 +425,8 @@ namespace TrackDb.Lib
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     tx)
-                .ToImmutableHashSet()
-                : ImmutableHashSet<long>.Empty;
+                .ToHashSet()
+                : (ISet<long>)ImmutableHashSet<long>.Empty;
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 //  Add Record ID at the end, so we can use it to detect deleted rows
                 .Append(_table.Schema.RecordIdColumnIndex)
@@ -479,7 +479,7 @@ namespace TrackDb.Lib
         }
 
         private IEnumerable<ReadOnlyMemory<object?>> RemoveDeleted(
-            IImmutableSet<long> deletedRecordIds,
+            ISet<long> deletedRecordIds,
             IEnumerable<ReadOnlyMemory<object?>> results)
         {
             foreach (var result in results)
@@ -620,8 +620,8 @@ namespace TrackDb.Lib
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     transactionContext)
-                .ToImmutableHashSet()
-                : ImmutableHashSet<long>.Empty;
+                .ToHashSet()
+                : (ISet<long>)ImmutableHashSet<long>.Empty;
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
                 .Append(_table.Schema.RecordIndexColumnIndex)
