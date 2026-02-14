@@ -14,7 +14,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
     /// Specialized column store to leverage vectorized operation at compilation.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    internal abstract class PrimitiveArrayColumnBase<T> : IDataColumn
+    internal abstract class PrimitiveArrayColumnBase<T> : IDataColumn, ITypedReadOnlyDataColumn<T>
     {
         private readonly int MIN_CAPACITY = 10;
 
@@ -229,6 +229,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
         {
             Deserialize(itemCount, payload);
         }
+        #endregion
+
+        #region ITypedReadOnlyDataColumn
+        ReadOnlySpan<T> ITypedReadOnlyDataColumn<T>.RecordValues => RawData;
         #endregion
 
         protected bool AllowNull { get; }

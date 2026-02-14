@@ -15,6 +15,13 @@ namespace TrackDb.Lib.DataLifeCycle
         private record CompactionResult(
             IEnumerable<MetadataBlock> MetadataBlocks,
             IEnumerable<long> HardDeletedRecordIds);
+
+        private enum BlockDeletedStatus
+        {
+            Untouched,
+            CompletlyDeleted,
+            PartiallyDeleted
+        }
         #endregion
 
         private readonly int _maxBlockSize;
@@ -204,7 +211,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .OrderBy(mmb => Math.Abs(mmb.MinRecordId - minRecordId));
             var stack = new Stack<MetadataBlock>(orderedMetaMetaBlocks.Reverse());
             var procesedMetaBlocks = new List<MetadataBlock>(stack.Count + 1);
-            var tombstonedRecordIds = ImmutableArray<long>.Empty;
+            var tombstonedRecordIds = ImmutableHashSet<long>.Empty;
             var hardDeleteRecordIds = new List<long>();
 
             //  Try to merge the new block as much as possible
@@ -265,7 +272,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .TableQuery
                     .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId))
                     .Select(r => (long)r.Span[0]!)
-                    .ToImmutableArray();
+                    .ToHashSet();
 
                 CompactMergeOneBlock(
                     currentBlock,
@@ -293,7 +300,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private void CompactMergeOneBlock(
             MetadataBlock currentBlock,
             MetadataTableSchema metaSchema,
-            IImmutableList<long> blockTombstonedRecordIds,
+            ISet<long> blockTombstonedRecordIds,
             BlockBuilder blockBuilder,
             ref MetadataBlock? previousBlock,
             List<MetadataBlock> processedBlocks,
@@ -402,7 +409,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool TryMerge(
             BlockBuilder blockBuilder,
             MetadataBlock nextMetadataBlock,
-            IImmutableList<long> blockTombstonedRecordIds,
+            ISet<long> blockTombstonedRecordIds,
             List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
@@ -452,7 +459,7 @@ namespace TrackDb.Lib.DataLifeCycle
             BlockBuilder blockBuilder,
             MetadataBlock metadataBlockA,
             MetadataBlock metadataBlockB,
-            IImmutableList<long> blockTombstonedRecordIds,
+            ISet<long> blockTombstonedRecordIds,
             List<long> hardDeletedRecordIds)
         {
             var tx = _metaBlockManager.Tx;
@@ -502,7 +509,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private bool TryCompactBlock(
             MetadataBlock metadataBlock,
             BlockBuilder blockBuilder,
-            IImmutableList<long> blockTombstonedRecordIds,
+            ISet<long> blockTombstonedRecordIds,
             List<long> hardDeletedRecordIds)
         {
             if (blockTombstonedRecordIds.Count == 0)
@@ -514,30 +521,78 @@ namespace TrackDb.Lib.DataLifeCycle
                 var tx = _metaBlockManager.Tx;
                 var schema = ((IBlock)blockBuilder).TableSchema;
                 var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
-                var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
+                var blockDeletedStatus = DetermineBlockDeletedStatus(
+                    block.RecordIds,
+                    blockTombstonedRecordIds);
 
-                blockBuilder.AppendBlock(block);
-
-                var actuallyDeletedRecordIds =
-                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
-
-                if (actuallyDeletedRecordIds.Any())
-                {   //  Compaction worked
-                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
-
-                    return true;
-                }
-                else
-                {   //  Rollback the compact
-                    var recordCountAfter = ((IBlock)blockBuilder).RecordCount;
-
-                    blockBuilder.DeleteRecordsByRecordIndex(
-                        Enumerable.Range(0, recordCountAfter)
-                        .Where(i => i >= recordCountBefore));
-
-                    return false;
+                switch (blockDeletedStatus)
+                {
+                    case BlockDeletedStatus.Untouched:
+                        return false;
+                    case BlockDeletedStatus.CompletlyDeleted:
+                        return true;
+                    case BlockDeletedStatus.PartiallyDeleted:
+                        return CompactBlockIntoBuilder(
+                            block,
+                            blockBuilder,
+                            blockTombstonedRecordIds,
+                            hardDeletedRecordIds);
+                    default:
+                        throw new NotSupportedException(
+                            $"{nameof(BlockDeletedStatus)}.{blockDeletedStatus}");
                 }
             }
+        }
+
+        private static bool CompactBlockIntoBuilder(
+            IBlock block,
+            BlockBuilder blockBuilder,
+            ISet<long> blockTombstonedRecordIds,
+            List<long> hardDeletedRecordIds)
+        {
+            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
+
+            blockBuilder.AppendBlock(block);
+
+            var actuallyDeletedRecordIds =
+                blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
+
+            if (actuallyDeletedRecordIds.Any())
+            {   //  Compaction worked
+                hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
+
+                return true;
+            }
+            else
+            {
+                throw new InvalidOperationException("There should be records deleted");
+            }
+        }
+
+        private BlockDeletedStatus DetermineBlockDeletedStatus(
+            ReadOnlySpan<long> recordIds,
+            ISet<long> blockTombstonedRecordIds)
+        {
+            var allNotMatch = true;
+            var allMatch = true;
+
+            foreach (var recordId in recordIds)
+            {
+                if (!blockTombstonedRecordIds.Contains(recordId))
+                {
+                    allMatch = false;
+                }
+                else
+                {
+                    allNotMatch = false;
+                }
+            }
+
+            return allMatch
+                ? BlockDeletedStatus.CompletlyDeleted
+                : allNotMatch
+                ? BlockDeletedStatus.Untouched
+                : BlockDeletedStatus.PartiallyDeleted;
         }
         #endregion
     }
