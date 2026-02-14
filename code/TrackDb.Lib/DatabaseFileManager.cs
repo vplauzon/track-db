@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Win32.SafeHandles;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -12,32 +13,29 @@ namespace TrackDb.Lib
     /// Manages read / writes of blocks.
     /// Blocks start at index 1.
     /// </summary>
-    internal class DatabaseFileManager : IAsyncDisposable
+    internal class DatabaseFileManager : IDisposable
     {
+        private readonly SafeFileHandle _fileHandle;
         private readonly string _filePath;
-        private readonly FileStream _fileStream;
-        private readonly object _lock = new();
         private long _fileLength = 0;
 
         #region Constructors
         public DatabaseFileManager(string filePath, ushort blockSize)
         {
-            _filePath = filePath;
-            BlockSize = blockSize;
-            _fileStream = new FileStream(
+            _fileHandle = File.OpenHandle(
                 filePath,
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.ReadWrite,
-                //  Large buffer to allow async writes since local write aren't the real persistance layer
-                bufferSize: 64 * 1024,
                 FileOptions.RandomAccess);
+            _filePath = filePath;
+            BlockSize = blockSize;
         }
         #endregion
 
-        async ValueTask IAsyncDisposable.DisposeAsync()
+        void IDisposable.Dispose()
         {
-            await _fileStream.DisposeAsync();
+            _fileHandle.Dispose();
             File.Delete(_filePath);
         }
 
@@ -50,25 +48,19 @@ namespace TrackDb.Lib
             {
                 throw new ArgumentOutOfRangeException(nameof(blockId));
             }
-            lock (_lock)
+            var buffer = new byte[BlockSize];
+            var position = GetBlockPosition(blockId);
+            var readCount = RandomAccess.Read(_fileHandle, buffer, position);
+
+            if (readCount != BlockSize)
             {
-                var position = GetBlockPosition(blockId);
-
-                _fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
-
-                var buffer = new byte[BlockSize];
-                var readCount = _fileStream.Read(buffer, 0, BlockSize);
-
-                if (readCount != BlockSize)
-                {
-                    throw new IOException(
-                        $"Block read resulted in only {readCount} " +
-                        $"bytes read instead of {BlockSize} ; file is {_fileLength} bytes long " +
-                        $"and read started at {position}");
-                }
-
-                return buffer;
+                throw new IOException(
+                    $"Block read resulted in only {readCount} " +
+                    $"bytes read instead of {BlockSize} ; file is {_fileLength} bytes long " +
+                    $"and read started at {position}");
             }
+
+            return buffer;
         }
 
         public void WriteBlock(int blockId, ReadOnlySpan<byte> buffer)
@@ -80,11 +72,9 @@ namespace TrackDb.Lib
                     $"Buffer size:  {buffer.Length}");
             }
 
-            lock (_lock)
-            {
-                _fileStream.Seek(GetBlockPosition(blockId), SeekOrigin.Begin);
-                _fileStream.Write(buffer);
-            }
+            var position = GetBlockPosition(blockId);
+
+            RandomAccess.Write(_fileHandle, buffer, position);
         }
 
         private long GetBlockPosition(int blockId)
@@ -95,15 +85,12 @@ namespace TrackDb.Lib
 
         public void EnsureBlockCapacity(int blockCount)
         {
-            lock (_lock)
-            {
-                var currentBlockCount = (int)(_fileStream.Length / BlockSize);
+            var requiredLength = blockCount * (long)BlockSize;
+            var currentLength = RandomAccess.GetLength(_fileHandle);
 
-                if (blockCount > currentBlockCount)
-                {
-                    _fileStream.SetLength(blockCount * (long)BlockSize);
-                    _fileLength = blockCount * (long)BlockSize;
-                }
+            if (requiredLength > currentLength)
+            {
+                RandomAccess.SetLength(_fileHandle, requiredLength);
             }
         }
     }
