@@ -52,44 +52,51 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         public TransactionContext Tx { get; }
 
         #region ListMetaMetaBlocks
-        public IEnumerable<MetaMetaBlockStat> ListMetaMetaBlocks(string tableName)
+        public IEnumerable<MetaMetaBlockStat> ListMetaMetaBlocksWithTombstones(string tableName)
         {
-            var nonNullMetaMetaBlocks = ListNonNullMetaMetaBlocks(tableName);
-            var nullMetaMetaBlocks = ListNullMetaMetaBlock(tableName);
-            var metaMetaBlocks = nonNullMetaMetaBlocks.Concat(nullMetaMetaBlocks);
             var tombstoneExtrema = GetTombstoneRecordIdExtrema(tableName);
+            var nonNullMetaMetaBlocks = ListNonNullMetaMetaBlocks(tableName, tombstoneExtrema);
+            var nullMetaMetaBlocks = ListNullMetaMetaBlock(tableName, tombstoneExtrema);
+            var metaMetaBlocks = nonNullMetaMetaBlocks.Concat(nullMetaMetaBlocks);
 
             foreach (var m in metaMetaBlocks)
-            {   //  Check if the meta block might have tombstone records
-                //  This is to avoid doing a tombstone query for each meta block
-                //  We test for intersection
-                if (tombstoneExtrema.Max >= m.MinRecordId
-                    && m.MaxRecordId >= tombstoneExtrema.Min)
+            {   //  This could be optimized
+                var recordCount = Database.TombstoneTable.Query(Tx)
+                    .Where(pf => pf.Equal(t => t.TableName, tableName))
+                    .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
+                    .And(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
+                    .Count();
+                var blockStat = m with
                 {
-                    var recordCount = Database.TombstoneTable.Query(Tx)
-                        .Where(pf => pf.Equal(t => t.TableName, tableName))
-                        .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, m.MinRecordId)
-                        .And(pf.LessThanOrEqual(t => t.DeletedRecordId, m.MaxRecordId)))
-                        .Count();
-                    var blockStat = m with
-                    {
-                        TombstonedRecordCount = recordCount
-                    };
+                    TombstonedRecordCount = recordCount
+                };
 
-                    yield return blockStat;
-                }
+                yield return blockStat;
             }
         }
 
-        private IEnumerable<MetaMetaBlockStat> ListNonNullMetaMetaBlocks(string tableName)
+        private IEnumerable<MetaMetaBlockStat> ListNonNullMetaMetaBlocks(
+            string tableName,
+            ExtremaRecordId tombstoneExtrema)
         {
             var metaTable = Database.GetMetaDataTable(tableName);
             var metaMetaTable = Database.GetMetaDataTable(metaTable.Schema.TableName);
             var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
+            //  Ensure it contains tombstones
+            var predicate = new ConjunctionPredicate(
+                new BinaryOperatorPredicate(
+                    metaMetaSchema.RecordIdMinColumnIndex,
+                    tombstoneExtrema.Max,
+                    BinaryOperator.LessThanOrEqual),
+                new BinaryOperatorPredicate(
+                    metaMetaSchema.RecordIdMaxColumnIndex,
+                    tombstoneExtrema.Min,
+                    BinaryOperator.GreaterThanOrEqual));
             //  In theory, we could have multiple in-memory (i.e. non positive) meta-meta block
             //  In practice, we'll only have one since it will sit in the committed part
             //  of the transaction in one BlockBuilder
             var metaMetaRecords = metaMetaTable.Query(Tx)
+                .WithPredicate(predicate)
                 .WithProjection(
                 metaMetaSchema.BlockIdColumnIndex,
                 metaMetaSchema.RecordIdMinColumnIndex,
@@ -105,7 +112,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             return metaMetaRecords;
         }
 
-        private IEnumerable<MetaMetaBlockStat> ListNullMetaMetaBlock(string tableName)
+        private IEnumerable<MetaMetaBlockStat> ListNullMetaMetaBlock(
+            string tableName,
+            ExtremaRecordId tombstoneExtrema)
         {
             var metaTable = Database.GetMetaDataTable(tableName);
             var metaSchema = (MetadataTableSchema)metaTable.Schema;
@@ -116,7 +125,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .Select(r => ((long)r.Span[0]!, (long)r.Span[1]!));
             var metaExtremum = ExtremaRecordId.ComputeExtrema(extrema);
 
-            if (metaExtremum == ExtremaRecordId.Seed)
+            if (metaExtremum == ExtremaRecordId.Seed
+                //  Ensure it contains tombstones
+                || tombstoneExtrema.Max < metaExtremum.Min
+                || tombstoneExtrema.Min > metaExtremum.Max)
             {
                 return Array.Empty<MetaMetaBlockStat>();
             }
@@ -208,7 +220,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             map.CommittedDataBlock!.Clear();
             map.CommittedDataBlock!.AppendBlock(metaBuilder);
             map.NewDataBlock.Clear();
-            
+
             PruneHeadMetadata(metaTableName);
         }
 

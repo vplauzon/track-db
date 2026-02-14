@@ -802,7 +802,8 @@ namespace TrackDb.Lib
                         var table = GetAnyTable(tableName);
                         var predicate = new InPredicate(
                             table.Schema.RecordIdColumnIndex,
-                            g.Select(t => t.DeletedRecordId).Cast<object?>());
+                            g.Select(t => t.DeletedRecordId).Cast<object?>(),
+                            true);
                         var foundRecordIds = table.Query(tx)
                             .WithIgnoreDeleted()
                             .WithPredicate(predicate)

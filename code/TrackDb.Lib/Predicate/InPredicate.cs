@@ -5,11 +5,14 @@ using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
-    public sealed record InPredicate(int ColumnIndex, IImmutableSet<object?> Values)
+    public sealed record InPredicate(
+        int ColumnIndex,
+        IImmutableSet<object?> Values,
+        bool IsIn)
         : QueryPredicate
     {
-        public InPredicate(int ColumnIndex, IEnumerable<object?> Values)
-            : this(ColumnIndex, Values.ToImmutableHashSet())
+        public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
+            : this(ColumnIndex, Values.ToImmutableHashSet(), IsIn)
         {
         }
 
@@ -42,24 +45,20 @@ namespace TrackDb.Lib.Predicate
         internal override QueryPredicate TransformToMetadata(
             IImmutableDictionary<int, MetadataColumnCorrespondance> correspondanceMap)
         {
-            if (Values.Count == 0)
+            if (IsIn)
             {
-                return ResultPredicate.Empty;
-            }
-            else if (Values.Contains(null))
-            {
-                return AllInPredicate.Instance;
-            }
-            else
-            {
-                var correspondance = correspondanceMap[ColumnIndex];
-
-                if (correspondance.MetaColumnIndex != null)
+                if (Values.Count == 0)
                 {
-                    throw new NotSupportedException("In-predicate on a stats column");
+                    return ResultPredicate.Empty;
+                }
+                else if (Values.Contains(null))
+                {
+                    return AllInPredicate.Instance;
                 }
                 else
                 {
+                    var correspondance = correspondanceMap[ColumnIndex];
+
                     var minMax = Values
                         .Cast<IComparable>()
                         .Aggregate(
@@ -72,15 +71,19 @@ namespace TrackDb.Lib.Predicate
                     //  x in set => min_x <= max(set) AND max_x >= min(set)
                     return new ConjunctionPredicate(
                         new BinaryOperatorPredicate(
-                            correspondance.MetaMinColumnIndex!.Value,
+                            correspondance.MetaMinColumnIndex,
                             minMax.Max,
                             BinaryOperator.LessThanOrEqual),
                         new NegationPredicate(
                             new BinaryOperatorPredicate(
-                                correspondance.MetaMaxColumnIndex!.Value,
+                                correspondance.MetaMaxColumnIndex,
                                 minMax.Min,
                                 BinaryOperator.LessThan)));
                 }
+            }
+            else
+            {
+                return AllInPredicate.Instance;
             }
         }
 

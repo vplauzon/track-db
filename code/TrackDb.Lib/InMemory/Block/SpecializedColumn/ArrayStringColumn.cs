@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Data;
 using System.Linq;
 using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
@@ -39,6 +38,15 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                         }
                     }
                     return;
+                case BinaryOperator.NotEqual:
+                    for (int i = 0; i != storedValues.Length; ++i)
+                    {
+                        if (storedValues[i] != value)
+                        {
+                            matchBuilder.Add(i);
+                        }
+                    }
+                    return;
                 case BinaryOperator.LessThan:
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
@@ -52,6 +60,24 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                     for (int i = 0; i != storedValues.Length; ++i)
                     {
                         if (storedValues[i]?.CompareTo(value) <= 0)
+                        {
+                            matchBuilder.Add(i);
+                        }
+                    }
+                    return;
+                case BinaryOperator.GreaterThan:
+                    for (int i = 0; i != storedValues.Length; ++i)
+                    {
+                        if (storedValues[i]?.CompareTo(value) > 0)
+                        {
+                            matchBuilder.Add(i);
+                        }
+                    }
+                    return;
+                case BinaryOperator.GreaterThanOrEqual:
+                    for (int i = 0; i != storedValues.Length; ++i)
+                    {
+                        if (storedValues[i]?.CompareTo(value) >= 0)
                         {
                             matchBuilder.Add(i);
                         }

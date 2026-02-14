@@ -30,17 +30,23 @@ namespace TrackDb.UnitTest.QueryPredicateTests
                 .Where(c => c.ColumnIndex == nameIndex)
                 .First();
 
-            Assert.Null(correspondance.MetaColumnIndex);
-            Assert.NotNull(correspondance.MetaMinColumnIndex);
-            Assert.NotNull(correspondance.MetaMaxColumnIndex);
+            Assert.Equal(
+                nameof(MyEntity.Name),
+                metaSchema.ColumnProperties[correspondance.MetaMinColumnIndex].AncestorZeroColumnName);
+            Assert.Equal(
+                nameof(MyEntity.Name),
+                metaSchema.ColumnProperties[correspondance.MetaMaxColumnIndex].AncestorZeroColumnName);
 
             var metaCorrespondance = metaCorrespondances
                 .Where(c => c.ColumnIndex == correspondance.MetaMinColumnIndex)
                 .First();
 
-            Assert.NotNull(metaCorrespondance.MetaColumnIndex);
-            Assert.Null(metaCorrespondance.MetaMinColumnIndex);
-            Assert.Null(metaCorrespondance.MetaMaxColumnIndex);
+            Assert.Equal(
+                nameof(MyEntity.Name),
+                metaMetaSchema.ColumnProperties[metaCorrespondance.MetaMinColumnIndex].AncestorZeroColumnName);
+            Assert.Equal(
+                nameof(MyEntity.Name),
+                metaMetaSchema.ColumnProperties[metaCorrespondance.MetaMaxColumnIndex].AncestorZeroColumnName);
         }
     }
 }

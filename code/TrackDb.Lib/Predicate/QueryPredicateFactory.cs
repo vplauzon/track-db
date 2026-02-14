@@ -52,7 +52,8 @@ namespace TrackDb.Lib.Predicate
             return new TypedQueryPredicate<T>(
                 new InPredicate(
                     GetColumnIndexes(propertySelection.Body),
-                    values.Cast<object?>()),
+                    values.Cast<object?>(),
+                    true),
                 Schema);
         }
 
@@ -64,7 +65,8 @@ namespace TrackDb.Lib.Predicate
                 new NegationPredicate(
                     new InPredicate(
                         GetColumnIndexes(propertySelection.Body),
-                        values.Cast<object?>())),
+                        values.Cast<object?>(),
+                        true)),
                 Schema);
         }
 
@@ -97,11 +99,10 @@ namespace TrackDb.Lib.Predicate
             U value)
         {
             return new TypedQueryPredicate<T>(
-                new NegationPredicate(
-                    new BinaryOperatorPredicate(
-                        GetColumnIndexes(propertySelection.Body),
-                        value,
-                        BinaryOperator.LessThanOrEqual)),
+                new BinaryOperatorPredicate(
+                    GetColumnIndexes(propertySelection.Body),
+                    value,
+                    BinaryOperator.GreaterThan),
                 Schema);
         }
 
@@ -110,11 +111,10 @@ namespace TrackDb.Lib.Predicate
             U value)
         {
             return new TypedQueryPredicate<T>(
-                new NegationPredicate(
-                    new BinaryOperatorPredicate(
-                        GetColumnIndexes(propertySelection.Body),
-                        value,
-                        BinaryOperator.LessThan)),
+                new BinaryOperatorPredicate(
+                    GetColumnIndexes(propertySelection.Body),
+                    value,
+                    BinaryOperator.GreaterThanOrEqual),
                 Schema);
         }
         #endregion

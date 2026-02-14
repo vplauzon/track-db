@@ -148,7 +148,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 .WithProjection(table.Schema.RecordIdColumnIndex)
                 .WithPredicate(new InPredicate(
                     table.Schema.RecordIdColumnIndex,
-                    deleteRecordIdSet.Cast<object?>()))
+                    deleteRecordIdSet.Cast<object?>(),
+                    true))
                 .Select(r => (long)r.Span[0]!)
                 .ToImmutableArray();
             var phantomRecordIds = deleteRecordIdSet
@@ -184,7 +185,7 @@ namespace TrackDb.Lib.DataLifeCycle
             MetaBlockManager metaBlockManager,
             string tableName)
         {
-            var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocks(tableName);
+            var metaMetaBlockStats = metaBlockManager.ListMetaMetaBlocksWithTombstones(tableName);
             var queue = new PriorityQueue<MetaMetaBlockStat, long>(META_META_BLOCKS_TOP);
 
             //  Scan meta meta blocks and keep the top META_META_BLOCKS_TOP (by count)

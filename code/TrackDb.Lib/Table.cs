@@ -41,7 +41,8 @@ namespace TrackDb.Lib
                 .WithIgnoreDeleted()
                 .WithPredicate(new InPredicate(
                     Schema.RecordIdColumnIndex,
-                    tombstoneRecordIds));
+                    tombstoneRecordIds,
+                    true));
 
             return tombstonedRecords;
         }

@@ -52,12 +52,13 @@ namespace TrackDb.Lib.InMemory.Block
             return _innerColumn.FilterBinary(binaryOperator, OutToInValue(value));
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
         {
             return _innerColumn.FilterIn(
                 values
                 .Select(o => OutToInValue(o))
-                .ToImmutableHashSet());
+                .ToImmutableHashSet(),
+                isIn);
         }
 
         int IReadOnlyDataColumn.ComputeSerializationSizes(

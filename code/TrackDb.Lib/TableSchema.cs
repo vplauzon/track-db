@@ -25,7 +25,7 @@ namespace TrackDb.Lib
             IEnumerable<TableTriggerAction> triggerActions)
             : this(
                   tableName,
-                  columns.Select(c => new ColumnSchemaProperties(c, ColumnSchemaStat.Data)),
+                  columns.Select(c => ColumnSchemaProperties.CreateGenerationZero(c)),
                   primaryKeyColumnIndexes.ToImmutableArray(),
                   partitionKeyColumnIndexes.ToImmutableArray(),
                   triggerActions,
@@ -39,7 +39,7 @@ namespace TrackDb.Lib
             IEnumerable<int> primaryKeyColumnIndexes,
             IEnumerable<int> partitionKeyColumnIndexes,
             IEnumerable<TableTriggerAction> triggerActions,
-            bool areExtraColumnsIndexed)
+            bool isRecordIdIndexed)
         {
             //  Validate column types
             var unsupportedColumns = columnProperties
@@ -87,8 +87,10 @@ namespace TrackDb.Lib
             TableName = tableName;
             Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
             ColumnProperties = columnProperties
-                .Append(new(new(CREATION_TIME, typeof(DateTime), false), ColumnSchemaStat.Data))
-                .Append(new(new(RECORD_ID, typeof(long), areExtraColumnsIndexed), ColumnSchemaStat.Data))
+                .Append(ColumnSchemaProperties.CreateGenerationZero(
+                    new(CREATION_TIME, typeof(DateTime), false)))
+                .Append(ColumnSchemaProperties.CreateGenerationZero(
+                    new(RECORD_ID, typeof(long), isRecordIdIndexed)))
                 .ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();

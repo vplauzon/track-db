@@ -25,7 +25,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
             {
                 throw new NotSupportedException();
             }
@@ -70,7 +70,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
             {
                 throw new NotSupportedException();
             }
@@ -336,7 +336,7 @@ namespace TrackDb.Lib.InMemory.Block
             else if (leafPredicate is InPredicate ip)
             {
                 var column = GetDataColumn(ip.ColumnIndex);
-                var resultIndexes = column.FilterIn(ip.Values);
+                var resultIndexes = column.FilterIn(ip.Values, ip.IsIn);
 
                 return resultIndexes;
             }

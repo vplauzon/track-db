@@ -25,20 +25,11 @@ namespace TrackDb.Lib
                 {
                     case ColumnSchemaStat.Data:
                         return [
-                            new ColumnSchemaProperties(
-                                new ColumnSchema($"$min-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Min,
-                                parentColumn),
-                            new ColumnSchemaProperties(
-                                new ColumnSchema($"$max-{schema.ColumnName}", schema.ColumnType),
-                                ColumnSchemaStat.Max,
-                                parentColumn)];
+                            ColumnSchemaProperties.CreateGenerationOne(parentColumn, ColumnSchemaStat.Min),
+                            ColumnSchemaProperties.CreateGenerationOne(parentColumn, ColumnSchemaStat.Max)];
                     case ColumnSchemaStat.Min:
                     case ColumnSchemaStat.Max:
-                        return [new ColumnSchemaProperties(
-                            schema,
-                            parentColumn.ColumnSchemaStat,
-                            parentColumn)];
+                        return [ColumnSchemaProperties.CreateGenerationTwo(parentColumn)];
 
                     default:
                         throw new NotSupportedException(
@@ -46,21 +37,17 @@ namespace TrackDb.Lib
                 }
             }
             var tableName = $"$meta-{parentSchema.TableName}";
-            var isParentMeta = parentSchema is MetadataTableSchema;
             var inheritedMetaDataColumns = parentSchema.ColumnProperties
                 .Where(c => c.ColumnSchema.IsIndexed)
                 .Select(c => CreateMetaColumn(c));
             var newDataColumns = new ColumnSchemaProperties[]
             {
-                new ColumnSchemaProperties(
-                    new ColumnSchema(ITEM_COUNT, typeof(int), false),
-                    ColumnSchemaStat.Data),
-                new ColumnSchemaProperties(
-                    new ColumnSchema(SIZE, typeof(int), false),
-                    ColumnSchemaStat.Data),
-                new ColumnSchemaProperties(
-                    new ColumnSchema($"{BLOCK_ID}-{tableName}", typeof(int), true),
-                    ColumnSchemaStat.Data)
+                ColumnSchemaProperties.CreateGenerationZero(
+                    new ColumnSchema(ITEM_COUNT, typeof(int), false)),
+                ColumnSchemaProperties.CreateGenerationZero(
+                    new ColumnSchema(SIZE, typeof(int), false)),
+                ColumnSchemaProperties.CreateGenerationZero(
+                    new ColumnSchema($"{BLOCK_ID}-{tableName}", typeof(int), true))
             };
             var metaDataColumns = inheritedMetaDataColumns
                 .Append(newDataColumns)
@@ -85,6 +72,18 @@ namespace TrackDb.Lib
                   false)
         {
             ParentSchema = parentSchema;
+            RecordIdMinColumnIndex = ColumnProperties
+                .Index()
+                .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
+                .Where(c => c.Item.AncestorZeroColumnName == RECORD_ID)
+                .Select(c => c.Index)
+                .First();
+            RecordIdMaxColumnIndex = ColumnProperties
+                .Index()
+                .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
+                .Where(c => c.Item.AncestorZeroColumnName == RECORD_ID)
+                .Select(c => c.Index)
+                .First();
         }
         #endregion
 
@@ -99,19 +98,9 @@ namespace TrackDb.Lib
         #endregion
 
         #region Stats Column
-        public int RecordIdMinColumnIndex => ColumnProperties
-            .Index()
-            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
-            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
-            .Select(c => c.Index)
-            .First();
+        public int RecordIdMinColumnIndex { get; }
 
-        public int RecordIdMaxColumnIndex => ColumnProperties
-            .Index()
-            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
-            .Where(c => c.Item.GetAncestorZero().ColumnSchema.ColumnName == RECORD_ID)
-            .Select(c => c.Index)
-            .First();
+        public int RecordIdMaxColumnIndex { get; }
         #endregion
 
         /// <summary>
@@ -132,37 +121,42 @@ namespace TrackDb.Lib
 
         public IEnumerable<MetadataColumnCorrespondance> GetColumnCorrespondances()
         {
-            var metaColumnsByParentColumnName = ColumnProperties
+            var metaColumnsByColumnName = ColumnProperties
                 .Index()
-                .Where(p => p.Item.ParentColumnProperties != null)
-                .GroupBy(p => p.Item.ParentColumnProperties!.ColumnSchema.ColumnName)
+                .Where(p => p.Item.Generation > 0)
+                .GroupBy(p => new
+                {
+                    p.Item.AncestorZeroColumnName,
+                    p.Item.Generation
+                })
                 .ToImmutableDictionary(g => g.Key);
             var parentColumnProperties = ParentSchema.ColumnProperties;
             var correspondances = new List<MetadataColumnCorrespondance>();
 
             for (var i = 0; i != parentColumnProperties.Count; ++i)
             {
-                if (metaColumnsByParentColumnName.TryGetValue(
-                    parentColumnProperties[i].ColumnSchema.ColumnName,
+                if (metaColumnsByColumnName.TryGetValue(
+                    //  We want to find the children of the current parent column
+                    new
+                    {
+                        parentColumnProperties[i].AncestorZeroColumnName,
+                        Generation = parentColumnProperties[i].Generation + 1
+                    },
                     out var metaColumns))
                 {
-                    if (metaColumns.Count() == 1)
+                    if (metaColumns.Count() == 2)
                     {
                         correspondances.Add(new MetadataColumnCorrespondance(
                             i,
                             parentColumnProperties[i].ColumnSchema,
-                            metaColumns.First().Index,
-                            null,
-                            null));
-                    }
-                    else if (metaColumns.Count() == 2)
-                    {
-                        correspondances.Add(new MetadataColumnCorrespondance(
-                            i,
-                            parentColumnProperties[i].ColumnSchema,
-                            null,
-                            metaColumns.First().Index,
-                            metaColumns.Last().Index));
+                            metaColumns
+                            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
+                            .First()
+                            .Index,
+                            metaColumns
+                            .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
+                            .First()
+                            .Index));
                     }
                     else
                     {
