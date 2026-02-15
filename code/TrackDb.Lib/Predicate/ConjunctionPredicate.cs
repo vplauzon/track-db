@@ -23,13 +23,6 @@ namespace TrackDb.Lib.Predicate
         internal override IEnumerable<QueryPredicate> LeafPredicates
             => LeftPredicate.LeafPredicates.Concat(RightPredicate.LeafPredicates);
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is ConjunctionPredicate cp
-                && cp.LeftPredicate.Equals(LeftPredicate)
-                && cp.RightPredicate.Equals(RightPredicate);
-        }
-
         internal override QueryPredicate? Simplify()
         {
             if (LeftPredicate.Equals(AllInPredicate.Instance))

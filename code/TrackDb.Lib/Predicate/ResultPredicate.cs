@@ -11,23 +11,17 @@ namespace TrackDb.Lib.Predicate
     {
         public ResultPredicate(IEnumerable<int> recordIndexes)
         {
-            RecordIndexes = recordIndexes.ToHashSet();
+            RecordIndexes = recordIndexes.ToImmutableArray();
         }
 
         public static ResultPredicate Empty { get; } = new ResultPredicate(Array.Empty<int>());
 
-        public ISet<int> RecordIndexes { get; }
+        public IImmutableList<int> RecordIndexes { get; }
 
         internal override IEnumerable<int> ReferencedColumnIndexes => Array.Empty<int>();
 
         internal override IEnumerable<QueryPredicate> LeafPredicates
             => Array.Empty<QueryPredicate>();
-
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is ResultPredicate rp
-                && rp.RecordIndexes.SetEquals(RecordIndexes);
-        }
 
         internal override QueryPredicate? Simplify() => null;
 

@@ -23,14 +23,6 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is BinaryOperatorPredicate bop
-                && ColumnIndex == bop.ColumnIndex
-                && Value == bop.Value
-                && BinaryOperator == bop.BinaryOperator;
-        }
-
         internal override QueryPredicate? Simplify() => null;
 
         internal override QueryPredicate? Substitute(

@@ -26,13 +26,6 @@ namespace TrackDb.Lib.Predicate
             }
         }
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is InPredicate ip
-                && ip.ColumnIndex == ColumnIndex
-                && ip.Values == Values;
-        }
-
         internal override QueryPredicate? Simplify() => Values.Count > 0
             ? null
             : ResultPredicate.Empty;

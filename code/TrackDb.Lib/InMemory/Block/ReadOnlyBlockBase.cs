@@ -256,7 +256,7 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Predicate filtering
-        private ISet<int> ResolvePredicate(
+        private IImmutableList<int> ResolvePredicate(
             QueryPredicate predicate,
             bool provideAuditTrail,
             int iteration,
