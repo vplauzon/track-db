@@ -7,12 +7,12 @@ namespace TrackDb.Lib.Predicate
 {
     public sealed record InPredicate(
         int ColumnIndex,
-        IImmutableSet<object?> Values,
+        ISet<object?> Values,
         bool IsIn)
         : QueryPredicate
     {
         public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
-            : this(ColumnIndex, Values.ToImmutableHashSet(), IsIn)
+            : this(ColumnIndex, Values.ToHashSet(), IsIn)
         {
         }
 

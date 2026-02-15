@@ -20,7 +20,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<int> FilterBinary(BinaryOperator binaryOperator, object? value);
 
-        IEnumerable<int> FilterIn(IImmutableSet<object?> values, bool isIn);
+        IEnumerable<int> FilterIn(ISet<object?> values, bool isIn);
 
         /// <summary>
         /// Computes the incremental column serialization size taking one element at the time.

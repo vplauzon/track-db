@@ -11,12 +11,12 @@ namespace TrackDb.Lib.Predicate
     {
         public ResultPredicate(IEnumerable<int> recordIndexes)
         {
-            RecordIndexes = recordIndexes.ToImmutableHashSet();
+            RecordIndexes = recordIndexes.ToHashSet();
         }
 
         public static ResultPredicate Empty { get; } = new ResultPredicate(Array.Empty<int>());
 
-        public IImmutableSet<int> RecordIndexes { get; }
+        public ISet<int> RecordIndexes { get; }
 
         internal override IEnumerable<int> ReferencedColumnIndexes => Array.Empty<int>();
 

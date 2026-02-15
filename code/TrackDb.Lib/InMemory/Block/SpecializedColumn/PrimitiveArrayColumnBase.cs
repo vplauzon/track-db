@@ -71,7 +71,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder;
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
         {
             if (isIn)
             {
