@@ -7,13 +7,8 @@ using System.Threading.Tasks;
 
 namespace TrackDb.Lib.Predicate
 {
-    public abstract record QueryPredicate : IEquatable<QueryPredicate>
+    public abstract record QueryPredicate
     {
-        bool IEquatable<QueryPredicate>.Equals(QueryPredicate? other)
-        {
-            return PredicateEquals(other);
-        }
-
         /// <summary>Column indexes used in the leaf predicates.</summary>
         internal abstract IEnumerable<int> ReferencedColumnIndexes { get; }
 
@@ -24,11 +19,6 @@ namespace TrackDb.Lib.Predicate
         /// The main exception is <see cref="AllInPredicate"/>.
         /// </remarks>
         internal abstract IEnumerable<QueryPredicate> LeafPredicates { get; }
-
-        /// <summary>Compares two predicates.</summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        internal abstract bool PredicateEquals(QueryPredicate? other);
 
         /// <summary>Applies any simplification rules.</summary>
         /// <returns>Simplified predicate (or <c>null</c> if unchanged).</returns>

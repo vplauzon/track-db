@@ -118,7 +118,7 @@ namespace TrackDb.Lib.InMemory.Block
         /// <returns>The deleted record IDs.</returns>
         public IEnumerable<long> DeleteRecordsByRecordId(IEnumerable<long> recordIds)
         {
-            var recordIdSet = recordIds.ToImmutableHashSet();
+            var recordIdSet = recordIds.ToHashSet();
 
             if (recordIdSet.Any() && _dataColumns.First().RecordCount > 0)
             {

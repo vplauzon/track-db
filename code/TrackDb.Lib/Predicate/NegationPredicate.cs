@@ -15,12 +15,6 @@ namespace TrackDb.Lib.Predicate
         internal override IEnumerable<QueryPredicate> LeafPredicates
             => InnerPredicate.LeafPredicates;
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is NegationPredicate np
-                && np.InnerPredicate.Equals(InnerPredicate);
-        }
-
         /// <summary>Essentially implements De Morgan's Laws.</summary>
         /// <returns></returns>
         /// <exception cref="NotImplementedException"></exception>

@@ -25,7 +25,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
             {
                 throw new NotSupportedException();
             }
@@ -70,7 +70,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IImmutableSet<object?> values, bool isIn)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
             {
                 throw new NotSupportedException();
             }
@@ -256,7 +256,7 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Predicate filtering
-        private IImmutableSet<int> ResolvePredicate(
+        private IImmutableList<int> ResolvePredicate(
             QueryPredicate predicate,
             bool provideAuditTrail,
             int iteration,

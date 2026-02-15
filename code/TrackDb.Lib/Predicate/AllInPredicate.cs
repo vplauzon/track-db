@@ -20,11 +20,6 @@ namespace TrackDb.Lib.Predicate
         internal override IEnumerable<QueryPredicate> LeafPredicates
             => Array.Empty<QueryPredicate>();
 
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is AllInPredicate;
-        }
-
         internal override QueryPredicate? Simplify() => null;
 
         internal override QueryPredicate? Substitute(

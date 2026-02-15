@@ -7,12 +7,12 @@ namespace TrackDb.Lib.Predicate
 {
     public sealed record InPredicate(
         int ColumnIndex,
-        IImmutableSet<object?> Values,
+        ISet<object?> Values,
         bool IsIn)
         : QueryPredicate
     {
         public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
-            : this(ColumnIndex, Values.ToImmutableHashSet(), IsIn)
+            : this(ColumnIndex, Values.ToHashSet(), IsIn)
         {
         }
 
@@ -24,13 +24,6 @@ namespace TrackDb.Lib.Predicate
             {
                 yield return this;
             }
-        }
-
-        internal override bool PredicateEquals(QueryPredicate? other)
-        {
-            return other is InPredicate ip
-                && ip.ColumnIndex == ColumnIndex
-                && ip.Values == Values;
         }
 
         internal override QueryPredicate? Simplify() => Values.Count > 0
