@@ -530,6 +530,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     case BlockDeletedStatus.Untouched:
                         return false;
                     case BlockDeletedStatus.CompletlyDeleted:
+                        hardDeletedRecordIds.AddRange(block.RecordIds);
+
                         return true;
                     case BlockDeletedStatus.PartiallyDeleted:
                         return CompactBlockIntoBuilder(

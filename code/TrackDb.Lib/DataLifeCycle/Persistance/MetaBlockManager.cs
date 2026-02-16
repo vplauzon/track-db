@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 
@@ -215,11 +216,22 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             var map = Tx.TransactionState
                 .UncommittedTransactionLog
-                .TransactionTableLogMap[metaTableName];
+                .TransactionTableLogMap;
+            var tableLog = map[metaTableName];
 
-            map.CommittedDataBlock!.Clear();
-            map.CommittedDataBlock!.AppendBlock(metaBuilder);
-            map.NewDataBlock.Clear();
+            if (tableLog.CommittedDataBlock == null)
+            {   //  Rare case where the in-memory database doesn't have any row of the table
+                tableLog = new TransactionTableLog(
+                    tableLog.NewDataBlock,
+                    new BlockBuilder(((IBlock)tableLog.NewDataBlock).TableSchema));
+                map[metaTableName] = tableLog;
+            }
+            else
+            {
+                tableLog.CommittedDataBlock!.Clear();
+                tableLog.CommittedDataBlock!.AppendBlock(metaBuilder);
+                tableLog.NewDataBlock.Clear();
+            }
 
             PruneHeadMetadata(metaTableName);
         }
