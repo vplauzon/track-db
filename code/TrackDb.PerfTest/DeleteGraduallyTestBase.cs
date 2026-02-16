@@ -60,7 +60,7 @@ namespace TrackDb.PerfTest
                         .Delete();
                     i += deleteBatchSize;
 
-                    await db.AwaitLifeCycleManagementAsync(4);
+                    await db.AwaitLifeCycleManagementAsync(10);
                     if (i % (5 * deleteBatchSize) == 0)
                     {
                         Assert.Equal(
