@@ -5,7 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using TrackDb.Lib.Encoding;
+using TrackDb.Lib.InMemory.Block.SpecializedColumn;
 using TrackDb.Lib.Predicate;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.InMemory.Block
 {
@@ -88,6 +90,19 @@ namespace TrackDb.Lib.InMemory.Block
         void IDataColumn.AppendValue(object? value)
         {
             _innerColumn.AppendValue(OutToInValue(value));
+        }
+
+        void IDataColumn.AppendColumn(IDataColumn column)
+        {
+            var otherColumn = column as TransformProxyColumn;
+
+            if (otherColumn == null)
+            {
+                throw new ArgumentException(
+                    $"Should be {nameof(TransformProxyColumn)}",
+                    nameof(column));
+            }
+            _innerColumn.AppendColumn(otherColumn._innerColumn);
         }
 
         void IDataColumn.AppendLogValues(IEnumerable<JsonElement> values)

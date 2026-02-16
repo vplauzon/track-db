@@ -152,6 +152,31 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             _array[_itemCount++] = strongValue;
         }
 
+        void IDataColumn.AppendColumn(IDataColumn column)
+        {
+            var otherColumn = column as PrimitiveArrayColumnBase<T>;
+
+            if (otherColumn == null)
+            {
+                throw new ArgumentException(
+                    $"Should be {nameof(PrimitiveArrayColumnBase<T>)}",
+                    nameof(column));
+            }
+            if (_array.Length <= _itemCount + column.RecordCount)
+            {
+                var newArray = new T[Math.Max(MIN_CAPACITY, _itemCount + column.RecordCount)];
+
+                Array.Copy(_array, newArray, _array.Length);
+                _array = newArray;
+            }
+
+            var source = otherColumn._array.AsSpan().Slice(0, otherColumn._itemCount);
+            var destination = _array.AsSpan().Slice(_itemCount, otherColumn._itemCount);
+
+            source.CopyTo(destination);
+            _itemCount += otherColumn._itemCount;
+        }
+
         void IDataColumn.AppendLogValues(IEnumerable<JsonElement> logValues)
         {
             IDataColumn column = this;

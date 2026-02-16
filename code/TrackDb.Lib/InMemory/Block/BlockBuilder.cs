@@ -55,7 +55,7 @@ namespace TrackDb.Lib.InMemory.Block
                 .Sum(b => b.RecordCount);
             var builder = new BlockBuilder(materializedBlocks[0].TableSchema, totalRowCount);
 
-            foreach(var block in materializedBlocks)
+            foreach (var block in materializedBlocks)
             {
                 builder.AppendBlock(block);
             }
@@ -67,24 +67,34 @@ namespace TrackDb.Lib.InMemory.Block
         #region Writable block methods
         public void AppendBlock(IBlock block)
         {
-            if (!block.TableSchema.AreColumnsCompatible(Schema.Columns))
+            if (block.TableSchema.TableName != Schema.TableName)
             {
-                throw new ArgumentException("Columns are incompatible", nameof(block));
+                throw new ArgumentException("Schemas are incompatible", nameof(block));
             }
 
-            //  Include extra columns
-            var data = block.Project(
-                new object?[_dataColumns.Count],
-                Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
-                Enumerable.Range(0, block.RecordCount),
-                0);
-
-            //  Copy data
-            foreach (var row in data)
-            {
-                for (var columnIndex = 0; columnIndex != _dataColumns.Count; ++columnIndex)
+            if (block is BlockBuilder builder)
+            {   //  Optimize for builder appends
+                for (var i = 0; i != _dataColumns.Count; ++i)
                 {
-                    _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                    _dataColumns[i].AppendColumn(builder._dataColumns[i]);
+                }
+            }
+            else
+            {
+                //  Include extra columns
+                var data = block.Project(
+                    new object?[_dataColumns.Count],
+                    Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
+                    Enumerable.Range(0, block.RecordCount),
+                    0);
+
+                //  Copy data
+                foreach (var row in data)
+                {
+                    for (var columnIndex = 0; columnIndex != _dataColumns.Count; ++columnIndex)
+                    {
+                        _dataColumns[columnIndex].AppendValue(row.Span[columnIndex]);
+                    }
                 }
             }
         }

@@ -140,13 +140,6 @@ namespace TrackDb.Lib
                 $"Column '{columnName}' not found");
         }
 
-        internal bool AreColumnsCompatible(IImmutableList<ColumnSchema> otherColumns)
-        {
-            return otherColumns.Count == Columns.Count
-                && Columns.Zip(otherColumns)
-                .All(b => b.First.ColumnType == b.Second.ColumnType);
-        }
-
         internal bool TryGetColumnIndex(string columnName, out int columnIndex)
         {
             return _columnNameToColumnIndexMap.TryGetValue(columnName, out columnIndex);
