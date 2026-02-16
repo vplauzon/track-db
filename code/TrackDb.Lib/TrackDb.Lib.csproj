@@ -9,10 +9,6 @@
 		<TreatWarningsAsErrors>True</TreatWarningsAsErrors>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)'=='Release'">
-		<DefineConstants>TRACE;DEBUG</DefineConstants>
-	</PropertyGroup>
-
 	<!--NuGet settings-->
 	<PropertyGroup>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
