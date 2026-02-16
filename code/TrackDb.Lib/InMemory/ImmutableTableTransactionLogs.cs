@@ -59,6 +59,7 @@ namespace TrackDb.Lib.InMemory
 
             var newBlock = new BlockBuilder(InMemoryBlocks.First().TableSchema);
 
+            Console.WriteLine($"MergeLogs:  {InMemoryBlocks.Count}");
             foreach (var block in InMemoryBlocks)
             {
                 newBlock.AppendBlock(block);
