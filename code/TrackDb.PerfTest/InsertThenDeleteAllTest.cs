@@ -93,7 +93,7 @@ namespace TrackDb.PerfTest
                 await db.Database.ForceDataManagementAsync(DataManagementActivity.HardDeleteAll);
                 Assert.Equal(
                     doKeepOne ? 1 : 0,
-                    db.EmployeeTable.Query().TableQuery.WithInMemoryOnly().Count());
+                    db.EmployeeTable.Query().TableQuery.Count());
             }
         }
 
