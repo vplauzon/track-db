@@ -59,14 +59,6 @@ namespace TrackDb.Lib.InMemory
                 .AppendRecord(creationTime, recordId, record);
         }
 
-        public void AppendBlock(IBlock block)
-        {
-            EnsureTable(block.TableSchema);
-            TransactionTableLogMap[block.TableSchema.TableName]
-                .NewDataBlock
-                .AppendBlock(block);
-        }
-
         public void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)
         {
             foreach (var p in TransactionTableLogMap)
