@@ -116,39 +116,36 @@ namespace TrackDb.Lib
             var uncommittedMap =
                 TransactionState.UncommittedTransactionLog.TransactionTableLogMap;
 
-            //if (!uncommittedMap.TryGetValue(tableName, out var tableLog))
-            //{
-            //    TransactionState.UncommittedTransactionLog.EnsureTable(schema);
-            //}
+            if (!uncommittedMap.TryGetValue(tableName, out var tableLog))
+            {
+                TransactionState.UncommittedTransactionLog.EnsureTable(schema);
+            }
             if (TransactionState.LoadCommittedBlocksInTransaction(tableName))
             {
                 HardDeleteCommittedRecords(tableName);
 
                 return true;
             }
-            //else
-            //{
-            //    if (uncommittedMap[tableName].CommittedDataBlock == null)
-            //    {
-            //        if (TransactionState.InMemoryDatabase.TransactionTableLogsMap.TryGetValue(
-            //            tableName,
-            //            out var committedLogs))
-            //        {
-            //            uncommittedMap[tableName] = new TransactionTableLog(
-            //                uncommittedMap[tableName].NewDataBlock,
-            //                committedLogs.MergeLogs());
-            //        }
-            //        else
-            //        {
-            //            uncommittedMap[tableName] = new TransactionTableLog(
-            //                uncommittedMap[tableName].NewDataBlock,
-            //                new BlockBuilder(schema));
-            //        }
-            //        HardDeleteCommittedRecords(tableName);
+            else if (uncommittedMap[tableName].CommittedDataBlock == null)
+            {
+                if (TransactionState.InMemoryDatabase.TransactionTableLogsMap.TryGetValue(
+                    tableName,
+                    out var committedLogs))
+                {
+                    uncommittedMap[tableName] = new TransactionTableLog(
+                        uncommittedMap[tableName].NewDataBlock,
+                        committedLogs.MergeLogs());
+                }
+                else
+                {
+                    uncommittedMap[tableName] = new TransactionTableLog(
+                        uncommittedMap[tableName].NewDataBlock,
+                        new BlockBuilder(schema));
+                }
+                HardDeleteCommittedRecords(tableName);
 
-            //        return true;
-            //    }
-            //}
+                return true;
+            }
 
             return false;
         }
