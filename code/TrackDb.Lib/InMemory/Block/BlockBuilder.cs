@@ -27,16 +27,40 @@ namespace TrackDb.Lib.InMemory.Block
         }
 
         #region Constructors
-        public BlockBuilder(TableSchema schema)
+        public BlockBuilder(TableSchema schema, int capacity = 0)
             : base(schema)
         {
             _dataColumns = schema.Columns
-                .Select(c => CreateDataColumn(c.ColumnType, 0))
+                .Select(c => CreateDataColumn(c.ColumnType, capacity))
                 //  CreationTime column
-                .Append(new ArrayDateTimeColumn(false, 0))
+                .Append(new ArrayDateTimeColumn(false, capacity))
                 //  Record ID column
-                .Append(new ArrayLongColumn(false, 0))
+                .Append(new ArrayLongColumn(false, capacity))
                 .ToImmutableArray();
+        }
+
+        public static BlockBuilder MergeBlocks(params IEnumerable<IBlock> blocks)
+        {
+            var materializedBlocks = blocks.ToArray();
+
+            if (materializedBlocks.Length == 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(blocks),
+                    "Should be at least one block");
+            }
+
+            //  Pre-provision the full capacity
+            var totalRowCount = blocks
+                .Sum(b => b.RecordCount);
+            var builder = new BlockBuilder(materializedBlocks[0].TableSchema, totalRowCount);
+
+            foreach(var block in materializedBlocks)
+            {
+                builder.AppendBlock(block);
+            }
+
+            return builder;
         }
         #endregion
 
@@ -50,7 +74,7 @@ namespace TrackDb.Lib.InMemory.Block
 
             //  Include extra columns
             var data = block.Project(
-                new object?[_dataColumns.Count].AsMemory(),
+                new object?[_dataColumns.Count],
                 Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
                 Enumerable.Range(0, block.RecordCount),
                 0);
