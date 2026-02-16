@@ -14,6 +14,10 @@ namespace TrackDb.Lib.InMemory.Block
         /// <param name="value"></param>
         void AppendValue(object? value);
 
+        /// <summary>Append an entire column of values.</summary>
+        /// <param name="column"></param>
+        void AppendColumn(IDataColumn column);
+
         /// <summary>
         /// Append logged values at the end of the column.
         /// </summary>
