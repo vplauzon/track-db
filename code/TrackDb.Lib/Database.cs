@@ -859,7 +859,8 @@ namespace TrackDb.Lib
                 IBlock? tombstoneBlock,
                 QueryPredicateFactory<TombstoneRecord>? qpf)
             {
-                if (transactionTableLogMap.ContainsKey(tableName))
+                if (transactionTableLogMap.TryGetValue(tableName, out var tableLog)
+                    && ((IBlock)tableLog.NewDataBlock).RecordCount > 0)
                 {
                     return true;
                 }
