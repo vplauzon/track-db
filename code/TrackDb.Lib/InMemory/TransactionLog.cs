@@ -67,7 +67,7 @@ namespace TrackDb.Lib.InMemory
                 .AppendBlock(block);
         }
 
-        internal void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)
+        public void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)
         {
             foreach (var p in TransactionTableLogMap)
             {
@@ -92,7 +92,7 @@ namespace TrackDb.Lib.InMemory
             }
         }
 
-        private void EnsureTable(TableSchema schema)
+        public void EnsureTable(TableSchema schema)
         {
             if (!TransactionTableLogMap.ContainsKey(schema.TableName))
             {

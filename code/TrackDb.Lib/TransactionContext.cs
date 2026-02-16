@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
@@ -111,41 +112,75 @@ namespace TrackDb.Lib
         /// <returns><c>true</c> iif something was loaded.</returns>
         internal bool LoadCommittedBlocksInTransaction(string tableName)
         {
-            var transactionState = TransactionState;
+            var schema = _database.GetAnyTable(tableName).Schema;
+            var uncommittedMap =
+                TransactionState.UncommittedTransactionLog.TransactionTableLogMap;
 
-            if (transactionState.LoadCommittedBlocksInTransaction(tableName))
+            if (!uncommittedMap.TryGetValue(tableName, out var tableLog))
             {
-                if (tableName != _database.TombstoneTable.Schema.TableName)
-                {   //  We hard delete only out-of-transaction tombstones
-                    var deletedRecordIds = _database.TombstoneTable.Query(this)
-                        .WithCommittedOnly()
-                        .Where(pf => pf.Equal(t => t.TableName, tableName))
-                        .Select(t => t.DeletedRecordId)
-                        .ToImmutableArray();
-
-                    if (deletedRecordIds.Any())
-                    {
-                        var committedDataBlock = transactionState.UncommittedTransactionLog
-                            .TransactionTableLogMap[tableName]
-                            .CommittedDataBlock!;
-                        //  Hard delete in-memory records in the table
-                        var hardDeletedRecordIds = committedDataBlock.DeleteRecordsByRecordId(
-                            deletedRecordIds);
-
-                        if (hardDeletedRecordIds.Any())
-                        {
-                            _database.DeleteTombstoneRecords(
-                                tableName,
-                                hardDeletedRecordIds,
-                                this);
-                        }
-                    }
-                }
+                TransactionState.UncommittedTransactionLog.EnsureTable(schema);
+            }
+            if (TransactionState.LoadCommittedBlocksInTransaction(tableName))
+            {
+                HardDeleteCommittedRecords(tableName);
 
                 return true;
             }
+            else
+            {
+                if (uncommittedMap[tableName].CommittedDataBlock == null)
+                {
+                    if (TransactionState.InMemoryDatabase.TransactionTableLogsMap.TryGetValue(
+                        tableName,
+                        out var committedLogs))
+                    {
+                        uncommittedMap[tableName] = new TransactionTableLog(
+                            uncommittedMap[tableName].NewDataBlock,
+                            committedLogs.MergeLogs());
+                    }
+                    else
+                    {
+                        uncommittedMap[tableName] = new TransactionTableLog(
+                            uncommittedMap[tableName].NewDataBlock,
+                            new BlockBuilder(schema));
+                    }
+                    HardDeleteCommittedRecords(tableName);
+
+                    return true;
+                }
+            }
 
             return false;
+        }
+
+        private void HardDeleteCommittedRecords(string tableName)
+        {
+            if (tableName != _database.TombstoneTable.Schema.TableName)
+            {   //  We hard delete only out-of-transaction tombstones
+                var deletedRecordIds = _database.TombstoneTable.Query(this)
+                    .WithCommittedOnly()
+                    .Where(pf => pf.Equal(t => t.TableName, tableName))
+                    .Select(t => t.DeletedRecordId)
+                    .ToImmutableArray();
+
+                if (deletedRecordIds.Any())
+                {
+                    var committedDataBlock = TransactionState.UncommittedTransactionLog
+                        .TransactionTableLogMap[tableName]
+                        .CommittedDataBlock!;
+                    //  Hard delete in-memory records in the table
+                    var hardDeletedRecordIds = committedDataBlock.DeleteRecordsByRecordId(
+                        deletedRecordIds);
+
+                    if (hardDeletedRecordIds.Any())
+                    {
+                        _database.DeleteTombstoneRecords(
+                            tableName,
+                            hardDeletedRecordIds,
+                            this);
+                    }
+                }
+            }
         }
     }
 }
