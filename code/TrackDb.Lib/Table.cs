@@ -113,7 +113,6 @@ namespace TrackDb.Lib
                     nameof(record));
             }
             tx.TransactionState.UncommittedTransactionLog.AppendRecord(
-                DateTime.Now,
                 NewRecordId(),
                 record,
                 Schema);

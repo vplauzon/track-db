@@ -1118,11 +1118,10 @@ namespace TrackDb.Lib
                         for (var i = 0; i != recordsPerTransaction && recordEnumerator.MoveNext(); ++i)
                         {
                             var record = recordEnumerator.Current;
-                            var creationTime = (DateTime)record.Span[table.Schema.CreationTimeColumnIndex]!;
                             var recordId = (long)record.Span[table.Schema.RecordIdColumnIndex]!;
                             var trimmedRecord = record.Span.Slice(0, table.Schema.Columns.Count);
 
-                            txLog.AppendRecord(creationTime, recordId, trimmedRecord, table.Schema);
+                            txLog.AppendRecord(recordId, trimmedRecord, table.Schema);
                             ++recordCount;
                         }
                         yield return txLog;

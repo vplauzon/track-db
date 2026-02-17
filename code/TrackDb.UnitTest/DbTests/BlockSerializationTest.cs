@@ -22,9 +22,9 @@ namespace TrackDb.UnitTest.DbTests
             var blockBuilder = new BlockBuilder(schema);
             var buffer = new byte[5000];
 
-            blockBuilder.AppendRecord(DateTime.Now, 1, ["Alice", 12]);
-            blockBuilder.AppendRecord(DateTime.Now, 2, ["Bob", 42]);
-            blockBuilder.AppendRecord(DateTime.Now, 3, ["Carl", 5]);
+            blockBuilder.AppendRecord(1, ["Alice", 12]);
+            blockBuilder.AppendRecord(2, ["Bob", 42]);
+            blockBuilder.AppendRecord(3, ["Carl", 5]);
 
             var stats = blockBuilder.Serialize(buffer);
             var block = ReadOnlyBlock.Load(buffer, schema);
