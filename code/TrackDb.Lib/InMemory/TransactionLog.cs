@@ -47,16 +47,12 @@ namespace TrackDb.Lib.InMemory
             }
         }
 
-        public void AppendRecord(
-            DateTime creationTime,
-            long recordId,
-            ReadOnlySpan<object?> record,
-            TableSchema schema)
+        public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
         {
             EnsureTable(schema);
             TransactionTableLogMap[schema.TableName]
                 .NewDataBlock
-                .AppendRecord(creationTime, recordId, record);
+                .AppendRecord(recordId, record);
         }
 
         public void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)

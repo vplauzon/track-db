@@ -120,7 +120,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 var recordId = metaTable.NewRecordId();
                 var recordSpan = metadataSpan.Slice(0, metaSchema.Columns.Count);
 
-                metaBuilder.AppendRecord(DateTime.Now, recordId, metadataSpan);
+                metaBuilder.AppendRecord(recordId, metadataSpan);
             }
 
             return metaBuilder;
