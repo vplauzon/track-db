@@ -29,12 +29,12 @@ namespace TrackDb.UnitTest
             var record3 = new object?[] { 44, "Carl", DateTime.Now };
             var record4 = new object?[] { 45, "Dan", DateTime.Now };
 
-            block1.AppendRecord(DateTime.Now, 1, record1);
-            block1.AppendRecord(DateTime.Now, 2, record2);
+            block1.AppendRecord(1, record1);
+            block1.AppendRecord(2, record2);
 
-            block2.AppendRecord(DateTime.Now, 3, record3);
+            block2.AppendRecord(3, record3);
 
-            block3.AppendRecord(DateTime.Now, 4, record4);
+            block3.AppendRecord(4, record4);
 
             var superBlock = BlockBuilder.MergeBlocks(block1, block2, block3);
 

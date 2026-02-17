@@ -14,7 +14,6 @@ namespace TrackDb.Lib
     {
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
 
-        internal protected const string CREATION_TIME = "$creationTime";
         internal protected const string RECORD_ID = "$recordId";
 
         public TableSchema(
@@ -88,8 +87,6 @@ namespace TrackDb.Lib
             Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
             ColumnProperties = columnProperties
                 .Append(ColumnSchemaProperties.CreateGenerationZero(
-                    new(CREATION_TIME, typeof(DateTime), false)))
-                .Append(ColumnSchemaProperties.CreateGenerationZero(
                     new(RECORD_ID, typeof(long), isRecordIdIndexed)))
                 .ToImmutableArray();
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
@@ -107,13 +104,11 @@ namespace TrackDb.Lib
         internal IImmutableList<ColumnSchemaProperties> ColumnProperties { get; }
 
         #region Extra columns
-        public int CreationTimeColumnIndex => Columns.Count;
+        public int RecordIdColumnIndex => Columns.Count;
 
-        public int RecordIdColumnIndex => Columns.Count + 1;
+        public int RecordIndexColumnIndex => Columns.Count + 1;
 
-        public int RecordIndexColumnIndex => Columns.Count + 2;
-
-        public int ParentBlockIdColumnIndex => Columns.Count + 3;
+        public int ParentBlockIdColumnIndex => Columns.Count + 2;
         #endregion
 
         /// <summary>

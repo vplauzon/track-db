@@ -98,7 +98,6 @@ namespace TrackDb.Lib.Logging
                     foreach (var tombstoneRecord in tombstoneRecords)
                     {
                         transactionLog.AppendRecord(
-                            DateTime.Now,
                             tombstoneTable.NewRecordId(),
                             tombstoneTable.Schema.FromObjectToColumns(tombstoneRecord),
                             tombstoneTable.Schema);

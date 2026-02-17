@@ -30,12 +30,8 @@ namespace TrackDb.Lib.InMemory.Block
         public BlockBuilder(TableSchema schema, int capacity = 0)
             : base(schema)
         {
-            _dataColumns = schema.Columns
-                .Select(c => CreateDataColumn(c.ColumnType, capacity))
-                //  CreationTime column
-                .Append(new ArrayDateTimeColumn(false, capacity))
-                //  Record ID column
-                .Append(new ArrayLongColumn(false, capacity))
+            _dataColumns = schema.ColumnProperties
+                .Select(c => CreateDataColumn(c.ColumnSchema.ColumnType, capacity))
                 .ToImmutableArray();
         }
 
@@ -129,7 +125,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        public void AppendRecord(DateTime creationTime, long recordId, ReadOnlySpan<object?> record)
+        public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
         {
             if (record.Length != Schema.Columns.Count)
             {
@@ -141,8 +137,6 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 _dataColumns[i].AppendValue(record[i]);
             }
-            _dataColumns[Schema.CreationTimeColumnIndex]
-                .AppendValue(creationTime);
             _dataColumns[Schema.RecordIdColumnIndex]
                 .AppendValue(recordId);
         }
@@ -392,9 +386,6 @@ namespace TrackDb.Lib.InMemory.Block
         public NewRecordsContent ToLog()
         {
             var recordCount = RecordCount;
-            var creationTimes = Enumerable.Range(0, recordCount)
-                .Select(i => (DateTime)_dataColumns[Schema.CreationTimeColumnIndex].GetValue(i)!)
-                .ToImmutableList();
             var newRecordIds = Enumerable.Range(0, recordCount)
                 .Select(i => (long)_dataColumns[Schema.RecordIdColumnIndex].GetValue(i)!)
                 .ToImmutableList();
@@ -404,7 +395,7 @@ namespace TrackDb.Lib.InMemory.Block
                     _dataColumns[i].GetLogValues().ToList()))
                 .ToImmutableDictionary();
 
-            return new(creationTimes, newRecordIds, columns);
+            return new(newRecordIds, columns);
         }
 
         public void AppendLog(NewRecordsContent content)
@@ -418,16 +409,11 @@ namespace TrackDb.Lib.InMemory.Block
                     _dataColumns[i].AppendLogValues(content.Columns[columnName]);
                 }
                 else
-                {
+                {   //  There is a column in the schema not present in the logs
                     var nullValue = JsonDocument.Parse("null").RootElement;
 
-                    _dataColumns[i].AppendLogValues(content.CreationTimes.Select(i => nullValue));
+                    _dataColumns[i].AppendLogValues(content.NewRecordIds.Select(i => nullValue));
                 }
-            }
-            //  Creation time
-            foreach (var creationTime in content.CreationTimes)
-            {
-                _dataColumns[Schema.CreationTimeColumnIndex].AppendValue(creationTime);
             }
             //  Record ID
             foreach (var newRecordId in content.NewRecordIds)
