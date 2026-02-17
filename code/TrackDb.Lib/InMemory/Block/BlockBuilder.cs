@@ -30,12 +30,8 @@ namespace TrackDb.Lib.InMemory.Block
         public BlockBuilder(TableSchema schema, int capacity = 0)
             : base(schema)
         {
-            _dataColumns = schema.Columns
-                .Select(c => CreateDataColumn(c.ColumnType, capacity))
-                //  CreationTime column
-                .Append(new ArrayDateTimeColumn(false, capacity))
-                //  Record ID column
-                .Append(new ArrayLongColumn(false, capacity))
+            _dataColumns = schema.ColumnProperties
+                .Select(c => CreateDataColumn(c.ColumnSchema.ColumnType, capacity))
                 .ToImmutableArray();
         }
 
