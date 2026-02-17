@@ -84,12 +84,16 @@ namespace TrackDb.UnitTest
 
             for (var i = 0; i != 100; ++i)
             {
-                record[0] = $"id-{i}";
+                record[0] = i;
                 record[1] = new string(Enumerable.Range(0, 300)
                     .Select(i => (char)random.Next('a', 'z'))
                     .ToArray());
-                block.AppendRecord();
+                block.AppendRecord(i, record);
             }
+
+            var segments = block.SegmentRecords(4096);
+
+            Assert.True(segments.Count > 1);
         }
     }
 }

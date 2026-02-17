@@ -270,6 +270,7 @@ namespace TrackDb.Lib.InMemory.Block
                 sizeof(ushort)  //  Item count
                 + _dataColumns.Count * sizeof(ushort);  //  Column payload sizes
 
+            //  Populate motherArray
             for (var j = 0; j != _dataColumns.Count; ++j)
             {
                 try
@@ -288,6 +289,7 @@ namespace TrackDb.Lib.InMemory.Block
                         ex);
                 }
             }
+            //  Use motherArray to compute size
             for (var i = 0; i != recordCount; ++i)
             {
                 var size = blockHeaderSize;

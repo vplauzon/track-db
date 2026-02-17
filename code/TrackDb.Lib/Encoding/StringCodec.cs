@@ -59,15 +59,15 @@ namespace TrackDb.Lib.Encoding
                         var size =
                             sizeof(ushort)  //  Value sequence count
                             + sizeof(byte)  //  Value sequence max
-                            //  Taking into account the corner case of [""]
+                                            //  Taking into account the corner case of [""]
                             + valueSequenceSize //  Value sequence
                             + BitPacker.PackSize(i + 1, (ulong)uniqueValues.Count);  //  indexes
 
+                        sizes[i] = size;
                         if (size >= maxSize)
                         {
-                            return i;
+                            return i + 1;
                         }
-                        sizes[i] = size;
                     }
                     else
                     {
