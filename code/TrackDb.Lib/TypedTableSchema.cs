@@ -376,6 +376,37 @@ namespace TrackDb.Lib
                 _propertyPathToColumnIndexesMap);
         }
 
+        /// <summary>
+        /// Opt out indexing a specific column (or columns if property maps to multiple columns).
+        /// </summary>
+        /// <typeparam name="PT"></typeparam>
+        /// <param name="propertyExtractor"></param>
+        /// <returns></returns>
+        public TypedTableSchema<T> OptOutIndex<PT>(Expression<Func<T, PT>> propertyExtractor)
+        {
+            var columnIndexSubset = GetColumnIndexSubset(propertyExtractor)
+                .ToHashSet();
+            var newColumnSchemas = _mainConstructorMapping.ColumnSchemas
+                .Index()
+                .Select(cs => columnIndexSubset.Contains(cs.Index)
+                ? cs.Item with { IsIndexed = false }
+                : cs.Item)
+                .ToImmutableArray();
+            var newMainConstructorMapping = _mainConstructorMapping with
+            {
+                ColumnSchemas = newColumnSchemas
+            };
+
+            return new TypedTableSchema<T>(
+                TableName,
+                PrimaryKeyColumnIndexes,
+                PartitionKeyColumnIndexes,
+                TriggerActions,
+                newMainConstructorMapping,
+                _constructorMappingByType,
+                _propertyPathToColumnIndexesMap);
+        }
+
         internal ReadOnlySpan<object?> FromObjectToColumns(T record)
         {
             return _mainConstructorMapping.ObjectToColumns(record!);
