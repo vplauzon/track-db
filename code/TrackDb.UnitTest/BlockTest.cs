@@ -51,8 +51,8 @@ namespace TrackDb.UnitTest
 
                 Assert.Single(filterOutput.RowIndexes);
 
-                var records = block.Project(new object?[3], [0,1,2], filterOutput.RowIndexes, 0);
-                
+                var records = block.Project(new object?[3], [0, 1, 2], filterOutput.RowIndexes, 0);
+
                 return records.First().Span;
             }
 
@@ -65,6 +65,31 @@ namespace TrackDb.UnitTest
             Assert.True(record2.SequenceEqual(retrieved2));
             Assert.True(record3.SequenceEqual(retrieved3));
             Assert.True(record4.SequenceEqual(retrieved4));
+        }
+
+        [Fact]
+        public void AppendBigString()
+        {
+            var schema = new TableSchema(
+                "Person",
+                [
+                    new ColumnSchema("Id", typeof(int)),
+                    new ColumnSchema("Name", typeof(string))],
+                [],
+                [],
+                []);
+            var block = new BlockBuilder(schema);
+            var record = new object?[2];
+            var random = new Random();
+
+            for (var i = 0; i != 100; ++i)
+            {
+                record[0] = $"id-{i}";
+                record[1] = new string(Enumerable.Range(0, 300)
+                    .Select(i => (char)random.Next('a', 'z'))
+                    .ToArray());
+                block.AppendRecord();
+            }
         }
     }
 }
