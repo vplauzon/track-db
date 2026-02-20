@@ -386,7 +386,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
                         var actualBuffer = buffer.AsSpan().Slice(0, blockStats.Size);
-                        var blockId = Database.AvailabilityBlockManager.GetAvailableBlockId(tx);
+                        var blockId = Database.AvailabilityBlockManager.UseAvailableBlockId(tx);
                         var metadataRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
 
                         if (blockStats.Size != size.Size)

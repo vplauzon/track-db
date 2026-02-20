@@ -22,6 +22,13 @@ namespace TrackDb.Lib
             _dbFileManager = dbFileManager;
         }
 
+        public int UseAvailableBlockId(TransactionContext tx)
+        {
+            var blockIds = UseAvailableBlockIds(1, tx);
+
+            return blockIds[0];
+        }
+
         public IReadOnlyList<int> UseAvailableBlockIds(int blockIdCount, TransactionContext tx)
         {
             var availableBlockIds = _availableBlockTable.Query(tx)
@@ -56,14 +63,7 @@ namespace TrackDb.Lib
             }
         }
 
-        internal int GetAvailableBlockId(TransactionContext tx)
-        {
-            var blockIds = UseAvailableBlockIds(1, tx);
-
-            return blockIds[0];
-        }
-
-        internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
+        public void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
             var materializedBlockIds = blockIds.ToImmutableArray();
             var invalidBlockCount = _availableBlockTable.Query(tx)
@@ -94,7 +94,7 @@ namespace TrackDb.Lib
                 tx);
         }
 
-        internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
+        public bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
         {
             var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
