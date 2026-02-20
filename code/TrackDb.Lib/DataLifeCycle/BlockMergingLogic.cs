@@ -77,7 +77,9 @@ namespace TrackDb.Lib.DataLifeCycle
                     tx);
                 if (removedBlockIds.Length > 0)
                 {   //  It could be zero if we only have phantom tombstones
-                    Database.SetNoLongerInUsedBlockIds(removedBlockIds, tx);
+                    Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                        removedBlockIds,
+                        tx);
                 }
 
 #if DEBUG
@@ -153,7 +155,9 @@ namespace TrackDb.Lib.DataLifeCycle
                     metaBlockId.Value);
                 var metaMetaBlocks = _metaBlockManager.LoadBlocks(metaTableName, metaMetaBlockId);
 
-                Database.SetNoLongerInUsedBlockIds([metaBlockId.Value], _metaBlockManager.Tx);
+                Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                    [metaBlockId.Value],
+                    _metaBlockManager.Tx);
                 if (!metaMetaBlocks.Any())
                 {
                     throw new InvalidOperationException(
@@ -241,7 +245,9 @@ namespace TrackDb.Lib.DataLifeCycle
             ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
             if (removedBlockIds.Length > 0)
             {
-                Database.SetNoLongerInUsedBlockIds(removedBlockIds, _metaBlockManager.Tx);
+                Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                    removedBlockIds,
+                    _metaBlockManager.Tx);
             }
         }
         #endregion
@@ -380,7 +386,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
                         var actualBuffer = buffer.AsSpan().Slice(0, blockStats.Size);
-                        var blockId = Database.GetAvailableBlockId(tx);
+                        var blockId = Database.AvailabilityBlockManager.GetAvailableBlockId(tx);
                         var metadataRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
 
                         if (blockStats.Size != size.Size)

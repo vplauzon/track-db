@@ -25,10 +25,7 @@ namespace TrackDb.Lib
     /// </summary>
     public class Database : IAsyncDisposable
     {
-        private const int BLOCK_INCREMENT = 256;
-
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
-        private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
         private readonly IImmutableList<TableSchema> _schemaWithTriggers;
         private readonly BlobLock? _blobLock;
@@ -100,6 +97,10 @@ namespace TrackDb.Lib
                 }))
                 .SelectMany(c => c)
                 .FirstOrDefault(o => o.ColumnName.Contains("$"));
+            var availableBlockTable = new TypedTable<AvailableBlockRecord>(
+                this,
+                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock")
+                .AddPrimaryKeyProperty(a => a.BlockId));
 
             if (invalidTableName != null)
             {
@@ -117,10 +118,9 @@ namespace TrackDb.Lib
             TombstoneTable = new TypedTable<TombstoneRecord>(
                 this,
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
-            _availableBlockTable = new TypedTable<AvailableBlockRecord>(
-                this,
-                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock")
-                .AddPrimaryKeyProperty(a => a.BlockId));
+            AvailabilityBlockManager = new AvailabilityBlockManager(
+                availableBlockTable,
+                _dbFileManager);
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
@@ -134,7 +134,7 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
                 .Append(new TableProperties(TombstoneTable, 1, null, true, false))
-                .Append(new TableProperties(_availableBlockTable, 1, null, true, false))
+                .Append(new TableProperties(availableBlockTable, 1, null, true, false))
                 .Append(new TableProperties(QueryExecutionTable, 1, null, true, true))
                 .ToImmutableDictionary(t => t.Table.Schema.TableName);
 
@@ -187,6 +187,8 @@ namespace TrackDb.Lib
 
         #region Public interface
         public DatabasePolicy DatabasePolicy { get; }
+
+        internal AvailabilityBlockManager AvailabilityBlockManager { get; }
 
         /// <summary>
         /// For DEBUG purposes.
@@ -327,119 +329,6 @@ namespace TrackDb.Lib
         }
 
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
-
-        #region Available Blocks
-        internal IReadOnlyList<int> UseAvailableBlockIds(int blockIdCount, TransactionContext tx)
-        {
-            var availableBlockIds = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                .Take(blockIdCount)
-                .Select(a => a.BlockId)
-                .ToImmutableArray();
-
-            if (availableBlockIds.Length == blockIdCount)
-            {
-                var newRecords = availableBlockIds
-                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
-                var deletedCount = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
-                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                    .Delete();
-
-                if (deletedCount != availableBlockIds.Length)
-                {
-                    throw new InvalidOperationException($"Corrupted available blocks");
-                }
-                _availableBlockTable.AppendRecords(newRecords, tx);
-
-                return availableBlockIds;
-            }
-            else
-            {
-                IncrementBlockCount(tx);
-
-                //  Now that there are available block, let's try again
-                return UseAvailableBlockIds(blockIdCount, tx);
-            }
-        }
-
-        internal int GetAvailableBlockId(TransactionContext tx)
-        {
-            var blockIds = UseAvailableBlockIds(1, tx);
-
-            return blockIds[0];
-        }
-
-        internal void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
-        {
-            var materializedBlockIds = blockIds.ToImmutableArray();
-            var invalidBlockCount = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
-                .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
-                .Count();
-
-            if (invalidBlockCount > 0)
-            {
-                throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
-                    $"i.e. not InUsed");
-            }
-
-            var deletedUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
-                .Delete();
-
-            if (deletedUsedBlocks != materializedBlockIds.Count())
-            {
-                throw new InvalidOperationException(
-                    $"Corrupted available blocks:  {materializedBlockIds.Count()} " +
-                    $"to release from use, {deletedUsedBlocks} found");
-            }
-            _availableBlockTable.AppendRecords(
-                materializedBlockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
-                tx);
-        }
-
-        internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
-        {
-            var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
-                .ToImmutableArray();
-
-            if (noLongerInUsedBlocks.Any())
-            {
-                _availableBlockTable.Query(tx)
-                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
-                    .Delete();
-                _availableBlockTable.AppendRecords(noLongerInUsedBlocks
-                    .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
-                    tx);
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        private void IncrementBlockCount(TransactionContext tx)
-        {
-            var maxBlockId = _availableBlockTable.Query(tx)
-                .OrderByDescending(a => a.BlockId)
-                .Take(1)
-                .Select(a => a.BlockId)
-                .FirstOrDefault();
-            var targetCapacity = maxBlockId + BLOCK_INCREMENT;
-            var newBlockIds = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT);
-            var newAvailableBlocks = newBlockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available));
-
-            _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
-            _availableBlockTable.AppendRecords(newAvailableBlocks, tx);
-        }
-        #endregion
         #endregion
         #endregion
 
