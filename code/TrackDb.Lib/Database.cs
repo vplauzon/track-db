@@ -411,19 +411,6 @@ namespace TrackDb.Lib
                 tx);
         }
 
-        internal void CheckAvailabilityDuplicates(TransactionContext tx)
-        {
-            var duplicates = _availableBlockTable.Query(tx)
-                .GroupBy(a => a.BlockId)
-                .Where(g => g.Count() > 1)
-                .ToImmutableArray();
-
-            if (duplicates.Length > 0)
-            {
-                throw new InvalidOperationException("Duplicates available blocks");
-            }
-        }
-
         internal bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
         {
             var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
