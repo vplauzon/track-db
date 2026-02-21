@@ -183,7 +183,7 @@ namespace TrackDb.Lib
         private void Merge(TransactionContext tx)
         {
             var allBlocks = _availableBlockTable.Query(tx)
-               .OrderByDescending(a => a.MinBlockId)
+               .OrderBy(a => a.MinBlockId)
                .ToImmutableList();
 
             if (allBlocks.Count > 1)
