@@ -421,7 +421,8 @@ namespace TrackDb.Lib
             IEnumerable<int> projectionColumnIndexes)
         {
             var takeCount = _takeCount ?? int.MaxValue;
-            var deletedRecordIds = !_ignoreDeleted
+            var isTableMeta = _table.Schema is MetadataTableSchema;
+            var deletedRecordIds = !_ignoreDeleted && !isTableMeta
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     tx)
@@ -442,9 +443,12 @@ namespace TrackDb.Lib
                     materializedProjectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
+                var resultsWithoutDeleted = deletedRecordIds.Count > 0
+                    ? RemoveDeleted(deletedRecordIds, results)
+                    : results;
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
-                foreach (var result in RemoveDeleted(deletedRecordIds, results))
+                foreach (var result in resultsWithoutDeleted)
                 {
                     //  Remove last column (record ID)
                     yield return result.Slice(0, result.Length - 1);
@@ -616,7 +620,8 @@ namespace TrackDb.Lib
             TransactionContext transactionContext)
         {
             var takeCount = _takeCount ?? int.MaxValue;
-            var deletedRecordIds = !_ignoreDeleted
+            var isTableMeta = _table.Schema is MetadataTableSchema;
+            var deletedRecordIds = !_ignoreDeleted && !isTableMeta
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     transactionContext)
@@ -641,9 +646,12 @@ namespace TrackDb.Lib
                     projectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
-                var newSortValues = RemoveDeleted(deletedRecordIds, results)
+                var resultsWithoutDeleted = deletedRecordIds.Count > 0
+                    ? RemoveDeleted(deletedRecordIds, results)
+                    : results;
+                var newSortValues = resultsWithoutDeleted
                     .Select(r => r.ToArray())
-                    .ToImmutableArray();
+                    .ToArray();
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
                 if (accumulatedSortValues.Length + newSortValues.Length > _takeCount)
