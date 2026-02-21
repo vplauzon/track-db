@@ -65,6 +65,7 @@ namespace TrackDb.Lib
                 }
             }
             Merge(tx);
+            ValidateValue(BlockAvailability.InUse, blockIds, tx);
 
             return blockIds;
         }
@@ -147,6 +148,7 @@ namespace TrackDb.Lib
                 SetNoLongerInUseBlockId(blockId);
             }
             Merge(tx);
+            ValidateValue(BlockAvailability.NoLongerInUse, blockIds, tx);
         }
 
         public void ResetNoLongerInUsedBlocks(TransactionContext tx)
@@ -167,6 +169,14 @@ namespace TrackDb.Lib
                         tx);
                 }
                 Merge(tx);
+#if DEBUG
+                ValidateValue(
+                    BlockAvailability.Available,
+                    noLongerInUsedBlocks
+                    .Select(b => Enumerable.Range(b.MinBlockId, b.MaxBlockId - b.MinBlockId + 1))
+                    .SelectMany(id => id),
+                    tx);
+#endif
             }
         }
 
@@ -180,7 +190,7 @@ namespace TrackDb.Lib
             var targetCapacity = maxBlockId + BLOCK_INCREMENT;
             var newAvailableBlock = new AvailableBlockRecord(
                 maxBlockId + 1,
-                maxBlockId + 1 + BLOCK_INCREMENT,
+                maxBlockId + BLOCK_INCREMENT,
                 BlockAvailability.Available);
 
             _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
@@ -255,6 +265,27 @@ namespace TrackDb.Lib
                         throw new InvalidOperationException("Max and min not contiguous");
                     }
                     beforeBlock = block;
+                }
+            }
+        }
+
+        [Conditional("DEBUG")]
+        private void ValidateValue(
+            BlockAvailability blockAvailability,
+            IEnumerable<int> blockIds,
+            TransactionContext tx)
+        {
+            foreach (var blockId in blockIds)
+            {
+                var availableBlockCount = _availableBlockTable.Query(tx)
+                    .Where(pf => pf.LessThanOrEqual(a => a.MinBlockId, blockId).And(
+                        pf.GreaterThanOrEqual(a => a.MaxBlockId, blockId)))
+                    .Where(pf => pf.Equal(a => a.BlockAvailability, blockAvailability))
+                    .Count();
+
+                if (availableBlockCount != 1)
+                {
+                    throw new InvalidOperationException("Post condition invalid");
                 }
             }
         }
