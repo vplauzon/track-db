@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.SystemData;
@@ -91,7 +92,13 @@ namespace TrackDb.Lib
                 _availableBlockTable.Query(tx)
                     .Where(pf => pf.Equal(a => a.MinBlockId, availableBlock.MinBlockId))
                     .Delete();
-                if (availableBlock.MinBlockId == blockId)
+                if (availableBlock.MinBlockId == blockId && availableBlock.MaxBlockId == blockId)
+                {
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
+                        tx);
+                }
+                else if (availableBlock.MinBlockId == blockId)
                 {
                     _availableBlockTable.AppendRecord(
                         new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
@@ -183,9 +190,11 @@ namespace TrackDb.Lib
         private void Merge(TransactionContext tx)
         {
             var allBlocks = _availableBlockTable.Query(tx)
-               .OrderBy(a => a.MinBlockId)
-               .ToImmutableList();
+                .AsEnumerable()
+                .OrderBy(a => a.MinBlockId)
+                .ToImmutableList();
 
+            Validate(allBlocks);
             if (allBlocks.Count > 1)
             {
                 var beforeBlock = allBlocks[0];
@@ -210,6 +219,43 @@ namespace TrackDb.Lib
                 }
                 //  Re-append the last one
                 _availableBlockTable.AppendRecord(beforeBlock, tx);
+            }
+        }
+
+        [Conditional("DEBUG")]
+        private void Validate(IImmutableList<AvailableBlockRecord> orderedBlocks)
+        {
+            void Validate(AvailableBlockRecord block)
+            {
+                if (block.MinBlockId > block.MaxBlockId)
+                {
+                    throw new InvalidOperationException("Min / Max out of order");
+                }
+            }
+            foreach (var block in orderedBlocks)
+            {
+                Validate(orderedBlocks[0]);
+            }
+            if (orderedBlocks.Count > 0)
+            {
+                if (orderedBlocks[0].MinBlockId != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"MinBlockId should be 1 but is {orderedBlocks[0].MinBlockId}");
+                }
+            }
+            if (orderedBlocks.Count > 1)
+            {
+                var beforeBlock = orderedBlocks[0];
+
+                foreach (var block in orderedBlocks.Skip(1))
+                {
+                    if (beforeBlock.MaxBlockId + 1 != block.MinBlockId)
+                    {
+                        throw new InvalidOperationException("Max and min not contiguous");
+                    }
+                    beforeBlock = block;
+                }
             }
         }
     }
