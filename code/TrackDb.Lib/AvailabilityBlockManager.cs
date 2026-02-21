@@ -82,10 +82,10 @@ namespace TrackDb.Lib
                 {
                     throw new ArgumentOutOfRangeException(nameof(blockId));
                 }
-                else if (availableBlock.BlockAvailability == BlockAvailability.Available)
+                else if (availableBlock.BlockAvailability != BlockAvailability.InUse)
                 {
                     throw new ArgumentException(
-                        $"Expect {BlockAvailability.Available.ToString()} but found " +
+                        $"Expect {BlockAvailability.InUse.ToString()} but found " +
                         $"{availableBlock.BlockAvailability.ToString()}", nameof(blockId));
                 }
                 _availableBlockTable.Query(tx)
@@ -100,7 +100,7 @@ namespace TrackDb.Lib
                         new AvailableBlockRecord(
                             blockId + 1,
                             availableBlock.MaxBlockId,
-                            BlockAvailability.Available),
+                            BlockAvailability.InUse),
                         tx);
                 }
                 else if (availableBlock.MaxBlockId == blockId)
@@ -109,7 +109,7 @@ namespace TrackDb.Lib
                         new AvailableBlockRecord(
                             availableBlock.MinBlockId,
                             blockId - 1,
-                            BlockAvailability.Available),
+                            BlockAvailability.InUse),
                         tx);
                     _availableBlockTable.AppendRecord(
                         new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
@@ -121,7 +121,7 @@ namespace TrackDb.Lib
                         new AvailableBlockRecord(
                             availableBlock.MinBlockId,
                             blockId - 1,
-                            BlockAvailability.Available),
+                            BlockAvailability.InUse),
                         tx);
                     _availableBlockTable.AppendRecord(
                         new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
@@ -130,7 +130,7 @@ namespace TrackDb.Lib
                         new AvailableBlockRecord(
                             blockId + 1,
                             availableBlock.MaxBlockId,
-                            BlockAvailability.Available),
+                            BlockAvailability.InUse),
                         tx);
                 }
             }
