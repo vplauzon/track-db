@@ -46,7 +46,7 @@ namespace TrackDb.Lib
                     _availableBlockTable.Query(tx)
                         .Where(pf => pf.Equal(a => a.MinBlockId, availableBlock.MinBlockId))
                         .Delete();
-                    if (availableCount < takeBlockCount)
+                    if (takeBlockCount < availableCount)
                     {
                         _availableBlockTable.AppendRecord(
                             new AvailableBlockRecord(
@@ -142,16 +142,19 @@ namespace TrackDb.Lib
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUse))
                 .ToImmutableArray();
 
-            foreach (var noLongerInUsedBlock in noLongerInUsedBlocks)
+            if (noLongerInUsedBlocks.Length > 0)
             {
-                _availableBlockTable.Query(tx)
-                    .Where(pf => pf.Equal(a => a.MinBlockId, noLongerInUsedBlock.MinBlockId))
-                    .Delete();
-                _availableBlockTable.AppendRecord(
-                    noLongerInUsedBlock with { BlockAvailability = BlockAvailability.Available },
-                    tx);
+                foreach (var noLongerInUsedBlock in noLongerInUsedBlocks)
+                {
+                    _availableBlockTable.Query(tx)
+                        .Where(pf => pf.Equal(a => a.MinBlockId, noLongerInUsedBlock.MinBlockId))
+                        .Delete();
+                    _availableBlockTable.AppendRecord(
+                        noLongerInUsedBlock with { BlockAvailability = BlockAvailability.Available },
+                        tx);
+                }
+                Merge(tx);
             }
-            Merge(tx);
         }
 
         private void IncrementBlockCount(TransactionContext tx)
@@ -162,7 +165,6 @@ namespace TrackDb.Lib
                 .Select(a => a.MaxBlockId)
                 .FirstOrDefault();
             var targetCapacity = maxBlockId + BLOCK_INCREMENT;
-            var newBlockIds = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT);
             var newAvailableBlock = new AvailableBlockRecord(
                 maxBlockId + 1,
                 maxBlockId + 1 + BLOCK_INCREMENT,
