@@ -208,6 +208,8 @@ namespace TrackDb.Lib
                         beforeBlock = block;
                     }
                 }
+                //  Re-append the last one
+                _availableBlockTable.AppendRecord(beforeBlock, tx);
             }
         }
     }
