@@ -2,8 +2,8 @@
 {
     internal enum BlockAvailability
     {
-        InUsed,
-        NoLongerInUsed,
-        Available
+        Available,
+        InUse,
+        NoLongerInUse
     }
 }
