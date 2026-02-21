@@ -77,7 +77,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     tx);
                 if (removedBlockIds.Length > 0)
                 {   //  It could be zero if we only have phantom tombstones
-                    Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                    Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
                         removedBlockIds,
                         tx);
                 }
@@ -155,7 +155,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     metaBlockId.Value);
                 var metaMetaBlocks = _metaBlockManager.LoadBlocks(metaTableName, metaMetaBlockId);
 
-                Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
                     [metaBlockId.Value],
                     _metaBlockManager.Tx);
                 if (!metaMetaBlocks.Any())
@@ -245,7 +245,7 @@ namespace TrackDb.Lib.DataLifeCycle
             ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
             if (removedBlockIds.Length > 0)
             {
-                Database.AvailabilityBlockManager.SetNoLongerInUsedBlockIds(
+                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
                     removedBlockIds,
                     _metaBlockManager.Tx);
             }
@@ -386,7 +386,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     {
                         var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
                         var actualBuffer = buffer.AsSpan().Slice(0, blockStats.Size);
-                        var blockId = Database.AvailabilityBlockManager.GetAvailableBlockId(tx);
+                        var blockId = Database.AvailabilityBlockManager.SetInUse(1, tx)[0];
                         var metadataRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
 
                         if (blockStats.Size != size.Size)

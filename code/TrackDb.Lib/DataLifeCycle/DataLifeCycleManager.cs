@@ -124,7 +124,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     using (var tx = _database.CreateTransaction())
                     {
-                        _database.AvailabilityBlockManager.ReleaseNoLongerInUsedBlocks(tx);
+                        _database.AvailabilityBlockManager.ResetNoLongerInUsedBlocks(tx);
                         lastReleaseBlock = DateTime.Now;
 
                         tx.Complete();

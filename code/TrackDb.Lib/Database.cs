@@ -99,8 +99,7 @@ namespace TrackDb.Lib
                 .FirstOrDefault(o => o.ColumnName.Contains("$"));
             var availableBlockTable = new TypedTable<AvailableBlockRecord>(
                 this,
-                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock")
-                .AddPrimaryKeyProperty(a => a.BlockId));
+                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock"));
 
             if (invalidTableName != null)
             {
