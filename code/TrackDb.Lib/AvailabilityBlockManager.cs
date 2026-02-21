@@ -22,115 +22,185 @@ namespace TrackDb.Lib
             _dbFileManager = dbFileManager;
         }
 
-        public int UseAvailableBlockId(TransactionContext tx)
+        public IReadOnlyList<int> SetInUse(int blockIdCount, TransactionContext tx)
         {
-            var blockIds = UseAvailableBlockIds(1, tx);
+            var blockIds = new List<int>(blockIdCount);
 
-            return blockIds[0];
-        }
-
-        public IReadOnlyList<int> UseAvailableBlockIds(int blockIdCount, TransactionContext tx)
-        {
-            var availableBlockIds = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                .Take(blockIdCount)
-                .Select(a => a.BlockId)
-                .ToImmutableArray();
-
-            if (availableBlockIds.Length == blockIdCount)
+            while (blockIds.Count != blockIdCount)
             {
-                var newRecords = availableBlockIds
-                    .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUsed));
-                var deletedCount = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
+                var availableBlock = _availableBlockTable.Query(tx)
                     .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available))
-                    .Delete();
+                    .Take(1)
+                    .FirstOrDefault();
 
-                if (deletedCount != availableBlockIds.Length)
+                if (availableBlock == null)
                 {
-                    throw new InvalidOperationException($"Corrupted available blocks");
+                    IncrementBlockCount(tx);
                 }
-                _availableBlockTable.AppendRecords(newRecords, tx);
+                else
+                {
+                    var availableCount = availableBlock.MaxBlockId - availableBlock.MinBlockId + 1;
+                    var takeBlockCount = Math.Min(blockIdCount - blockIds.Count, availableCount);
 
-                return availableBlockIds;
+                    blockIds.AddRange(Enumerable.Range(availableBlock.MinBlockId, takeBlockCount));
+                    _availableBlockTable.Query(tx)
+                        .Where(pf => pf.Equal(a => a.MinBlockId, availableBlock.MinBlockId))
+                        .Delete();
+                    if (availableCount < takeBlockCount)
+                    {
+                        _availableBlockTable.AppendRecord(
+                            new AvailableBlockRecord(
+                                availableBlock.MinBlockId + takeBlockCount,
+                                availableBlock.MaxBlockId,
+                                BlockAvailability.Available),
+                            tx);
+                    }
+                }
             }
-            else
-            {
-                IncrementBlockCount(tx);
+            Merge(tx);
 
-                //  Now that there are available block, let's try again
-                return UseAvailableBlockIds(blockIdCount, tx);
-            }
+            return blockIds;
         }
 
-        public void SetNoLongerInUsedBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
+        public void SetNoLongerInUseBlockIds(IEnumerable<int> blockIds, TransactionContext tx)
         {
-            var materializedBlockIds = blockIds.ToImmutableArray();
-            var invalidBlockCount = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
-                .Where(pf => pf.NotEqual(a => a.BlockAvailability, BlockAvailability.InUsed))
-                .Count();
-
-            if (invalidBlockCount > 0)
+            void SetNoLongerInUseBlockId(int blockId)
             {
-                throw new InvalidOperationException($"{invalidBlockCount} invalid blocks, " +
-                    $"i.e. not InUsed");
+                var availableBlock = _availableBlockTable.Query(tx)
+                    .Where(pf => pf.GreaterThanOrEqual(a => a.MinBlockId, blockId).And(
+                        pf.LessThanOrEqual(a => a.MaxBlockId, blockId)))
+                    .Take(1)
+                    .FirstOrDefault();
+
+                if (availableBlock == null)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(blockId));
+                }
+                else if (availableBlock.BlockAvailability == BlockAvailability.Available)
+                {
+                    throw new ArgumentException(
+                        $"Expect {BlockAvailability.Available.ToString()} but found " +
+                        $"{availableBlock.BlockAvailability.ToString()}", nameof(blockId));
+                }
+                _availableBlockTable.Query(tx)
+                    .Where(pf => pf.Equal(a => a.MinBlockId, availableBlock.MinBlockId))
+                    .Delete();
+                if (availableBlock.MinBlockId == blockId)
+                {
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
+                        tx);
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(
+                            blockId + 1,
+                            availableBlock.MaxBlockId,
+                            BlockAvailability.Available),
+                        tx);
+                }
+                else if (availableBlock.MaxBlockId == blockId)
+                {
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(
+                            availableBlock.MinBlockId,
+                            blockId - 1,
+                            BlockAvailability.Available),
+                        tx);
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
+                        tx);
+                }
+                else
+                {
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(
+                            availableBlock.MinBlockId,
+                            blockId - 1,
+                            BlockAvailability.Available),
+                        tx);
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(blockId, blockId, BlockAvailability.NoLongerInUse),
+                        tx);
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(
+                            blockId + 1,
+                            availableBlock.MaxBlockId,
+                            BlockAvailability.Available),
+                        tx);
+                }
             }
 
-            var deletedUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUsed))
-                .Delete();
-
-            if (deletedUsedBlocks != materializedBlockIds.Count())
+            foreach (var blockId in blockIds)
             {
-                throw new InvalidOperationException(
-                    $"Corrupted available blocks:  {materializedBlockIds.Count()} " +
-                    $"to release from use, {deletedUsedBlocks} found");
+                SetNoLongerInUseBlockId(blockId);
             }
-            _availableBlockTable.AppendRecords(
-                materializedBlockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUsed)),
-                tx);
+            Merge(tx);
         }
 
-        public bool ReleaseNoLongerInUsedBlocks(TransactionContext tx)
+        public void ResetNoLongerInUsedBlocks(TransactionContext tx)
         {
             var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUse))
                 .ToImmutableArray();
 
-            if (noLongerInUsedBlocks.Any())
+            foreach (var noLongerInUsedBlock in noLongerInUsedBlocks)
             {
                 _availableBlockTable.Query(tx)
-                    .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUsed))
+                    .Where(pf => pf.Equal(a => a.MinBlockId, noLongerInUsedBlock.MinBlockId))
                     .Delete();
-                _availableBlockTable.AppendRecords(noLongerInUsedBlocks
-                    .Select(b => new AvailableBlockRecord(b.BlockId, BlockAvailability.Available)),
+                _availableBlockTable.AppendRecord(
+                    noLongerInUsedBlock with { BlockAvailability = BlockAvailability.Available },
                     tx);
-
-                return true;
             }
-            else
-            {
-                return false;
-            }
+            Merge(tx);
         }
 
         private void IncrementBlockCount(TransactionContext tx)
         {
             var maxBlockId = _availableBlockTable.Query(tx)
-                .OrderByDescending(a => a.BlockId)
+                .OrderByDescending(a => a.MaxBlockId)
                 .Take(1)
-                .Select(a => a.BlockId)
+                .Select(a => a.MaxBlockId)
                 .FirstOrDefault();
             var targetCapacity = maxBlockId + BLOCK_INCREMENT;
             var newBlockIds = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT);
-            var newAvailableBlocks = newBlockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available));
+            var newAvailableBlock = new AvailableBlockRecord(
+                maxBlockId + 1,
+                maxBlockId + 1 + BLOCK_INCREMENT,
+                BlockAvailability.Available);
 
             _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
-            _availableBlockTable.AppendRecords(newAvailableBlocks, tx);
+            _availableBlockTable.AppendRecord(newAvailableBlock, tx);
+        }
+
+        private void Merge(TransactionContext tx)
+        {
+            var allBlocks = _availableBlockTable.Query(tx)
+               .OrderByDescending(a => a.MinBlockId)
+               .ToImmutableList();
+
+            if (allBlocks.Count > 1)
+            {
+                var beforeBlock = allBlocks[0];
+
+                //  Clean all and rebuild
+                _availableBlockTable.Query(tx)
+                    .Delete();
+                foreach (var block in allBlocks.Skip(1))
+                {
+                    if (beforeBlock.BlockAvailability == block.BlockAvailability)
+                    {   //  Merge
+                        beforeBlock = new AvailableBlockRecord(
+                            beforeBlock.MinBlockId,
+                            block.MaxBlockId,
+                            beforeBlock.BlockAvailability);
+                    }
+                    else
+                    {
+                        _availableBlockTable.AppendRecord(beforeBlock, tx);
+                        beforeBlock = block;
+                    }
+                }
+            }
         }
     }
 }
