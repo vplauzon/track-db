@@ -46,6 +46,12 @@ namespace TrackDb.Lib
                     _availableBlockTable.Query(tx)
                         .Where(pf => pf.Equal(a => a.MinBlockId, availableBlock.MinBlockId))
                         .Delete();
+                    _availableBlockTable.AppendRecord(
+                        new AvailableBlockRecord(
+                            availableBlock.MinBlockId,
+                            availableBlock.MinBlockId + takeBlockCount - 1,
+                            BlockAvailability.InUse),
+                        tx);
                     if (takeBlockCount < availableCount)
                     {
                         _availableBlockTable.AppendRecord(
