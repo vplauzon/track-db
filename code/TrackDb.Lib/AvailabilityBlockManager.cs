@@ -73,8 +73,8 @@ namespace TrackDb.Lib
             void SetNoLongerInUseBlockId(int blockId)
             {
                 var availableBlock = _availableBlockTable.Query(tx)
-                    .Where(pf => pf.GreaterThanOrEqual(a => a.MinBlockId, blockId).And(
-                        pf.LessThanOrEqual(a => a.MaxBlockId, blockId)))
+                    .Where(pf => pf.LessThanOrEqual(a => a.MinBlockId, blockId).And(
+                        pf.GreaterThanOrEqual(a => a.MaxBlockId, blockId)))
                     .Take(1)
                     .FirstOrDefault();
 
