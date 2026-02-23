@@ -179,7 +179,7 @@ namespace TrackDb.Lib
 #endif
 
                 return noLongerInUsedBlocks
-                    .Select(a => Enumerable.Range(a.MinBlockId, a.MaxBlockId - a.MinBlockId))
+                    .Select(a => Enumerable.Range(a.MinBlockId, a.MaxBlockId - a.MinBlockId + 1))
                     .SelectMany(id => id);
             }
             else

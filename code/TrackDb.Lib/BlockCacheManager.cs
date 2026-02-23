@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Policies;
@@ -58,12 +59,25 @@ namespace TrackDb.Lib
                 (ctx, ct) => _blockFactory(blockId, schema),
                 options);
 
+            ValidateBlock(block, schema);
+
             return block;
         }
 
         public void InvalidateCache(int blockId)
         {
             _cache.Remove(blockId.ToString());
+        }
+
+        [Conditional("DEBUG")]
+        private static void ValidateBlock(IBlock block, TableSchema schema)
+        {
+            if (block.TableSchema.TableName != schema.TableName)
+            {
+                throw new InvalidOperationException(
+                    $"Cached block from table '{schema.TableName}' is for table " +
+                    $"'{block.TableSchema.TableName}'");
+            }
         }
     }
 }
