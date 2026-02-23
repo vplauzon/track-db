@@ -27,6 +27,7 @@ namespace TrackDb.Lib
     {
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
         private readonly DataLifeCycleManager _dataLifeCycleManager;
+        private readonly BlockCacheManager _blockCacheManager;
         private readonly IImmutableList<TableSchema> _schemaWithTriggers;
         private readonly BlobLock? _blobLock;
         private LogFlushManager? _logFlushManager;
@@ -124,6 +125,9 @@ namespace TrackDb.Lib
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
             _dataLifeCycleManager = new DataLifeCycleManager(this);
+            _blockCacheManager = new BlockCacheManager(
+                databasePolicies.BlockCachePolicy,
+                LoadBlockId);
             _schemaWithTriggers = userTables
                 .Select(t => t.Schema)
                 .Where(s => s.TriggerActions.Count > 0)
@@ -170,6 +174,7 @@ namespace TrackDb.Lib
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
             await ((IAsyncDisposable)_dataLifeCycleManager).DisposeAsync();
+            ((IDisposable)_blockCacheManager).Dispose();
             if (_dbFileManager.IsValueCreated)
             {
                 ((IDisposable)_dbFileManager.Value).Dispose();
@@ -839,6 +844,11 @@ namespace TrackDb.Lib
 
         #region Block load
         internal IBlock GetOrLoadBlock(int blockId, TableSchema schema)
+        {
+            return _blockCacheManager.GetBlock(blockId, schema);
+        }
+
+        private IBlock LoadBlockId(int blockId, TableSchema schema)
         {
             var payload = _dbFileManager.Value.ReadBlock(blockId);
             var block = ReadOnlyBlock.Load(payload, schema);
