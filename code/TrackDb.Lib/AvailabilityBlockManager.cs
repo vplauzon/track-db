@@ -151,7 +151,7 @@ namespace TrackDb.Lib
             ValidateValue(BlockAvailability.NoLongerInUse, blockIds, tx);
         }
 
-        public void ResetNoLongerInUsedBlocks(TransactionContext tx)
+        public IEnumerable<int> ResetNoLongerInUsedBlocks(TransactionContext tx)
         {
             var noLongerInUsedBlocks = _availableBlockTable.Query(tx)
                 .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUse))
@@ -177,6 +177,14 @@ namespace TrackDb.Lib
                     .SelectMany(id => id),
                     tx);
 #endif
+
+                return noLongerInUsedBlocks
+                    .Select(a => Enumerable.Range(a.MinBlockId, a.MaxBlockId - a.MinBlockId))
+                    .SelectMany(id => id);
+            }
+            else
+            {
+                return Array.Empty<int>();
             }
         }
 
