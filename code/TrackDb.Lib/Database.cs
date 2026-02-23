@@ -848,17 +848,22 @@ namespace TrackDb.Lib
             return _blockCacheManager.GetBlock(blockId, schema);
         }
 
+        internal void InvalidateCache(int blockId)
+        {
+            _blockCacheManager.InvalidateCache(blockId);
+        }
+
+        internal void PersistBlock(int blockId, ReadOnlySpan<byte> buffer, TransactionContext tx)
+        {
+            _dbFileManager.Value.WriteBlock(blockId, buffer);
+        }
+
         private IBlock LoadBlockId(int blockId, TableSchema schema)
         {
             var payload = _dbFileManager.Value.ReadBlock(blockId);
             var block = ReadOnlyBlock.Load(payload, schema);
 
             return block;
-        }
-
-        internal void PersistBlock(int blockId, ReadOnlySpan<byte> buffer, TransactionContext tx)
-        {
-            _dbFileManager.Value.WriteBlock(blockId, buffer);
         }
         #endregion
 
