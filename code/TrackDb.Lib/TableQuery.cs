@@ -426,8 +426,9 @@ namespace TrackDb.Lib
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     tx)
-                .ToHashSet()
-                : (ISet<long>)ImmutableHashSet<long>.Empty;
+                .Order()
+                .ToArray()
+                : Array.Empty<long>();
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 //  Add Record ID at the end, so we can use it to detect deleted rows
                 .Append(_table.Schema.RecordIdColumnIndex)
@@ -443,7 +444,7 @@ namespace TrackDb.Lib
                     materializedProjectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
-                var resultsWithoutDeleted = deletedRecordIds.Count > 0
+                var resultsWithoutDeleted = deletedRecordIds.Length > 0
                     ? RemoveDeleted(deletedRecordIds, results)
                     : results;
 
@@ -483,14 +484,14 @@ namespace TrackDb.Lib
         }
 
         private IEnumerable<ReadOnlyMemory<object?>> RemoveDeleted(
-            ISet<long> deletedRecordIds,
+            long[] deletedRecordIds,
             IEnumerable<ReadOnlyMemory<object?>> results)
         {
             foreach (var result in results)
             {
                 var recordId = (long)result.Span[result.Length - 1]!;
 
-                if (!deletedRecordIds.Contains(recordId))
+                if (Array.BinarySearch(deletedRecordIds, recordId) < 0)
                 {
                     yield return result;
                 }
@@ -625,8 +626,9 @@ namespace TrackDb.Lib
                 ? _table.Database.GetDeletedRecordIds(
                     _table.Schema.TableName,
                     transactionContext)
-                .ToHashSet()
-                : (ISet<long>)ImmutableHashSet<long>.Empty;
+                .Order()
+                .ToArray()
+                : Array.Empty<long>();
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
                 .Append(_table.Schema.RecordIndexColumnIndex)
@@ -646,7 +648,7 @@ namespace TrackDb.Lib
                     projectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
-                var resultsWithoutDeleted = deletedRecordIds.Count > 0
+                var resultsWithoutDeleted = deletedRecordIds.Length > 0
                     ? RemoveDeleted(deletedRecordIds, results)
                     : results;
                 var newSortValues = resultsWithoutDeleted

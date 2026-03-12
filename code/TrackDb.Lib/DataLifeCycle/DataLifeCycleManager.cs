@@ -16,7 +16,11 @@ namespace TrackDb.Lib.DataLifeCycle
         #region Inner types
         private record LifeCycleItem(
             DataManagementActivity DataManagementActivity,
-            TaskCompletionSource? Source);
+            TaskCompletionSource? Source)
+        {
+            public bool IsForced => DataManagementActivity != DataManagementActivity.None
+                || Source != null;
+        }
         #endregion
 
         private readonly Database _database;
@@ -28,6 +32,7 @@ namespace TrackDb.Lib.DataLifeCycle
         private readonly Task _dataMaintenanceTask;
         //  TaskCompletionSource signaling the stop of the background task
         private readonly TaskCompletionSource _dataMaintenanceStopSource = new TaskCompletionSource();
+        private TaskCompletionSource<bool>? _batchDelayInterrupt;
 
         public DataLifeCycleManager(Database database)
         {
@@ -84,6 +89,12 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 throw new InvalidOperationException("Couldn't trigger life cycle management");
             }
+            
+            // Interrupt the batch delay if this is a forced call arriving during a delay
+            if (lifeCycleItem.IsForced)
+            {
+                _batchDelayInterrupt?.TrySetResult(true);
+            }
         }
 
         private async Task DataMaintanceAsync()
@@ -100,15 +111,49 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    //  We wait a little before processing so we can catch multiple transactions at once
-                    await Task.WhenAny(
-                        Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
-                        _dataMaintenanceStopSource.Task);
+                    // Read the first item that triggered this cycle
+                    if (!_channel.Reader.TryRead(out var firstItem))
+                    {
+                        continue; // Shouldn't happen, but be safe
+                    }
+                    
+                    if (!firstItem.IsForced)
+                    {
+                        // Create new interrupt signal for this batch window
+                        _batchDelayInterrupt = new TaskCompletionSource<bool>();
+                        
+                        //  We wait a little before processing so we can catch multiple transactions at once
+                        var completedTask = await Task.WhenAny(
+                            Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
+                            _batchDelayInterrupt.Task,
+                            _dataMaintenanceStopSource.Task);
+                        
+                        // No exception handling needed - just check which task completed
+                    }
+                    // If first item was forced, skip delay entirely
+                    
                     if (!_dataMaintenanceStopSource.Task.IsCompleted)
                     {
-                        (var dataManagementActivity, var sourceList) = ReadAccumulatedItems();
+                        // Accumulate the first item we already read
+                        var sourceList = ImmutableList<TaskCompletionSource>.Empty.ToBuilder();
+                        var dataManagementActivity = firstItem.DataManagementActivity;
+                        
+                        if (firstItem.Source != null)
+                        {
+                            sourceList.Add(firstItem.Source);
+                        }
+                        
+                        // Read any additional accumulated items
+                        while (_channel.Reader.TryRead(out var item))
+                        {
+                            dataManagementActivity = dataManagementActivity | item.DataManagementActivity;
+                            if (item.Source != null)
+                            {
+                                sourceList.Add(item.Source);
+                            }
+                        }
 
-                        RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList);
+                        RunDataMaintanceAndReleaseSources(dataManagementActivity, sourceList.ToImmutable());
                     }
                 }
                 ReleaseBlocks(ref lastReleaseBlock);

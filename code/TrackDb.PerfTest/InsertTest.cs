@@ -36,5 +36,11 @@ namespace TrackDb.PerfTest
         {
             await RunPerformanceTestAsync(10000);
         }
+
+        [Fact]
+        public async Task Test0100000()
+        {
+            await RunPerformanceTestAsync(100000);
+        }
     }
 }

@@ -18,6 +18,12 @@ namespace TrackDb.Lib.InMemory.Block
         #region Inner types
         private class RowIndexColumn : IReadOnlyDataColumn
         {
+            private RowIndexColumn()
+            {
+            }
+
+            public static RowIndexColumn Instance { get; } = new RowIndexColumn();
+
             int IReadOnlyDataColumn.RecordCount => throw new NotSupportedException();
 
             IEnumerable<int> IReadOnlyDataColumn.FilterBinary(BinaryOperator binaryOperator, object? value)
@@ -236,13 +242,13 @@ namespace TrackDb.Lib.InMemory.Block
                 .Select(index => index <= Schema.RecordIdColumnIndex
                 ? GetDataColumn(index)
                 : index == Schema.RecordIndexColumnIndex
-                ? new RowIndexColumn()
+                ? RowIndexColumn.Instance
                 : index == Schema.ParentBlockIdColumnIndex
                 ? new BlockIdColumn(blockId)
                 : throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
                     $"Column '{index}' is out-of-range"))
-                .ToImmutableArray();
+                .ToArray();
 
             foreach (var rowIndex in rowIndexes)
             {
