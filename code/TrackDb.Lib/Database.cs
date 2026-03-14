@@ -650,6 +650,7 @@ namespace TrackDb.Lib
             ThrowOnPhantomTombstones(states.OldState, doLog);
         }
 
+        [Conditional("DEBUG")]
         private void ThrowOnPhantomTombstones(DatabaseState oldState, bool doLog)
         {
             if (doLog && DatabasePolicy.DiagnosticPolicy.ThrowOnPhantomTombstones)
