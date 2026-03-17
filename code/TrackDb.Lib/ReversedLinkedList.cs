@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,19 +10,18 @@ namespace TrackDb.Lib
     {
         public IEnumerable<T> ToEnumerable()
         {
-            var stack = new Stack<T>();
-            var current = this;
+            return ToArray(1);
+        }
 
-            while (current != null)
-            {
-                stack.Push(current.Content);
-                current = current.Next;
-            }
+        private T[] ToArray(int offset)
+        {
+            var array = Next == null
+                ? new T[offset]
+                : Next.ToArray(offset + 1);
+            
+            array[array.Length - offset] = Content;
 
-            while (stack.Count > 0)
-            {
-                yield return stack.Pop();
-            }
+            return array;
         }
     }
 }
