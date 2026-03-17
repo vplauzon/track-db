@@ -51,9 +51,9 @@ namespace TrackDb.Lib.Logging
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            await ((IAsyncDisposable)_logStorageWriter).DisposeAsync();
             _stopBackgroundProcessingSource.TrySetResult();
             await _backgroundProcessingTask;
+            await ((IAsyncDisposable)_logStorageWriter).DisposeAsync();
         }
 
         public void ObserveBackgroundTask()
