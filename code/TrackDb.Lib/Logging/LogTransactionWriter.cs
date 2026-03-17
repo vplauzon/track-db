@@ -123,17 +123,19 @@ namespace TrackDb.Lib.Logging
             else if (transactionLogItem.TransactionLogsFunc != null)
             {   //  Checkpoint case
                 //  First flush the queue
-                var tcs = new TaskCompletionSource();
-                var waitItem = new ContentItem(string.Empty, tcs);
+                var checkpointTcs = new TaskCompletionSource();
+                var waitItem = new ContentItem(string.Empty, checkpointTcs);
 
                 if (!_channel.Writer.TryWrite(waitItem))
                 {
                     throw new InvalidOperationException("Couldn't write content");
                 }
                 //  Wait for all writes to happen
-                await tcs.Task;
+                await checkpointTcs.Task;
                 //  Then create checkpoint
                 await CreateCheckpointAsync(transactionLogItem.TransactionLogsFunc(), ct);
+                //  Then complete the task
+                transactionLogItem.Tcs?.TrySetResult();
             }
             else if (transactionLogItem.Tcs != null)
             {

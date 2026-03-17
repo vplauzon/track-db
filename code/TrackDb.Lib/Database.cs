@@ -607,9 +607,7 @@ namespace TrackDb.Lib
                     && newState.TombstoneRecordCount * 100
                     > newState.AppendRecordCount * DatabasePolicy.LogPolicy.MinTombstonePercentBeforeCheckpoint)
                     {   //  Trigger checkpoint
-                        var checkpointTcs = tcs == null
-                        ? new TaskCompletionSource()
-                        : tcs;
+                        var checkpointTcs = tcs ?? new TaskCompletionSource();
 
                         checkpointTcs.Task.ContinueWith(t => DecrementActiveTransactionCount());
                         newState = newState with
