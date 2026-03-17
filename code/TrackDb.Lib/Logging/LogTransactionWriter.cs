@@ -108,7 +108,7 @@ namespace TrackDb.Lib.Logging
         {
             ObserveBackgroundTask();
             if (transactionLogItem.TransactionLog != null)
-            {
+            {   //  Single tx case
                 var content = TransactionContent.FromTransactionLog(
                     transactionLogItem.TransactionLog,
                     _tombstoneTable.Schema,
@@ -121,7 +121,8 @@ namespace TrackDb.Lib.Logging
                 }
             }
             else if (transactionLogItem.TransactionLogsFunc != null)
-            {   //  First flush the queue
+            {   //  Checkpoint case
+                //  First flush the queue
                 var tcs = new TaskCompletionSource();
                 var waitItem = new ContentItem(string.Empty, tcs);
 
@@ -134,7 +135,7 @@ namespace TrackDb.Lib.Logging
                 //  Then create checkpoint
                 await CreateCheckpointAsync(transactionLogItem.TransactionLogsFunc(), ct);
             }
-            else if (transactionLogItem.Tcs == null)
+            else if (transactionLogItem.Tcs != null)
             {
                 var contentItem = new ContentItem(string.Empty, transactionLogItem.Tcs);
 

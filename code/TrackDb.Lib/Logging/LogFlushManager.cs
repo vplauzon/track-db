@@ -63,6 +63,7 @@ namespace TrackDb.Lib.Logging
 
                 var logItems = _flushTransactionLogItems();
 
+                //  Forces all queue to happen in sequence
                 foreach (var logItem in logItems)
                 {
                     await _logTransactionWriter.QueueTransactionLogItemAsync(
