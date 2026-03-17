@@ -87,15 +87,11 @@ namespace TrackDb.Lib.Logging
                     tx,
                     _tombstoneTable.Schema,
                     _tableSchemaMap);
+                var json = txContent.ToJson();
 
-                if (txContent != null)
+                if (!string.IsNullOrWhiteSpace(json))
                 {
-                    var json = txContent.ToJson();
-
-                    if (!string.IsNullOrWhiteSpace(json))
-                    {
-                        yield return json;
-                    }
+                    yield return json;
                 }
             }
         }
