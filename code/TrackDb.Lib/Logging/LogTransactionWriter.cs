@@ -51,9 +51,9 @@ namespace TrackDb.Lib.Logging
 
         async ValueTask IAsyncDisposable.DisposeAsync()
         {
-            await ((IAsyncDisposable)_logStorageWriter).DisposeAsync();
             _stopBackgroundProcessingSource.TrySetResult();
             await _backgroundProcessingTask;
+            await ((IAsyncDisposable)_logStorageWriter).DisposeAsync();
         }
 
         public void ObserveBackgroundTask()
@@ -87,15 +87,11 @@ namespace TrackDb.Lib.Logging
                     tx,
                     _tombstoneTable.Schema,
                     _tableSchemaMap);
+                var json = txContent.ToJson();
 
-                if (txContent != null)
+                if (!string.IsNullOrWhiteSpace(json))
                 {
-                    var json = txContent.ToJson();
-
-                    if (!string.IsNullOrWhiteSpace(json))
-                    {
-                        yield return json;
-                    }
+                    yield return json;
                 }
             }
         }
@@ -108,7 +104,7 @@ namespace TrackDb.Lib.Logging
         {
             ObserveBackgroundTask();
             if (transactionLogItem.TransactionLog != null)
-            {
+            {   //  Single tx case
                 var content = TransactionContent.FromTransactionLog(
                     transactionLogItem.TransactionLog,
                     _tombstoneTable.Schema,
@@ -121,20 +117,23 @@ namespace TrackDb.Lib.Logging
                 }
             }
             else if (transactionLogItem.TransactionLogsFunc != null)
-            {   //  First flush the queue
-                var tcs = new TaskCompletionSource();
-                var waitItem = new ContentItem(string.Empty, tcs);
+            {   //  Checkpoint case
+                //  First flush the queue
+                var checkpointTcs = new TaskCompletionSource();
+                var waitItem = new ContentItem(string.Empty, checkpointTcs);
 
                 if (!_channel.Writer.TryWrite(waitItem))
                 {
                     throw new InvalidOperationException("Couldn't write content");
                 }
                 //  Wait for all writes to happen
-                await tcs.Task;
+                await checkpointTcs.Task;
                 //  Then create checkpoint
                 await CreateCheckpointAsync(transactionLogItem.TransactionLogsFunc(), ct);
+                //  Then complete the task
+                transactionLogItem.Tcs?.TrySetResult();
             }
-            else if (transactionLogItem.Tcs == null)
+            else if (transactionLogItem.Tcs != null)
             {
                 var contentItem = new ContentItem(string.Empty, transactionLogItem.Tcs);
 

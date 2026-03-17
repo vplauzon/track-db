@@ -50,6 +50,8 @@ namespace TrackDb.Lib.Logging
         private async Task BackgroundAsync()
         {
             while (!_stopSource.Task.IsCompleted
+                //  This is there so that even if we requested to stop
+                //  we flush existing records
                 || _channel.Reader.WaitToReadAsync().IsCompleted)
             {
                 var pushTask = _channel.Reader.WaitToReadAsync().AsTask();
@@ -63,6 +65,7 @@ namespace TrackDb.Lib.Logging
 
                 var logItems = _flushTransactionLogItems();
 
+                //  Forces all queue to happen in sequence
                 foreach (var logItem in logItems)
                 {
                     await _logTransactionWriter.QueueTransactionLogItemAsync(
