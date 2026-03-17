@@ -607,6 +607,11 @@ namespace TrackDb.Lib
                     && newState.TombstoneRecordCount * 100
                     > newState.AppendRecordCount * DatabasePolicy.LogPolicy.MinTombstonePercentBeforeCheckpoint)
                     {   //  Trigger checkpoint
+                        var checkpointTcs = tcs == null
+                        ? new TaskCompletionSource()
+                        : tcs;
+
+                        checkpointTcs.Task.ContinueWith(t => DecrementActiveTransactionCount());
                         newState = newState with
                         {
                             AppendRecordCount = 0,
@@ -615,7 +620,7 @@ namespace TrackDb.Lib
                                 new TransactionLogItem(
                                     null,
                                     () => ListCheckpointTransactions(newState.InMemoryDatabase),
-                                    tcs,
+                                    checkpointTcs,
                                     ct),
                                 newState.TransactionLogItems)
                         };
@@ -640,10 +645,10 @@ namespace TrackDb.Lib
 
             if (states.NewState!.TransactionLogItems != null
                 && states.NewState!.TransactionLogItems.Content.TransactionLogsFunc != null)
-            {   //  We increment here and decrement at the end of ListCheckpointTransactions
+            {   //  We increment here and decrement at when the checkpointTcs completes
                 IncrementActiveTransactionCount();
             }
-            if (doLog)
+            if (isTransactionLogged)
             {
                 _logFlushManager?.Push();
             }
@@ -982,6 +987,8 @@ namespace TrackDb.Lib
                     .Select(t => t.Value.Table);
                 var recordsPerTransaction = DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
 
+                //  This will be decremented in the tx.Complete() at the end of the scope
+                IncrementActiveTransactionCount();
                 foreach (var table in userTables)
                 {
                     var records = table.Query(tx)
@@ -1011,7 +1018,6 @@ namespace TrackDb.Lib
                     }
                 }
 
-                //  At this point we decrement the active transaction count that was activated outside
                 tx.Complete();
             }
         }
