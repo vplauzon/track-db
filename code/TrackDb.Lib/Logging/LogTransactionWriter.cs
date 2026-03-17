@@ -89,7 +89,7 @@ namespace TrackDb.Lib.Logging
                     _tableSchemaMap);
                 var json = txContent.ToJson();
 
-                if (!string.IsNullOrWhiteSpace(json))
+                if (string.IsNullOrWhiteSpace(json))
                 {
                     yield return json;
                 }

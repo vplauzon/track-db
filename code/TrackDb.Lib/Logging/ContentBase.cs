@@ -18,7 +18,14 @@ namespace TrackDb.Lib.Logging
 
         public virtual string ToJson()
         {
-            return JsonSerializer.Serialize(this, GetTypeInfo());
+            var json = JsonSerializer.Serialize(this, GetTypeInfo());
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                throw new InvalidOperationException($"Can't serialize content of type {typeof(T).Name}");
+            }
+
+            return json;
         }
 
         private static JsonTypeInfo<T> GetTypeInfo()
