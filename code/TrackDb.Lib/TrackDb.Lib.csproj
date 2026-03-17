@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<Version>1.12.1</Version>
+		<Version>1.12.2</Version>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -43,7 +43,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Azure.Storage.Files.DataLake" Version="12.25.0" />
-		<PackageReference Include="Polly" Version="8.6.5" />
 		<PackageReference Include="ZiggyCreatures.FusionCache" Version="2.5.0" />
 	</ItemGroup>
 
