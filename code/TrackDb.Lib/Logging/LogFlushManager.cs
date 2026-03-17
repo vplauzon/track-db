@@ -49,8 +49,7 @@ namespace TrackDb.Lib.Logging
 
         private async Task BackgroundAsync()
         {
-            while (!_stopSource.Task.IsCompleted
-                || _channel.Reader.WaitToReadAsync().IsCompleted)
+            while (!_stopSource.Task.IsCompleted)
             {
                 var pushTask = _channel.Reader.WaitToReadAsync().AsTask();
 
