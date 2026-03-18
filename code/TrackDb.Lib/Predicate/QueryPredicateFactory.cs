@@ -50,9 +50,9 @@ namespace TrackDb.Lib.Predicate
             IEnumerable<U> values)
         {
             return new TypedQueryPredicate<T>(
-                new InPredicate(
+                new InPredicate<U>(
                     GetColumnIndexes(propertySelection.Body),
-                    values.Cast<object?>(),
+                    values,
                     true),
                 Schema);
         }
@@ -62,11 +62,10 @@ namespace TrackDb.Lib.Predicate
             IEnumerable<U> values)
         {
             return new TypedQueryPredicate<T>(
-                new NegationPredicate(
-                    new InPredicate(
-                        GetColumnIndexes(propertySelection.Body),
-                        values.Cast<object?>(),
-                        true)),
+                new InPredicate<U>(
+                    GetColumnIndexes(propertySelection.Body),
+                    values,
+                    false),
                 Schema);
         }
 

@@ -60,7 +60,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             }
 
             var strongTypeValue = value == null ? NullValue : (T)value;
-            var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
+            var matchBuilder = new List<int>();
 
             FilterBinaryInternal(
                 strongTypeValue,
@@ -71,26 +71,16 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             return matchBuilder;
         }
 
-        IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
+        IEnumerable<int> IReadOnlyDataColumn.FilterIn(IInPredicate inPredicate)
         {
-            if (isIn)
-            {
-                var matchBuilder = ImmutableArray<int>.Empty.ToBuilder();
+            var matchBuilder = new List<int>();
 
-                for (var i = 0; i != _itemCount; ++i)
-                {
-                    if (values.Contains(_array[i]))
-                    {
-                        matchBuilder.Add(i);
-                    }
-                }
+            FilterInPredicateInternal(
+                inPredicate,
+                new ReadOnlySpan<T>(_array, 0, _itemCount),
+                matchBuilder);
 
-                return matchBuilder.ToImmutable();
-            }
-            else
-            {
-                throw new NotImplementedException();
-            }
+            return matchBuilder;
         }
 
         int IReadOnlyDataColumn.ComputeSerializationSizes(
@@ -270,7 +260,12 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             T value,
             ReadOnlySpan<T> storedValues,
             BinaryOperator binaryOperator,
-            ImmutableArray<int>.Builder matchBuilder);
+            List<int> matchBuilder);
+
+        protected abstract void FilterInPredicateInternal(
+            IInPredicate inPredicate,
+            ReadOnlySpan<T> storedValues,
+            List<int> matchBuilder);
 
         protected abstract int ComputeSerializationSizes(
             ReadOnlySpan<T> storedValues,

@@ -5,16 +5,25 @@ using System.Linq;
 
 namespace TrackDb.Lib.Predicate
 {
-    public sealed record InPredicate(
+    public sealed record InPredicate<T>(
         int ColumnIndex,
-        ISet<object?> Values,
+        ISet<T?> Values,
         bool IsIn)
         : QueryPredicate, IInPredicate
     {
-        public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
+        public InPredicate(int ColumnIndex, IEnumerable<T?> Values, bool IsIn)
             : this(ColumnIndex, Values.ToHashSet(), IsIn)
         {
         }
+
+        #region IInPredicate
+        int IInPredicate.ColumnIndex => ColumnIndex;
+
+        QueryPredicate? IInPredicate.InverseIsIn()
+        {
+            return this with { IsIn = !IsIn };
+        }
+        #endregion
 
         internal override IEnumerable<int> ReferencedColumnIndexes => [ColumnIndex];
 
@@ -25,12 +34,6 @@ namespace TrackDb.Lib.Predicate
                 yield return this;
             }
         }
-
-        #region IInPredicate
-        object IInPredicate.Values => Values;
-
-        bool IInPredicate.IsIn => IsIn;
-        #endregion
 
         internal override QueryPredicate? Simplify() => Values.Count > 0
             ? null
@@ -50,8 +53,8 @@ namespace TrackDb.Lib.Predicate
                 {
                     return ResultPredicate.Empty;
                 }
-                else if (Values.Contains(null))
-                {
+                else if (Values.Contains(default))
+                {   //  Can't do anything with null
                     return AllInPredicate.Instance;
                 }
                 else

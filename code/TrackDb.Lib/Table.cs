@@ -35,11 +35,10 @@ namespace TrackDb.Lib
                 .TableQuery
                 .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
                     t => t.DeletedRecordId))
-                .Select(r => r.Span[0])
-                .ToImmutableArray();
+                .Select(r => (long)r.Span[0]!);
             var tombstonedRecords = Query(tx)
                 .WithIgnoreDeleted()
-                .WithPredicate(new InPredicate(
+                .WithPredicate(new InPredicate<long>(
                     Schema.RecordIdColumnIndex,
                     tombstoneRecordIds,
                     true));

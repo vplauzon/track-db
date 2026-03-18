@@ -31,7 +31,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IInPredicate inPredicate)
             {
                 throw new NotSupportedException();
             }
@@ -76,7 +76,7 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException();
             }
 
-            IEnumerable<int> IReadOnlyDataColumn.FilterIn(ISet<object?> values, bool isIn)
+            IEnumerable<int> IReadOnlyDataColumn.FilterIn(IInPredicate inPredicate)
             {
                 throw new NotSupportedException();
             }
@@ -350,10 +350,10 @@ namespace TrackDb.Lib.InMemory.Block
 
                 return resultIndexes;
             }
-            else if (leafPredicate is InPredicate ip)
+            else if (leafPredicate is IInPredicate ip)
             {
                 var column = GetDataColumn(ip.ColumnIndex);
-                var resultIndexes = column.FilterIn(ip.Values, ip.IsIn);
+                var resultIndexes = column.FilterIn(ip);
 
                 return resultIndexes;
             }
@@ -362,6 +362,11 @@ namespace TrackDb.Lib.InMemory.Block
                 throw new NotSupportedException(
                     $"Primitive predicate:  '{leafPredicate.GetType().Name}'");
             }
+        }
+
+        private object GetDataColumn(object columnIndex)
+        {
+            throw new NotImplementedException();
         }
         #endregion
 

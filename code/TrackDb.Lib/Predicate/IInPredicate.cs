@@ -4,14 +4,14 @@ using System.Text;
 
 namespace TrackDb.Lib.Predicate
 {
+    /// <summary>
+    /// Marker interface signaling it's implementated with a strongly typed
+    /// generic <see cref="InPredicate{T}"/>.
+    /// </summary>
     internal interface IInPredicate
     {
-        /// <summary>
-        /// This is an ISet<T>.
-        /// </summary>
-        object Values { get; }
+        int ColumnIndex { get; }
 
-        /// <summary>The values are in or not-in.</summary>
-        bool IsIn { get; }
+        QueryPredicate? InverseIsIn();
     }
 }

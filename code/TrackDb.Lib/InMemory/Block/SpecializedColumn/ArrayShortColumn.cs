@@ -28,7 +28,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             short value,
             ReadOnlySpan<short> storedValues,
             BinaryOperator binaryOperator,
-            ImmutableArray<int>.Builder matchBuilder)
+            List<int> matchBuilder)
         {
             switch (binaryOperator)
             {
@@ -89,6 +89,29 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 default:
                     throw new NotSupportedException(
                         $"{nameof(BinaryOperator)}:  '{binaryOperator}'");
+            }
+        }
+
+        protected override void FilterInPredicateInternal(
+            IInPredicate inPredicate,
+            ReadOnlySpan<short> storedValues,
+            List<int> matchBuilder)
+        {
+            var typedPredicate = (InPredicate<short?>)inPredicate;
+            var valueSet = typedPredicate.Values;
+            var isIn = typedPredicate.IsIn;
+            var containsNull = valueSet.Contains(default);
+
+            for (int i = 0; i != storedValues.Length; ++i)
+            {
+                var isMatch = storedValues[i] == NullValue
+                    ? containsNull
+                    : valueSet.Contains(storedValues[i]);
+
+                if (isMatch == isIn)
+                {
+                    matchBuilder.Add(i);
+                }
             }
         }
 

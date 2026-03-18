@@ -46,7 +46,7 @@ namespace TrackDb.UnitTest.QueryPredicateTests
             var schema = TypedTableSchema<MyEntity>.FromConstructor("MyEntity");
             var metaSchema = schema.CreateMetadataTableSchema();
             var metaMetaSchema = metaSchema.CreateMetadataTableSchema();
-            var predicate = new InPredicate(
+            var predicate = new InPredicate<int>(
                 schema.ColumnProperties.Index()
                 .Where(c => c.Item.ColumnSchema.ColumnName == nameof(MyEntity.Age))
                 .First()
