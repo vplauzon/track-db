@@ -9,7 +9,7 @@ namespace TrackDb.Lib.Predicate
         int ColumnIndex,
         ISet<object?> Values,
         bool IsIn)
-        : QueryPredicate
+        : QueryPredicate, IInPredicate
     {
         public InPredicate(int ColumnIndex, IEnumerable<object?> Values, bool IsIn)
             : this(ColumnIndex, Values.ToHashSet(), IsIn)
@@ -25,6 +25,12 @@ namespace TrackDb.Lib.Predicate
                 yield return this;
             }
         }
+
+        #region IInPredicate
+        object IInPredicate.Values => Values;
+
+        bool IInPredicate.IsIn => IsIn;
+        #endregion
 
         internal override QueryPredicate? Simplify() => Values.Count > 0
             ? null
