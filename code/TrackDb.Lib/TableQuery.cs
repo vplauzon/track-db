@@ -422,37 +422,32 @@ namespace TrackDb.Lib
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var isTableMeta = _table.Schema is MetadataTableSchema;
-            var deletedRecordIds = !_ignoreDeleted && !isTableMeta
-                ? _table.Database.GetDeletedRecordIds(
-                    _table.Schema.TableName,
-                    tx)
-                .Order()
-                .ToArray()
-                : Array.Empty<long>();
+            var predicate = !_ignoreDeleted && !isTableMeta
+                ? new ConjunctionPredicate(
+                    _predicate,
+                    new InPredicate<long>(
+                        _table.Schema.RecordIdColumnIndex,
+                        _table.Database.GetDeletedRecordIds(_table.Schema.TableName, tx),
+                        false))
+                : _predicate;
             var materializedProjectionColumnIndexes = projectionColumnIndexes
-                //  Add Record ID at the end, so we can use it to detect deleted rows
-                .Append(_table.Schema.RecordIdColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
             var queryId = Guid.NewGuid().ToString();
 
             foreach (var block in ListBlocks(tx))
             {
-                var filterOutput = block.Block.Filter(_predicate, _queryTag != null);
+                var filterOutput = block.Block.Filter(predicate, _queryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     materializedProjectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
-                var resultsWithoutDeleted = deletedRecordIds.Length > 0
-                    ? RemoveDeleted(deletedRecordIds, results)
-                    : results;
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
-                foreach (var result in resultsWithoutDeleted)
+                foreach (var result in results)
                 {
-                    //  Remove last column (record ID)
-                    yield return result.Slice(0, result.Length - 1);
+                    yield return result;
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -480,21 +475,6 @@ namespace TrackDb.Lib
                         p.Predicate.ToString()));
 
                 _table.Database.QueryExecutionTable.AppendRecords(records);
-            }
-        }
-
-        private IEnumerable<ReadOnlyMemory<object?>> RemoveDeleted(
-            long[] deletedRecordIds,
-            IEnumerable<ReadOnlyMemory<object?>> results)
-        {
-            foreach (var result in results)
-            {
-                var recordId = (long)result.Span[result.Length - 1]!;
-
-                if (Array.BinarySearch(deletedRecordIds, recordId) < 0)
-                {
-                    yield return result;
-                }
             }
         }
 
@@ -617,18 +597,18 @@ namespace TrackDb.Lib
             }
         }
 
-        private IEnumerable<BlockRowIndex> SortAndTruncateSortColumns(
-            TransactionContext transactionContext)
+        private IEnumerable<BlockRowIndex> SortAndTruncateSortColumns(TransactionContext tx)
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var isTableMeta = _table.Schema is MetadataTableSchema;
-            var deletedRecordIds = !_ignoreDeleted && !isTableMeta
-                ? _table.Database.GetDeletedRecordIds(
-                    _table.Schema.TableName,
-                    transactionContext)
-                .Order()
-                .ToArray()
-                : Array.Empty<long>();
+            var predicate = !_ignoreDeleted && !isTableMeta
+                ? new ConjunctionPredicate(
+                    _predicate,
+                    new InPredicate<long>(
+                        _table.Schema.RecordIdColumnIndex,
+                        _table.Database.GetDeletedRecordIds(_table.Schema.TableName, tx),
+                        false))
+                : _predicate;
             var projectionColumnIndexes = _sortColumns
                 .Select(s => s.ColumnIndex)
                 .Append(_table.Schema.RecordIndexColumnIndex)
@@ -640,18 +620,15 @@ namespace TrackDb.Lib
             var areSortValuesSorted = false;
             var queryId = Guid.NewGuid().ToString();
 
-            foreach (var block in ListBlocks(transactionContext))
+            foreach (var block in ListBlocks(tx))
             {
-                var filterOutput = block.Block.Filter(_predicate, _queryTag != null);
+                var filterOutput = block.Block.Filter(predicate, _queryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     projectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
-                var resultsWithoutDeleted = deletedRecordIds.Length > 0
-                    ? RemoveDeleted(deletedRecordIds, results)
-                    : results;
-                var newSortValues = resultsWithoutDeleted
+                var newSortValues = results
                     .Select(r => r.ToArray())
                     .ToArray();
 
