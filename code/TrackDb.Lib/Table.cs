@@ -38,9 +38,9 @@ namespace TrackDb.Lib
                 .Select(r => (long)r.Span[0]!);
             var tombstonedRecords = Query(tx)
                 .WithIgnoreDeleted()
-                .WithPredicate(new InPredicate<long>(
+                .WithPredicate(new InPredicate<long?>(
                     Schema.RecordIdColumnIndex,
-                    tombstoneRecordIds,
+                    tombstoneRecordIds.Cast<long?>(),
                     true));
 
             return tombstonedRecords;

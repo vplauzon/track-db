@@ -97,10 +97,10 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             ReadOnlySpan<int> storedValues,
             List<int> matchBuilder)
         {
-            var typedPredicate = (InPredicate<int?>)inPredicate;
+            var typedPredicate = (InPredicate<int>)inPredicate;
             var valueSet = typedPredicate.Values;
             var isIn = typedPredicate.IsIn;
-            var containsNull = valueSet.Contains(default);
+            var containsNull = typedPredicate.HasNullValue;
 
             for (int i = 0; i != storedValues.Length; ++i)
             {

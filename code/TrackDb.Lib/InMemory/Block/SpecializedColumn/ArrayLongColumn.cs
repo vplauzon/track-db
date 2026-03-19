@@ -100,7 +100,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             var typedPredicate = (InPredicate<long?>)inPredicate;
             var valueSet = typedPredicate.Values;
             var isIn = typedPredicate.IsIn;
-            var containsNull = valueSet.Contains(default);
+            var containsNull = typedPredicate.HasNullValue;
 
             for (int i = 0; i != storedValues.Length; ++i)
             {

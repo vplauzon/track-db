@@ -7,12 +7,20 @@ namespace TrackDb.Lib.Predicate
 {
     public sealed record InPredicate<T>(
         int ColumnIndex,
-        ISet<T?> Values,
+        ISet<T> Values,
+        bool HasNullValue,
         bool IsIn)
         : QueryPredicate, IInPredicate
     {
         public InPredicate(int ColumnIndex, IEnumerable<T?> Values, bool IsIn)
-            : this(ColumnIndex, Values.ToHashSet(), IsIn)
+            : this(
+                  ColumnIndex,
+                  Values
+                  .Where(v => v != null)
+                  .Cast<T>()
+                  .ToHashSet(),
+                  Values.Any(v => v == null),
+                  IsIn)
         {
         }
 
@@ -53,7 +61,7 @@ namespace TrackDb.Lib.Predicate
                 {
                     return ResultPredicate.Empty;
                 }
-                else if (Values.Contains(default))
+                else if (HasNullValue)
                 {   //  Can't do anything with null
                     return AllInPredicate.Instance;
                 }
