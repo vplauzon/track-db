@@ -422,19 +422,23 @@ namespace TrackDb.Lib
         {
             var takeCount = _takeCount ?? int.MaxValue;
             var isTableMeta = _table.Schema is MetadataTableSchema;
-            var predicate = !_ignoreDeleted && !isTableMeta
-                ? new ConjunctionPredicate(
+            var isTableTombstone =
+                _table.Schema.TableName == _table.Database.TombstoneTable.Schema.TableName;
+            var predicate = _ignoreDeleted || isTableMeta || isTableTombstone
+                ? _predicate
+                //  Remove deleted records
+                : new ConjunctionPredicate(
                     _predicate,
                     new InPredicate<long>(
                         _table.Schema.RecordIdColumnIndex,
                         _table.Database.GetDeletedRecordIds(_table.Schema.TableName, tx),
-                        false))
-                : _predicate;
+                        false));
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
             var queryId = Guid.NewGuid().ToString();
 
+            predicate = predicate.Simplify() ?? predicate;
             foreach (var block in ListBlocks(tx))
             {
                 var filterOutput = block.Block.Filter(predicate, _queryTag != null);

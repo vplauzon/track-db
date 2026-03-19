@@ -810,7 +810,7 @@ namespace TrackDb.Lib
                     .Select(r => new
                     {
                         TableName = (string)r.Span[tableColumns[0]]!,
-                        DeletedRecordId = (long)r.Span[deletedRecordIdColumns[0]]!
+                        DeletedRecordId = (long)r.Span[deletedRecordIdColumns[1]]!
                     })
                     .Where(r => r.TableName == tableName)
                     .Select(r => r.DeletedRecordId);
