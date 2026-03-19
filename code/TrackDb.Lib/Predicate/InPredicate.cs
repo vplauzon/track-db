@@ -45,7 +45,9 @@ namespace TrackDb.Lib.Predicate
 
         internal override QueryPredicate? Simplify() => Values.Count > 0
             ? null
-            : ResultPredicate.Empty;
+            : IsIn
+            ? ResultPredicate.Empty
+            : AllInPredicate.Instance;
 
         internal override QueryPredicate? Substitute(
             QueryPredicate beforePredicate,

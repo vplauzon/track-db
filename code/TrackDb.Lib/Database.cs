@@ -796,15 +796,26 @@ namespace TrackDb.Lib
                 tx);
         }
 
-        internal IEnumerable<long> GetDeletedRecordIds(
-            string tableName,
-            TransactionContext transactionContext)
+        internal IEnumerable<long> GetDeletedRecordIds(string tableName, TransactionContext tx)
         {
-            return tableName != TombstoneTable.Schema.TableName
-                ? TombstoneTable.Query(transactionContext)
-                .Where(ts => ts.TableName == tableName)
-                .Select(ts => ts.DeletedRecordId)
-                : Array.Empty<long>();
+            if (tableName != TombstoneTable.Schema.TableName)
+            {   //  Avoid materializing all columns and put a column filter
+                //  (which instantiate sets)
+                var tableColumns = TombstoneTable.Schema.GetColumnIndexSubset(e => e.TableName);
+                var deletedRecordIdColumns = TombstoneTable.Schema.GetColumnIndexSubset(
+                    e => e.DeletedRecordId);
+                var deletedRecordIds = TombstoneTable.Query(tx)
+                    .TableQuery
+                    .WithProjection(tableColumns.Concat(deletedRecordIdColumns))
+                    .Where(r => (string)r.Span[0]! == tableName)
+                    .Select(r => (long)r.Span[1]!);
+
+                return deletedRecordIds;
+            }
+            else
+            {
+                return Array.Empty<long>();
+            }
         }
 
         internal void DeleteTombstoneRecords(
