@@ -213,15 +213,20 @@ namespace TrackDb.Lib.InMemory.Block
 
         FilterOutput IBlock.Filter(QueryPredicate predicate, bool provideAuditTrail)
         {
-            var auditTrails = new List<PredicateAuditTrail>();
+            var auditTrails = provideAuditTrail
+                ? new List<PredicateAuditTrail>()
+                : null;
             //  Initiate a simplification prior to the resolution process
             var indexes = ResolvePredicate(
                 predicate.Simplify() ?? predicate,
-                provideAuditTrail,
                 0,
                 auditTrails);
 
-            return new FilterOutput(indexes, auditTrails);
+            return new FilterOutput(
+                indexes,
+                auditTrails == null
+                ? Array.Empty<PredicateAuditTrail>()
+                : auditTrails);
         }
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
@@ -264,13 +269,12 @@ namespace TrackDb.Lib.InMemory.Block
         #region Predicate filtering
         private IImmutableList<int> ResolvePredicate(
             QueryPredicate predicate,
-            bool provideAuditTrail,
             int iteration,
-            List<PredicateAuditTrail> predicateAuditTrails)
+            List<PredicateAuditTrail>? predicateAuditTrails)
         {
             var leafPredicate = predicate.LeafPredicates.FirstOrDefault();
 
-            AuditPredicate(provideAuditTrail, predicate, iteration, predicateAuditTrails);
+            AuditPredicate(predicate, iteration, predicateAuditTrails);
             if (leafPredicate != null)
             {
                 var resultPredicate = new ResultPredicate(ResolveLeafPredicate(leafPredicate));
@@ -284,7 +288,6 @@ namespace TrackDb.Lib.InMemory.Block
                 {
                     return ResolvePredicate(
                         newPredicate.Simplify() ?? newPredicate,
-                        provideAuditTrail,
                         iteration + 1,
                         predicateAuditTrails);
                 }
@@ -308,12 +311,10 @@ namespace TrackDb.Lib.InMemory.Block
                     var finalPredicate = finalSubstitution.Simplify() ?? finalSubstitution;
 
                     AuditPredicate(
-                        provideAuditTrail,
                         finalSubstitution,
                         iteration + 1,
                         predicateAuditTrails);
                     AuditPredicate(
-                        provideAuditTrail,
                         finalPredicate,
                         iteration + 2,
                         predicateAuditTrails);
@@ -330,12 +331,11 @@ namespace TrackDb.Lib.InMemory.Block
         }
 
         private void AuditPredicate(
-            bool provideAuditTrail,
             QueryPredicate predicate,
             int iteration,
-            List<PredicateAuditTrail> predicateAuditTrails)
+            List<PredicateAuditTrail>? predicateAuditTrails)
         {
-            if (provideAuditTrail)
+            if (predicateAuditTrails != null)
             {
                 predicateAuditTrails.Add(new PredicateAuditTrail(DateTime.Now, iteration, predicate));
             }
