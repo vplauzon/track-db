@@ -807,13 +807,8 @@ namespace TrackDb.Lib
                 var deletedRecordIds = TombstoneTable.Query(tx)
                     .TableQuery
                     .WithProjection(tableColumns.Concat(deletedRecordIdColumns))
-                    .Select(r => new
-                    {
-                        TableName = (string)r.Span[tableColumns[0]]!,
-                        DeletedRecordId = (long)r.Span[deletedRecordIdColumns[1]]!
-                    })
-                    .Where(r => r.TableName == tableName)
-                    .Select(r => r.DeletedRecordId);
+                    .Where(r => (string)r.Span[0]! == tableName)
+                    .Select(r => (long)r.Span[1]!);
 
                 return deletedRecordIds;
             }
