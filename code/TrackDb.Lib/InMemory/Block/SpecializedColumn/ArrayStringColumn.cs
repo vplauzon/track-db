@@ -94,7 +94,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             ReadOnlySpan<string?> storedValues,
             List<int> matchBuilder)
         {
-            var typedPredicate = (InPredicate<string?>)inPredicate;
+            var typedPredicate = (InPredicate<string>)inPredicate;
             var valueSet = typedPredicate.Values;
             var isIn = typedPredicate.IsIn;
             var containsNull = typedPredicate.HasNullValue;
@@ -103,7 +103,7 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
             {
                 var isMatch = storedValues[i] == NullValue
                     ? containsNull
-                    : valueSet.Contains(storedValues[i]);
+                    : valueSet.Contains(storedValues[i]!);
 
                 if (isMatch == isIn)
                 {
