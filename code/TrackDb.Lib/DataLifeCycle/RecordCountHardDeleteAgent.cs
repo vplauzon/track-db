@@ -146,9 +146,9 @@ namespace TrackDb.Lib.DataLifeCycle
             var foundRecordIds = table.Query(tx)
                 .WithIgnoreDeleted()
                 .WithProjection(table.Schema.RecordIdColumnIndex)
-                .WithPredicate(new InPredicate(
+                .WithPredicate(new InPredicate<long>(
                     table.Schema.RecordIdColumnIndex,
-                    deleteRecordIdSet.Cast<object?>(),
+                    deleteRecordIdSet,
                     true))
                 .Select(r => (long)r.Span[0]!)
                 .ToImmutableArray();

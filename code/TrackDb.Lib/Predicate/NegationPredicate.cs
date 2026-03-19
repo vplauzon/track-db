@@ -40,8 +40,8 @@ namespace TrackDb.Lib.Predicate
                     return np.InnerPredicate;
                 case BinaryOperatorPredicate bop:
                     return bop with { BinaryOperator = Negate(bop.BinaryOperator) };
-                case InPredicate ip:
-                    return ip with { IsIn = !ip.IsIn };
+                case IInPredicate ip:
+                    return ip.InverseIsIn();
                 case ConjunctionPredicate cp:
                     return new DisjunctionPredicate(
                         new NegationPredicate(cp.LeftPredicate),
