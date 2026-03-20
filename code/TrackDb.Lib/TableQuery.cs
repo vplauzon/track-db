@@ -14,6 +14,20 @@ namespace TrackDb.Lib
     public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
         #region Inner types
+        private record struct InnerState(
+            Table QueryTable,
+            TransactionContext? Tx,
+            bool CanDelete,
+            bool InMemoryOnly,
+            bool InTxOnly,
+            bool CommittedOnly,
+            QueryPredicate Predicate,
+            IImmutableList<int> ProjectionColumnIndexes,
+            IImmutableList<SortColumn> SortColumns,
+            int? TakeCount,
+            bool IgnoreDeleted,
+            string? QueryTag);
+
         private record IdentifiedBlock(int BlockId, IBlock Block);
 
         private record BlockRowIndex(int BlockId, int RowIndex);
@@ -21,18 +35,7 @@ namespace TrackDb.Lib
         private record SortedResult(BlockRowIndex BlockRowIndex, ReadOnlyMemory<object?>? Result);
         #endregion
 
-        private readonly Table _table;
-        private readonly TransactionContext? _tx;
-        private readonly bool _canDelete;
-        private readonly bool _inMemoryOnly;
-        private readonly bool _inTxOnly;
-        private readonly bool _committedOnly;
-        private readonly QueryPredicate _predicate;
-        private readonly IImmutableList<int> _projectionColumnIndexes;
-        private readonly IImmutableList<SortColumn> _sortColumns;
-        private readonly int? _takeCount;
-        private readonly bool _ignoreDeleted;
-        private readonly string? _queryTag;
+        private readonly InnerState _innerState;
 
         #region Constructors
         internal TableQuery(
@@ -40,47 +43,25 @@ namespace TrackDb.Lib
             TransactionContext? tx,
             bool canDelete)
             : this(
-                  table,
-                  tx,
-                  canDelete,
-                  false,
-                  false,
-                  false,
-                  AllInPredicate.Instance,
-                  Enumerable.Range(0, table.Schema.Columns.Count),
-                  Array.Empty<SortColumn>(),
-                  null,
-                  false,
-                  null)
+                  new InnerState(
+                      table,
+                      tx,
+                      canDelete,
+                      false,
+                      false,
+                      false,
+                      AllInPredicate.Instance,
+                      Enumerable.Range(0, table.Schema.Columns.Count).ToImmutableArray(),
+                      ImmutableArray<SortColumn>.Empty,
+                      null,
+                      false,
+                      null))
         {
         }
 
-        private TableQuery(
-            Table table,
-            TransactionContext? tx,
-            bool canDelete,
-            bool inMemoryOnly,
-            bool inTxOnly,
-            bool notInTransactionOnly,
-            QueryPredicate predicate,
-            IEnumerable<int> projectionColumnIndexes,
-            IEnumerable<SortColumn> sortColumns,
-            int? takeCount,
-            bool ignoreDeleted,
-            string? queryTag)
+        private TableQuery(InnerState innerState)
         {
-            _table = table;
-            _tx = tx;
-            _canDelete = canDelete;
-            _inMemoryOnly = inMemoryOnly;
-            _inTxOnly = inTxOnly;
-            _committedOnly = notInTransactionOnly;
-            _predicate = predicate.Simplify() ?? predicate;
-            _projectionColumnIndexes = projectionColumnIndexes.ToImmutableArray();
-            _sortColumns = sortColumns.ToImmutableArray();
-            _takeCount = takeCount;
-            _ignoreDeleted = ignoreDeleted;
-            _queryTag = queryTag;
+            _innerState = innerState;
         }
         #endregion
 
@@ -88,163 +69,91 @@ namespace TrackDb.Lib
         public TableQuery WithPredicate(QueryPredicate predicate)
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    Predicate = predicate
+                });
         }
 
         public TableQuery WithProjection(params IEnumerable<int> projectionColumnIndexes)
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                projectionColumnIndexes.ToImmutableArray(),
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    ProjectionColumnIndexes = projectionColumnIndexes.ToImmutableArray()
+                });
         }
 
         public TableQuery WithSortColumns(IEnumerable<SortColumn> sortColumns)
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    SortColumns = sortColumns.ToImmutableArray()
+                });
         }
 
         public TableQuery WithTake(int? takeCount)
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    TakeCount = takeCount
+                });
         }
 
         public TableQuery WithinTransactionOnly()
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                true,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    InTxOnly = true
+                });
         }
 
         internal TableQuery WithIgnoreDeleted()
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                true,
-                _queryTag);
+                _innerState with
+                {
+                    IgnoreDeleted = true
+                });
         }
 
         internal TableQuery WithQueryTag(string queryTag)
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                queryTag);
+                _innerState with
+                {
+                    QueryTag = queryTag
+                });
         }
 
         internal TableQuery WithInMemoryOnly()
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                true,
-                _inTxOnly,
-                _committedOnly,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    InMemoryOnly = true
+                });
         }
 
         internal TableQuery WithCommittedOnly()
         {
             return new TableQuery(
-                _table,
-                _tx,
-                _canDelete,
-                _inMemoryOnly,
-                _inTxOnly,
-                true,
-                _predicate,
-                _projectionColumnIndexes,
-                _sortColumns,
-                _takeCount,
-                _ignoreDeleted,
-                _queryTag);
+                _innerState with
+                {
+                    CommittedOnly = true
+                });
         }
         #endregion
 
         #region IEnumerator<T>
         IEnumerator<ReadOnlyMemory<object?>> IEnumerable<ReadOnlyMemory<object?>>.GetEnumerator()
         {
-            if (_projectionColumnIndexes.Any())
+            if (_innerState.ProjectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_projectionColumnIndexes, false).GetEnumerator();
+                return ExecuteQuery(_innerState.ProjectionColumnIndexes, false).GetEnumerator();
             }
             else
             {
@@ -254,9 +163,9 @@ namespace TrackDb.Lib
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            if (_projectionColumnIndexes.Any())
+            if (_innerState.ProjectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_projectionColumnIndexes, false).GetEnumerator();
+                return ExecuteQuery(_innerState.ProjectionColumnIndexes, false).GetEnumerator();
             }
             else
             {
@@ -271,11 +180,11 @@ namespace TrackDb.Lib
         {
             get
             {
-                var columnNames = _table.Schema.ColumnProperties
+                var columnNames = _innerState.QueryTable.Schema.ColumnProperties
                     .Select(c => c.ColumnSchema.ColumnName);
                 var dataTable = new DataTable();
                 var query = this.WithProjection(
-                    Enumerable.Range(0, _table.Schema.ColumnProperties.Count));
+                    Enumerable.Range(0, _innerState.QueryTable.Schema.ColumnProperties.Count));
 
                 foreach (var columnName in columnNames)
                 {
@@ -319,27 +228,29 @@ namespace TrackDb.Lib
         /// <returns>Number of records deleted.</returns>
         public int Delete()
         {
-            if (!_canDelete)
+            if (!_innerState.CanDelete)
             {
                 throw new UnauthorizedAccessException("Can't delete records on this table");
             }
 
-            return _table.Database.ExecuteWithinTransactionContext(
-                _tx,
+            return _innerState.QueryTable.Database.ExecuteWithinTransactionContext(
+                _innerState.Tx,
                 tx =>
                 {
-                    if (_takeCount != 0)
+                    if (_innerState.TakeCount != 0)
                     {
                         //  Get the transaction table log if it exists, otherwise get null
                         tx.TransactionState.UncommittedTransactionLog.TransactionTableLogMap.TryGetValue(
-                            _table.Schema.TableName,
+                            _innerState.QueryTable.Schema.TableName,
                             out var transactionTableLog);
 
                         //  Fetch record & block ID of records matching query
                         var deletedRecordIds = ExecuteQuery(
                             tx,
                             true,
-                            [_table.Schema.RecordIdColumnIndex, _table.Schema.ParentBlockIdColumnIndex])
+                            [
+                                _innerState.QueryTable.Schema.RecordIdColumnIndex,
+                                _innerState.QueryTable.Schema.ParentBlockIdColumnIndex])
                         .Select(r => (long)r.Span[0]!)
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted ONLY
@@ -353,9 +264,9 @@ namespace TrackDb.Lib
                             if (hardDeletedRecordIds == null
                                 || !hardDeletedRecordIds.Contains(recordId))
                             {
-                                _table.Database.DeleteRecord(
+                                _innerState.QueryTable.Database.DeleteRecord(
                                     recordId,
-                                    _table.Schema.TableName,
+                                    _innerState.QueryTable.Schema.TableName,
                                     tx);
                             }
                         }
@@ -374,11 +285,12 @@ namespace TrackDb.Lib
             IEnumerable<int> projectionColumnIndexes,
             bool noSort)
         {
-            var results = _table.Database.EnumeratesWithinTransactionContext(
-                _tx,
+            var results = _innerState.QueryTable.Database.EnumeratesWithinTransactionContext(
+                _innerState.Tx,
                 tx =>
                 {
-                    if (_takeCount == 0 || (_inTxOnly && _committedOnly))
+                    if (_innerState.TakeCount == 0
+                    || (_innerState.InTxOnly && _innerState.CommittedOnly))
                     {
                         return Array.Empty<ReadOnlyMemory<object?>>();
                     }
@@ -396,7 +308,7 @@ namespace TrackDb.Lib
             bool noSort,
             IEnumerable<int> projectionColumnIndexes)
         {
-            if (!noSort && _sortColumns.Any())
+            if (!noSort && _innerState.SortColumns.Any())
             {
                 return ExecuteQueryWithSort(
                     tx,
@@ -415,18 +327,20 @@ namespace TrackDb.Lib
             TransactionContext tx,
             IEnumerable<int> projectionColumnIndexes)
         {
-            var takeCount = _takeCount ?? int.MaxValue;
-            var isTableMeta = _table.Schema is MetadataTableSchema;
+            var takeCount = _innerState.TakeCount ?? int.MaxValue;
+            var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
             var isTableTombstone =
-                _table.Schema.TableName == _table.Database.TombstoneTable.Schema.TableName;
-            var predicate = _ignoreDeleted || isTableMeta || isTableTombstone
-                ? _predicate
+                _innerState.QueryTable.Schema.TableName
+                == _innerState.QueryTable.Database.TombstoneTable.Schema.TableName;
+            var predicate = _innerState.IgnoreDeleted || isTableMeta || isTableTombstone
+                ? _innerState.Predicate
                 //  Remove deleted records
                 : new ConjunctionPredicate(
-                    _predicate,
+                    _innerState.Predicate,
                     new InPredicate<long>(
-                        _table.Schema.RecordIdColumnIndex,
-                        _table.Database.GetDeletedRecordIds(_table.Schema.TableName, tx),
+                        _innerState.QueryTable.Schema.RecordIdColumnIndex,
+                        _innerState.QueryTable.Database.GetDeletedRecordIds(
+                            _innerState.QueryTable.Schema.TableName, tx),
                         false));
             var materializedProjectionColumnIndexes = projectionColumnIndexes
                 .ToImmutableArray();
@@ -436,7 +350,7 @@ namespace TrackDb.Lib
             predicate = predicate.Simplify() ?? predicate;
             foreach (var block in ListBlocks(tx))
             {
-                var filterOutput = block.Block.Filter(predicate, _queryTag != null);
+                var filterOutput = block.Block.Filter(predicate, _innerState.QueryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     materializedProjectionColumnIndexes,
@@ -461,25 +375,25 @@ namespace TrackDb.Lib
             int blockId,
             string queryId)
         {
-            if (_queryTag != null)
+            if (_innerState.QueryTag != null)
             {
                 var records = predicateAuditTrails
                     .Select(p => new QueryExecutionRecord(
                         p.Timestamp,
-                        _table.Schema.TableName,
+                        _innerState.QueryTable.Schema.TableName,
                         queryId,
-                        _queryTag,
+                        _innerState.QueryTag,
                         blockId,
                         p.Iteration,
                         p.Predicate.ToString()));
 
-                _table.Database.QueryExecutionTable.AppendRecords(records);
+                _innerState.QueryTable.Database.QueryExecutionTable.AppendRecords(records);
             }
         }
 
         private IEnumerable<IdentifiedBlock> ListBlocks(TransactionContext tx)
         {
-            if (_inMemoryOnly || _inTxOnly)
+            if (_innerState.InMemoryOnly || _innerState.InTxOnly)
             {
                 return ListUnpersistedBlocks(tx);
             }
@@ -496,7 +410,10 @@ namespace TrackDb.Lib
             var blockId = 0;
 
             foreach (var block in
-                transactionState.ListBlocks(_table.Schema.TableName, _inTxOnly, _committedOnly))
+                transactionState.ListBlocks(
+                    _innerState.QueryTable.Schema.TableName,
+                    _innerState.InTxOnly,
+                    _innerState.CommittedOnly))
             {
                 yield return new IdentifiedBlock(blockId--, block);
             }
@@ -504,21 +421,23 @@ namespace TrackDb.Lib
 
         private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext tx)
         {
-            if (_table.Database.HasMetaDataTable(_table.Schema.TableName))
+            if (_innerState.QueryTable.Database.HasMetaDataTable(
+                _innerState.QueryTable.Schema.TableName))
             {
-                var metaDataTable = _table.Database.GetMetaDataTable(_table.Schema.TableName);
+                var metaDataTable = _innerState.QueryTable.Database.GetMetaDataTable(
+                    _innerState.QueryTable.Schema.TableName);
                 var metaSchema = (MetadataTableSchema)metaDataTable.Schema;
                 var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
-                    _predicate,
-                    _table.Schema,
+                    _innerState.Predicate,
+                    _innerState.QueryTable.Schema,
                     metaSchema);
                 var metaDataQuery = metaDataTable.Query(tx)
                     .WithProjection([metaSchema.BlockIdColumnIndex])
                     .WithPredicate(metaPredicate);
 
-                if (_queryTag != null)
+                if (_innerState.QueryTag != null)
                 {
-                    metaDataQuery = metaDataQuery.WithQueryTag(_queryTag);
+                    metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
                 }
                 foreach (var metaDataRow in metaDataQuery)
                 {
@@ -526,7 +445,9 @@ namespace TrackDb.Lib
 
                     yield return new IdentifiedBlock(
                         blockId,
-                        _table.Database.GetOrLoadBlock(blockId, _table.Schema));
+                        _innerState.QueryTable.Database.GetOrLoadBlock(
+                            blockId,
+                            _innerState.QueryTable.Schema));
                 }
             }
         }
@@ -542,7 +463,7 @@ namespace TrackDb.Lib
             }
             else
             {
-                return _table.Database.GetOrLoadBlock(blockId, _table.Schema);
+                return _innerState.QueryTable.Database.GetOrLoadBlock(blockId, _innerState.QueryTable.Schema);
             }
         }
         #endregion
@@ -558,7 +479,7 @@ namespace TrackDb.Lib
                 .ToImmutableArray();
             //  Second phase:  re-query blocks to project results
             var materializedProjectionColumnIndexes = projectionColumnIndexes
-                .Append(_table.Schema.RecordIndexColumnIndex)
+                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
@@ -598,21 +519,22 @@ namespace TrackDb.Lib
 
         private IEnumerable<BlockRowIndex> SortAndTruncateSortColumns(TransactionContext tx)
         {
-            var takeCount = _takeCount ?? int.MaxValue;
-            var isTableMeta = _table.Schema is MetadataTableSchema;
-            var predicate = !_ignoreDeleted && !isTableMeta
+            var takeCount = _innerState.TakeCount ?? int.MaxValue;
+            var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
+            var predicate = !_innerState.IgnoreDeleted && !isTableMeta
                 ? new ConjunctionPredicate(
-                    _predicate,
+                    _innerState.Predicate,
                     new InPredicate<long>(
-                        _table.Schema.RecordIdColumnIndex,
-                        _table.Database.GetDeletedRecordIds(_table.Schema.TableName, tx),
+                        _innerState.QueryTable.Schema.RecordIdColumnIndex,
+                        _innerState.QueryTable.Database.GetDeletedRecordIds(
+                            _innerState.QueryTable.Schema.TableName, tx),
                         false))
-                : _predicate;
-            var projectionColumnIndexes = _sortColumns
+                : _innerState.Predicate;
+            var projectionColumnIndexes = _innerState.SortColumns
                 .Select(s => s.ColumnIndex)
-                .Append(_table.Schema.RecordIndexColumnIndex)
-                .Append(_table.Schema.ParentBlockIdColumnIndex)
-                .Append(_table.Schema.RecordIdColumnIndex)
+                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
+                .Append(_innerState.QueryTable.Schema.ParentBlockIdColumnIndex)
+                .Append(_innerState.QueryTable.Schema.RecordIdColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[projectionColumnIndexes.Length].AsMemory();
             var accumulatedSortValues = ImmutableArray<object?[]>.Empty;
@@ -621,7 +543,7 @@ namespace TrackDb.Lib
 
             foreach (var block in ListBlocks(tx))
             {
-                var filterOutput = block.Block.Filter(predicate, _queryTag != null);
+                var filterOutput = block.Block.Filter(predicate, _innerState.QueryTag != null);
                 var results = block.Block.Project(
                     buffer,
                     projectionColumnIndexes,
@@ -632,7 +554,7 @@ namespace TrackDb.Lib
                     .ToArray();
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
-                if (accumulatedSortValues.Length + newSortValues.Length > _takeCount)
+                if (accumulatedSortValues.Length + newSortValues.Length > _innerState.TakeCount)
                 {
                     var allSortValues = accumulatedSortValues.Concat(newSortValues);
 
@@ -666,13 +588,13 @@ namespace TrackDb.Lib
         {
             IOrderedEnumerable<object?[]>? sortedSortValues = null;
 
-            for (var i = 0; i != _sortColumns.Count; ++i)
+            for (var i = 0; i != _innerState.SortColumns.Count; ++i)
             {   //  Materialize value 'i' in the for loop
                 var j = i;
 
                 if (sortedSortValues == null)
                 {
-                    if (_sortColumns[i].IsAscending)
+                    if (_innerState.SortColumns[i].IsAscending)
                     {
                         sortedSortValues = sortValues.OrderBy(v => v[j]);
                     }
@@ -683,7 +605,7 @@ namespace TrackDb.Lib
                 }
                 else
                 {
-                    if (_sortColumns[i].IsAscending)
+                    if (_innerState.SortColumns[i].IsAscending)
                     {
                         sortedSortValues = sortedSortValues.ThenBy(v => v[j]);
                     }
