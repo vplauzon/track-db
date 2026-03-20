@@ -210,6 +210,11 @@ namespace TrackDb.Lib
         }
         #endregion
 
+        internal IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteWithBlockTrace()
+        {
+            throw new NotImplementedException();
+        }
+
         public long Count()
         {
             //  Project no columns & sort no columns
