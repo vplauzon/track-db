@@ -210,14 +210,6 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public bool Any()
-        {
-            //  Project no columns & sort no columns
-            var items = ExecuteQuery(Array.Empty<int>(), false);
-
-            return items.Any();
-        }
-
         public long Count()
         {
             //  Project no columns & sort no columns
