@@ -94,7 +94,9 @@ namespace TrackDb.Lib
             if (columnIndexSubset.Count == 1)
             {
                 return new TypedTableQuery<T>(
-                    _tableQuery.WithSortColumns(new SortColumn(columnIndexSubset[0], isAscending)));
+                    _tableQuery.WithSortColumns(
+                        _tableQuery.SortColumns.Append(
+                            new SortColumn(columnIndexSubset[0], isAscending))));
             }
             else
             {
