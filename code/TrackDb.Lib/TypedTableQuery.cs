@@ -11,101 +11,42 @@ namespace TrackDb.Lib
     public class TypedTableQuery<T> : IEnumerable<T>
         where T : notnull
     {
-        private readonly TypedTable<T> _table;
-        private readonly bool _canDelete;
-        private readonly bool _inTxOnly;
-        private readonly bool _committedOnly;
-        private readonly TransactionContext? _transactionContext;
-        private readonly IImmutableList<SortColumn> _sortColumns;
-        private readonly int? _takeCount;
-        private readonly string? _queryTag;
+        private readonly TableQuery _tableQuery;
 
-        #region Constructors
-        internal TypedTableQuery(
-            TypedTable<T> table,
-            bool canDelete,
-            TransactionContext? transactionContext)
-            : this(
-                  table,
-                  canDelete,
-                  false,
-                  false,
-                  transactionContext,
-                  AllInPredicate.Instance,
-                  ImmutableArray<SortColumn>.Empty,
-                  null,
-                  null)
+        internal TypedTableQuery(TableQuery tableQuery)
         {
+            _tableQuery = tableQuery;
         }
 
-        internal TypedTableQuery(
-            TypedTable<T> table,
-            bool canDelete,
-            bool inTxOnly,
-            bool committedOnly,
-            TransactionContext? transactionContext,
-            QueryPredicate predicate,
-            IEnumerable<SortColumn> sortColumns,
-            int? takeCount,
-            string? queryTag)
-        {
-            _table = table;
-            _canDelete = canDelete;
-            _inTxOnly = inTxOnly;
-            _committedOnly = committedOnly;
-            _transactionContext = transactionContext;
-            Predicate = predicate;
-            _sortColumns = sortColumns.ToImmutableArray();
-            _takeCount = takeCount;
-            _queryTag = queryTag;
-        }
-        #endregion
+        private TypedTable<T> QueryTable => (TypedTable<T>)_tableQuery.QueryTable;
 
         #region Query alteration
         public TypedTableQuery<T> Where(
             Func<QueryPredicateFactory<T>, TypedQueryPredicate<T>> predicateFunc)
         {
-            if (_sortColumns.Any())
+            if (_tableQuery.SortColumns.Count > 0)
             {
                 throw new InvalidOperationException("Where clause can't be added after an orderby");
             }
-            if (_takeCount != null)
+            if (_tableQuery.TakeCount != null)
             {
                 throw new InvalidOperationException("Where clause can't be added after a take");
             }
 
-            var predicate = predicateFunc(_table.PredicateFactory);
+            var predicate = predicateFunc(QueryTable.PredicateFactory);
             var newPredicate = new ConjunctionPredicate(Predicate, predicate.QueryPredicate);
 
-            return new TypedTableQuery<T>(
-                _table,
-                _canDelete,
-                _inTxOnly,
-                _committedOnly,
-                _transactionContext,
-                newPredicate,
-                Array.Empty<SortColumn>(),
-                _takeCount,
-                _queryTag);
+            return new TypedTableQuery<T>(_tableQuery.WithPredicate(newPredicate));
         }
 
         public TypedTableQuery<T> Take(int count)
         {
-            if (_takeCount != null)
+            if (_tableQuery.TakeCount != null)
             {
                 throw new InvalidOperationException("Take clause can't be added after another take clause");
             }
 
-            return new TypedTableQuery<T>(
-                _table,
-                _canDelete,
-                _inTxOnly,
-                _committedOnly,
-                _transactionContext,
-                Predicate,
-                _sortColumns,
-                count,
-                _queryTag);
+            return new TypedTableQuery<T>(_tableQuery.WithTake(count));
         }
 
         #region Order By
@@ -134,34 +75,28 @@ namespace TrackDb.Lib
             bool isAscending,
             bool isFirst)
         {
-            if (_takeCount != null)
+            if (_tableQuery.TakeCount != null)
             {
                 throw new InvalidOperationException("OrderBy clause can't be added after a take");
             }
-            if (isFirst && _sortColumns.Any())
-            {
-                throw new InvalidOperationException(
+            if (isFirst && _tableQuery.SortColumns.Count > 0)
+                {
+                    throw new InvalidOperationException(
                     "Order by clause can't be added after another orderby, use 'ThenBy' instead");
             }
-            if (!isFirst && !_sortColumns.Any())
+            if (!isFirst && _tableQuery.SortColumns.Count == 0)
             {
                 throw new InvalidOperationException("ThenBy must come after an orderby");
             }
 
-            var columnIndexSubset = _table.Schema.GetColumnIndexSubset(propertySelector);
+            var columnIndexSubset = QueryTable.Schema.GetColumnIndexSubset(propertySelector);
 
             if (columnIndexSubset.Count == 1)
             {
                 return new TypedTableQuery<T>(
-                    _table,
-                    _canDelete,
-                    _inTxOnly,
-                    _committedOnly,
-                    _transactionContext,
-                    Predicate,
-                    _sortColumns.Add(new SortColumn(columnIndexSubset[0], isAscending)),
-                    _takeCount,
-                    _queryTag);
+                    _tableQuery.WithSortColumns(
+                        _tableQuery.SortColumns.Append(
+                            new SortColumn(columnIndexSubset[0], isAscending))));
             }
             else
             {
@@ -174,44 +109,17 @@ namespace TrackDb.Lib
 
         public TypedTableQuery<T> WithQueryTag(string queryTag)
         {
-            return new TypedTableQuery<T>(
-                _table,
-                _canDelete,
-                _inTxOnly,
-                _committedOnly,
-                _transactionContext,
-                Predicate,
-                _sortColumns,
-                _takeCount,
-                queryTag);
+            return new TypedTableQuery<T>(_tableQuery.WithQueryTag(queryTag));
         }
 
         public TypedTableQuery<T> WithinTransactionOnly()
         {
-            return new TypedTableQuery<T>(
-                _table,
-                _canDelete,
-                true,
-                _committedOnly,
-                _transactionContext,
-                Predicate,
-                _sortColumns,
-                _takeCount,
-                _queryTag);
+            return new TypedTableQuery<T>(_tableQuery.WithinTransactionOnly());
         }
 
         internal TypedTableQuery<T> WithCommittedOnly()
         {
-            return new TypedTableQuery<T>(
-                _table,
-                _canDelete,
-                _inTxOnly,
-                true,
-                _transactionContext,
-                Predicate,
-                _sortColumns,
-                _takeCount,
-                _queryTag);
+            return new TypedTableQuery<T>(_tableQuery.WithCommittedOnly());
         }
         #endregion
 
@@ -227,35 +135,9 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public QueryPredicate Predicate { get; }
+        public QueryPredicate Predicate => _tableQuery.Predicate;
 
-        public TableQuery TableQuery
-        {
-            get
-            {
-                var tableQuery = ((Table)_table).Query(_transactionContext)
-                    .WithPredicate(Predicate)
-                    .WithSortColumns(_sortColumns)
-                    .WithTake(_takeCount);
-
-                if (_committedOnly)
-                {
-                    tableQuery = tableQuery
-                        .WithCommittedOnly();
-                }
-                if (_inTxOnly)
-                {
-                    tableQuery = tableQuery
-                        .WithinTransactionOnly();
-                }
-                if (_queryTag != null)
-                {
-                    tableQuery = tableQuery.WithQueryTag(_queryTag);
-                }
-
-                return tableQuery;
-            }
-        }
+        public TableQuery TableQuery => _tableQuery;
 
         public bool Any()
         {
@@ -275,11 +157,12 @@ namespace TrackDb.Lib
         #region Query internals
         private IEnumerable<T> ExecuteQuery()
         {
-            var columnCount = _table.Schema.Columns.Count;
+            var columnCount = _tableQuery.QueryTable.Schema.Columns.Count;
+            var queryTable = QueryTable;
 
             foreach (var result in TableQuery)
             {
-                var objectRow = (T)_table.Schema.FromColumnsToObject(result.Span);
+                var objectRow = (T)queryTable.Schema.FromColumnsToObject(result.Span);
 
                 yield return objectRow;
             }

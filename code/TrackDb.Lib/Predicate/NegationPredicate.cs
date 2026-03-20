@@ -43,13 +43,23 @@ namespace TrackDb.Lib.Predicate
                 case IInPredicate ip:
                     return ip.InverseIsIn();
                 case ConjunctionPredicate cp:
-                    return new DisjunctionPredicate(
-                        new NegationPredicate(cp.LeftPredicate),
-                        new NegationPredicate(cp.RightPredicate));
+                    {
+                        var newLeft = new NegationPredicate(cp.LeftPredicate);
+                        var newRight = new NegationPredicate(cp.RightPredicate);
+
+                        return new DisjunctionPredicate(
+                            newLeft.Simplify() ?? newLeft,
+                            newRight.Simplify() ?? newRight);
+                    }
                 case DisjunctionPredicate cp:
-                    return new ConjunctionPredicate(
-                        new NegationPredicate(cp.LeftPredicate),
-                        new NegationPredicate(cp.RightPredicate));
+                    {
+                        var newLeft = new NegationPredicate(cp.LeftPredicate);
+                        var newRight = new NegationPredicate(cp.RightPredicate);
+
+                        return new ConjunctionPredicate(
+                            newLeft.Simplify() ?? newLeft,
+                            newRight.Simplify() ?? newRight);
+                    }
                 default:
                     throw new NotSupportedException(
                         $"Negating predicate type {InnerPredicate.GetType().Name}");
