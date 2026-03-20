@@ -10,12 +10,7 @@ using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib
 {
-    /// <summary>
-    /// Query on a table.  The first N columns are the table's schema.
-    /// Column N is the record ID (long).
-    /// Column N+1 is the row index within the block.
-    /// Column N+2 is the block ID.
-    /// </summary>
+    /// <summary>Query on a table.</summary>
     public class TableQuery : IEnumerable<ReadOnlyMemory<object?>>
     {
         #region Inner types
