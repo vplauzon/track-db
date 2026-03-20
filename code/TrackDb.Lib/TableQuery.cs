@@ -71,7 +71,7 @@ namespace TrackDb.Lib
             return new TableQuery(
                 _innerState with
                 {
-                    Predicate = predicate
+                    Predicate = predicate.Simplify() ?? predicate
                 });
         }
 

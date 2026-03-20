@@ -27,11 +27,11 @@ namespace TrackDb.Lib.Predicate
         {
             if (LeftPredicate.Equals(AllInPredicate.Instance))
             {
-                return RightPredicate;
+                return RightPredicate.Simplify() ?? RightPredicate;
             }
             else if (RightPredicate.Equals(AllInPredicate.Instance))
             {
-                return LeftPredicate;
+                return LeftPredicate.Simplify() ?? LeftPredicate;
             }
             else if (LeftPredicate is ResultPredicate rpl && RightPredicate is ResultPredicate rpr)
             {

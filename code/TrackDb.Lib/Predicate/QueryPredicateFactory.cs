@@ -15,12 +15,25 @@ namespace TrackDb.Lib.Predicate
             Expression<Func<T, U>> propertySelection,
             U value)
         {
-            return new TypedQueryPredicate<T>(
-                new BinaryOperatorPredicate(
-                    GetColumnIndexes(propertySelection.Body),
-                    value,
-                    BinaryOperator.Equal),
-                Schema);
+            var columnIndexes = Schema.GetColumnIndexSubset(propertySelection);
+            var columnValues = columnIndexes.Count > 1
+                ? Schema.FromPropertyValueToColumns(value!)
+                : new object[] { value! }.AsSpan();
+            var predicate = (QueryPredicate?)null;
+
+            for (var i = 0; i != columnIndexes.Count; ++i)
+            {
+                var newPredicate = new BinaryOperatorPredicate(
+                    columnIndexes[i],
+                    columnValues[i],
+                    BinaryOperator.Equal);
+
+                predicate = predicate == null
+                    ? newPredicate
+                    : new ConjunctionPredicate(predicate, newPredicate);
+            }
+
+            return new TypedQueryPredicate<T>(predicate!, Schema);
         }
 
         public TypedQueryPredicate<T> NotEqual<U>(
@@ -28,10 +41,7 @@ namespace TrackDb.Lib.Predicate
             U value)
         {
             return new TypedQueryPredicate<T>(
-                new BinaryOperatorPredicate(
-                    GetColumnIndexes(propertySelection.Body),
-                    value,
-                    BinaryOperator.NotEqual),
+                new NegationPredicate(Equal(propertySelection, value).QueryPredicate),
                 Schema);
         }
 
