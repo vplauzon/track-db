@@ -65,6 +65,16 @@ namespace TrackDb.Lib
         }
         #endregion
 
+        #region Internal Properties
+        internal Table QueryTable => _innerState.QueryTable;
+
+        internal QueryPredicate Predicate => _innerState.Predicate;
+
+        internal IImmutableList<SortColumn> SortColumns => _innerState.SortColumns;
+
+        internal int? TakeCount => _innerState.TakeCount;
+        #endregion
+
         #region Alterations
         public TableQuery WithPredicate(QueryPredicate predicate)
         {
@@ -84,7 +94,7 @@ namespace TrackDb.Lib
                 });
         }
 
-        public TableQuery WithSortColumns(IEnumerable<SortColumn> sortColumns)
+        public TableQuery WithSortColumns(params IEnumerable<SortColumn> sortColumns)
         {
             return new TableQuery(
                 _innerState with

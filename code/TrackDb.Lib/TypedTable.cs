@@ -55,7 +55,8 @@ namespace TrackDb.Lib
         #region Query
         public new TypedTableQuery<T> Query(TransactionContext? tx = null)
         {
-            return new TypedTableQuery<T>(this, true, tx);
+            return new TypedTableQuery<T>(
+                new TableQuery(this, tx, true));
         }
 
         public new IEnumerable<T> TombstonedWithinTransaction(TransactionContext tx)

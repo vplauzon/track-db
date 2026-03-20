@@ -324,12 +324,13 @@ namespace TrackDb.Lib
             }
         }
 
-        public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tc = null)
+        public TypedTableQuery<QueryExecutionRecord> QueryQueryExecution(TransactionContext? tx = null)
         {
             return new TypedTableQuery<QueryExecutionRecord>(
-                QueryExecutionTable,
-                false,
-                tc);
+                new TableQuery(
+                    QueryExecutionTable,
+                    tx,
+                    false));
         }
 
         internal TypedTable<QueryExecutionRecord> QueryExecutionTable { get; }
