@@ -139,11 +139,6 @@ namespace TrackDb.Lib
 
         public TableQuery TableQuery => _tableQuery;
 
-        public bool Any()
-        {
-            return TableQuery.Any();
-        }
-
         public long Count()
         {
             return TableQuery.Count();

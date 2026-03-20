@@ -163,7 +163,7 @@ namespace TrackDb.Lib
         {
             if (_innerState.ProjectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_innerState.ProjectionColumnIndexes, false).GetEnumerator();
+                return ExecuteQuery().GetEnumerator();
             }
             else
             {
@@ -175,7 +175,7 @@ namespace TrackDb.Lib
         {
             if (_innerState.ProjectionColumnIndexes.Any())
             {
-                return ExecuteQuery(_innerState.ProjectionColumnIndexes, false).GetEnumerator();
+                return ExecuteQuery().GetEnumerator();
             }
             else
             {
@@ -210,18 +210,10 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        public bool Any()
-        {
-            //  Project no columns & sort no columns
-            var items = ExecuteQuery(Array.Empty<int>(), false);
-
-            return items.Any();
-        }
-
         public long Count()
         {
             //  Project no columns & sort no columns
-            var items = ExecuteQuery(Array.Empty<int>(), false);
+            var items = WithProjection().ExecuteQuery();
             var count = (long)0;
 
             foreach (var item in items)
@@ -255,12 +247,11 @@ namespace TrackDb.Lib
                             out var transactionTableLog);
 
                         //  Fetch record & block ID of records matching query
-                        var deletedRecordIds = ExecuteQuery(
-                            tx,
-                            true,
-                            [
-                                _innerState.QueryTable.Schema.RecordIdColumnIndex,
-                                _innerState.QueryTable.Schema.ParentBlockIdColumnIndex])
+                        var deletedRecordIds = WithProjection(
+                            _innerState.QueryTable.Schema.RecordIdColumnIndex,
+                            _innerState.QueryTable.Schema.ParentBlockIdColumnIndex)
+                        .WithSortColumns()
+                        .ExecuteQuery(tx)
                         .Select(r => (long)r.Span[0]!)
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted ONLY
@@ -291,9 +282,7 @@ namespace TrackDb.Lib
         }
 
         #region Query internals
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
-            IEnumerable<int> projectionColumnIndexes,
-            bool noSort)
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery()
         {
             var results = _innerState.QueryTable.Database.EnumeratesWithinTransactionContext(
                 _innerState.Tx,
@@ -306,36 +295,27 @@ namespace TrackDb.Lib
                     }
                     else
                     {
-                        return ExecuteQuery(tx, noSort, projectionColumnIndexes);
+                        return ExecuteQuery(tx);
                     }
                 });
 
             return results;
         }
 
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(
-            TransactionContext tx,
-            bool noSort,
-            IEnumerable<int> projectionColumnIndexes)
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(TransactionContext tx)
         {
-            if (!noSort && _innerState.SortColumns.Any())
+            if (_innerState.SortColumns.Count > 0)
             {
-                return ExecuteQueryWithSort(
-                    tx,
-                    projectionColumnIndexes);
+                return ExecuteQueryWithSort(tx);
             }
             else
             {
-                return ExecuteQueryWithoutSort(
-                    tx,
-                    projectionColumnIndexes);
+                return ExecuteQueryWithoutSort(tx);
             }
         }
 
         #region Query without sort
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithoutSort(
-            TransactionContext tx,
-            IEnumerable<int> projectionColumnIndexes)
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithoutSort(TransactionContext tx)
         {
             var takeCount = _innerState.TakeCount ?? int.MaxValue;
             var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
@@ -352,9 +332,7 @@ namespace TrackDb.Lib
                         _innerState.QueryTable.Database.GetDeletedRecordIds(
                             _innerState.QueryTable.Schema.TableName, tx),
                         false));
-            var materializedProjectionColumnIndexes = projectionColumnIndexes
-                .ToImmutableArray();
-            var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
+            var buffer = new object?[_innerState.ProjectionColumnIndexes.Count].AsMemory();
             var queryId = Guid.NewGuid().ToString();
 
             predicate = predicate.Simplify() ?? predicate;
@@ -363,7 +341,7 @@ namespace TrackDb.Lib
                 var filterOutput = block.Block.Filter(predicate, _innerState.QueryTag != null);
                 var results = block.Block.Project(
                     buffer,
-                    materializedProjectionColumnIndexes,
+                    _innerState.ProjectionColumnIndexes,
                     filterOutput.RowIndexes,
                     block.BlockId);
 
@@ -479,16 +457,14 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query with sort
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithSort(
-            TransactionContext tx,
-            IEnumerable<int> projectionColumnIndexes)
+        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithSort(TransactionContext tx)
         {
             //  First phase sort + truncate sort columns
             var sortedResults = SortAndTruncateSortColumns(tx)
                 .Select(i => new SortedResult(i, null))
                 .ToImmutableArray();
             //  Second phase:  re-query blocks to project results
-            var materializedProjectionColumnIndexes = projectionColumnIndexes
+            var materializedProjectionColumnIndexes = _innerState.ProjectionColumnIndexes
                 .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
                 .ToImmutableArray();
             var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
