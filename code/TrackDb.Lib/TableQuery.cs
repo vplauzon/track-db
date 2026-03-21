@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
+using System.Runtime.InteropServices;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
@@ -28,11 +29,50 @@ namespace TrackDb.Lib
             bool IgnoreDeleted,
             string? QueryTag);
 
-        private record IdentifiedBlock(int BlockId, IBlock Block);
+        private record BlockRowIndex(IReadOnlyList<BlockTrace> BlockTraces, int RowIndex);
 
-        private record BlockRowIndex(int BlockId, int RowIndex);
+        private record SortedResult(BlockRowIndex BlockRowIndex, ReadOnlyMemory<object?> Result);
 
-        private record SortedResult(BlockRowIndex BlockRowIndex, ReadOnlyMemory<object?>? Result);
+        private class SortComparer : IComparer<SortedResult>
+        {
+            private readonly ImmutableArray<bool> _isAscendings;
+
+            public SortComparer(IEnumerable<bool> isAscendings)
+            {
+                _isAscendings = isAscendings.ToImmutableArray();
+                if (_isAscendings.Length == 0)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(isAscendings));
+                }
+            }
+
+            int IComparer<SortedResult>.Compare(SortedResult? x, SortedResult? y)
+            {
+                if (x == null)
+                {
+                    throw new ArgumentNullException(nameof(x));
+                }
+                if (y == null)
+                {
+                    throw new ArgumentNullException(nameof(y));
+                }
+
+                var resultX = x.Result.Span;
+                var resultY = y.Result.Span;
+
+                for (var i = 0; i != _isAscendings.Length; ++i)
+                {
+                    var comparison = Comparer.Default.Compare(resultX[i], resultY[i]);
+
+                    if (comparison != 0)
+                    {
+                        return _isAscendings[i] ? comparison : -comparison;
+                    }
+                }
+
+                throw new InvalidOperationException("Shouldn't reach this point");
+            }
+        }
         #endregion
 
         private readonly InnerState _innerState;
@@ -158,12 +198,14 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        #region IEnumerator<T>
+        #region IEnumerable<T>
         IEnumerator<ReadOnlyMemory<object?>> IEnumerable<ReadOnlyMemory<object?>>.GetEnumerator()
         {
-            if (_innerState.ProjectionColumnIndexes.Any())
+            if (_innerState.ProjectionColumnIndexes.Count > 0)
             {
-                return ExecuteQuery().GetEnumerator();
+                return ExecuteQueryWithBlockTrace()
+                    .Select(r => r.Result)
+                    .GetEnumerator();
             }
             else
             {
@@ -173,9 +215,11 @@ namespace TrackDb.Lib
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            if (_innerState.ProjectionColumnIndexes.Any())
+            if (_innerState.ProjectionColumnIndexes.Count > 0)
             {
-                return ExecuteQuery().GetEnumerator();
+                return ExecuteQueryWithBlockTrace()
+                    .Select(r => r.Result)
+                    .GetEnumerator();
             }
             else
             {
@@ -210,15 +254,32 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        internal IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteWithBlockTrace()
+        internal IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithBlockTrace()
         {
-            throw new NotImplementedException();
+            var results = _innerState.QueryTable.Database.EnumeratesWithinTransactionContext(
+                _innerState.Tx,
+                tx =>
+                {
+                    if (_innerState.TakeCount == 0
+                    || (_innerState.InTxOnly && _innerState.CommittedOnly))
+                    {
+                        return Array.Empty<BlockTracedResult<ReadOnlyMemory<object?>>>();
+                    }
+                    else
+                    {
+                        var blockTraceList = CreateBlockTraceList();
+
+                        return ExecuteQuery(blockTraceList, tx);
+                    }
+                });
+
+            return results;
         }
 
         public long Count()
         {
             //  Project no columns & sort no columns
-            var items = WithProjection().ExecuteQuery();
+            var items = WithProjection().ExecuteQueryWithBlockTrace();
             var count = (long)0;
 
             foreach (var item in items)
@@ -256,8 +317,8 @@ namespace TrackDb.Lib
                             _innerState.QueryTable.Schema.RecordIdColumnIndex,
                             _innerState.QueryTable.Schema.ParentBlockIdColumnIndex)
                         .WithSortColumns()
-                        .ExecuteQuery(tx)
-                        .Select(r => (long)r.Span[0]!)
+                        .ExecuteQuery(CreateBlockTraceList(), tx)
+                        .Select(r => (long)r.Result.Span[0]!)
                         .ToImmutableList();
                         //  Hard delete the records that are uncommitted ONLY
                         var hardDeletedRecordIds = transactionTableLog
@@ -286,41 +347,108 @@ namespace TrackDb.Lib
                 });
         }
 
-        #region Query internals
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery()
+        #region Query Logic
+        private static List<BlockTrace> CreateBlockTraceList()
         {
-            var results = _innerState.QueryTable.Database.EnumeratesWithinTransactionContext(
-                _innerState.Tx,
-                tx =>
-                {
-                    if (_innerState.TakeCount == 0
-                    || (_innerState.InTxOnly && _innerState.CommittedOnly))
-                    {
-                        return Array.Empty<ReadOnlyMemory<object?>>();
-                    }
-                    else
-                    {
-                        return ExecuteQuery(tx);
-                    }
-                });
-
-            return results;
+            return new List<BlockTrace>(32);
         }
 
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQuery(TransactionContext tx)
+        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQuery(
+            List<BlockTrace> blockTraceList,
+            TransactionContext tx)
         {
-            if (_innerState.SortColumns.Count > 0)
+            if (_innerState.SortColumns.Count == 0)
             {
-                return ExecuteQueryWithSort(tx);
+                return ExecuteQueryWithoutSort(blockTraceList, tx);
             }
             else
             {
-                return ExecuteQueryWithoutSort(tx);
+                return ExecuteQueryWithSort(blockTraceList, tx);
             }
         }
 
+        #region List Blocks
+        private IEnumerable<BlockTracedResult<IBlock>> ListBlocks(
+            List<BlockTrace> blockTraceList,
+            TransactionContext tx)
+        {
+            if (_innerState.InMemoryOnly || _innerState.InTxOnly)
+            {
+                return ListUnpersistedBlocks(blockTraceList, tx);
+            }
+            else
+            {
+                return ListUnpersistedBlocks(blockTraceList, tx)
+                    .Concat(ListPersistedBlocks(blockTraceList, tx));
+            }
+        }
+
+        private IEnumerable<BlockTracedResult<IBlock>> ListUnpersistedBlocks(
+            List<BlockTrace> blockTraceList,
+            TransactionContext tx)
+        {
+            var transactionState = tx.TransactionState;
+            var blockTraceIndex = blockTraceList.Count;
+            var blockId = 0;
+
+            CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
+            foreach (var block in
+                transactionState.ListBlocks(
+                    _innerState.QueryTable.Schema.TableName,
+                    _innerState.InTxOnly,
+                    _innerState.CommittedOnly))
+            {
+                blockTraceList[blockTraceIndex] = new BlockTrace(_innerState.QueryTable.Schema, blockId--);
+
+                yield return new BlockTracedResult<IBlock>(blockTraceList, block);
+            }
+            CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
+        }
+
+        private IEnumerable<BlockTracedResult<IBlock>> ListPersistedBlocks(List<BlockTrace> blockTraceList, TransactionContext tx)
+        {
+            if (_innerState.QueryTable.Database.HasMetaDataTable(
+                _innerState.QueryTable.Schema.TableName))
+            {
+                var metaDataTable = _innerState.QueryTable.Database.GetMetaDataTable(
+                    _innerState.QueryTable.Schema.TableName);
+                var metaSchema = (MetadataTableSchema)metaDataTable.Schema;
+                var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
+                    _innerState.Predicate,
+                    _innerState.QueryTable.Schema,
+                    metaSchema);
+                var metaDataQuery = metaDataTable.Query(tx)
+                    .WithPredicate(metaPredicate)
+                    .WithProjection(metaSchema.BlockIdColumnIndex);
+
+                if (_innerState.QueryTag != null)
+                {
+                    metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
+                }
+                foreach (var result in metaDataQuery.ExecuteQueryWithBlockTrace())
+                {
+                    var blockTraceIndex = blockTraceList.Count;
+                    var blockId = (int)result.Result.Span[0]!;
+
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
+                    blockTraceList[blockTraceIndex] = new BlockTrace(
+                        _innerState.QueryTable.Schema,
+                        blockId);
+                    yield return new BlockTracedResult<IBlock>(
+                        blockTraceList,
+                        _innerState.QueryTable.Database.GetOrLoadBlock(
+                            blockId,
+                            _innerState.QueryTable.Schema));
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
+                }
+            }
+        }
+        #endregion
+
         #region Query without sort
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithoutSort(TransactionContext tx)
+        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithoutSort(
+            List<BlockTrace> blockTraceList,
+            TransactionContext tx)
         {
             var takeCount = _innerState.TakeCount ?? int.MaxValue;
             var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
@@ -341,19 +469,24 @@ namespace TrackDb.Lib
             var queryId = Guid.NewGuid().ToString();
 
             predicate = predicate.Simplify() ?? predicate;
-            foreach (var block in ListBlocks(tx))
+            foreach (var tracedBlock in ListBlocks(blockTraceList, tx))
             {
-                var filterOutput = block.Block.Filter(predicate, _innerState.QueryTag != null);
-                var results = block.Block.Project(
+                var filterOutput = tracedBlock.Result.Filter(
+                    predicate,
+                    _innerState.QueryTag != null);
+                var blockId = tracedBlock.BlockTraces.Last().BlockId;
+                var results = tracedBlock.Result.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
                     filterOutput.RowIndexes,
-                    block.BlockId);
+                    blockId);
 
-                AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
+                AuditPredicate(filterOutput.PredicateAuditTrails, blockId, queryId);
                 foreach (var result in results)
                 {
-                    yield return result;
+                    yield return new BlockTracedResult<ReadOnlyMemory<object?>>(
+                        blockTraceList,
+                        result);
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -383,231 +516,115 @@ namespace TrackDb.Lib
                 _innerState.QueryTable.Database.QueryExecutionTable.AppendRecords(records);
             }
         }
-
-        private IEnumerable<IdentifiedBlock> ListBlocks(TransactionContext tx)
-        {
-            if (_innerState.InMemoryOnly || _innerState.InTxOnly)
-            {
-                return ListUnpersistedBlocks(tx);
-            }
-            else
-            {
-                return ListUnpersistedBlocks(tx)
-                    .Concat(ListPersistedBlocks(tx));
-            }
-        }
-
-        private IEnumerable<IdentifiedBlock> ListUnpersistedBlocks(TransactionContext transactionContext)
-        {
-            var transactionState = transactionContext.TransactionState;
-            var blockId = 0;
-
-            foreach (var block in
-                transactionState.ListBlocks(
-                    _innerState.QueryTable.Schema.TableName,
-                    _innerState.InTxOnly,
-                    _innerState.CommittedOnly))
-            {
-                yield return new IdentifiedBlock(blockId--, block);
-            }
-        }
-
-        private IEnumerable<IdentifiedBlock> ListPersistedBlocks(TransactionContext tx)
-        {
-            if (_innerState.QueryTable.Database.HasMetaDataTable(
-                _innerState.QueryTable.Schema.TableName))
-            {
-                var metaDataTable = _innerState.QueryTable.Database.GetMetaDataTable(
-                    _innerState.QueryTable.Schema.TableName);
-                var metaSchema = (MetadataTableSchema)metaDataTable.Schema;
-                var metaPredicate = MetaPredicateHelper.GetCorrespondantPredicate(
-                    _innerState.Predicate,
-                    _innerState.QueryTable.Schema,
-                    metaSchema);
-                var metaDataQuery = metaDataTable.Query(tx)
-                    .WithProjection([metaSchema.BlockIdColumnIndex])
-                    .WithPredicate(metaPredicate);
-
-                if (_innerState.QueryTag != null)
-                {
-                    metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
-                }
-                foreach (var metaDataRow in metaDataQuery)
-                {
-                    var blockId = (int)metaDataRow.Span[0]!;
-
-                    yield return new IdentifiedBlock(
-                        blockId,
-                        _innerState.QueryTable.Database.GetOrLoadBlock(
-                            blockId,
-                            _innerState.QueryTable.Schema));
-                }
-            }
-        }
-
-        private IBlock GetBlock(TransactionContext tc, int blockId)
-        {
-            if (blockId <= 0)
-            {
-                return ListUnpersistedBlocks(tc)
-                    .Where(i => i.BlockId == blockId)
-                    .Select(i => i.Block)
-                    .First();
-            }
-            else
-            {
-                return _innerState.QueryTable.Database.GetOrLoadBlock(blockId, _innerState.QueryTable.Schema);
-            }
-        }
         #endregion
 
         #region Query with sort
-        private IEnumerable<ReadOnlyMemory<object?>> ExecuteQueryWithSort(TransactionContext tx)
+        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithSort(
+            List<BlockTrace> blockTraceList,
+            TransactionContext tx)
         {
             //  First phase sort + truncate sort columns
-            var sortedResults = SortAndTruncateSortColumns(tx)
-                .Select(i => new SortedResult(i, null))
+            var blockRowIndexes = SortAndTruncateSortColumns(tx)
                 .ToImmutableArray();
             //  Second phase:  re-query blocks to project results
-            var materializedProjectionColumnIndexes = _innerState.ProjectionColumnIndexes
-                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
-                .ToImmutableArray();
-            var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
+            throw new NotImplementedException();
+            //var materializedProjectionColumnIndexes = _innerState.ProjectionColumnIndexes
+            //    .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
+            //    .ToImmutableArray();
+            //var buffer = new object?[materializedProjectionColumnIndexes.Length].AsMemory();
 
-            while (sortedResults.Any())
-            {
-                var firstBlockId = sortedResults.First().BlockRowIndex.BlockId;
-                var rowIndexes = sortedResults
-                    .Where(r => r.BlockRowIndex.BlockId == firstBlockId)
-                    .Select(r => r.BlockRowIndex.RowIndex);
-                var block = GetBlock(tx, firstBlockId);
-                var resultMap = block.Project(
-                    buffer,
-                    materializedProjectionColumnIndexes,
-                    rowIndexes,
-                    firstBlockId)
-                    .ToImmutableDictionary(
-                    r => ((int)(r.Span[materializedProjectionColumnIndexes.Length - 1])!),
-                    r => r.Slice(0, materializedProjectionColumnIndexes.Length - 1).ToArray());
-                //  Resolve result and store them in reverse order for optimal deletion
-                var newSortedResults = sortedResults
-                    .Select(r => r.BlockRowIndex.BlockId == firstBlockId
-                    ? new SortedResult(r.BlockRowIndex, resultMap[r.BlockRowIndex.RowIndex])
-                    : r)
-                    .Reverse()
-                    .ToList();
+            //while (sortedResults.Any())
+            //{
+            //    var firstBlockId = sortedResults.First().BlockRowIndex.BlockId;
+            //    var rowIndexes = sortedResults
+            //        .Where(r => r.BlockRowIndex.BlockId == firstBlockId)
+            //        .Select(r => r.BlockRowIndex.RowIndex);
+            //    var block = GetBlock(tx, firstBlockId);
+            //    var resultMap = block.Project(
+            //        buffer,
+            //        materializedProjectionColumnIndexes,
+            //        rowIndexes,
+            //        firstBlockId)
+            //        .ToImmutableDictionary(
+            //        r => ((int)(r.Span[materializedProjectionColumnIndexes.Length - 1])!),
+            //        r => r.Slice(0, materializedProjectionColumnIndexes.Length - 1).ToArray());
+            //    //  Resolve result and store them in reverse order for optimal deletion
+            //    var newSortedResults = sortedResults
+            //        .Select(r => r.BlockRowIndex.BlockId == firstBlockId
+            //        ? new SortedResult(r.BlockRowIndex, resultMap[r.BlockRowIndex.RowIndex])
+            //        : r)
+            //        .Reverse()
+            //        .ToList();
 
-                //  Return available results
-                while (newSortedResults.Any() && newSortedResults.Last().Result != null)
-                {
-                    yield return newSortedResults.Last().Result!.Value;
-                    newSortedResults.RemoveAt(newSortedResults.Count() - 1);
-                }
-                //  Put the sequence in correct order
-                sortedResults = newSortedResults.AsEnumerable().Reverse().ToImmutableArray();
-            }
+            //    //  Return available results
+            //    while (newSortedResults.Any() && newSortedResults.Last().Result != null)
+            //    {
+            //        yield return newSortedResults.Last().Result!.Value;
+            //        newSortedResults.RemoveAt(newSortedResults.Count() - 1);
+            //    }
+            //    //  Put the sequence in correct order
+            //    sortedResults = newSortedResults.AsEnumerable().Reverse().ToImmutableArray();
+            //}
         }
 
         private IEnumerable<BlockRowIndex> SortAndTruncateSortColumns(TransactionContext tx)
         {
-            var takeCount = _innerState.TakeCount ?? int.MaxValue;
-            var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
-            var predicate = !_innerState.IgnoreDeleted && !isTableMeta
-                ? new ConjunctionPredicate(
-                    _innerState.Predicate,
-                    new InPredicate<long>(
-                        _innerState.QueryTable.Schema.RecordIdColumnIndex,
-                        _innerState.QueryTable.Database.GetDeletedRecordIds(
-                            _innerState.QueryTable.Schema.TableName, tx),
-                        false))
-                : _innerState.Predicate;
-            var projectionColumnIndexes = _innerState.SortColumns
+            var blockTraceList = CreateBlockTraceList();
+            var projectionColumns = _innerState.SortColumns
                 .Select(s => s.ColumnIndex)
-                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex)
-                .Append(_innerState.QueryTable.Schema.ParentBlockIdColumnIndex)
-                .Append(_innerState.QueryTable.Schema.RecordIdColumnIndex)
-                .ToImmutableArray();
-            var buffer = new object?[projectionColumnIndexes.Length].AsMemory();
-            var accumulatedSortValues = ImmutableArray<object?[]>.Empty;
-            var areSortValuesSorted = false;
-            var queryId = Guid.NewGuid().ToString();
+                //  Bring record index
+                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex);
+            var sortQuery = this
+                .WithProjection(projectionColumns)
+                .WithSortColumns()
+                .WithTake(null);
+            var accumulatedSortValues = new List<SortedResult>();
+            var comparer = new SortComparer(_innerState.SortColumns.Select(s => s.IsAscending));
 
-            foreach (var block in ListBlocks(tx))
+            foreach (var result in sortQuery.ExecuteQuery(blockTraceList, tx))
             {
-                var filterOutput = block.Block.Filter(predicate, _innerState.QueryTag != null);
-                var results = block.Block.Project(
-                    buffer,
-                    projectionColumnIndexes,
-                    filterOutput.RowIndexes,
-                    block.BlockId);
-                var newSortValues = results
-                    .Select(r => r.ToArray())
-                    .ToArray();
+                var recordIndex = (int)result.Result.Span[result.Result.Length - 1]!;
+                var tempSortedResult = new SortedResult(
+                    new BlockRowIndex(blockTraceList, recordIndex),
+                    result.Result.Slice(0, result.Result.Length - 1));
 
-                AuditPredicate(filterOutput.PredicateAuditTrails, block.BlockId, queryId);
-                if (accumulatedSortValues.Length + newSortValues.Length > _innerState.TakeCount)
-                {
-                    var allSortValues = accumulatedSortValues.Concat(newSortValues);
-
-                    accumulatedSortValues = OrderSortValues(allSortValues)
-                        .Take(takeCount)
-                        .ToImmutableArray();
-                    areSortValuesSorted = true;
+                if (accumulatedSortValues.Count == 0 || _innerState.TakeCount == null)
+                {   //  If no take we sort at the end
+                    accumulatedSortValues.Add(tempSortedResult with
+                    {
+                        Result = tempSortedResult.Result.ToArray()
+                    });
                 }
                 else
                 {
-                    accumulatedSortValues = accumulatedSortValues
-                        .Concat(newSortValues)
-                        .ToImmutableArray();
+                    var index = accumulatedSortValues.BinarySearch(tempSortedResult, comparer);
+
+                    index = index < 0 ? ~index : index;
+                    // Only insert if it belongs in top N results
+                    if (index < _innerState.TakeCount)
+                    {
+                        accumulatedSortValues.Insert(
+                            index,
+                            tempSortedResult with
+                            {
+                                Result = tempSortedResult.Result.ToArray()
+                            });
+
+                        // Trim if over limit
+                        if (accumulatedSortValues.Count > _innerState.TakeCount)
+                        {
+                            accumulatedSortValues.RemoveAt(accumulatedSortValues.Count - 1);
+                        }
+                    }
                 }
             }
-            if (!areSortValuesSorted)
-            {
-                accumulatedSortValues = OrderSortValues(accumulatedSortValues)
-                    .Take(takeCount)
-                    .ToImmutableArray();
+            if (_innerState.TakeCount == null)
+            {   //  We sort at the end
+                accumulatedSortValues.Sort(comparer);
             }
 
             return accumulatedSortValues
-                .Select(a => a.TakeLast(3).Take(2))
-                .Select(a => new BlockRowIndex(
-                    ((int?)a.Last()!).Value,
-                    ((int?)a.First()!).Value));
-        }
-
-        private IEnumerable<object?[]> OrderSortValues(IEnumerable<object?[]> sortValues)
-        {
-            IOrderedEnumerable<object?[]>? sortedSortValues = null;
-
-            for (var i = 0; i != _innerState.SortColumns.Count; ++i)
-            {   //  Materialize value 'i' in the for loop
-                var j = i;
-
-                if (sortedSortValues == null)
-                {
-                    if (_innerState.SortColumns[i].IsAscending)
-                    {
-                        sortedSortValues = sortValues.OrderBy(v => v[j]);
-                    }
-                    else
-                    {
-                        sortedSortValues = sortValues.OrderByDescending(v => v[j]);
-                    }
-                }
-                else
-                {
-                    if (_innerState.SortColumns[i].IsAscending)
-                    {
-                        sortedSortValues = sortedSortValues.ThenBy(v => v[j]);
-                    }
-                    else
-                    {
-                        sortedSortValues = sortedSortValues.ThenByDescending(v => v[j]);
-                    }
-                }
-            }
-
-            return sortedSortValues!;
+                .Select(s => s.BlockRowIndex);
         }
         #endregion
         #endregion
