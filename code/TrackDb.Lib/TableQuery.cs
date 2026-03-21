@@ -324,7 +324,7 @@ namespace TrackDb.Lib
                         var hardDeletedRecordIds = transactionTableLog
                         ?.NewDataBlock
                         .DeleteRecordsByRecordId(deletedRecordIds)
-                        .ToArray();
+                        .ToHashSet();
 
                         foreach (var recordId in deletedRecordIds)
                         {
