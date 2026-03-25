@@ -77,7 +77,7 @@ namespace TrackDb.Lib
                     }
                 }
 
-                throw new InvalidOperationException("Shouldn't reach this point");
+                return 0;
             }
         }
         #endregion
