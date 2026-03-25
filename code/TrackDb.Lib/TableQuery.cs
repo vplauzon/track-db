@@ -30,6 +30,8 @@ namespace TrackDb.Lib
             bool IgnoreDeleted,
             string? QueryTag);
 
+        private record IdentifiedBlock(int BlockId, IBlock Block);
+
         private record BlockRowIndex(int BlockId, int RowIndex);
 
         private record BlockTraceRowIndex(IReadOnlyList<BlockTrace> BlockTraces, int RowIndex);
@@ -373,7 +375,7 @@ namespace TrackDb.Lib
         }
 
         #region List Blocks
-        private IEnumerable<BlockTracedResult<IBlock>> ListBlocks(
+        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -388,7 +390,7 @@ namespace TrackDb.Lib
             }
         }
 
-        private IEnumerable<BlockTracedResult<IBlock>> ListUnpersistedBlocks(
+        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListUnpersistedBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -396,21 +398,19 @@ namespace TrackDb.Lib
             var blockTraceIndex = blockTraceList.Count;
             var blockId = 0;
 
-            CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
             foreach (var block in
                 transactionState.ListBlocks(
                     _innerState.QueryTable.Schema.TableName,
                     _innerState.InTxOnly,
                     _innerState.CommittedOnly))
             {
-                blockTraceList[blockTraceIndex] = new BlockTrace(_innerState.QueryTable.Schema, blockId--);
-
-                yield return new BlockTracedResult<IBlock>(blockTraceList, block);
+                yield return new BlockTracedResult<IdentifiedBlock>(
+                    blockTraceList,
+                    new IdentifiedBlock(blockId--, block));
             }
-            CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
         }
 
-        private IEnumerable<BlockTracedResult<IBlock>> ListPersistedBlocks(
+        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListPersistedBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -437,16 +437,13 @@ namespace TrackDb.Lib
                     var blockTraceIndex = blockTraceList.Count;
                     var blockId = (int)result.Result.Span[0]!;
 
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
-                    blockTraceList[blockTraceIndex] = new BlockTrace(
-                        _innerState.QueryTable.Schema,
-                        blockId);
-                    yield return new BlockTracedResult<IBlock>(
+                    yield return new BlockTracedResult<IdentifiedBlock>(
                         blockTraceList,
-                        _innerState.QueryTable.Database.GetOrLoadBlock(
+                        new IdentifiedBlock(
                             blockId,
-                            _innerState.QueryTable.Schema));
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
+                            _innerState.QueryTable.Database.GetOrLoadBlock(
+                                blockId,
+                                _innerState.QueryTable.Schema)));
                 }
             }
         }
@@ -479,42 +476,54 @@ namespace TrackDb.Lib
             TransactionContext tx)
         {
             var takeCount = _innerState.TakeCount ?? int.MaxValue;
-            var isTableMeta = _innerState.QueryTable.Schema is MetadataTableSchema;
+            var schema = _innerState.QueryTable.Schema;
+            var isTableMeta = schema is MetadataTableSchema;
             var isTableTombstone =
-                _innerState.QueryTable.Schema.TableName
-                == _innerState.QueryTable.Database.TombstoneTable.Schema.TableName;
+                schema.TableName == _innerState.QueryTable.Database.TombstoneTable.Schema.TableName;
             var predicate = _innerState.IgnoreDeleted || isTableMeta || isTableTombstone
                 ? _innerState.Predicate
                 //  Remove deleted records
                 : new ConjunctionPredicate(
                     _innerState.Predicate,
                     new InPredicate<long>(
-                        _innerState.QueryTable.Schema.RecordIdColumnIndex,
-                        _innerState.QueryTable.Database.GetDeletedRecordIds(
-                            _innerState.QueryTable.Schema.TableName, tx),
+                        schema.RecordIdColumnIndex,
+                        _innerState.QueryTable.Database.GetDeletedRecordIds(schema.TableName, tx),
                         false));
             var buffer = new object?[_innerState.ProjectionColumnIndexes.Count].AsMemory();
             var queryId = Guid.NewGuid().ToString();
 
             predicate = predicate.Simplify() ?? predicate;
-            foreach (var tracedBlock in ListBlocks(blockTraceList, tx))
+            foreach (var tracedIdentifiedBlock in ListBlocks(blockTraceList, tx))
             {
-                var filterOutput = tracedBlock.Result.Filter(
-                    predicate,
-                    _innerState.QueryTag != null);
-                var blockId = tracedBlock.BlockTraces.Last().BlockId;
-                var results = tracedBlock.Result.Project(
+                var block = tracedIdentifiedBlock.Result.Block;
+                var filterOutput = block.Filter(predicate, _innerState.QueryTag != null);
+                var currentBlockId = tracedIdentifiedBlock.Result.BlockId;
+                var results = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
                     filterOutput.RowIndexes,
-                    blockId);
+                    currentBlockId);
+                var indexedResults = filterOutput.RowIndexes.Zip(
+                    results,
+                    (i, r) => new
+                    {
+                        RowIndex = i,
+                        Result = r
+                    });
+                var blockTraceIndex = blockTraceList.Count;
 
-                AuditPredicate(filterOutput.PredicateAuditTrails, blockId, queryId);
-                foreach (var result in results)
+                AuditPredicate(filterOutput.PredicateAuditTrails, currentBlockId, queryId);
+                foreach (var indexedResult in indexedResults)
                 {
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
+                    blockTraceList[blockTraceIndex] = new BlockTrace(
+                        schema,
+                        tracedIdentifiedBlock.Result.BlockId,
+                        indexedResult.RowIndex);
                     yield return new BlockTracedResult<ReadOnlyMemory<object?>>(
                         blockTraceList,
-                        result);
+                        indexedResult.Result);
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -587,7 +596,7 @@ namespace TrackDb.Lib
                         groupObject.BlockTraces
                     });
 
-                foreach(var z in zipped)
+                foreach (var z in zipped)
                 {
                     result[z.ResultRowIndex] = new BlockTracedResult<ReadOnlyMemory<object?>>(
                         z.BlockTraces,
