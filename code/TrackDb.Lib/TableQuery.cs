@@ -567,13 +567,13 @@ namespace TrackDb.Lib
             var result = new BlockTracedResult<ReadOnlyMemory<object?>>[blockTraceRowIndexes.Length];
             var byBlockId = blockTraceRowIndexes
                 .Index()
-                .Select(o => new
+                .Select(p => new
                 {
-                    ResultRowIndex = o.Index,
-                    o.Item.BlockTraces,
-                    o.Item.BlockTraces.Last().BlockId
+                    ResultRowIndex = p.Index,
+                    p.Item.BlockTraces,
+                    LastBlockTrace = p.Item.BlockTraces.Last()
                 })
-                .GroupBy(b => b.BlockTraces.Last().BlockId);
+                .GroupBy(b => b.LastBlockTrace.BlockId);
             var buffer = new object?[_innerState.ProjectionColumnIndexes.Count];
 
             //  Fill 'result'
@@ -584,7 +584,7 @@ namespace TrackDb.Lib
                 var records = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
-                    g.Select(o => o.ResultRowIndex),
+                    g.Select(o => o.LastBlockTrace.RowIndex),
                     0)
                     .Select(r => r.ToArray());
                 var zipped = records.Zip(
