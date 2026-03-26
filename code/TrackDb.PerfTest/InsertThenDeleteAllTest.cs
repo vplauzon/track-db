@@ -53,8 +53,6 @@ namespace TrackDb.PerfTest
 
         private async Task InsertThenDeleteAllAsync(bool doKeepOne)
         {
-            var random = new Random();
-
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 InsertBulk(db);
