@@ -385,8 +385,10 @@ namespace TrackDb.Lib
             }
             else
             {
-                return ListUnpersistedBlocks(blockTraceList, tx)
-                    .Concat(ListPersistedBlocks(blockTraceList, tx));
+                var unpersistedBlocks = ListUnpersistedBlocks(blockTraceList, tx);
+                var persistedBlocks = ListPersistedBlocks(blockTraceList, tx);
+                
+                return unpersistedBlocks.Concat(persistedBlocks);
             }
         }
 
@@ -432,7 +434,7 @@ namespace TrackDb.Lib
                 {
                     metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
                 }
-                foreach (var result in metaDataQuery.ExecuteQueryWithBlockTrace())
+                foreach (var result in metaDataQuery.ExecuteQuery(blockTraceList, tx))
                 {
                     var blockTraceIndex = blockTraceList.Count;
                     var blockId = (int)result.Result.Span[0]!;
@@ -510,20 +512,18 @@ namespace TrackDb.Lib
                         RowIndex = i,
                         Result = r
                     });
-                var blockTraceIndex = blockTraceList.Count;
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, currentBlockId, queryId);
                 foreach (var indexedResult in indexedResults)
                 {
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
-                    blockTraceList[blockTraceIndex] = new BlockTrace(
+                    blockTraceList.Add(new BlockTrace(
                         schema,
                         tracedIdentifiedBlock.Result.BlockId,
-                        indexedResult.RowIndex);
+                        indexedResult.RowIndex));
                     yield return new BlockTracedResult<ReadOnlyMemory<object?>>(
                         blockTraceList,
                         indexedResult.Result);
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceList.Count - 1);
                     --takeCount;
                     if (takeCount == 0)
                     {
