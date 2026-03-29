@@ -5,14 +5,12 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class RecordCountHardDeleteAgent2 : DataLifeCycleAgentBase
     {
         #region Inner type
-        private record DeletedRecordsByBlock(BlockTrace[] BlockTraces, long[] DeletedRecordIds);
         #endregion
 
         public RecordCountHardDeleteAgent2(Database database)
@@ -30,14 +28,17 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 if (IsHardDeleteRequiredAfterInMemoryCompact(tx) || doHardDeleteAll)
                 {
-                    var map = ComputeHardDeletePlan(doHardDeleteAll, tx);
+                    var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
+                    var tombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
+                    var plan = ComputeHardDeletePlan(tombstoneBlocksMap, doHardDeleteAll, tx);
                 }
 
                 tx.Complete();
             }
         }
 
-        private IDictionary<string, DeletedRecordsByBlock[]> ComputeHardDeletePlan(
+        private IDictionary<string, TombstoneBlock[]> ComputeHardDeletePlan(
+            IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
             bool doHardDeleteAll,
             TransactionContext tx)
         {
@@ -45,14 +46,13 @@ namespace TrackDb.Lib.DataLifeCycle
                 ? Database.TombstoneTable.Query(tx).Count()
                 : Database.TombstoneTable.Query(tx).Count() -
                 Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
-            var tableBlockMap = GetTableBlockMap(tx);
-            var tableBlocks = tableBlockMap
-                .SelectMany(p => p.Value.Select(drb => new
+            var tableBlocks = tombstoneBlocksMap
+                .SelectMany(p => p.Value.Select(tb => new
                 {
                     TableName = p.Key,
-                    DeletedRecordsByBlock = drb
+                    TombstoneBlock = tb
                 }))
-                .OrderByDescending(o => o.DeletedRecordsByBlock.DeletedRecordIds.Length)
+                .OrderByDescending(o => o.TombstoneBlock.RecordIds.Count)
                 .ToList();
             var currentTableBlockCount = 0;
             var currentRecordCountDelta = 0;
@@ -63,79 +63,16 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     break;
                 }
-                currentRecordCountDelta += tableBlock.DeletedRecordsByBlock.DeletedRecordIds.Length;
+                currentRecordCountDelta += tableBlock.TombstoneBlock.RecordIds.Count;
                 ++currentTableBlockCount;
             }
 
-            var deltaTableBlockMap = tableBlocks
+            var plan = tableBlocks
                 .Take(currentTableBlockCount)
                 .GroupBy(o => o.TableName)
-                .ToDictionary(g => g.Key, g => g.Select(o => o.DeletedRecordsByBlock).ToArray());
+                .ToDictionary(g => g.Key, g => g.Select(o => o.TombstoneBlock).ToArray());
 
-            return deltaTableBlockMap;
-        }
-
-        private Dictionary<string, DeletedRecordsByBlock[]> GetTableBlockMap(TransactionContext tx)
-        {
-            var tombstoneSchema = Database.TombstoneTable.Schema;
-            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
-            var columnIndexes = tombstoneSchema.GetColumnIndexSubset(t => t.TableName)
-                .Concat(tombstoneSchema.GetColumnIndexSubset(t => t.DeletedRecordId));
-            var tableTombstoneMap = Database.TombstoneTable.Query(tx)
-                .TableQuery
-                .WithProjection(columnIndexes)
-                .Select(r => new
-                {
-                    TableName = (string)r.Span[0]!,
-                    DeletedRecordId = (long)r.Span[1]!
-                })
-                .GroupBy(o => o.TableName)
-                .Where(g => tableMap[g.Key].IsPersisted)
-                .ToDictionary(g => g.Key, g => g.Select(o => o.DeletedRecordId).ToHashSet());
-            var tableBlockMap = tableTombstoneMap.Keys
-                .Select(tableName => new
-                {
-                    TableName = tableName,
-                    DeletedRecordsByBlock = GetDeletedRecordsByBlock(
-                        tableName,
-                        tableTombstoneMap[tableName],
-                        tx)
-                })
-                .ToDictionary(o => o.TableName, o => o.DeletedRecordsByBlock);
-
-            return tableBlockMap;
-        }
-
-        private DeletedRecordsByBlock[] GetDeletedRecordsByBlock(
-            string tableName,
-            ISet<long> recordIds,
-            TransactionContext tx)
-        {
-            var table = Database.GetAnyTable(tableName);
-            var predicate = new InPredicate<long>(
-                table.Schema.RecordIdColumnIndex,
-                recordIds,
-                false,
-                true);
-            var blocks = table.Query(tx)
-                .WithIgnoreDeleted()
-                .WithPredicate(predicate)
-                .WithProjection(table.Schema.RecordIdColumnIndex)
-                .ExecuteQueryWithBlockTrace()
-                .Select(btr => new
-                {
-                    LastBlockId = btr.BlockTraces.Last().BlockId,
-                    //  Copy traces
-                    BlockTraces = btr.BlockTraces.ToArray(),
-                    DeletedRecordId = (long)btr.Result.Span[0]!
-                })
-                .GroupBy(o => o.LastBlockId)
-                .Select(g => new DeletedRecordsByBlock(
-                    g.First().BlockTraces,
-                    g.Select(o => o.DeletedRecordId).ToArray()))
-                .ToArray();
-
-            return blocks;
+            return plan;
         }
 
         private bool IsHardDeleteRequiredAfterInMemoryCompact(TransactionContext tx)
