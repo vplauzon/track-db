@@ -10,9 +10,13 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class BlockMergingLogic3 : LogicBase
     {
+        private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
+
+
         public BlockMergingLogic3(Database database)
             : base(database)
         {
+            _metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
         }
 
         public void CompactMerge(
@@ -48,7 +52,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 EnsureTraceLength(rootPlan);
                 foreach (var metaBlockGroup in planGroupByMetaBlockId)
                 {
-                    CompactMergeMetaBlock(
+                    _metaBlockMergingLogic.CompactMerge(
                         metaBlockGroup.Key,
                         metaBlockGroup.First().BlockTraces.Last().Schema,
                         metaBlockGroup,
@@ -56,16 +60,6 @@ namespace TrackDb.Lib.DataLifeCycle
                         tx);
                 }
             }
-        }
-
-        private void CompactMergeMetaBlock(
-            int metaBlockId,
-            TableSchema schema,
-            IEnumerable<TombstoneBlock> tombstoneBlocks,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
-            TransactionContext tx)
-        {
-            throw new NotImplementedException();
         }
 
         [Conditional("DEBUG")]
