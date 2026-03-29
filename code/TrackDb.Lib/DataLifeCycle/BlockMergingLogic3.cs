@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
@@ -41,16 +42,44 @@ namespace TrackDb.Lib.DataLifeCycle
 
             foreach (var rootPlan in planGroupedByRoot)
             {
-                CompactMergeTableRoot(rootPlan, allTombstoneBlockIndex, tx);
+                var planGroupByMetaBlockId = rootPlan
+                    .GroupBy(t => t.BlockTraces.Last().BlockId);
+
+                EnsureTraceLength(rootPlan);
+                foreach (var metaBlockGroup in planGroupByMetaBlockId)
+                {
+                    CompactMergeMetaBlock(
+                        metaBlockGroup.Key,
+                        metaBlockGroup.First().BlockTraces.Last().Schema,
+                        metaBlockGroup,
+                        allTombstoneBlockIndex,
+                        tx);
+                }
             }
         }
 
-        private void CompactMergeTableRoot(
-            IEnumerable<TombstoneBlock> rootPlan,
+        private void CompactMergeMetaBlock(
+            int metaBlockId,
+            TableSchema schema,
+            IEnumerable<TombstoneBlock> tombstoneBlocks,
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
             throw new NotImplementedException();
+        }
+
+        [Conditional("DEBUG")]
+        private void EnsureTraceLength(IEnumerable<TombstoneBlock> plan)
+        {
+            var traceLength = plan.First().BlockTraces.Count;
+
+            foreach(var block in plan.Skip(1))
+            {
+                if (block.BlockTraces.Count != traceLength)
+                {
+                    throw new InvalidOperationException($"Inconsistent trace lengths in plan");
+                }
+            }
         }
     }
 }
