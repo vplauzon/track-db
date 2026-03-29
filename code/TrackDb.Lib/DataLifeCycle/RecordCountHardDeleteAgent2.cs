@@ -31,6 +31,12 @@ namespace TrackDb.Lib.DataLifeCycle
                     var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
                     var tombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
                     var plan = ComputeHardDeletePlan(tombstoneBlocksMap, doHardDeleteAll, tx);
+                    var blockMergingLogic = new BlockMergingLogic3(Database);
+
+                    foreach (var tableName in plan)
+                    {
+                        blockMergingLogic.CompactMerge(tx);
+                    }
                 }
 
                 tx.Complete();
