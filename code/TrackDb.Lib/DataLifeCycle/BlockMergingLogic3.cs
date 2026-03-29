@@ -19,6 +19,14 @@ namespace TrackDb.Lib.DataLifeCycle
             IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
             TransactionContext tx)
         {
+            foreach (var tableName in plan.Keys)
+            {
+                CompactMergeTable(tableName, plan[tableName], tombstoneBlocksMap[tableName], tx);
+            }
+        }
+
+        private void CompactMergeTable(string tableName, IEnumerable<TombstoneBlock> enumerable1, IEnumerable<TombstoneBlock> enumerable2, TransactionContext tx)
+        {
             throw new NotImplementedException();
         }
     }
