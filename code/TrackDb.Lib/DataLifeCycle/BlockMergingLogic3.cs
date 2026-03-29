@@ -21,12 +21,11 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             foreach (var tableName in plan.Keys)
             {
-                CompactMergeTable(tableName, plan[tableName], allTombstoneBlocksMap[tableName], tx);
+                CompactMergeTable(plan[tableName], allTombstoneBlocksMap[tableName], tx);
             }
         }
 
         private void CompactMergeTable(
-            string tableName,
             IEnumerable<TombstoneBlock> plan,
             IEnumerable<TombstoneBlock> allTombstoneBlocks,
             TransactionContext tx)
@@ -40,6 +39,17 @@ namespace TrackDb.Lib.DataLifeCycle
             var allTombstoneBlockIndex = allTombstoneBlocks
                 .ToDictionary(t => t.BlockId);
 
+            foreach (var rootPlan in planGroupedByRoot)
+            {
+                CompactMergeTableRoot(rootPlan, allTombstoneBlockIndex, tx);
+            }
+        }
+
+        private void CompactMergeTableRoot(
+            IEnumerable<TombstoneBlock> rootPlan,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            TransactionContext tx)
+        {
             throw new NotImplementedException();
         }
     }
