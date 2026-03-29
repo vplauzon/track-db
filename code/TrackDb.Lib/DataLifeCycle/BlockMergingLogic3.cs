@@ -4,8 +4,6 @@ using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Text;
-using TrackDb.Lib.DataLifeCycle.Persistance;
-using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -17,6 +15,8 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         public void CompactMerge(
+            IDictionary<string, IEnumerable<TombstoneBlock>> plan,
+            IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
             TransactionContext tx)
         {
             throw new NotImplementedException();

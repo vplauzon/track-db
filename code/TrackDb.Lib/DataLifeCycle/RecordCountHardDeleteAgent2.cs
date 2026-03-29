@@ -33,17 +33,14 @@ namespace TrackDb.Lib.DataLifeCycle
                     var plan = ComputeHardDeletePlan(tombstoneBlocksMap, doHardDeleteAll, tx);
                     var blockMergingLogic = new BlockMergingLogic3(Database);
 
-                    foreach (var tableName in plan)
-                    {
-                        blockMergingLogic.CompactMerge(tx);
-                    }
+                    blockMergingLogic.CompactMerge(plan, tombstoneBlocksMap, tx);
                 }
 
                 tx.Complete();
             }
         }
 
-        private IDictionary<string, TombstoneBlock[]> ComputeHardDeletePlan(
+        private IDictionary<string, IEnumerable<TombstoneBlock>> ComputeHardDeletePlan(
             IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
             bool doHardDeleteAll,
             TransactionContext tx)
@@ -76,7 +73,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var plan = tableBlocks
                 .Take(currentTableBlockCount)
                 .GroupBy(o => o.TableName)
-                .ToDictionary(g => g.Key, g => g.Select(o => o.TombstoneBlock).ToArray());
+                .ToDictionary(g => g.Key, g => g.Select(o => o.TombstoneBlock).ToArray().AsEnumerable());
 
             return plan;
         }
