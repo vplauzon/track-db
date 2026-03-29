@@ -54,7 +54,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     _metaBlockMergingLogic.CompactMerge(
                         metaBlockGroup.Key,
-                        metaBlockGroup.First().BlockTraces.Last().Schema,
+                        metaBlockGroup.First().Schema,
                         metaBlockGroup,
                         allTombstoneBlockIndex,
                         tx);

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -12,28 +12,19 @@ namespace TrackDb.Lib.DataLifeCycle
         {
         }
 
-        internal void CompactMerge(
+        public void CompactMerge(
             int metaBlockId,
-            TableSchema metaSchema,
+            TableSchema schema,
             IEnumerable<TombstoneBlock> tombstoneBlocks,
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
-            var metaBlock = metaBlockId > 0
-                ? Database.GetOrLoadBlock(metaBlockId, metaSchema)
-                : GetInMemoryBlock(metaSchema, tx);
-            var q = ((ReadOnlyBlock)metaBlock).DebugView;
+            var metaBlockManager = new MetaBlockManager(Database, tx);
+            var blocks = metaBlockManager.LoadBlocks(
+                schema.TableName,
+                metaBlockId <= 0 ? null : metaBlockId);
 
             throw new NotImplementedException();
-        }
-
-        private static IBlock GetInMemoryBlock(TableSchema schema, TransactionContext tx)
-        {
-            return tx
-                .TransactionState
-                .UncommittedTransactionLog
-                .TransactionTableLogMap[schema.TableName]
-                .CommittedDataBlock!;
         }
     }
 }
