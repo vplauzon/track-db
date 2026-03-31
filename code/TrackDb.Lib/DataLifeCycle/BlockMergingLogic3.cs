@@ -5,6 +5,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.DataLifeCycle.Persistance;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -20,29 +21,33 @@ namespace TrackDb.Lib.DataLifeCycle
         }
 
         public void CompactMerge(
-            IDictionary<string, IEnumerable<TombstoneBlock>> plan,
+            IDictionary<string, IEnumerable<int>> blockIdsToCompactByTableName,
             IDictionary<string, IEnumerable<TombstoneBlock>> allTombstoneBlocksMap,
             TransactionContext tx)
         {
-            foreach (var tableName in plan.Keys)
+            foreach (var pair in blockIdsToCompactByTableName)
             {
-                CompactMergeTable(plan[tableName], allTombstoneBlocksMap[tableName], tx);
+                var tableName = pair.Key;
+                var blockIdsToCompact = pair.Value;
+
+                CompactMergeTable(blockIdsToCompact, allTombstoneBlocksMap[tableName], tx);
             }
         }
 
         private void CompactMergeTable(
-            IEnumerable<TombstoneBlock> plan,
+            IEnumerable<int> blockIdsToCompact,
             IEnumerable<TombstoneBlock> allTombstoneBlocks,
             TransactionContext tx)
         {
-            var planGroupedByRoot = plan
+            var allTombstoneBlockIndex = allTombstoneBlocks
+                .ToDictionary(t => t.BlockId);
+            var planGroupedByRoot = blockIdsToCompact
+                .Select(id => allTombstoneBlockIndex[id])
                 .GroupBy(t => new
                 {
                     RootBlockId = t.BlockTraces.First().BlockId,
                     RootTableName = t.Schema.TableName
                 });
-            var allTombstoneBlockIndex = allTombstoneBlocks
-                .ToDictionary(t => t.BlockId);
 
             foreach (var rootPlan in planGroupedByRoot)
             {
@@ -55,7 +60,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     _metaBlockMergingLogic.CompactMerge(
                         metaBlockGroup.Key,
                         metaBlockGroup.First().Schema,
-                        metaBlockGroup,
+                        metaBlockGroup.Select(o => o.BlockId),
                         allTombstoneBlockIndex,
                         tx);
                 }

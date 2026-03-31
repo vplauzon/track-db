@@ -29,18 +29,22 @@ namespace TrackDb.Lib.DataLifeCycle
                 if (IsHardDeleteRequiredAfterInMemoryCompact(tx) || doHardDeleteAll)
                 {
                     var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
-                    var tombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
-                    var plan = ComputeHardDeletePlan(tombstoneBlocksMap, doHardDeleteAll, tx);
+                    var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
+                    var blockIdsToCompactByTableName =
+                        ComputeHardDeletePlan(allTombstoneBlocksMap, doHardDeleteAll, tx);
                     var blockMergingLogic = new BlockMergingLogic3(Database);
 
-                    blockMergingLogic.CompactMerge(plan, tombstoneBlocksMap, tx);
+                    blockMergingLogic.CompactMerge(
+                        blockIdsToCompactByTableName,
+                        allTombstoneBlocksMap,
+                        tx);
                 }
 
                 tx.Complete();
             }
         }
 
-        private IDictionary<string, IEnumerable<TombstoneBlock>> ComputeHardDeletePlan(
+        private IDictionary<string, IEnumerable<int>> ComputeHardDeletePlan(
             IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
             bool doHardDeleteAll,
             TransactionContext tx)
@@ -72,8 +76,13 @@ namespace TrackDb.Lib.DataLifeCycle
 
             var plan = tableBlocks
                 .Take(currentTableBlockCount)
+                .Select(o => new
+                {
+                    o.TableName,
+                    o.TombstoneBlock.BlockId
+                })
                 .GroupBy(o => o.TableName)
-                .ToDictionary(g => g.Key, g => g.Select(o => o.TombstoneBlock).ToArray().AsEnumerable());
+                .ToDictionary(g => g.Key, g => g.Select(o => o.BlockId).ToArray().AsEnumerable());
 
             return plan;
         }
