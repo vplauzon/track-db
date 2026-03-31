@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
+using System.Reflection.Metadata;
 using TrackDb.Lib.DataLifeCycle;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
@@ -17,7 +19,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             _maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
         }
 
-        public void CompactMerge(
+        public (MetadataBlock? MetaMetadataBlock, IEnumerable<int> DeletedBlockIds) CompactMerge(
             int metaBlockId,
             TableSchema schema,
             IEnumerable<int> blockIdsToCompact,
@@ -31,6 +33,32 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var blocks = metaBlockManager.LoadBlocks(
                 schema.TableName,
                 metaBlockId <= 0 ? null : metaBlockId);
+            var processedBlocks = CompactMergeBlocks(
+                blocks,
+                schema,
+                metadataSchema,
+                blockIdsToCompactSet,
+                allTombstoneBlockIndex,
+                metaBlockManager);
+            var deletedBlockIds = blocks
+                .Select(b => b.BlockId)
+                .Except(processedBlocks.Select(b => b.BlockId))
+                .ToArray();
+            var metaMetadataBlock = processedBlocks.Count > 0
+                ? PersistMetaBlocks(metadataSchema, processedBlocks, metaBlockManager)
+                : null;
+
+            return (metaMetadataBlock, deletedBlockIds);
+        }
+
+        private IReadOnlyCollection<MetadataBlock> CompactMergeBlocks(
+            IEnumerable<MetadataBlock> blocks,
+            TableSchema schema,
+            MetadataTableSchema metadataSchema,
+            ISet<int> blockIdsToCompactSet,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            MetaBlockManager metaBlockManager)
+        {
             var blockStack = new Stack<MetadataBlock>(blocks.OrderByDescending(b => b.MinRecordId));
             var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
             var blockBuilder = new BlockBuilder(schema);
@@ -54,15 +82,15 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 processedBlocks.Add(previousBlock);
             }
-            throw new NotImplementedException();
             //  Flush whatever remains
-            //PersistBlockBuilder(
-            //    blockBuilder,
-            //    true,
-            //    processedBlocks,
-            //    metadataSchema);
+            PersistBlockBuilder(
+                blockBuilder,
+                true,
+                processedBlocks,
+                metadataSchema,
+                metaBlockManager);
 
-            //return new CompactionResult(processedBlocks, hardDeletedRecordIds);
+            return processedBlocks;
         }
 
         private void CompactMergeOneBlock(
@@ -97,13 +125,21 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     processedBlocks,
                     metaSchema,
                     metaBlockManager);
-                //  Try to merge previous block with compacted block
-                if (previousBlock != null && ((IBlock)blockBuilder).RecordCount > 0 && TryMerge(
-                    blockBuilder,
-                    previousBlock,
-                    allTombstoneBlockIndex,
-                    metaBlockManager))
+                if (previousBlock != null)
                 {
+                    //  Try to merge previous block with compacted block
+                    if (((IBlock)blockBuilder).RecordCount > 0 && TryMerge(
+                        blockBuilder,
+                        previousBlock,
+                        allTombstoneBlockIndex,
+                        metaBlockManager))
+                    {
+                        //  All good
+                    }
+                    else
+                    {
+                        processedBlocks.Add(previousBlock);
+                    }
                     previousBlock = null;
                 }
             }
@@ -127,7 +163,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 if (previousBlock != null)
                 {
                     processedBlocks.Add(previousBlock);
-                    previousBlock = null;
                 }
                 previousBlock = currentBlock;
             }
@@ -142,7 +177,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var tx = metaBlockManager.Tx;
             var schema = ((IBlock)blockBuilder).TableSchema;
             var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
-            var recordCountBefore = block.RecordCount;
+            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
             var tombstoneRowIndexes = allTombstoneBlockIndex[currentBlock.BlockId]
                 .RowIndexes
                 .Distinct()
@@ -257,6 +292,36 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     }
                 }
             }
+        }
+
+        private MetadataBlock PersistMetaBlocks(
+            MetadataTableSchema metadataSchema,
+            IReadOnlyCollection<MetadataBlock> processedBlocks,
+            MetaBlockManager metaBlockManager)
+        {
+            var metaMetaBlockBuilder = new BlockBuilder(metadataSchema, processedBlocks.Count);
+            var metaTable = Database.GetAnyTable(metadataSchema.TableName);
+            var metaMetaTable = Database.GetMetaDataTable(metadataSchema.TableName);
+            var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
+            var recordIds = metaTable.NewRecordIds(processedBlocks.Count);
+            var pairs = processedBlocks
+                .Select(b => b.MetadataRecord)
+                .Zip(recordIds, (r, id) => new { Record = r, RecordId = id });
+            var newBlockId = Database.AvailabilityBlockManager.SetInUse(1, metaBlockManager.Tx)[0];
+
+            foreach (var pair in pairs)
+            {
+                metaMetaBlockBuilder.AppendRecord(pair.RecordId, pair.Record.Span);
+            }
+
+            var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
+            var blockStats = metaMetaBlockBuilder.Serialize(buffer, 0, processedBlocks.Count);
+            var metaMetadataRecord = metaMetaSchema.CreateMetadataRecord(newBlockId, blockStats);
+            var metaMetadataBlock = new MetadataBlock(metaMetadataRecord, metaMetaSchema);
+
+            Database.PersistBlock(newBlockId, buffer, metaBlockManager.Tx);
+
+            return metaMetadataBlock;
         }
     }
 }
