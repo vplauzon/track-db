@@ -26,7 +26,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
             using (var tx = Database.CreateTransaction())
             {
-                if (IsHardDeleteRequiredAfterInMemoryCompact(tx) || doHardDeleteAll)
+                if (IsHardDeleteRequiredAfterInMemoryCompact(doHardDeleteAll, tx))
                 {
                     var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
                     var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
@@ -87,9 +87,12 @@ namespace TrackDb.Lib.DataLifeCycle
             return plan;
         }
 
-        private bool IsHardDeleteRequiredAfterInMemoryCompact(TransactionContext tx)
+        private bool IsHardDeleteRequiredAfterInMemoryCompact(
+            bool doHardDeleteAll,
+            TransactionContext tx)
         {
-            bool IsAboveThreshold() => Database.TombstoneTable.Query(tx).Count()
+            bool IsAboveThreshold() => doHardDeleteAll
+                || Database.TombstoneTable.Query(tx).Count()
                 > Database.DatabasePolicy.InMemoryPolicy.MaxTombstonedRecords;
 
             if (!IsAboveThreshold())

@@ -55,7 +55,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (tombstoneCountBefore <= tombstoneCountAfter)
                 {
-                    throw new InvalidOperationException("Tombstone count increased");
+                    throw new InvalidOperationException("Tombstone count increased or stay the same");
                 }
                 if (tableNoDeleteCountBefore <= tableNoDeleteCountAfter)
                 {
