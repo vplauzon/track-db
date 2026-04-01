@@ -2,17 +2,19 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class BlockMergingLogic3 : LogicBase
     {
-        private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
+        private static readonly IDictionary<int, TombstoneBlock> _emptyTombstoneBlock =
+            new Dictionary<int, TombstoneBlock>();
 
+        private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
 
         public BlockMergingLogic3(Database database)
             : base(database)
@@ -29,56 +31,111 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 var tableName = pair.Key;
                 var blockIdsToCompact = pair.Value;
+                var allTableTombstoneBlocksIndex = allTombstoneBlocksMap[tableName]
+                    .ToDictionary(t => t.BlockId);
+#if DEBUG
+                var tombstoneCountBefore = Database.TombstoneTable.Query(tx)
+                    .Where(pf => pf.Equal(t => t.TableName, tableName))
+                    .Count();
+                var tableNoDeleteCountBefore = Database.GetAnyTable(tableName)
+                    .Query(tx)
+                    .WithIgnoreDeleted()
+                    .Count();
+                var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
+#endif
 
-                CompactMergeTable(blockIdsToCompact, allTombstoneBlocksMap[tableName], tx);
+                CompactMergeTable(tableName, blockIdsToCompact, allTableTombstoneBlocksIndex, tx);
+#if DEBUG
+                var tombstoneCountAfter = Database.TombstoneTable.Query(tx)
+                    .Where(pf => pf.Equal(t => t.TableName, tableName))
+                    .Count();
+                var tableNoDeleteCountAfter = Database.GetAnyTable(tableName)
+                    .Query(tx)
+                    .WithIgnoreDeleted()
+                    .Count();
+                var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
+
+                if (tombstoneCountBefore <= tombstoneCountAfter)
+                {
+                    throw new InvalidOperationException("Tombstone count increased");
+                }
+                if (tableNoDeleteCountBefore != tableNoDeleteCountAfter)
+                {
+                    throw new InvalidOperationException("Corrupted table count without delete");
+                }
+                if (tableCountBefore != tableCountAfter)
+                {
+                    throw new InvalidOperationException("Corrupted table count with delete");
+                }
+#endif
             }
         }
 
         private void CompactMergeTable(
+            string tableName,
             IEnumerable<int> blockIdsToCompact,
-            IEnumerable<TombstoneBlock> allTombstoneBlocks,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
-            var allTombstoneBlockIndex = allTombstoneBlocks
-                .ToDictionary(t => t.BlockId);
-            var planGroupedByRoot = blockIdsToCompact
+            var planGroupByTraceLength = blockIdsToCompact
                 .Select(id => allTombstoneBlockIndex[id])
-                .GroupBy(t => new
+                .GroupBy(t => t.BlockTraces.Count)
+                .Select(g => new
                 {
-                    RootBlockId = t.BlockTraces.First().BlockId,
-                    RootTableName = t.Schema.TableName
+                    TraceLength = g.Key,
+                    Blocks = g.ToArray()
                 });
+            var cumulatedDeletedBlockIds = new List<int>();
+            var blockReplacementMap = new Dictionary<int, IEnumerable<MetadataBlock>>();
 
-            foreach (var rootPlan in planGroupedByRoot)
-            {
-                var planGroupByMetaBlockId = rootPlan
-                    .GroupBy(t => t.BlockTraces.Last().BlockId);
+            foreach (var plan in planGroupByTraceLength)
+            {   //  Each of those plans are independant as the root is at different level
+                var traceLength = plan.TraceLength;
 
-                EnsureTraceLength(rootPlan);
-                foreach (var metaBlockGroup in planGroupByMetaBlockId)
+                for (var i = traceLength - 1; i >= 0; --i)
                 {
-                    _metaBlockMergingLogic.CompactMerge(
-                        metaBlockGroup.Key,
-                        metaBlockGroup.First().Schema,
-                        metaBlockGroup.Select(o => o.BlockId),
-                        allTombstoneBlockIndex,
-                        tx);
+                    var planGroupByMetaBlockId = plan.Blocks
+                        .GroupBy(t => t.BlockTraces[i].BlockId)
+                        .Distinct();
+
+                    foreach (var metaBlockGroup in planGroupByMetaBlockId)
+                    {
+                        var metaBlockId = metaBlockGroup.Key;
+                        var result = _metaBlockMergingLogic.CompactMerge(
+                            metaBlockId <= 0 ? null : metaBlockId,
+                            metaBlockGroup.First().Schema,
+                            i == traceLength - 1
+                            ? metaBlockGroup.Select(o => o.BlockId)
+                            : Array.Empty<int>(),
+                            i == traceLength - 1 ? allTombstoneBlockIndex : _emptyTombstoneBlock,
+                            blockReplacementMap,
+                            tx);
+
+                        cumulatedDeletedBlockIds.AddRange(result.DeletedBlockIds);
+                        if (i != 0)
+                        {
+                            blockReplacementMap.Add(metaBlockId, result.MetaBlocks);
+                            cumulatedDeletedBlockIds.Add(metaBlockId);
+                        }
+                    }
                 }
+                blockReplacementMap.Clear();
             }
+            CleanDeletedBlocksAndRecords(
+                tableName, cumulatedDeletedBlockIds, allTombstoneBlockIndex, tx);
         }
 
-        [Conditional("DEBUG")]
-        private void EnsureTraceLength(IEnumerable<TombstoneBlock> plan)
+        private void CleanDeletedBlocksAndRecords(
+            string tableName,
+            IReadOnlyList<int> cumulatedDeletedBlockIds,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            TransactionContext tx)
         {
-            var traceLength = plan.First().BlockTraces.Count;
+            var deletedRecordIds = cumulatedDeletedBlockIds
+                .SelectMany(id => allTombstoneBlockIndex[id].RecordIds);
 
-            foreach(var block in plan.Skip(1))
-            {
-                if (block.BlockTraces.Count != traceLength)
-                {
-                    throw new InvalidOperationException($"Inconsistent trace lengths in plan");
-                }
-            }
+            Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(cumulatedDeletedBlockIds, tx);
+            Database.DeleteTombstoneRecords(tableName, deletedRecordIds, tx);
         }
     }
 }
