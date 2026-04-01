@@ -49,7 +49,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     database,
                     new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
                 new RecordCountHardDeleteAgent2(database),
-                new RecordCountHardDeleteAgent(database),
+                //new RecordCountHardDeleteAgent(database),
                 new TimeHardDeleteAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }

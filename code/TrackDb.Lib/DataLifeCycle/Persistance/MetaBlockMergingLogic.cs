@@ -49,9 +49,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .Select(b => b.BlockId)
                 .Except(processedBlocks.Select(b => b.BlockId))
                 .ToArray();
-            var metaMetadataBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
+            var metaMetaBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
 
-            return new(deletedBlockIds, metaMetadataBlocks);
+            return new(deletedBlockIds, metaMetaBlocks);
         }
 
         private IReadOnlyCollection<MetadataBlock> CompactMergeBlocks(
@@ -210,18 +210,21 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             if (totalSize <= _maxBlockSize)
             {
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-                var tombstoneRowIndexes = allTombstoneBlockIndex[nextMetadataBlock.BlockId]
-                    .RowIndexes
-                    .Distinct()
-                    .OrderBy(x => x)
-                    .Select(x => x + recordCountBefore)
-                    .ToArray();
                 var nextBlock = Database.GetOrLoadBlock(
                     nextMetadataBlock.BlockId,
                     nextMetadataBlock.Schema.ParentSchema);
 
                 blockBuilder.AppendBlock(nextBlock);
-                blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+                if (allTombstoneBlockIndex.TryGetValue(nextMetadataBlock.BlockId, out var tb))
+                {
+                    var tombstoneRowIndexes = tb.RowIndexes
+                        .Distinct()
+                        .OrderBy(x => x)
+                        .Select(x => x + recordCountBefore)
+                        .ToArray();
+
+                    blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+                }
 
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
@@ -320,7 +323,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 if (oldMetaBlockId != null)
                 {   //  If non-null meta block ID, we persist into a new block
-                    var metaTable = Database.GetAnyTable(schema.TableName);
+                    var metaTable = Database.GetMetaDataTable(schema.TableName);
                     var metaSchema = (MetadataTableSchema)metaTable.Schema;
                     var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
                     var metaBlocks = new List<MetadataBlock>(2);

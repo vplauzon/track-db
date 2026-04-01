@@ -37,8 +37,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 var tombstoneCountBefore = Database.TombstoneTable.Query(tx)
                     .Where(pf => pf.Equal(t => t.TableName, tableName))
                     .Count();
-                var tableNoDeleteCountBefore = Database.GetAnyTable(tableName)
-                    .Query(tx)
+                var tableNoDeleteCountBefore = Database.GetAnyTable(tableName).Query(tx)
                     .WithIgnoreDeleted()
                     .Count();
                 var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
@@ -49,8 +48,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 var tombstoneCountAfter = Database.TombstoneTable.Query(tx)
                     .Where(pf => pf.Equal(t => t.TableName, tableName))
                     .Count();
-                var tableNoDeleteCountAfter = Database.GetAnyTable(tableName)
-                    .Query(tx)
+                var tableNoDeleteCountAfter = Database.GetAnyTable(tableName).Query(tx)
                     .WithIgnoreDeleted()
                     .Count();
                 var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
