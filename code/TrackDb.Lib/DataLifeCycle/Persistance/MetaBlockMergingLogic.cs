@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Data;
 using System.Linq;
 using TrackDb.Lib.InMemory.Block;
 
@@ -26,14 +27,12 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         public CompactMergeResult CompactMerge(
             int? metaBlockId,
-            TableSchema schema,
+            MetadataTableSchema schema,
             IEnumerable<int> blockIdsToCompact,
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             IDictionary<int, IEnumerable<MetadataBlock>> blockReplacementMap,
             TransactionContext tx)
         {
-            var metadataTable = Database.GetMetaDataTable(schema.TableName);
-            var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
             var blocks = LoadBlocks(schema.TableName, metaBlockId, tx);
             var replacedBlocks = blocks
                 .SelectMany(b => blockReplacementMap.TryGetValue(b.BlockId, out var replacements)
@@ -43,7 +42,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var processedBlocks = CompactMergeBlocks(
                 replacedBlocks,
                 schema,
-                metadataSchema,
                 blockIdsToCompact,
                 allTombstoneBlockIndex,
                 tx);
@@ -51,15 +49,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .Select(b => b.BlockId)
                 .Except(processedBlocks.Select(b => b.BlockId))
                 .ToArray();
-            var metaMetadataBlocks = PersistMetaBlocks(metaBlockId, metadataSchema, processedBlocks, tx);
+            var metaMetadataBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
 
             return new(deletedBlockIds, metaMetadataBlocks);
         }
 
         private IReadOnlyCollection<MetadataBlock> CompactMergeBlocks(
             IEnumerable<MetadataBlock> blocks,
-            TableSchema schema,
-            MetadataTableSchema metadataSchema,
+            MetadataTableSchema schema,
             IEnumerable<int> blockIdsToCompact,
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
@@ -67,7 +64,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var blockIdsToCompactSet = blockIdsToCompact.ToHashSet();
             var blockStack = new Stack<MetadataBlock>(blocks.OrderByDescending(b => b.MinRecordId));
             var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
-            var blockBuilder = new BlockBuilder(schema);
+            var blockBuilder = new BlockBuilder(schema.ParentSchema);
             MetadataBlock? previousBlock = null;
 
             while (blockStack.Count > 0)
@@ -76,7 +73,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 CompactMergeOneBlock(
                     currentBlock,
-                    metadataSchema,
+                    schema,
                     blockBuilder,
                     ref previousBlock,
                     processedBlocks,
@@ -93,7 +90,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 blockBuilder,
                 true,
                 processedBlocks,
-                metadataSchema,
+                schema,
                 tx);
 
             return processedBlocks;
@@ -101,7 +98,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private void CompactMergeOneBlock(
            MetadataBlock currentBlock,
-           MetadataTableSchema metaSchema,
+           MetadataTableSchema schema,
            BlockBuilder blockBuilder,
            ref MetadataBlock? previousBlock,
            List<MetadataBlock> processedBlocks,
@@ -127,7 +124,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     blockBuilder,
                     false,
                     processedBlocks,
-                    metaSchema,
+                    schema,
                     tx);
                 if (previousBlock != null)
                 {
@@ -162,7 +159,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     blockBuilder,
                     true,
                     processedBlocks,
-                    metaSchema,
+                    schema,
                     tx);
                 if (previousBlock != null)
                 {
@@ -249,7 +246,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             BlockBuilder blockBuilder,
             bool persistAll,
             List<MetadataBlock> processedBlocks,
-            MetadataTableSchema metaSchema,
+            MetadataTableSchema schema,
             TransactionContext tx)
         {
             if (((IBlock)blockBuilder).RecordCount > 0)
@@ -271,7 +268,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
                         var actualBuffer = buffer.AsSpan().Slice(0, blockStats.Size);
                         var blockId = Database.AvailabilityBlockManager.SetInUse(1, tx)[0];
-                        var metadataRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+                        var metadataRecord = schema.CreateMetadataRecord(blockId, blockStats);
 
                         if (blockStats.Size != size.Size)
                         {
@@ -280,7 +277,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                                 $"size ({blockStats.Size})");
                         }
                         Database.PersistBlock(blockId, actualBuffer, tx);
-                        processedBlocks.Add(new MetadataBlock(metadataRecord, metaSchema));
+                        processedBlocks.Add(new MetadataBlock(metadataRecord, schema));
                         skipRows += size.ItemCount;
                     }
                     if (skipRows == ((IBlock)blockBuilder).RecordCount)
@@ -297,7 +294,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private IEnumerable<MetadataBlock> PersistMetaBlocks(
             int? oldMetaBlockId,
-            MetadataTableSchema metadataSchema,
+            MetadataTableSchema schema,
             IReadOnlyCollection<MetadataBlock> processedBlocks,
             TransactionContext tx)
         {
@@ -307,27 +304,27 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             }
             else
             {
-                var metaMetaBlockBuilder = oldMetaBlockId == null
-                    ? GetCleanMetaBlockBuilder(metadataSchema, tx)
-                    : new BlockBuilder(metadataSchema, processedBlocks.Count);
-                var metaTable = Database.GetAnyTable(metadataSchema.TableName);
-                var metaMetaTable = Database.GetMetaDataTable(metadataSchema.TableName);
-                var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
-                var recordIds = metaTable.NewRecordIds(processedBlocks.Count);
+                var blockBuilder = oldMetaBlockId == null
+                    ? GetCleanMetaBlockBuilder(schema, tx)
+                    : new BlockBuilder(schema, processedBlocks.Count);
+                var table = Database.GetAnyTable(schema.TableName);
+                var recordIds = table.NewRecordIds(processedBlocks.Count);
                 var pairs = processedBlocks
                     .Select(b => b.MetadataRecord)
                     .Zip(recordIds, (r, id) => new { Record = r, RecordId = id });
 
                 foreach (var pair in pairs)
                 {
-                    metaMetaBlockBuilder.AppendRecord(pair.RecordId, pair.Record.Span);
+                    blockBuilder.AppendRecord(pair.RecordId, pair.Record.Span);
                 }
 
                 if (oldMetaBlockId != null)
-                {
+                {   //  If non-null meta block ID, we persist into a new block
+                    var metaTable = Database.GetAnyTable(schema.TableName);
+                    var metaSchema = (MetadataTableSchema)metaTable.Schema;
                     var buffer = new byte[Database.DatabasePolicy.StoragePolicy.BlockSize];
-                    var metaMetadataBlocks = new List<MetadataBlock>(2);
-                    var sizes = metaMetaBlockBuilder.SegmentRecords(buffer.Length);
+                    var metaBlocks = new List<MetadataBlock>(2);
+                    var sizes = blockBuilder.SegmentRecords(buffer.Length);
                     var newBlockIds = Database.AvailabilityBlockManager.SetInUse(sizes.Count, tx);
                     var skipRows = 0;
 
@@ -335,18 +332,18 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     {
                         var size = pair.First;
                         var newBlockId = pair.Second;
-                        var blockStats = metaMetaBlockBuilder.Serialize(buffer, skipRows, size.ItemCount);
-                        var metaMetadataRecord = metaMetaSchema.CreateMetadataRecord(newBlockId, blockStats);
-                        var metaMetadataBlock = new MetadataBlock(metaMetadataRecord, metaMetaSchema);
+                        var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
+                        var metaRecord = metaSchema.CreateMetadataRecord(newBlockId, blockStats);
+                        var metaBlock = new MetadataBlock(metaRecord, metaSchema);
 
                         Database.PersistBlock(newBlockId, buffer, tx);
-                        metaMetadataBlocks.Add(metaMetadataBlock);
+                        metaBlocks.Add(metaBlock);
                     }
 
-                    return metaMetadataBlocks;
+                    return metaBlocks;
                 }
                 else
-                {
+                {   //  Otherwise, we already replaced inplace
                     return Array.Empty<MetadataBlock>();
                 }
             }
@@ -381,15 +378,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 throw new ArgumentOutOfRangeException(nameof(metaBlockId));
             }
 
-            Table metaDataTable = Database.GetMetaDataTable(tableName);
-            Table metaMetaDataTable = Database.GetMetaDataTable(metaDataTable.Schema.TableName);
-            var metadataTableSchema = (MetadataTableSchema)metaDataTable.Schema;
-            var columnIndexes = Enumerable.Range(0, metadataTableSchema.Columns.Count)
+            var table = Database.GetAnyTable(tableName);
+            var schema = (MetadataTableSchema)table.Schema;
+            var columnIndexes = Enumerable.Range(0, schema.Columns.Count)
                 .ToImmutableArray();
 
             IEnumerable<ReadOnlyMemory<object?>> LoadNullBlocks(string tableName)
             {
-                var results = metaDataTable.Query(tx)
+                var results = table.Query(tx)
                     //  Especially relevant for availability-block:
                     //  We just want to deal with what is committed
                     .WithInMemoryOnly()
@@ -402,7 +398,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 string tableName,
                 int metaBlockId)
             {
-                var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, metaDataTable.Schema);
+                var metaMetaBlock = Database.GetOrLoadBlock(metaBlockId, schema);
                 var results = metaMetaBlock.Project(
                     new object?[columnIndexes.Length],
                     columnIndexes,
@@ -413,10 +409,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             }
 
             var results = metaBlockId == null
-                    ? LoadNullBlocks(tableName)
-                    : LoadPositiveBlocks(tableName, metaBlockId.Value);
+                ? LoadNullBlocks(tableName)
+                : LoadPositiveBlocks(tableName, metaBlockId.Value);
             var blocks = results
-                .Select(r => new MetadataBlock(r.ToArray(), metadataTableSchema))
+                .Select(r => new MetadataBlock(r.ToArray(), schema))
                 .ToImmutableArray();
 
             return blocks;

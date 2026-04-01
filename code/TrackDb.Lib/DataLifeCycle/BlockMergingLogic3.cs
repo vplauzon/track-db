@@ -59,7 +59,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 {
                     throw new InvalidOperationException("Tombstone count increased");
                 }
-                if (tableNoDeleteCountBefore != tableNoDeleteCountAfter)
+                if (tableNoDeleteCountBefore <= tableNoDeleteCountAfter)
                 {
                     throw new InvalidOperationException("Corrupted table count without delete");
                 }
@@ -103,7 +103,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         var metaBlockId = metaBlockGroup.Key;
                         var result = _metaBlockMergingLogic.CompactMerge(
                             metaBlockId <= 0 ? null : metaBlockId,
-                            metaBlockGroup.First().Schema,
+                            (MetadataTableSchema)metaBlockGroup.First().BlockTraces[i].Schema,
                             i == traceLength - 1
                             ? metaBlockGroup.Select(o => o.BlockId)
                             : Array.Empty<int>(),
@@ -132,7 +132,9 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var deletedRecordIds = cumulatedDeletedBlockIds
-                .SelectMany(id => allTombstoneBlockIndex[id].RecordIds);
+                .SelectMany(id => allTombstoneBlockIndex.TryGetValue(id, out var tb)
+                ? tb.RecordIds
+                : Array.Empty<long>());
 
             Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(cumulatedDeletedBlockIds, tx);
             Database.DeleteTombstoneRecords(tableName, deletedRecordIds, tx);
