@@ -303,6 +303,11 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             if (processedBlocks.Count == 0)
             {
+                if(oldMetaBlockId == null)
+                {   //  Ensure we clear the root
+                    GetCleanMetaBlockBuilder(schema, tx);
+                }
+
                 return Array.Empty<MetadataBlock>();
             }
             else

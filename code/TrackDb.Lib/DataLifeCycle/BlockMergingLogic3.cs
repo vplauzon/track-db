@@ -98,9 +98,9 @@ namespace TrackDb.Lib.DataLifeCycle
 
                     foreach (var metaBlockGroup in planGroupByMetaBlockId)
                     {
-                        var metaBlockId = metaBlockGroup.Key;
+                        var metaBlockId = metaBlockGroup.Key <= 0 ? (int?)null : metaBlockGroup.Key;
                         var result = _metaBlockMergingLogic.CompactMerge(
-                            metaBlockId <= 0 ? null : metaBlockId,
+                            metaBlockId,
                             (MetadataTableSchema)metaBlockGroup.First().BlockTraces[i].Schema,
                             i == traceLength - 1
                             ? metaBlockGroup.Select(o => o.BlockId)
@@ -110,10 +110,10 @@ namespace TrackDb.Lib.DataLifeCycle
                             tx);
 
                         cumulatedDeletedBlockIds.AddRange(result.DeletedBlockIds);
-                        if (i != 0)
+                        if (metaBlockId != null)
                         {
-                            blockReplacementMap.Add(metaBlockId, result.MetaBlocks);
-                            cumulatedDeletedBlockIds.Add(metaBlockId);
+                            blockReplacementMap.Add(metaBlockId.Value, result.MetaBlocks);
+                            cumulatedDeletedBlockIds.Add(metaBlockId.Value);
                         }
                     }
                 }
