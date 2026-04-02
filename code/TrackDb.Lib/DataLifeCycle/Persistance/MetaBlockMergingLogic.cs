@@ -114,6 +114,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             //  We try to compact regardless if the blockBuilder has records or not
             if (blockIdsToCompact.Contains(currentBlock.BlockId))
             {
+                //  Compact block
                 LoadBlockIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
                 //  Removing rows increases block size (rare)
                 PersistBlockBuilder(
@@ -186,8 +187,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 {   //  Partial delete
                     var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
 
+                    blockBuilder.AppendBlock(block);
 #if DEBUG
-                    var deletedRecordIds = block.Project(
+                    var deletedRecordIds = ((IBlock)blockBuilder).Project(
                         new object?[1],
                         [block.TableSchema.RecordIdColumnIndex],
                         tombstoneRowIndexes,
@@ -200,7 +202,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         throw new InvalidOperationException("Inconsistent tombstone records");
                     }
 #endif
-                    blockBuilder.AppendBlock(block);
                     blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
                 }
             }
