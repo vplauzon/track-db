@@ -434,6 +434,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                         Database.PersistBlock(newBlockId, buffer, tx);
                         metaBlocks.Add(metaBlock);
+                        skipRows += size.ItemCount;
                     }
 
                     return metaBlocks;
