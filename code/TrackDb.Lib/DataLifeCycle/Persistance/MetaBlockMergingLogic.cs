@@ -186,6 +186,20 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 {   //  Partial delete
                     var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
 
+#if DEBUG
+                    var deletedRecordIds = block.Project(
+                        new object?[1],
+                        [block.TableSchema.RecordIdColumnIndex],
+                        tombstoneRowIndexes,
+                        0)
+                        .Select(r => (long)r.Span[0]!)
+                        .ToHashSet();
+
+                    if (!deletedRecordIds.SetEquals(tb.RecordIds.Distinct()))
+                    {
+                        throw new InvalidOperationException("Inconsistent tombstone records");
+                    }
+#endif
                     blockBuilder.AppendBlock(block);
                     blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
                 }
