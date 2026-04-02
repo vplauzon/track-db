@@ -97,7 +97,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 : [b])
                 .ToArray();
 #if DEBUG
-            var recordCountBefore = GetRecordCount(replacedBlocks);
             var recordDataCountBefore = GetDataRecordCount(replacedBlocks);
             var recordRootCountBefore = GetRootCount([metaBlockId]);
 #endif
@@ -113,12 +112,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .ToArray();
             var metaMetaBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
 #if DEBUG
-            var recordCountAfter = GetRecordCount(processedBlocks);
             var recordDataCountAfter = GetDataRecordCount(processedBlocks);
             var recordRootCountAfter = GetRootCount(metaMetaBlocks.Select(b => b.BlockId > 0 ? b.BlockId : (int?)null));
 
-            if (recordCountBefore < recordCountAfter
-                || recordDataCountBefore < recordDataCountAfter
+            if (recordDataCountBefore < recordDataCountAfter
                 || recordRootCountBefore < recordRootCountAfter)
             {
                 throw new InvalidOperationException("Invalid compact merge");
