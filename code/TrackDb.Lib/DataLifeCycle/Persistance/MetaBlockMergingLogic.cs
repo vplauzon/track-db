@@ -114,11 +114,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             //  We try to compact regardless if the blockBuilder has records or not
             if (blockIdsToCompact.Contains(currentBlock.BlockId))
             {
-                CompactBlock(
-                    currentBlock,
-                    blockBuilder,
-                    allTombstoneBlockIndex,
-                    tx);
+                LoadBlockIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
                 //  Removing rows increases block size (rare)
                 PersistBlockBuilder(
                     blockBuilder,
@@ -169,26 +165,36 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             }
         }
 
-        private void CompactBlock(
+        private void LoadBlockIntoBuilder(
             MetadataBlock currentBlock,
             BlockBuilder blockBuilder,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
-            TransactionContext tx)
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex)
         {
             var schema = ((IBlock)blockBuilder).TableSchema;
-            var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
-            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-            var tombstoneRowIndexes = allTombstoneBlockIndex[currentBlock.BlockId]
-                .RowIndexes
-                .Distinct()
-                .OrderBy(x => x)
-                .Select(x => x + recordCountBefore)
-                .ToArray();
 
-            if (tombstoneRowIndexes.Length != currentBlock.ItemCount)
-            {   //  Partial delete
+            if (allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb))
+            {   //  Some tombstones
+                var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
+                var tombstoneRowIndexes = tb
+                    .RowIndexes
+                    .Distinct()
+                    .OrderBy(x => x)
+                    .Select(x => x + recordCountBefore)
+                    .ToArray();
+
+                if (tombstoneRowIndexes.Length != currentBlock.ItemCount)
+                {   //  Partial delete
+                    var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
+
+                    blockBuilder.AppendBlock(block);
+                    blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+                }
+            }
+            else
+            {   //  No tombstones
+                var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
+
                 blockBuilder.AppendBlock(block);
-                blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
             }
         }
 
@@ -210,28 +216,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             if (totalSize <= _maxBlockSize)
             {
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-                var nextBlock = Database.GetOrLoadBlock(
-                    nextMetadataBlock.BlockId,
-                    nextMetadataBlock.Schema.ParentSchema);
 
-                blockBuilder.AppendBlock(nextBlock);
-                if (allTombstoneBlockIndex.TryGetValue(nextMetadataBlock.BlockId, out var tb))
-                {
-                    var tombstoneRowIndexes = tb.RowIndexes
-                        .Distinct()
-                        .OrderBy(x => x)
-                        .Select(x => x + recordCountBefore)
-                        .ToArray();
-
-                    blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
-                }
-
+                LoadBlockIntoBuilder(nextMetadataBlock, blockBuilder, allTombstoneBlockIndex);
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
                     return true;
                 }
                 else
-                {
+                {   //  Roll back append
                     blockBuilder.DeleteRecordsByRecordIndex(
                         Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount)
                         .Where(i => i >= recordCountBefore));
@@ -303,7 +295,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             if (processedBlocks.Count == 0)
             {
-                if(oldMetaBlockId == null)
+                if (oldMetaBlockId == null)
                 {   //  Ensure we clear the root
                     GetCleanMetaBlockBuilder(schema, tx);
                 }
