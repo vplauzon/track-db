@@ -41,7 +41,6 @@ namespace TrackDb.Lib.DataLifeCycle
 
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new TransactionLogMergingAgent(database),
                 new RecordPersistanceAgent(
                     database,
                     new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
@@ -49,7 +48,8 @@ namespace TrackDb.Lib.DataLifeCycle
                     database,
                     new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
                 new TimeHardDeleteAgent(database),
-                new RecordCountHardDeleteAgent(database));
+                new RecordCountHardDeleteAgent(database),
+                new TransactionLogMergingAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
