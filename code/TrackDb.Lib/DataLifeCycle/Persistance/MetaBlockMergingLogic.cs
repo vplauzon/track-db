@@ -97,7 +97,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 ? replacements
                 : [b])
                 .ToArray();
-            ValidateBlocks(replacedBlocks, schema);
 #if DEBUG
             var recordDataCountBefore = GetDataRecordCount(replacedBlocks);
             var recordRootCountBefore = GetRootCount([metaBlockId]);
@@ -108,7 +107,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 blockIdsToCompact,
                 allTombstoneBlockIndex,
                 tx);
-            ValidateBlocks(processedBlocks, schema);
             var deletedBlockIds = replacedBlocks
                 .Select(b => b.BlockId)
                 .Except(processedBlocks.Select(b => b.BlockId))
@@ -126,32 +124,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 #endif
 
             return new(deletedBlockIds, metaMetaBlocks);
-        }
-
-        [Conditional("DEBUG")]
-        private void ValidateBlocks(IEnumerable<MetadataBlock> blocks, MetadataTableSchema schema)
-        {
-            if (blocks.Count() > 0)
-            {
-                var firstSchema = blocks.First().Schema;
-
-                // Validate replacedBlocks schema matches the input schema
-                if (firstSchema.TableName != schema.TableName)
-                {
-                    throw new InvalidOperationException(
-                        $"ReplacedBlocks schema mismatch: expected '{schema.TableName}' " +
-                        $"but got '{firstSchema.TableName}'");
-                }
-                foreach (var block in blocks)
-                {
-                    if (block.Schema.TableName != firstSchema.TableName)
-                    {
-                        throw new InvalidOperationException(
-                            $"Schema mismatch in replacedBlocks: expected '{firstSchema.TableName}' " +
-                            $"but found '{block.Schema.TableName}' for BlockId={block.BlockId}");
-                    }
-                }
-            }
         }
 
         private IReadOnlyCollection<MetadataBlock> CompactMergeBlocks(
