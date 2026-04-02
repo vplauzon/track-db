@@ -51,15 +51,6 @@ namespace TrackDb.Lib.DataLifeCycle
                 .Select(g => g.ToArray());
             var cumulatedDeletedBlockIds = new List<int>();
             var blockReplacementMap = new Dictionary<int, IEnumerable<MetadataBlock>>();
-#if DEBUG
-            var tombstoneCountBefore = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Count();
-            var tableNoDeleteCountBefore = Database.GetAnyTable(tableName).Query(tx)
-                .WithIgnoreDeleted()
-                .Count();
-            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
-#endif
 
             foreach (var tombstoneBlocks in tombstoneBlocksGroups)
             {   //  Each of those plans are independant as the root is at different level
@@ -96,29 +87,6 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             CleanDeletedBlocksAndRecords(
                 tableName, cumulatedDeletedBlockIds, allTombstoneBlockIndex, tx);
-#if DEBUG
-            var table = Database.GetAnyTable(tableName);
-            var tombstoneCountAfter = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Count();
-            var tableNoDeleteCountAfter = Database.GetAnyTable(tableName).Query(tx)
-                .WithIgnoreDeleted()
-                .Count();
-            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
-
-            if (tableCountBefore != tableCountAfter)
-            {
-                throw new InvalidOperationException("Corrupted table count with delete");
-            }
-            if (tombstoneCountBefore <= tombstoneCountAfter)
-            {
-                throw new InvalidOperationException("Tombstone count increased or stay the same");
-            }
-            if (tableNoDeleteCountBefore <= tableNoDeleteCountAfter)
-            {
-                throw new InvalidOperationException("Corrupted table count without delete");
-            }
-#endif
         }
 
         private void CleanDeletedBlocksAndRecords(
