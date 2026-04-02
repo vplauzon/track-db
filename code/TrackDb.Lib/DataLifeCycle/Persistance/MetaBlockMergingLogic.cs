@@ -116,10 +116,13 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var recordDataCountAfter = GetDataRecordCount(processedBlocks);
             var recordRootCountAfter = GetRootCount(metaMetaBlocks.Select(b => b.BlockId > 0 ? b.BlockId : (int?)null));
 
-            if (recordDataCountBefore < recordDataCountAfter
-                || recordRootCountBefore < recordRootCountAfter)
+            if (recordDataCountBefore < recordDataCountAfter)
             {
-                throw new InvalidOperationException("Invalid compact merge");
+                throw new InvalidOperationException("Invalid compact merge:  data count");
+            }
+            if (recordRootCountBefore < recordRootCountAfter)
+            {
+                throw new InvalidOperationException("Invalid compact merge:  root count");
             }
 #endif
 
@@ -274,6 +277,13 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     }
 #endif
                     blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
+#if DEBUG
+                    if (recordCountBefore + currentBlock.ItemCount - tombstoneRowIndexes.Length
+                        != ((IBlock)blockBuilder).RecordCount)
+                    {
+                        throw new InvalidOperationException("Compaction error");
+                    }
+#endif
                 }
             }
             else
