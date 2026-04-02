@@ -34,6 +34,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             IDictionary<int, IEnumerable<MetadataBlock>> blockReplacementMap,
             TransactionContext tx)
         {
+#if DEBUG
             int GetRootCount(IEnumerable<int?> metaBlockIds)
             {
                 var count = 0;
@@ -90,6 +91,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                 return count;
             }
+#endif
 
             var blocks = LoadBlocks(schema.TableName, metaBlockId, tx);
             var replacedBlocks = blocks
