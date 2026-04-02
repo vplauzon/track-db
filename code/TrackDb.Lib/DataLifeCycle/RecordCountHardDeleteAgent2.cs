@@ -120,7 +120,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     .Select(o => o.TableName)
                     .ToList();
 
-                do
+                while (tableCounts.Count > 0)
                 {
                     var tableToCompact = tableCounts.Last();
                     var hasLoaded = tx.LoadCommittedBlocksInTransaction(tableToCompact);
@@ -131,7 +131,6 @@ namespace TrackDb.Lib.DataLifeCycle
                         return false;
                     }
                 }
-                while (tableCounts.Count > 0);
 
                 return true;
             }
