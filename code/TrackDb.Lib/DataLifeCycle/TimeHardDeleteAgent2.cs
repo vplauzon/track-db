@@ -1,21 +1,20 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class TimeHardDeleteAgent2 : DataLifeCycleAgentBase
+    internal class TimeHardDeleteAgent : DataLifeCycleAgentBase
     {
         #region Inner type
         #endregion
 
         private DateTime _lastRun = DateTime.MinValue;
 
-        public TimeHardDeleteAgent2(Database database)
+        public TimeHardDeleteAgent(Database database)
             : base(database)
         {
         }

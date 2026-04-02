@@ -1,19 +1,18 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class RecordCountHardDeleteAgent2 : DataLifeCycleAgentBase
+    internal class RecordCountHardDeleteAgent : DataLifeCycleAgentBase
     {
         #region Inner type
         #endregion
 
-        public RecordCountHardDeleteAgent2(Database database)
+        public RecordCountHardDeleteAgent(Database database)
             : base(database)
         {
         }
