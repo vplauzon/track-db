@@ -33,12 +33,74 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             IDictionary<int, IEnumerable<MetadataBlock>> blockReplacementMap,
             TransactionContext tx)
         {
+            int GetRootCount(IEnumerable<int?> metaBlockIds)
+            {
+                var count = 0;
+
+                foreach (var metaBlockId in metaBlockIds)
+                {
+                    var subBlocks = LoadBlocks(schema.TableName, metaBlockId, tx);
+
+                    count += GetRecordCount(subBlocks);
+                }
+
+                return count;
+            }
+            int GetRecordCount(IEnumerable<MetadataBlock> metaBlocks)
+            {
+                var parentSchema = metaBlocks.First().Schema.ParentSchema;
+
+                if (parentSchema is MetadataTableSchema metaSchema)
+                {
+                    var count = 0;
+
+                    foreach (var metaBlock in metaBlocks)
+                    {
+                        var subBlocks = LoadBlocks(
+                            parentSchema.TableName,
+                            metaBlock.BlockId > 0 ? metaBlock.BlockId : null,
+                            tx);
+
+                        count += GetRecordCount(subBlocks);
+                    }
+
+                    return count;
+                }
+                else
+                {
+                    return GetDataRecordCount(metaBlocks);
+                }
+            }
+
+            int GetDataRecordCount(IEnumerable<MetadataBlock> metaBlocks)
+            {
+                var count = 0;
+
+                foreach (var metaBlock in metaBlocks)
+                {
+                    var block = Database.GetOrLoadBlock(metaBlock.BlockId, metaBlock.Schema.ParentSchema);
+
+                    if (block.RecordCount != metaBlock.ItemCount)
+                    {
+                        throw new InvalidOperationException("Corrupted item count");
+                    }
+                    count += block.RecordCount;
+                }
+
+                return count;
+            }
+
             var blocks = LoadBlocks(schema.TableName, metaBlockId, tx);
             var replacedBlocks = blocks
                 .SelectMany(b => blockReplacementMap.TryGetValue(b.BlockId, out var replacements)
                 ? replacements
                 : [b])
                 .ToArray();
+#if DEBUG
+            var recordCountBefore = GetRecordCount(replacedBlocks);
+            var recordDataCountBefore = GetDataRecordCount(replacedBlocks);
+            var recordRootCountBefore = GetRootCount([metaBlockId]);
+#endif
             var processedBlocks = CompactMergeBlocks(
                 replacedBlocks,
                 schema,
@@ -50,6 +112,18 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .Except(processedBlocks.Select(b => b.BlockId))
                 .ToArray();
             var metaMetaBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
+#if DEBUG
+            var recordCountAfter = GetRecordCount(processedBlocks);
+            var recordDataCountAfter = GetDataRecordCount(replacedBlocks);
+            var recordRootCountAfter = GetRootCount(metaMetaBlocks.Select(b => b.BlockId > 0 ? b.BlockId : (int?)null));
+
+            if (recordCountBefore < recordCountAfter
+                || recordDataCountBefore < recordDataCountAfter
+                || recordRootCountBefore < recordRootCountAfter)
+            {
+                throw new InvalidOperationException("Invalid compact merge");
+            }
+#endif
 
             return new(deletedBlockIds, metaMetaBlocks);
         }
@@ -114,8 +188,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             //  We try to compact regardless if the blockBuilder has records or not
             if (blockIdsToCompact.Contains(currentBlock.BlockId))
             {
-                //  Compact block
-                LoadBlockIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
                 //  Removing rows increases block size (rare)
                 PersistBlockBuilder(
                     blockBuilder,
@@ -166,7 +239,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             }
         }
 
-        private void LoadBlockIntoBuilder(
+        private void CompactIntoBuilder(
             MetadataBlock currentBlock,
             BlockBuilder blockBuilder,
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex)
@@ -232,7 +305,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
-                LoadBlockIntoBuilder(nextMetadataBlock, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(nextMetadataBlock, blockBuilder, allTombstoneBlockIndex);
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
                     return true;

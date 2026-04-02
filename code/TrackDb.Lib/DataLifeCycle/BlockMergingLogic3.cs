@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
@@ -33,39 +34,8 @@ namespace TrackDb.Lib.DataLifeCycle
                 var blockIdsToCompact = pair.Value;
                 var allTableTombstoneBlocksIndex = allTombstoneBlocksMap[tableName]
                     .ToDictionary(t => t.BlockId);
-#if DEBUG
-                var tombstoneCountBefore = Database.TombstoneTable.Query(tx)
-                    .Where(pf => pf.Equal(t => t.TableName, tableName))
-                    .Count();
-                var tableNoDeleteCountBefore = Database.GetAnyTable(tableName).Query(tx)
-                    .WithIgnoreDeleted()
-                    .Count();
-                var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
-#endif
 
                 CompactMergeTable(tableName, blockIdsToCompact, allTableTombstoneBlocksIndex, tx);
-#if DEBUG
-                var tombstoneCountAfter = Database.TombstoneTable.Query(tx)
-                    .Where(pf => pf.Equal(t => t.TableName, tableName))
-                    .Count();
-                var tableNoDeleteCountAfter = Database.GetAnyTable(tableName).Query(tx)
-                    .WithIgnoreDeleted()
-                    .Count();
-                var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
-
-                if (tombstoneCountBefore <= tombstoneCountAfter)
-                {
-                    throw new InvalidOperationException("Tombstone count increased or stay the same");
-                }
-                if (tableNoDeleteCountBefore <= tableNoDeleteCountAfter)
-                {
-                    throw new InvalidOperationException("Corrupted table count without delete");
-                }
-                if (tableCountBefore != tableCountAfter)
-                {
-                    throw new InvalidOperationException("Corrupted table count with delete");
-                }
-#endif
             }
         }
 
@@ -75,28 +45,33 @@ namespace TrackDb.Lib.DataLifeCycle
             IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
-            var planGroupByTraceLength = blockIdsToCompact
+            var tombstoneBlocksGroups = blockIdsToCompact
                 .Select(id => allTombstoneBlockIndex[id])
                 .GroupBy(t => t.BlockTraces.Count)
-                .Select(g => new
-                {
-                    TraceLength = g.Key,
-                    Blocks = g.ToArray()
-                });
+                .Select(g => g.ToArray());
             var cumulatedDeletedBlockIds = new List<int>();
             var blockReplacementMap = new Dictionary<int, IEnumerable<MetadataBlock>>();
+#if DEBUG
+            var tombstoneCountBefore = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Count();
+            var tableNoDeleteCountBefore = Database.GetAnyTable(tableName).Query(tx)
+                .WithIgnoreDeleted()
+                .Count();
+            var tableCountBefore = Database.GetAnyTable(tableName).Query(tx).Count();
+#endif
 
-            foreach (var plan in planGroupByTraceLength)
+            foreach (var tombstoneBlocks in tombstoneBlocksGroups)
             {   //  Each of those plans are independant as the root is at different level
-                var traceLength = plan.TraceLength;
+                var traceLength = tombstoneBlocks[0].BlockTraces.Count;
 
                 for (var i = traceLength - 1; i >= 0; --i)
                 {
-                    var planGroupByMetaBlockId = plan.Blocks
+                    var tombstoneBlocksByMetaBlockId = tombstoneBlocks
                         .GroupBy(t => t.BlockTraces[i].BlockId)
                         .Distinct();
 
-                    foreach (var metaBlockGroup in planGroupByMetaBlockId)
+                    foreach (var metaBlockGroup in tombstoneBlocksByMetaBlockId)
                     {
                         var metaBlockId = metaBlockGroup.Key <= 0 ? (int?)null : metaBlockGroup.Key;
                         var result = _metaBlockMergingLogic.CompactMerge(
@@ -121,6 +96,29 @@ namespace TrackDb.Lib.DataLifeCycle
             }
             CleanDeletedBlocksAndRecords(
                 tableName, cumulatedDeletedBlockIds, allTombstoneBlockIndex, tx);
+#if DEBUG
+            var table = Database.GetAnyTable(tableName);
+            var tombstoneCountAfter = Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .Count();
+            var tableNoDeleteCountAfter = Database.GetAnyTable(tableName).Query(tx)
+                .WithIgnoreDeleted()
+                .Count();
+            var tableCountAfter = Database.GetAnyTable(tableName).Query(tx).Count();
+
+            if (tableCountBefore != tableCountAfter)
+            {
+                throw new InvalidOperationException("Corrupted table count with delete");
+            }
+            if (tombstoneCountBefore <= tombstoneCountAfter)
+            {
+                throw new InvalidOperationException("Tombstone count increased or stay the same");
+            }
+            if (tableNoDeleteCountBefore <= tableNoDeleteCountAfter)
+            {
+                throw new InvalidOperationException("Corrupted table count without delete");
+            }
+#endif
         }
 
         private void CleanDeletedBlocksAndRecords(
