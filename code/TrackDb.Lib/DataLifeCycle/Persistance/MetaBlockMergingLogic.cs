@@ -114,7 +114,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             var metaMetaBlocks = PersistMetaBlocks(metaBlockId, schema, processedBlocks, tx);
 #if DEBUG
             var recordCountAfter = GetRecordCount(processedBlocks);
-            var recordDataCountAfter = GetDataRecordCount(replacedBlocks);
+            var recordDataCountAfter = GetDataRecordCount(processedBlocks);
             var recordRootCountAfter = GetRootCount(metaMetaBlocks.Select(b => b.BlockId > 0 ? b.BlockId : (int?)null));
 
             if (recordCountBefore < recordCountAfter
