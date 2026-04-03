@@ -44,7 +44,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         GetTombstoneRecordIds(thresholdTime, tx).ToArray(),
                         allTombstoneBlocksMap,
                         tx);
-                    var blockMergingLogic = new BlockMergingLogic3(Database);
+                    var blockMergingLogic = new BlockMergingLogic(Database);
 
                     blockMergingLogic.CompactMerge(
                         blockIdsToCompactByTableName,

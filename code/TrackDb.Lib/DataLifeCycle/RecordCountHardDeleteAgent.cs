@@ -31,7 +31,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(null, tx);
                     var blockIdsToCompactByTableName =
                         ComputeHardDeletePlan(allTombstoneBlocksMap, doHardDeleteAll, tx);
-                    var blockMergingLogic = new BlockMergingLogic3(Database);
+                    var blockMergingLogic = new BlockMergingLogic(Database);
 
                     blockMergingLogic.CompactMerge(
                         blockIdsToCompactByTableName,

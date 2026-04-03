@@ -1,23 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
-using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
-    internal class BlockMergingLogic3 : LogicBase
+    internal class BlockMergingLogic : LogicBase
     {
         private static readonly IDictionary<int, TombstoneBlock> _emptyTombstoneBlock =
             new Dictionary<int, TombstoneBlock>();
 
         private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
 
-        public BlockMergingLogic3(Database database)
+        public BlockMergingLogic(Database database)
             : base(database)
         {
             _metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
