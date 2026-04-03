@@ -1,8 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace TrackDb.Lib
 {
-    internal record struct BlockTracedResult<T>(
+    internal record struct BlockTracedResult(
         IReadOnlyList<BlockTrace> BlockTraces,
-        T Result);
+        ReadOnlyMemory<object?> Result);
 }

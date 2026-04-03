@@ -135,6 +135,11 @@ namespace TrackDb.Lib
                 $"Column '{columnName}' not found");
         }
 
+        public override string ToString()
+        {
+            return $"'{TableName}' ({ColumnProperties.Count})";
+        }
+
         internal bool TryGetColumnIndex(string columnName, out int columnIndex)
         {
             return _columnNameToColumnIndexMap.TryGetValue(columnName, out columnIndex);

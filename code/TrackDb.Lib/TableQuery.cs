@@ -5,7 +5,6 @@ using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Runtime.InteropServices;
-using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
@@ -30,7 +29,10 @@ namespace TrackDb.Lib
             bool IgnoreDeleted,
             string? QueryTag);
 
-        private record IdentifiedBlock(int BlockId, IBlock Block);
+        private record BlockWithTrace(
+            IReadOnlyList<BlockTrace> BlockTraces,
+            int BlockId,
+            IBlock Block);
 
         private record BlockRowIndex(int BlockId, int RowIndex);
 
@@ -261,7 +263,7 @@ namespace TrackDb.Lib
         }
         #endregion
 
-        internal IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithBlockTrace()
+        internal IEnumerable<BlockTracedResult> ExecuteQueryWithBlockTrace()
         {
             var results = _innerState.QueryTable.Database.EnumeratesWithinTransactionContext(
                 _innerState.Tx,
@@ -270,7 +272,7 @@ namespace TrackDb.Lib
                     if (_innerState.TakeCount == 0
                     || (_innerState.InTxOnly && _innerState.CommittedOnly))
                     {
-                        return Array.Empty<BlockTracedResult<ReadOnlyMemory<object?>>>();
+                        return Array.Empty<BlockTracedResult>();
                     }
                     else
                     {
@@ -360,7 +362,7 @@ namespace TrackDb.Lib
             return new List<BlockTrace>(32);
         }
 
-        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQuery(
+        private IEnumerable<BlockTracedResult> ExecuteQuery(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -375,7 +377,7 @@ namespace TrackDb.Lib
         }
 
         #region List Blocks
-        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListBlocks(
+        private IEnumerable<BlockWithTrace> ListBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -385,12 +387,14 @@ namespace TrackDb.Lib
             }
             else
             {
-                return ListUnpersistedBlocks(blockTraceList, tx)
-                    .Concat(ListPersistedBlocks(blockTraceList, tx));
+                var unpersistedBlocks = ListUnpersistedBlocks(blockTraceList, tx);
+                var persistedBlocks = ListPersistedBlocks(blockTraceList, tx);
+                
+                return unpersistedBlocks.Concat(persistedBlocks);
             }
         }
 
-        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListUnpersistedBlocks(
+        private IEnumerable<BlockWithTrace> ListUnpersistedBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -404,13 +408,14 @@ namespace TrackDb.Lib
                     _innerState.InTxOnly,
                     _innerState.CommittedOnly))
             {
-                yield return new BlockTracedResult<IdentifiedBlock>(
+                yield return new BlockWithTrace(
                     blockTraceList,
-                    new IdentifiedBlock(blockId--, block));
+                    blockId--,
+                    block);
             }
         }
 
-        private IEnumerable<BlockTracedResult<IdentifiedBlock>> ListPersistedBlocks(
+        private IEnumerable<BlockWithTrace> ListPersistedBlocks(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -432,18 +437,17 @@ namespace TrackDb.Lib
                 {
                     metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
                 }
-                foreach (var result in metaDataQuery.ExecuteQueryWithBlockTrace())
+                foreach (var result in metaDataQuery.ExecuteQuery(blockTraceList, tx))
                 {
                     var blockTraceIndex = blockTraceList.Count;
                     var blockId = (int)result.Result.Span[0]!;
 
-                    yield return new BlockTracedResult<IdentifiedBlock>(
+                    yield return new BlockWithTrace(
                         blockTraceList,
-                        new IdentifiedBlock(
+                        blockId,
+                        _innerState.QueryTable.Database.GetOrLoadBlock(
                             blockId,
-                            _innerState.QueryTable.Database.GetOrLoadBlock(
-                                blockId,
-                                _innerState.QueryTable.Schema)));
+                            _innerState.QueryTable.Schema));
                 }
             }
         }
@@ -471,7 +475,7 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query without sort
-        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithoutSort(
+        private IEnumerable<BlockTracedResult> ExecuteQueryWithoutSort(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -493,11 +497,11 @@ namespace TrackDb.Lib
             var queryId = Guid.NewGuid().ToString();
 
             predicate = predicate.Simplify() ?? predicate;
-            foreach (var tracedIdentifiedBlock in ListBlocks(blockTraceList, tx))
+            foreach (var blockWithTrace in ListBlocks(blockTraceList, tx))
             {
-                var block = tracedIdentifiedBlock.Result.Block;
+                var block = blockWithTrace.Block;
                 var filterOutput = block.Filter(predicate, _innerState.QueryTag != null);
-                var currentBlockId = tracedIdentifiedBlock.Result.BlockId;
+                var currentBlockId = blockWithTrace.BlockId;
                 var results = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
@@ -510,20 +514,16 @@ namespace TrackDb.Lib
                         RowIndex = i,
                         Result = r
                     });
-                var blockTraceIndex = blockTraceList.Count;
 
                 AuditPredicate(filterOutput.PredicateAuditTrails, currentBlockId, queryId);
                 foreach (var indexedResult in indexedResults)
                 {
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex + 1);
-                    blockTraceList[blockTraceIndex] = new BlockTrace(
+                    blockTraceList.Add(new BlockTrace(
                         schema,
-                        tracedIdentifiedBlock.Result.BlockId,
-                        indexedResult.RowIndex);
-                    yield return new BlockTracedResult<ReadOnlyMemory<object?>>(
-                        blockTraceList,
-                        indexedResult.Result);
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceIndex);
+                        blockWithTrace.BlockId,
+                        indexedResult.RowIndex));
+                    yield return new BlockTracedResult(blockTraceList, indexedResult.Result);
+                    CollectionsMarshal.SetCount(blockTraceList, blockTraceList.Count - 1);
                     --takeCount;
                     if (takeCount == 0)
                     {
@@ -556,7 +556,7 @@ namespace TrackDb.Lib
         #endregion
 
         #region Query with sort
-        private IEnumerable<BlockTracedResult<ReadOnlyMemory<object?>>> ExecuteQueryWithSort(
+        private IEnumerable<BlockTracedResult> ExecuteQueryWithSort(
             List<BlockTrace> blockTraceList,
             TransactionContext tx)
         {
@@ -564,7 +564,7 @@ namespace TrackDb.Lib
             var blockTraceRowIndexes = SortAndTruncateSortColumns(blockTraceList, tx)
                 .ToArray();
             //  Second phase:  re-query blocks to project results
-            var result = new BlockTracedResult<ReadOnlyMemory<object?>>[blockTraceRowIndexes.Length];
+            var result = new BlockTracedResult[blockTraceRowIndexes.Length];
             var byBlockId = blockTraceRowIndexes
                 .Index()
                 .Select(p => new
@@ -598,9 +598,7 @@ namespace TrackDb.Lib
 
                 foreach (var z in zipped)
                 {
-                    result[z.ResultRowIndex] = new BlockTracedResult<ReadOnlyMemory<object?>>(
-                        z.BlockTraces,
-                        z.Record);
+                    result[z.ResultRowIndex] = new BlockTracedResult(z.BlockTraces, z.Record);
                 }
             }
 

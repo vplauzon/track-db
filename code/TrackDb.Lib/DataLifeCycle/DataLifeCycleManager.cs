@@ -41,15 +41,15 @@ namespace TrackDb.Lib.DataLifeCycle
 
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new TransactionLogMergingAgent(database),
                 new RecordPersistanceAgent(
                     database,
                     new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
                 new RecordPersistanceAgent(
                     database,
                     new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
+                new TimeHardDeleteAgent(database),
                 new RecordCountHardDeleteAgent(database),
-                new TimeHardDeleteAgent(database));
+                new TransactionLogMergingAgent(database));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -208,24 +208,6 @@ namespace TrackDb.Lib.DataLifeCycle
                     source.TrySetResult();
                 }
             }
-        }
-
-        private (DataManagementActivity, IImmutableList<TaskCompletionSource>) ReadAccumulatedItems()
-        {
-            var sourceList = ImmutableList<TaskCompletionSource>.Empty.ToBuilder();
-            var dataManagementActivity = DataManagementActivity.None;
-
-            while (_channel.Reader.TryRead(out var item))
-            {
-                dataManagementActivity =
-                    dataManagementActivity | item.DataManagementActivity;
-                if (item.Source != null)
-                {
-                    sourceList.Add(item.Source);
-                }
-            }
-
-            return (dataManagementActivity, sourceList.ToImmutable());
         }
 
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)

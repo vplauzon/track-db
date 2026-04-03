@@ -1,17 +1,19 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TrackDb.Lib.DataLifeCycle.Persistance;
-using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
     internal class TimeHardDeleteAgent : DataLifeCycleAgentBase
     {
+        #region Inner type
+        #endregion
+
+        private DateTime _lastRun = DateTime.MinValue;
+
         public TimeHardDeleteAgent(Database database)
             : base(database)
         {
@@ -19,158 +21,86 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public override void Run(DataManagementActivity forcedDataManagementActivity)
         {
-            bool HardDeleteIteration()
+            if (DateTime.Now - _lastRun
+                > Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod)
             {
                 using (var tx = Database.CreateTransaction())
                 {
-                    var hasHardDeleted = HardDeleteTransactionalIteration(tx);
+                    var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
+                    var thresholdTime =
+                        DateTime.Now - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
+                    var tableGroups = GetTombstoneRecordIds(thresholdTime, tx);
+
+                    //  Load tables in tx to eliminate in-memory tombstoned records
+                    foreach (var tableGroup in tableGroups)
+                    {
+                        tx.LoadCommittedBlocksInTransaction(tableGroup.Key);
+                    }
+                    var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(
+                        tableGroups.Select(g => g.Key),
+                        tx);
+                    var blockIdsToCompactByTableName = ComputeHardDeletePlan(
+                        //  Recompute the tombstones after loading the tables in tx
+                        GetTombstoneRecordIds(thresholdTime, tx).ToArray(),
+                        allTombstoneBlocksMap,
+                        tx);
+                    var blockMergingLogic = new BlockMergingLogic(Database);
+
+                    blockMergingLogic.CompactMerge(
+                        blockIdsToCompactByTableName,
+                        allTombstoneBlocksMap,
+                        tx);
 
                     tx.Complete();
-
-                    return hasHardDeleted;
                 }
-            }
-
-            while (HardDeleteIteration())
-            {
+                _lastRun = DateTime.Now;
             }
         }
 
-        private bool HardDeleteTransactionalIteration(TransactionContext tx)
-        {
-            var thresholdTimestamp = DateTime.Now
-                - Database.DatabasePolicy.InMemoryPolicy.MaxTombstonePeriod;
-            var oldestTombstoneRecord = Database.TombstoneTable.Query(tx)
-                .WithCommittedOnly()
-                .Where(pf => pf.LessThan(t => t.Timestamp, thresholdTimestamp))
-                .FirstOrDefault();
-
-            if (oldestTombstoneRecord != null)
-            {
-                if (tx.LoadCommittedBlocksInTransaction(oldestTombstoneRecord.TableName))
-                {   //  Let's re-evaluate the oldest tombstone
-                    return HardDeleteTransactionalIteration(tx);
-                }
-                else
-                {
-                    CompactForRecord(
-                        oldestTombstoneRecord.TableName,
-                        oldestTombstoneRecord.DeletedRecordId,
-                        tx);
-                    CheckRecordHardDeleted(
-                        oldestTombstoneRecord.TableName,
-                        oldestTombstoneRecord.DeletedRecordId,
-                        tx);
-
-                    return true;
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-
-        [Conditional("DEBUG")]
-        private void CheckRecordHardDeleted(
-            string tableName,
-            long deletedRecordId,
+        private IEnumerable<IGrouping<string, long>> GetTombstoneRecordIds(
+            DateTime thresholdTime,
             TransactionContext tx)
         {
-            var recordCount = Database.TombstoneTable.Query(tx)
-                .WithCommittedOnly()
-                .Where(pf => pf.Equal(t => t.TableName, tableName))
-                .Where(pf => pf.Equal(t => t.DeletedRecordId, deletedRecordId))
-                .Count();
+            var tableMap = Database.GetDatabaseStateSnapshot().TableMap;
 
-            if (recordCount != 0)
-            {
-                throw new InvalidOperationException("Record wasn't hard deleted");
-            }
+            return Database.TombstoneTable.Query(tx)
+                .Where(pf => pf.GreaterThanOrEqual(t => t.Timestamp, thresholdTime))
+                .AsEnumerable()
+                .GroupBy(t => t.TableName, t => t.DeletedRecordId)
+                .Where(g => tableMap[g.Key].IsPersisted);
         }
 
-        private void CompactForRecord(string tableName, long recordId, TransactionContext tx)
+        private IDictionary<string, IEnumerable<int>> ComputeHardDeletePlan(
+            IReadOnlyList<IGrouping<string, long>> tableGroups,
+            IDictionary<string, IEnumerable<TombstoneBlock>> tombstoneBlocksMap,
+            TransactionContext tx)
         {
-            var table = Database.GetAnyTable(tableName);
-            var schema = table.Schema;
-            var predicate = new BinaryOperatorPredicate(
-                schema.RecordIdColumnIndex,
-                recordId,
-                BinaryOperator.Equal);
-            var blockIds = table.Query(tx)
-                .WithCommittedOnly()
-                .WithIgnoreDeleted()
-                .WithPredicate(predicate)
-                .WithProjection(schema.ParentBlockIdColumnIndex)
-                .Select(r => (int)r.Span[0]!)
-                .ToImmutableArray();
+            var plan = new Dictionary<string, IEnumerable<int>>(tableGroups.Count);
 
-            if (blockIds.Length > 1)
+            foreach (var tableGroup in tableGroups)
             {
-                throw new InvalidOperationException("A record is duplicated");
-            }
-            else if (blockIds.Length == 1)
-            {   //  We identified the block
-                if (blockIds[0] <= 0)
+                var tableName = tableGroup.Key;
+
+                if (tombstoneBlocksMap.TryGetValue(tableName, out var tombstoneBlocks))
                 {
-                    throw new InvalidOperationException(
-                        "Record is in-memory, should have been taken care of before");
+                    var deletedRecordIdSet = tableGroup.ToHashSet();
+                    var blockIdsToCompact = new List<int>();
+
+                    foreach (var tombstoneBlock in tombstoneBlocks)
+                    {
+                        if (deletedRecordIdSet.Overlaps(tombstoneBlock.RecordIds))
+                        {
+                            blockIdsToCompact.Add(tombstoneBlock.BlockId);
+                        }
+                    }
+                    if (blockIdsToCompact.Count > 0)
+                    {
+                        plan.Add(tableName, blockIdsToCompact);
+                    }
                 }
-                else
-                {   //  Let's find the meta-block
-                    CompactBlock(table, blockIds[0], tx);
-                }
             }
-            else
-            {   //  Can't find record:  likely due to racing condition
-                //  We hard-delete the record
-                Database.DeleteTombstoneRecords(tableName, [recordId], tx);
-            }
-        }
 
-        private void CompactBlock(Table table, int blockId, TransactionContext tx)
-        {
-            var metaTable = Database.GetMetaDataTable(table.Schema.TableName);
-            var metaSchema = (MetadataTableSchema)metaTable.Schema;
-            var predicate = new BinaryOperatorPredicate(
-                metaSchema.BlockIdColumnIndex,
-                blockId,
-                BinaryOperator.Equal);
-            var metaBlockIds = metaTable.Query(tx)
-                .WithCommittedOnly()
-                .WithPredicate(predicate)
-                .WithProjection(metaSchema.ParentBlockIdColumnIndex)
-                .Select(r => (int)r.Span[0]!)
-                .ToImmutableArray();
-
-            if (metaBlockIds.Length > 1)
-            {
-                throw new InvalidOperationException("A record is duplicated");
-            }
-            else if (metaBlockIds.Length == 0)
-            {
-                throw new InvalidOperationException("Can't find block");
-            }
-            else
-            {   //  We identified the meta block
-                var metaBlockId = metaBlockIds[0];
-
-                CompactMetaBlock(
-                    table.Schema.TableName,
-                    metaBlockId <= 0
-                    ? null
-                    : metaBlockId,
-                    tx);
-            }
-        }
-
-        private void CompactMetaBlock(string tableName, int? metaBlockId, TransactionContext tx)
-        {
-            var blockMergingLogic = new BlockMergingLogic(
-               Database,
-               new MetaBlockManager(Database, tx));
-
-            blockMergingLogic.CompactMerge(tableName, metaBlockId);
+            return plan;
         }
     }
 }

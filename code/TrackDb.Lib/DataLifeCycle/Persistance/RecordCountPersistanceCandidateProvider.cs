@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
@@ -116,14 +117,55 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
         private bool MergeMetaRecords(TableRecordCount topCandidate, TransactionContext tx)
         {
+            IDictionary<int, TombstoneBlock> GetTombstoneBlocksMap(TableSchema schema)
+            {
+                if (schema is MetadataTableSchema)
+                {
+                    return new Dictionary<int, TombstoneBlock>();
+                }
+                else
+                {
+                    var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
+                    var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(
+                        [schema.TableName],
+                        tx);
+
+                    if (allTombstoneBlocksMap.Count > 0)
+                    {
+                        return allTombstoneBlocksMap[schema.TableName]
+                            .ToDictionary(tb => tb.BlockId);
+                    }
+                    else
+                    {
+                        return new Dictionary<int, TombstoneBlock>();
+                    }
+                }
+            }
+
             var metadataShema = (MetadataTableSchema)topCandidate.Table.Schema;
             var schema = metadataShema.ParentSchema;
-            var blockMergingLogic = new BlockMergingLogic(
-                Database,
-                new MetaBlockManager(Database, tx));
-            var hasChanged = blockMergingLogic.CompactMerge(schema.TableName, null);
+            var allTombstoneBlocksIndex = GetTombstoneBlocksMap(schema);
+            var metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
+            var compactResult = metaBlockMergingLogic.CompactMerge(
+                null,
+                metadataShema,
+                [],
+                allTombstoneBlocksIndex,
+                new Dictionary<int, IEnumerable<MetadataBlock>>(),
+                tx);
 
-            return hasChanged;
+            if (compactResult.DeletedBlockIds.Any())
+            {
+                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
+                    compactResult.DeletedBlockIds,
+                    tx);
+
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }

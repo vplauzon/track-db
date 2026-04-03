@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Text;
@@ -11,597 +10,96 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class BlockMergingLogic : LogicBase
     {
-        #region Inner Types
-        private record CompactionResult(
-            IEnumerable<MetadataBlock> MetadataBlocks,
-            IEnumerable<long> HardDeletedRecordIds);
+        private static readonly IDictionary<int, TombstoneBlock> _emptyTombstoneBlock =
+            new Dictionary<int, TombstoneBlock>();
 
-        private enum BlockDeletedStatus
-        {
-            Untouched,
-            CompletlyDeleted,
-            PartiallyDeleted
-        }
-        #endregion
+        private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
 
-        private readonly int _maxBlockSize;
-        private readonly MetaBlockManager _metaBlockManager;
-
-        public BlockMergingLogic(Database database, MetaBlockManager metaBlockManager)
+        public BlockMergingLogic(Database database)
             : base(database)
         {
-            _maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
-            _metaBlockManager = metaBlockManager;
+            _metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
         }
 
-        /// <summary>
-        /// Merge together blocks belonging to <paramref name="metaBlockId"/>.
-        /// If <paramref name="tableName"/> is a data table, i.e. is at the lowest level,
-        /// it will compact tombstoned records.
-        /// </summary>
-        /// <param name="tableName"></param>
-        /// <param name="metaBlockId"></param>
-        /// <returns></returns>
-        public bool CompactMerge(string tableName, int? metaBlockId)
+        public void CompactMerge(
+            IDictionary<string, IEnumerable<int>> blockIdsToCompactByTableName,
+            IDictionary<string, IEnumerable<TombstoneBlock>> allTombstoneBlocksMap,
+            TransactionContext tx)
         {
-            var tx = _metaBlockManager.Tx;
-            var originalBlocks = _metaBlockManager.LoadBlocks(tableName, metaBlockId);
-            var compactionResult = CompactMergeBlocks(tableName, originalBlocks);
-            var removedBlockIds = originalBlocks
-                .Select(b => b.BlockId)
-                .Except(compactionResult.MetadataBlocks.Select(b => b.BlockId))
-                .ToImmutableArray();
-
-            if (!removedBlockIds.Any() && compactionResult.HardDeletedRecordIds.Any())
+            foreach (var pair in blockIdsToCompactByTableName)
             {
-                throw new InvalidOperationException("No altered block but some hard deleted records");
-            }
-            if (!removedBlockIds.Any())
-            {
-                return false;
-            }
-            else
-            {
-#if DEBUG
-                var countBefore = Database.GetAnyTable(tableName).Query(tx).Count();
-#endif
-                ReplaceMetaBlockInHierarchy(
-                    tableName,
-                    metaBlockId,
-                    compactionResult.MetadataBlocks);
+                var tableName = pair.Key;
+                var blockIdsToCompact = pair.Value;
+                var allTableTombstoneBlocksIndex = allTombstoneBlocksMap[tableName]
+                    .ToDictionary(t => t.BlockId);
 
-                //  This is done after so we do not mess with queries during the processing
-                Database.DeleteTombstoneRecords(
-                    tableName,
-                    compactionResult.HardDeletedRecordIds,
-                    tx);
-                if (removedBlockIds.Length > 0)
-                {   //  It could be zero if we only have phantom tombstones
-                    Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
-                        removedBlockIds,
-                        tx);
-                }
-
-#if DEBUG
-                var countAfter = Database.GetAnyTable(tableName).Query(tx).Count();
-
-                if (countBefore != countAfter)
-                {
-                    throw new InvalidOperationException(
-                        $"Inconsistent merge:  before ({countBefore}) vs after ({countAfter})");
-                }
-#endif
-
-                return true;
+                CompactMergeTable(tableName, blockIdsToCompact, allTableTombstoneBlocksIndex, tx);
             }
         }
 
-        #region Post Merge
-        private void ReplaceMetaBlockInHierarchy(
+        private void CompactMergeTable(
             string tableName,
-            int? metaBlockId,
-            IEnumerable<MetadataBlock> metadataBlocks)
-        {   //  Build a block with the meta data blocks
-            var tx = _metaBlockManager.Tx;
-            var metaTable = Database.GetMetaDataTable(tableName);
-            var metaSchema = metaTable.Schema;
-            var metaBuilder = ToBlockBuilder(metadataBlocks, metaTable);
-
-            //  Replace that
-            ReplaceMetaBlockInHierarchy(metaSchema.TableName, metaBlockId, metaBuilder);
-        }
-
-        private static BlockBuilder ToBlockBuilder(IEnumerable<MetadataBlock> metadataBlocks, Table metaTable)
+            IEnumerable<int> blockIdsToCompact,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            TransactionContext tx)
         {
-            var metaSchema = metaTable.Schema;
-            var metaBuilder = new BlockBuilder(metaSchema);
+            var tombstoneBlocksGroups = blockIdsToCompact
+                .Select(id => allTombstoneBlockIndex[id])
+                .GroupBy(t => t.BlockTraces.Count)
+                .Select(g => g.ToArray());
+            var cumulatedDeletedBlockIds = new List<int>();
+            var blockReplacementMap = new Dictionary<int, IEnumerable<MetadataBlock>>();
 
-            foreach (var metadataBlock in metadataBlocks.OrderBy(m => m.MinRecordId))
-            {
-                var metadataSpan = metadataBlock.MetadataRecord.Span;
-                var recordId = metaTable.NewRecordId();
-                var recordSpan = metadataSpan.Slice(0, metaSchema.Columns.Count);
+            foreach (var tombstoneBlocks in tombstoneBlocksGroups)
+            {   //  Each of those plans are independant as the root is at different level
+                var traceLength = tombstoneBlocks[0].BlockTraces.Count;
 
-                metaBuilder.AppendRecord(recordId, metadataSpan);
-            }
-
-            return metaBuilder;
-        }
-
-        private void ReplaceMetaBlockInHierarchy(
-            string metaTableName,
-            int? metaBlockId,
-            BlockBuilder metaBuilder)
-        {
-            if (((IBlock)metaBuilder).TableSchema.TableName != metaTableName)
-            {
-                throw new ArgumentException(nameof(metaBuilder));
-            }
-            if (metaBlockId == null)
-            {   //  There are no meta-meta block containing the meta blocks
-                //  We simply replace in-memory meta blocks
-                _metaBlockManager.ReplaceInMemoryBlocks(metaTableName, metaBuilder);
-            }
-            else if (metaBlockId <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(metaBlockId));
-            }
-            else
-            {
-                var metaMetaTable = Database.GetMetaDataTable(metaTableName);
-                var metaMetaSchema = (MetadataTableSchema)metaMetaTable.Schema;
-                var metaMetaBlockId = _metaBlockManager.GetMetaBlockId(
-                    metaMetaTable.Schema.TableName,
-                    metaBlockId.Value);
-                var metaMetaBlocks = _metaBlockManager.LoadBlocks(metaTableName, metaMetaBlockId);
-
-                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
-                    [metaBlockId.Value],
-                    _metaBlockManager.Tx);
-                if (!metaMetaBlocks.Any())
+                for (var i = traceLength - 1; i >= 0; --i)
                 {
-                    throw new InvalidOperationException(
-                        $"Block ID {metaMetaBlockId} on table '{metaTableName}' has not data");
-                }
-                if (metaMetaBlocks.First().Schema.TableName != metaMetaSchema.TableName)
-                {
-                    throw new InvalidOperationException("Inconsistant schema");
-                }
-                if (metaMetaBlocks.Where(mmb => mmb.BlockId == metaBlockId.Value).Count() != 1)
-                {
-                    throw new InvalidOperationException(
-                        $"Block ID {metaMetaBlockId} on table '{metaTableName}' doesn't " +
-                        $"contain block {metaBlockId}");
-                }
-                if (((IBlock)metaBuilder).RecordCount > 0)
-                {
-                    CompactMetaBlock(
-                        metaBlockId.Value,
-                        metaBuilder,
-                        metaMetaTable,
-                        metaMetaSchema,
-                        metaMetaBlockId,
-                        metaMetaBlocks);
-                }
-                else
-                {   //  Empty metaBuilder
-                    var remainingMetaMetaBlocks = metaMetaBlocks
-                        //  Remove the current that got modified
-                        .Where(mmb => mmb.BlockId != metaBlockId.Value);
-                    var metaMetaBuilder = ToBlockBuilder(remainingMetaMetaBlocks, metaMetaTable);
+                    var tombstoneBlocksByMetaBlockId = tombstoneBlocks
+                        .GroupBy(t => t.BlockTraces[i].BlockId)
+                        .Distinct();
 
-                    ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
-                }
-            }
-        }
-
-        private void CompactMetaBlock(
-            int metaBlockId,
-            BlockBuilder metaBuilder,
-            Table metaMetaTable,
-            MetadataTableSchema metaMetaSchema,
-            int? metaMetaBlockId,
-            IEnumerable<MetadataBlock> metaMetaBlocks)
-        {
-            var minRecordId = ((IBlock)metaBuilder).Project(
-                new object?[1],
-                [((IBlock)metaBuilder).TableSchema.RecordIdColumnIndex],
-                Enumerable.Range(0, ((IBlock)metaBuilder).RecordCount),
-                0)
-                .Max(r => (long)r.Span[0]!);
-            var orderedMetaMetaBlocks = metaMetaBlocks
-                //  Remove the current that got modified
-                .Where(mmb => mmb.BlockId != metaBlockId)
-                .OrderBy(mmb => Math.Abs(mmb.MinRecordId - minRecordId));
-            var stack = new Stack<MetadataBlock>(orderedMetaMetaBlocks.Reverse());
-            var procesedMetaBlocks = new List<MetadataBlock>(stack.Count + 1);
-            var tombstonedRecordIds = ImmutableHashSet<long>.Empty;
-            var hardDeleteRecordIds = new List<long>();
-
-            //  Try to merge the new block as much as possible
-            while (stack.Any())
-            {
-                var metaMetaBlock = stack.Pop();
-
-                if (!TryMerge(
-                    metaBuilder,
-                    metaMetaBlock,
-                    tombstonedRecordIds,
-                    hardDeleteRecordIds))
-                {   //  We are complete
-                    procesedMetaBlocks.Add(metaMetaBlock);
-                    procesedMetaBlocks.AddRange(stack);
-                    stack.Clear();
-                }
-            }
-            //  Persist that new block into the meta blocks list
-            PersistBlockBuilder(metaBuilder, true, procesedMetaBlocks, metaMetaSchema);
-
-            var metaMetaBuilder = ToBlockBuilder(procesedMetaBlocks, metaMetaTable);
-            var removedBlockIds = orderedMetaMetaBlocks.Select(mmb => mmb.BlockId).Except(
-                procesedMetaBlocks.Select(mmb => mmb.BlockId))
-                .ToImmutableArray();
-
-            ReplaceMetaBlockInHierarchy(metaMetaSchema.TableName, metaMetaBlockId, metaMetaBuilder);
-            if (removedBlockIds.Length > 0)
-            {
-                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
-                    removedBlockIds,
-                    _metaBlockManager.Tx);
-            }
-        }
-        #endregion
-
-        #region Merge logic
-        private CompactionResult CompactMergeBlocks(
-            string tableName,
-            IEnumerable<MetadataBlock> blocks)
-        {
-            var tx = _metaBlockManager.Tx;
-            var schema = Database.GetAnyTable(tableName).Schema;
-            var metadataTable = Database.GetMetaDataTable(tableName);
-            var metadataSchema = (MetadataTableSchema)metadataTable.Schema;
-            var blockStack = new Stack<MetadataBlock>(blocks.OrderByDescending(b => b.MinRecordId));
-            var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
-            var hardDeletedRecordIds = new List<long>();
-            var blockBuilder = new BlockBuilder(schema);
-            MetadataBlock? previousBlock = null;
-            var tombstoneBaseQuery = Database.TombstoneTable.Query(tx)
-                .Where(pf => pf.Equal(t => t.TableName, schema.TableName));
-
-            while (blockStack.Count > 0)
-            {
-                var currentBlock = blockStack.Pop();
-                var blockTombstonedRecordIds = tombstoneBaseQuery
-                    .Where(pf => pf.GreaterThanOrEqual(t => t.DeletedRecordId, currentBlock.MinRecordId)
-                    .And(pf.LessThanOrEqual(t => t.DeletedRecordId, currentBlock.MaxRecordId)))
-                    .TableQuery
-                    .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId))
-                    .Select(r => (long)r.Span[0]!)
-                    .ToHashSet();
-
-                CompactMergeOneBlock(
-                    currentBlock,
-                    metadataSchema,
-                    blockTombstonedRecordIds,
-                    blockBuilder,
-                    ref previousBlock,
-                    processedBlocks,
-                    hardDeletedRecordIds);
-            }
-            if (previousBlock != null)
-            {
-                processedBlocks.Add(previousBlock);
-            }
-            //  Flush whatever remains
-            PersistBlockBuilder(
-                blockBuilder,
-                true,
-                processedBlocks,
-                metadataSchema);
-
-            return new CompactionResult(processedBlocks, hardDeletedRecordIds);
-        }
-
-        private void CompactMergeOneBlock(
-            MetadataBlock currentBlock,
-            MetadataTableSchema metaSchema,
-            ISet<long> blockTombstonedRecordIds,
-            BlockBuilder blockBuilder,
-            ref MetadataBlock? previousBlock,
-            List<MetadataBlock> processedBlocks,
-            List<long> hardDeletedRecordIds)
-        {
-            var tx = _metaBlockManager.Tx;
-
-            if (((IBlock)blockBuilder).RecordCount > 0 && previousBlock != null)
-            {
-                throw new InvalidOperationException("Both blocks can't exist at the same time");
-            }
-
-            //  We try to compact regardless if the blockBuilder has records or not
-            //  If it doesn't we compact, if it does, we defacto merge
-            if (TryCompactBlock(
-                currentBlock,
-                blockBuilder,
-                blockTombstonedRecordIds,
-                hardDeletedRecordIds))
-            {
-                if (previousBlock != null)
-                {
-                    processedBlocks.Add(previousBlock);
-                    previousBlock = null;
-                }
-                //  Persist the head of the block if there is too much data to fit in a block
-                PersistBlockBuilder(blockBuilder, false, processedBlocks, metaSchema);
-            }
-            else if (previousBlock != null)
-            {
-                if (TryMerge(
-                    blockBuilder,
-                    previousBlock,
-                    currentBlock,
-                    blockTombstonedRecordIds,
-                    hardDeletedRecordIds))
-                {
-                    previousBlock = null;
-                }
-                else
-                {
-                    processedBlocks.Add(previousBlock);
-                    previousBlock = currentBlock;
-                }
-            }
-            else
-            {   //  previousBlock == null
-                //  We flush the block builder and replace it by currentBlock
-                PersistBlockBuilder(blockBuilder, true, processedBlocks, metaSchema);
-                previousBlock = currentBlock;
-            }
-        }
-
-        private void PersistBlockBuilder(
-            BlockBuilder blockBuilder,
-            bool persistAll,
-            List<MetadataBlock> processedBlocks,
-            MetadataTableSchema metaSchema)
-        {
-            var tx = _metaBlockManager.Tx;
-
-            if (((IBlock)blockBuilder).RecordCount > 0)
-            {
-                blockBuilder.OrderByRecordId();
-
-                var sizes = blockBuilder.SegmentRecords(_maxBlockSize);
-
-                if (persistAll || sizes.Count > 1)
-                {
-                    var actualSizes = persistAll
-                        ? sizes
-                        : sizes.SkipLast(1);
-                    var buffer = new byte[_maxBlockSize];
-                    var skipRows = 0;
-
-                    foreach (var size in actualSizes)
+                    foreach (var metaBlockGroup in tombstoneBlocksByMetaBlockId)
                     {
-                        var blockStats = blockBuilder.Serialize(buffer, skipRows, size.ItemCount);
-                        var actualBuffer = buffer.AsSpan().Slice(0, blockStats.Size);
-                        var blockId = Database.AvailabilityBlockManager.SetInUse(1, tx)[0];
-                        var metadataRecord = metaSchema.CreateMetadataRecord(blockId, blockStats);
+                        var metaBlockId = metaBlockGroup.Key <= 0 ? (int?)null : metaBlockGroup.Key;
+                        var result = _metaBlockMergingLogic.CompactMerge(
+                            metaBlockId,
+                            (MetadataTableSchema)metaBlockGroup.First().BlockTraces[i].Schema,
+                            i == traceLength - 1
+                            ? metaBlockGroup.Select(o => o.BlockId)
+                            : Array.Empty<int>(),
+                            i == traceLength - 1 ? allTombstoneBlockIndex : _emptyTombstoneBlock,
+                            blockReplacementMap,
+                            tx);
 
-                        if (blockStats.Size != size.Size)
+                        cumulatedDeletedBlockIds.AddRange(result.DeletedBlockIds);
+                        if (metaBlockId != null)
                         {
-                            throw new InvalidOperationException(
-                                $"Mismatch between predicted size ({size.Size}) and serialized" +
-                                $"size ({blockStats.Size})");
+                            blockReplacementMap.Add(metaBlockId.Value, result.MetaBlocks);
+                            cumulatedDeletedBlockIds.Add(metaBlockId.Value);
                         }
-                        Database.PersistBlock(blockId, actualBuffer, tx);
-                        processedBlocks.Add(new MetadataBlock(metadataRecord, metaSchema));
-                        skipRows += size.ItemCount;
-                    }
-                    if (skipRows == ((IBlock)blockBuilder).RecordCount)
-                    {   //  Optimization as DeleteAll is more efficient than DeleteRecordsByRecordIndex
-                        blockBuilder.Clear();
-                    }
-                    else
-                    {
-                        blockBuilder.DeleteRecordsByRecordIndex(Enumerable.Range(0, skipRows));
                     }
                 }
+                blockReplacementMap.Clear();
             }
+            CleanDeletedBlocksAndRecords(
+                tableName, cumulatedDeletedBlockIds, allTombstoneBlockIndex, tx);
         }
 
-        #region Merge block operations
-        private bool TryMerge(
-            BlockBuilder blockBuilder,
-            MetadataBlock nextMetadataBlock,
-            ISet<long> blockTombstonedRecordIds,
-            List<long> hardDeletedRecordIds)
+        private void CleanDeletedBlocksAndRecords(
+            string tableName,
+            IReadOnlyList<int> cumulatedDeletedBlockIds,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            TransactionContext tx)
         {
-            var tx = _metaBlockManager.Tx;
-            var totalSize = blockBuilder.GetSerializationSize() + nextMetadataBlock.Size;
+            var deletedRecordIds = cumulatedDeletedBlockIds
+                .SelectMany(id => allTombstoneBlockIndex.TryGetValue(id, out var tb)
+                ? tb.RecordIds
+                : Array.Empty<long>());
 
-#if DEBUG
-            if (Database.GetMetaDataTable(((IBlock)blockBuilder).TableSchema.TableName).Schema.TableName
-                != nextMetadataBlock.Schema.TableName)
-            {
-                throw new InvalidOperationException("Inconsistant schema");
-            }
-#endif
-            if (totalSize <= _maxBlockSize)
-            {
-                var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-                var nextBlock = Database.GetOrLoadBlock(
-                    nextMetadataBlock.BlockId,
-                    nextMetadataBlock.Schema.ParentSchema);
-
-                blockBuilder.AppendBlock(nextBlock);
-
-                var actuallyDeletedRecordIds =
-                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
-
-                if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
-                {
-                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
-
-                    return true;
-                }
-                else
-                {
-                    blockBuilder.DeleteRecordsByRecordIndex(
-                        Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount)
-                        .Where(i => i >= recordCountBefore));
-
-                    return false;
-                }
-            }
-            else
-            {
-                return false;
-            }
+            Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(cumulatedDeletedBlockIds, tx);
+            Database.DeleteTombstoneRecords(tableName, deletedRecordIds, tx);
         }
-
-        private bool TryMerge(
-            BlockBuilder blockBuilder,
-            MetadataBlock metadataBlockA,
-            MetadataBlock metadataBlockB,
-            ISet<long> blockTombstonedRecordIds,
-            List<long> hardDeletedRecordIds)
-        {
-            var tx = _metaBlockManager.Tx;
-
-            if (((IBlock)blockBuilder).RecordCount != 0)
-            {
-                throw new ArgumentException(nameof(blockBuilder));
-            }
-
-            var totalSize = metadataBlockA.Size + metadataBlockB.Size;
-
-            if (totalSize <= _maxBlockSize)
-            {
-                var blockA = Database.GetOrLoadBlock(
-                    metadataBlockA.BlockId,
-                    metadataBlockA.Schema.ParentSchema);
-                var blockB = Database.GetOrLoadBlock(
-                    metadataBlockB.BlockId,
-                    metadataBlockB.Schema.ParentSchema);
-
-                blockBuilder.AppendBlock(blockA);
-                blockBuilder.AppendBlock(blockB);
-
-                var actuallyDeletedRecordIds =
-                    blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
-
-                if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
-                {
-                    hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
-
-                    return true;
-                }
-                else
-                {
-                    blockBuilder.Clear();
-
-                    return false;
-                }
-            }
-            else
-            {
-                return false;
-            }
-        }
-        #endregion
-
-        private bool TryCompactBlock(
-            MetadataBlock metadataBlock,
-            BlockBuilder blockBuilder,
-            ISet<long> blockTombstonedRecordIds,
-            List<long> hardDeletedRecordIds)
-        {
-            if (blockTombstonedRecordIds.Count == 0)
-            {
-                return false;
-            }
-            else
-            {
-                var tx = _metaBlockManager.Tx;
-                var schema = ((IBlock)blockBuilder).TableSchema;
-                var block = Database.GetOrLoadBlock(metadataBlock.BlockId, schema);
-                var blockDeletedStatus = DetermineBlockDeletedStatus(
-                    block.RecordIds,
-                    blockTombstonedRecordIds);
-
-                switch (blockDeletedStatus)
-                {
-                    case BlockDeletedStatus.Untouched:
-                        return false;
-                    case BlockDeletedStatus.CompletlyDeleted:
-                        hardDeletedRecordIds.AddRange(block.RecordIds);
-
-                        return true;
-                    case BlockDeletedStatus.PartiallyDeleted:
-                        return CompactBlockIntoBuilder(
-                            block,
-                            blockBuilder,
-                            blockTombstonedRecordIds,
-                            hardDeletedRecordIds);
-                    default:
-                        throw new NotSupportedException(
-                            $"{nameof(BlockDeletedStatus)}.{blockDeletedStatus}");
-                }
-            }
-        }
-
-        private static bool CompactBlockIntoBuilder(
-            IBlock block,
-            BlockBuilder blockBuilder,
-            ISet<long> blockTombstonedRecordIds,
-            List<long> hardDeletedRecordIds)
-        {
-            var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-
-            blockBuilder.AppendBlock(block);
-
-            var actuallyDeletedRecordIds =
-                blockBuilder.DeleteRecordsByRecordId(blockTombstonedRecordIds);
-
-            if (actuallyDeletedRecordIds.Any())
-            {   //  Compaction worked
-                hardDeletedRecordIds.AddRange(actuallyDeletedRecordIds);
-
-                return true;
-            }
-            else
-            {
-                throw new InvalidOperationException("There should be records deleted");
-            }
-        }
-
-        private BlockDeletedStatus DetermineBlockDeletedStatus(
-            ReadOnlySpan<long> recordIds,
-            ISet<long> blockTombstonedRecordIds)
-        {
-            var allNotMatch = true;
-            var allMatch = true;
-
-            foreach (var recordId in recordIds)
-            {
-                if (!blockTombstonedRecordIds.Contains(recordId))
-                {
-                    allMatch = false;
-                }
-                else
-                {
-                    allNotMatch = false;
-                }
-            }
-
-            return allMatch
-                ? BlockDeletedStatus.CompletlyDeleted
-                : allNotMatch
-                ? BlockDeletedStatus.Untouched
-                : BlockDeletedStatus.PartiallyDeleted;
-        }
-        #endregion
     }
 }

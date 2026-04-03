@@ -43,7 +43,12 @@ namespace TrackDb.PerfTest
                     db.EmployeeTable.Query()
                         .Where(pf => pf.Equal(e => e.EmployeeId, employeeId))
                         .Delete();
-
+                    if (i % 25 == 0)
+                    {
+                        Assert.Equal(
+                            shuffledEmployeeIds.Length - i - 1,
+                            db.EmployeeTable.Query().Count());
+                    }
                     await db.AwaitLifeCycleManagementAsync(4);
                 }
                 Assert.Equal(0, db.EmployeeTable.Query().Count());
@@ -53,8 +58,6 @@ namespace TrackDb.PerfTest
 
         private async Task InsertThenDeleteAllAsync(bool doKeepOne)
         {
-            var random = new Random();
-
             await using (var db = await VolumeTestDatabase.CreateAsync())
             {
                 InsertBulk(db);
