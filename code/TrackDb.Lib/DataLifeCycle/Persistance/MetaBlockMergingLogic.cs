@@ -150,6 +150,15 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 //  All good
             }
+            else if(previousBlock!=null && TryMerge(
+                blockBuilder,
+                currentBlock,
+                previousBlock,
+                allTombstoneBlockIndex,
+                tx))
+            {
+                //  All good
+            }
             else
             {   //  Persist the builder completly
                 PersistBlockBuilder(
@@ -249,6 +258,52 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     blockBuilder.DeleteRecordsByRecordIndex(
                         Enumerable.Range(0, ((IBlock)blockBuilder).RecordCount)
                         .Where(i => i >= recordCountBefore));
+
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        private bool TryMerge(
+            BlockBuilder blockBuilder,
+            MetadataBlock metadataBlockA,
+            MetadataBlock metadataBlockB,
+            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            TransactionContext tx)
+        {
+#if DEBUG
+            if(((IBlock)blockBuilder).RecordCount>0)
+            {
+                throw new InvalidOperationException("Block builder should be empty here");
+            }
+            if (Database.GetMetaDataTable(((IBlock)blockBuilder).TableSchema.TableName).Schema.TableName
+                != metadataBlockA.Schema.TableName)
+            {
+                throw new InvalidOperationException("Inconsistant schema");
+            }
+            if (metadataBlockA.Schema.TableName!= metadataBlockB.Schema.TableName)
+            {
+                throw new InvalidOperationException("Inconsistant schema");
+            }
+#endif
+
+            var totalSize = metadataBlockA.Size + metadataBlockB.Size;
+
+            if (totalSize <= _maxBlockSize)
+            {
+                CompactIntoBuilder(metadataBlockA, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(metadataBlockB, blockBuilder, allTombstoneBlockIndex);
+                if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
+                {
+                    return true;
+                }
+                else
+                {   //  Roll back compact
+                    blockBuilder.Clear();
 
                     return false;
                 }
