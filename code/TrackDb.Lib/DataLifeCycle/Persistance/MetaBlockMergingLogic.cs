@@ -111,9 +111,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 throw new InvalidOperationException("Both blocks can't exist at the same time");
             }
 
-            //  We try to compact regardless if the blockBuilder has records or not
-            if (blockIdsToCompact.Contains(currentBlock.BlockId))
+            if (allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb)
+                && tb.RowIndexes.Count == currentBlock.ItemCount)
             {
+                //  All good:  opportunistically (i.e. regardless if it is in blockIdsToCompact
+                //  or not) discard an entirely deleted block
+            }
+            else if (blockIdsToCompact.Contains(currentBlock.BlockId))
+            {   //  We try to compact regardless if the blockBuilder has records or not
                 CompactIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
                 //  Removing rows increases block size (rare)
                 PersistBlockBuilder(
