@@ -10,7 +10,8 @@ namespace TrackDb.Lib.DataLifeCycle
         TableSchema Schema,
         //  Block owning the record ids
         int BlockId,
-        //  Row indexes of deleted records
+        //  Row indexes of deleted records:  no duplicates (no need for Distinct())
+        //  But not ordered
         IReadOnlyList<int> RowIndexes,
         //  Record IDs of deleted records
         IReadOnlyList<long> RecordIds);
