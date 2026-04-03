@@ -10,9 +10,6 @@ namespace TrackDb.Lib.DataLifeCycle
 {
     internal class TombstoneBlockLogic : LogicBase
     {
-        #region Inner Types
-        #endregion
-
         public TombstoneBlockLogic(Database database)
             : base(database)
         {
@@ -72,6 +69,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 .WithProjection(table.Schema.RecordIdColumnIndex)
                 .ExecuteQueryWithBlockTrace();
             var tombstoneBlockMap = new Dictionary<int, TombstoneBlock>();
+            var foundRecordIdSet = new HashSet<long>();
 
             //  We do not do it in a LINQ query for efficiency
             //  Specifically we want to "ToArray" the block traces only once
@@ -94,6 +92,16 @@ namespace TrackDb.Lib.DataLifeCycle
                 //  Safe cast since this is allocated in the else-branch
                 ((IList<int>)block.RowIndexes).Add(lastBlockTrace.RowIndex);
                 ((IList<long>)block.RecordIds).Add(recordId);
+                foundRecordIdSet.Add(recordId);
+            }
+            //  Detect and hard-delete phantom records
+            var phantomRecordIds = deletedRecordIds
+                .Where(id => !foundRecordIdSet.Contains(id))
+                .ToArray();
+
+            if (phantomRecordIds.Length > 0)
+            {
+                Database.DeleteTombstoneRecords(tableName, phantomRecordIds, tx);
             }
 
             return tombstoneBlockMap.Values;
