@@ -246,10 +246,6 @@ namespace TrackDb.Lib.InMemory.Block
             var columns = projectionColumnIndexes
                 .Select(index => index <= Schema.RecordIdColumnIndex
                 ? GetDataColumn(index)
-                : index == Schema.RecordIndexColumnIndex
-                ? RowIndexColumn.Instance
-                : index == Schema.ParentBlockIdColumnIndex
-                ? new BlockIdColumn(blockId)
                 : throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
                     $"Column '{index}' is out-of-range"))

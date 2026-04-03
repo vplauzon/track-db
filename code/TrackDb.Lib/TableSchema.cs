@@ -103,10 +103,6 @@ namespace TrackDb.Lib
 
         #region Extra columns
         public int RecordIdColumnIndex => Columns.Count;
-
-        public int RecordIndexColumnIndex => Columns.Count + 1;
-
-        public int ParentBlockIdColumnIndex => Columns.Count + 2;
         #endregion
 
         /// <summary>
