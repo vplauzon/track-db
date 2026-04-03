@@ -149,7 +149,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 //  All good
             }
-            else if(previousBlock!=null && TryMerge(
+            else if (previousBlock != null && TryMerge(
                 blockBuilder,
                 currentBlock,
                 previousBlock,
@@ -184,15 +184,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             if (allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb))
             {   //  Some tombstones
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
-                var tombstoneRowIndexes = tb
-                    .RowIndexes
-                    .Distinct()
-                    .OrderBy(x => x)
-                    .Select(x => x + recordCountBefore)
-                    .ToArray();
 
-                if (tombstoneRowIndexes.Length != currentBlock.ItemCount)
+                if (tb.RowIndexes.Count != currentBlock.ItemCount)
                 {   //  Partial delete
+                    var tombstoneRowIndexes = tb
+                        .RowIndexes
+                        .OrderBy(x => x)
+                        .Select(x => x + recordCountBefore)
+                        .ToArray();
                     var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
 
                     blockBuilder.AppendBlock(block);
@@ -205,7 +204,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                         .Select(r => (long)r.Span[0]!)
                         .ToHashSet();
 
-                    if (!deletedRecordIds.SetEquals(tb.RecordIds.Distinct()))
+                    if (!deletedRecordIds.SetEquals(tb.RecordIds))
                     {
                         throw new InvalidOperationException("Inconsistent tombstone records");
                     }
@@ -275,7 +274,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             TransactionContext tx)
         {
 #if DEBUG
-            if(((IBlock)blockBuilder).RecordCount>0)
+            if (((IBlock)blockBuilder).RecordCount > 0)
             {
                 throw new InvalidOperationException("Block builder should be empty here");
             }
@@ -284,7 +283,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 throw new InvalidOperationException("Inconsistant schema");
             }
-            if (metadataBlockA.Schema.TableName!= metadataBlockB.Schema.TableName)
+            if (metadataBlockA.Schema.TableName != metadataBlockB.Schema.TableName)
             {
                 throw new InvalidOperationException("Inconsistant schema");
             }
