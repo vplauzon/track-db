@@ -504,8 +504,7 @@ namespace TrackDb.Lib
                 var results = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
-                    filterOutput.RowIndexes,
-                    currentBlockId);
+                    filterOutput.RowIndexes);
                 var indexedResults = filterOutput.RowIndexes.Zip(
                     results,
                     (i, r) => new
@@ -583,8 +582,7 @@ namespace TrackDb.Lib
                 var records = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
-                    g.Select(o => o.LastBlockTrace.RowIndex),
-                    0)
+                    g.Select(o => o.LastBlockTrace.RowIndex))
                     .Select(r => r.ToArray());
                 var zipped = records.Zip(
                     g,

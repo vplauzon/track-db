@@ -232,8 +232,7 @@ namespace TrackDb.Lib.InMemory.Block
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
             Memory<object?> buffer,
             IImmutableList<int> projectionColumnIndexes,
-            IEnumerable<int> rowIndexes,
-            int blockId)
+            IEnumerable<int> rowIndexes)
         {
             if (projectionColumnIndexes.Count() != buffer.Length)
             {
@@ -380,8 +379,7 @@ namespace TrackDb.Lib.InMemory.Block
                     new object?[block.TableSchema.ColumnProperties.Count],
                     Enumerable.Range(0, block.TableSchema.ColumnProperties.Count)
                     .ToImmutableArray(),
-                    Enumerable.Range(0, block.RecordCount),
-                    42);
+                    Enumerable.Range(0, block.RecordCount));
                 var records = projection
                     .Select(b => b.ToArray());
                 var dataTable = new DataTable();

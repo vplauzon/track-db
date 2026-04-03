@@ -33,8 +33,7 @@ namespace TrackDb.Lib.InMemory
                 var tombstoneRecordCount = tombstoneBlock.Project(
                     new object?[1],
                     tombstoneSchema.GetColumnIndexSubset(t => t.TableName),
-                    Enumerable.Range(0, tombstoneBlock.RecordCount),
-                    42)
+                    Enumerable.Range(0, tombstoneBlock.RecordCount))
                     .Select(mem => (string)mem.Span[0]!)
                     .Where(t => loggingTables.Contains(t))
                     .Count();

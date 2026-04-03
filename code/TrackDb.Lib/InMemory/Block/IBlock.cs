@@ -28,12 +28,10 @@ namespace TrackDb.Lib.InMemory.Block
         /// <param name="buffer">Buffer used to carry column values.</param>
         /// <param name="projectionColumnIndexes">Column index to project.</param>
         /// <param name="rowIndexes">Row index to project.</param>
-        /// <param name="blockId">Block ID to return if virtual column is projected.</param>
         /// <returns></returns>
         IEnumerable<ReadOnlyMemory<object?>> Project(
             Memory<object?> buffer,
             IImmutableList<int> projectionColumnIndexes,
-            IEnumerable<int> rowIndexes,
-            int blockId);
+            IEnumerable<int> rowIndexes);
     }
 }

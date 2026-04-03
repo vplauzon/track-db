@@ -51,7 +51,7 @@ namespace TrackDb.UnitTest
 
                 Assert.Single(filterOutput.RowIndexes);
 
-                var records = block.Project(new object?[3], [0, 1, 2], filterOutput.RowIndexes, 0);
+                var records = block.Project(new object?[3], [0, 1, 2], filterOutput.RowIndexes);
 
                 return records.First().Span;
             }

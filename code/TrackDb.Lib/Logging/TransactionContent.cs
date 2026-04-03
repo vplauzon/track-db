@@ -36,7 +36,7 @@ namespace TrackDb.Lib.Logging
                     var columnIndexes = tombstoneSchema.GetColumnIndexSubset(t => t.DeletedRecordId);
                     var buffer = new object[1];
                     var ids = tombstoneBlock
-                        .Project(buffer, columnIndexes.ToImmutableArray(), rowIndexes, 0)
+                        .Project(buffer, columnIndexes.ToImmutableArray(), rowIndexes)
                         .Select(data => (long)data.Span[0]!)
                         .ToImmutableArray();
 
