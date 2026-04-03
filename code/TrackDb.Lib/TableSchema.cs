@@ -7,9 +7,7 @@ using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
-    /// <summary>
-    /// Represents the schema of a table.
-    /// </summary>
+    /// <summary>Represents the schema of a table.</summary>
     public class TableSchema
     {
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
