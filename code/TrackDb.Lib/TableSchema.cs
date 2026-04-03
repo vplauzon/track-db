@@ -7,9 +7,7 @@ using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
-    /// <summary>
-    /// Represents the schema of a table.
-    /// </summary>
+    /// <summary>Represents the schema of a table.</summary>
     public class TableSchema
     {
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
@@ -105,10 +103,6 @@ namespace TrackDb.Lib
 
         #region Extra columns
         public int RecordIdColumnIndex => Columns.Count;
-
-        public int RecordIndexColumnIndex => Columns.Count + 1;
-
-        public int ParentBlockIdColumnIndex => Columns.Count + 2;
         #endregion
 
         /// <summary>

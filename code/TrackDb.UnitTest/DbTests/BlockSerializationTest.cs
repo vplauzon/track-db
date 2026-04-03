@@ -34,8 +34,7 @@ namespace TrackDb.UnitTest.DbTests
             var records = block.Project(
                 new object?[3],
                 [0, 1, schema.RecordIdColumnIndex],
-                Enumerable.Range(0, stats.ItemCount),
-                1042)
+                Enumerable.Range(0, stats.ItemCount))
                 .Select(r => r.ToArray())
                 .ToImmutableArray();
 

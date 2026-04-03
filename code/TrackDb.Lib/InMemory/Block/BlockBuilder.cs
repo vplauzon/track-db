@@ -81,8 +81,7 @@ namespace TrackDb.Lib.InMemory.Block
                 var data = block.Project(
                     new object?[_dataColumns.Count],
                     Enumerable.Range(0, _dataColumns.Count).ToImmutableArray(),
-                    Enumerable.Range(0, block.RecordCount),
-                    0);
+                    Enumerable.Range(0, block.RecordCount));
 
                 //  Copy data
                 foreach (var row in data)

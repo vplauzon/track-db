@@ -204,8 +204,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     var deletedRecordIds = ((IBlock)blockBuilder).Project(
                         new object?[1],
                         [block.TableSchema.RecordIdColumnIndex],
-                        tombstoneRowIndexes,
-                        0)
+                        tombstoneRowIndexes)
                         .Select(r => (long)r.Span[0]!)
                         .ToHashSet();
 
@@ -483,8 +482,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 var results = metaMetaBlock.Project(
                     new object?[columnIndexes.Length],
                     columnIndexes,
-                    Enumerable.Range(0, metaMetaBlock.RecordCount),
-                    0);
+                    Enumerable.Range(0, metaMetaBlock.RecordCount));
 
                 return results;
             }

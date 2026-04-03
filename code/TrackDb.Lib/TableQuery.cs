@@ -323,8 +323,7 @@ namespace TrackDb.Lib
 
                         //  Fetch record & block ID of records matching query
                         var deletedRecordIds = WithProjection(
-                            _innerState.QueryTable.Schema.RecordIdColumnIndex,
-                            _innerState.QueryTable.Schema.ParentBlockIdColumnIndex)
+                            _innerState.QueryTable.Schema.RecordIdColumnIndex)
                         .WithSortColumns()
                         .ExecuteQuery(CreateBlockTraceList(), tx)
                         .Select(r => (long)r.Result.Span[0]!)
@@ -505,8 +504,7 @@ namespace TrackDb.Lib
                 var results = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
-                    filterOutput.RowIndexes,
-                    currentBlockId);
+                    filterOutput.RowIndexes);
                 var indexedResults = filterOutput.RowIndexes.Zip(
                     results,
                     (i, r) => new
@@ -584,8 +582,7 @@ namespace TrackDb.Lib
                 var records = block.Project(
                     buffer,
                     _innerState.ProjectionColumnIndexes,
-                    g.Select(o => o.LastBlockTrace.RowIndex),
-                    0)
+                    g.Select(o => o.LastBlockTrace.RowIndex))
                     .Select(r => r.ToArray());
                 var zipped = records.Zip(
                     g,
@@ -610,9 +607,7 @@ namespace TrackDb.Lib
             TransactionContext tx)
         {
             var projectionColumns = _innerState.SortColumns
-                .Select(s => s.ColumnIndex)
-                //  Bring record index
-                .Append(_innerState.QueryTable.Schema.RecordIndexColumnIndex);
+                .Select(s => s.ColumnIndex);
             var sortQuery = this
                 .WithProjection(projectionColumns)
                 .WithSortColumns()
@@ -622,10 +617,10 @@ namespace TrackDb.Lib
 
             foreach (var result in sortQuery.ExecuteQuery(blockTraceList, tx))
             {
-                var recordIndex = (int)result.Result.Span[result.Result.Length - 1]!;
+                var recordIndex = result.BlockTraces.Last().RowIndex;
                 var newSortedResult = new SortedResult(
                     new BlockTraceRowIndex(blockTraceList.ToArray(), recordIndex),
-                    result.Result.Slice(0, result.Result.Length - 1).ToArray());
+                    result.Result.ToArray());
 
                 if (accumulatedSortValues.Count == 0 || _innerState.TakeCount == null)
                 {   //  If no take we sort at the end
