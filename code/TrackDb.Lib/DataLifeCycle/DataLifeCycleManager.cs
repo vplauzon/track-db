@@ -210,24 +210,6 @@ namespace TrackDb.Lib.DataLifeCycle
             }
         }
 
-        private (DataManagementActivity, IImmutableList<TaskCompletionSource>) ReadAccumulatedItems()
-        {
-            var sourceList = ImmutableList<TaskCompletionSource>.Empty.ToBuilder();
-            var dataManagementActivity = DataManagementActivity.None;
-
-            while (_channel.Reader.TryRead(out var item))
-            {
-                dataManagementActivity =
-                    dataManagementActivity | item.DataManagementActivity;
-                if (item.Source != null)
-                {
-                    sourceList.Add(item.Source);
-                }
-            }
-
-            return (dataManagementActivity, sourceList.ToImmutable());
-        }
-
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
             foreach (var agent in _dataLifeCycleAgents)

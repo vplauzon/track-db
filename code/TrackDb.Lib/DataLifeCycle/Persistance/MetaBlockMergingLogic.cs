@@ -157,7 +157,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 allTombstoneBlockIndex,
                 tx))
             {
-                //  All good
+                previousBlock = null;
             }
             else
             {   //  Persist the builder completly
