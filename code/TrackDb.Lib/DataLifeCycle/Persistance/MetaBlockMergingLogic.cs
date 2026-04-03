@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
-using System.Diagnostics;
 using System.Linq;
 using TrackDb.Lib.InMemory.Block;
 
