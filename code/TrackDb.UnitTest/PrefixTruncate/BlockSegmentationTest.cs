@@ -25,7 +25,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
         {
             var block = new BlockBuilder(_schema);
 
-            block.AppendRecord([1, 1]);
+            block.AppendRecord([1, (long)1]);
 
             var segments = block.SegmentRecords(MAX_SIZE);
 
@@ -43,7 +43,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             for (var i = 1; i != ROW_COUNT; ++i)
             {
-                block.AppendRecord([i, i]);
+                block.AppendRecord([i, (long)i]);
             }
 
             var segments = block.SegmentRecords(MAX_SIZE);
