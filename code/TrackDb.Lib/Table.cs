@@ -137,16 +137,20 @@ namespace TrackDb.Lib
             ReadOnlySpan<object?> record,
             TransactionContext tx)
         {
-#if DEBUG
-            if (Schema.Columns.Count + 1 == Schema.ColumnProperties.Count)
+            if (!Schema.IsMetadata)
             {
-                throw new InvalidOperationException("Schema extra columns");
-            }
-#endif
-            var recordWithRecordId = new object?[Schema.Columns.Count + 1];
+                var recordWithRecordId = new object?[Schema.Columns.Count + 1];
 
-            record.CopyTo(recordWithRecordId.AsSpan().Slice(0, Schema.Columns.Count));
-            tx.TransactionState.UncommittedTransactionLog.AppendRecord(recordWithRecordId, Schema);
+                record.CopyTo(recordWithRecordId.AsSpan().Slice(0, Schema.Columns.Count));
+                recordWithRecordId[Schema.Columns.Count] = NewRecordId();
+                tx.TransactionState.UncommittedTransactionLog.AppendRecord(
+                    recordWithRecordId,
+                    Schema);
+            }
+            else
+            {
+                tx.TransactionState.UncommittedTransactionLog.AppendRecord(record, Schema);
+            }
         }
         #endregion
 
