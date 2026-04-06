@@ -13,7 +13,7 @@ namespace TrackDb.UnitTest.DbTests
         [Fact]
         public async Task ReadWrite()
         {
-            var schema = new TableSchema(
+            var schema = new DataTableSchema(
                 "Thingy",
                 [new ColumnSchema("Name", typeof(string)), new ColumnSchema("Id", typeof(int))],
                 Array.Empty<int>(),
@@ -22,9 +22,9 @@ namespace TrackDb.UnitTest.DbTests
             var blockBuilder = new BlockBuilder(schema);
             var buffer = new byte[5000];
 
-            blockBuilder.AppendRecord(1, ["Alice", 12]);
-            blockBuilder.AppendRecord(2, ["Bob", 42]);
-            blockBuilder.AppendRecord(3, ["Carl", 5]);
+            blockBuilder.AppendRecord(["Alice", 12, 1]);
+            blockBuilder.AppendRecord(["Bob", 42, 2]);
+            blockBuilder.AppendRecord(["Carl", 5, 3]);
 
             var stats = blockBuilder.Serialize(buffer);
             var block = ReadOnlyBlock.Load(buffer, schema);

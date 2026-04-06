@@ -12,7 +12,7 @@ namespace TrackDb.UnitTest
         [Fact]
         public void Append()
         {
-            var schema = new TableSchema(
+            var schema = new DataTableSchema(
                 "Person",
                 [
                     new ColumnSchema("Id", typeof(int)),
@@ -24,17 +24,17 @@ namespace TrackDb.UnitTest
             var block1 = new BlockBuilder(schema);
             var block2 = new BlockBuilder(schema);
             var block3 = new BlockBuilder(schema);
-            var record1 = new object?[] { 42, "Alice", DateTime.Now };
-            var record2 = new object?[] { 43, "Bob", DateTime.Now };
-            var record3 = new object?[] { 44, "Carl", DateTime.Now };
-            var record4 = new object?[] { 45, "Dan", DateTime.Now };
+            var record1 = new object?[] { 42, "Alice", DateTime.Now,1 };
+            var record2 = new object?[] { 43, "Bob", DateTime.Now,2 };
+            var record3 = new object?[] { 44, "Carl", DateTime.Now,3 };
+            var record4 = new object?[] { 45, "Dan", DateTime.Now,4 };
 
-            block1.AppendRecord(1, record1);
-            block1.AppendRecord(2, record2);
-
-            block2.AppendRecord(3, record3);
-
-            block3.AppendRecord(4, record4);
+            block1.AppendRecord(record1);
+            block1.AppendRecord(record2);
+            
+            block2.AppendRecord(record3);
+            
+            block3.AppendRecord(record4);
 
             var superBlock = BlockBuilder.MergeBlocks(block1, block2, block3);
 
@@ -70,7 +70,7 @@ namespace TrackDb.UnitTest
         [Fact]
         public void AppendBigString()
         {
-            var schema = new TableSchema(
+            var schema = new DataTableSchema(
                 "Person",
                 [
                     new ColumnSchema("Id", typeof(int)),
@@ -79,7 +79,7 @@ namespace TrackDb.UnitTest
                 [],
                 []);
             var block = new BlockBuilder(schema);
-            var record = new object?[2];
+            var record = new object?[3];
             var random = new Random();
 
             for (var i = 0; i != 100; ++i)
@@ -88,7 +88,8 @@ namespace TrackDb.UnitTest
                 record[1] = new string(Enumerable.Range(0, 300)
                     .Select(i => (char)random.Next('a', 'z'))
                     .ToArray());
-                block.AppendRecord(i, record);
+                record[2] = i;
+                block.AppendRecord(record);
             }
 
             var segments = block.SegmentRecords(4096);

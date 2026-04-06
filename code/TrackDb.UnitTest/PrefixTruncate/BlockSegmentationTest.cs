@@ -13,7 +13,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
     {
         const int MAX_SIZE = 4000;
 
-        private readonly TableSchema _schema = new(
+        private readonly DataTableSchema _schema = new(
             "MyTable",
             [new ColumnSchema("MyColumn", typeof(int))],
             Array.Empty<int>(),
@@ -25,7 +25,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
         {
             var block = new BlockBuilder(_schema);
 
-            block.AppendRecord(1, new[] { (object)1 });
+            block.AppendRecord([1, 1]);
 
             var segments = block.SegmentRecords(MAX_SIZE);
 
@@ -43,7 +43,7 @@ namespace TrackDb.UnitTest.PrefixTruncate
 
             for (var i = 1; i != ROW_COUNT; ++i)
             {
-                block.AppendRecord(i, [(object)i]);
+                block.AppendRecord([i, i]);
             }
 
             var segments = block.SegmentRecords(MAX_SIZE);
