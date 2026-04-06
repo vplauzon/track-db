@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.Data;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TrackDb.Lib.Encoding;
@@ -200,17 +199,6 @@ namespace TrackDb.Lib.InMemory.Block
 
         int IBlock.RecordCount => RecordCount;
 
-        ReadOnlySpan<long> IBlock.RecordIds
-        {
-            get
-            {
-                var recordColumn =
-                    (ITypedReadOnlyDataColumn<long>)GetDataColumn(Schema.RecordIdColumnIndex);
-
-                return recordColumn.RecordValues;
-            }
-        }
-
         FilterOutput IBlock.Filter(QueryPredicate predicate, bool provideAuditTrail)
         {
             var auditTrails = provideAuditTrail
@@ -231,7 +219,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<ReadOnlyMemory<object?>> IBlock.Project(
             Memory<object?> buffer,
-            IImmutableList<int> projectionColumnIndexes,
+            IReadOnlyList<int> projectionColumnIndexes,
             IEnumerable<int> rowIndexes)
         {
             if (projectionColumnIndexes.Count() != buffer.Length)
@@ -243,7 +231,7 @@ namespace TrackDb.Lib.InMemory.Block
             }
 
             var columns = projectionColumnIndexes
-                .Select(index => index <= Schema.RecordIdColumnIndex
+                .Select(index => index <= Schema.ColumnProperties.Count
                 ? GetDataColumn(index)
                 : throw new ArgumentOutOfRangeException(
                     nameof(projectionColumnIndexes),
@@ -262,7 +250,7 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Predicate filtering
-        private IImmutableList<int> ResolvePredicate(
+        private IReadOnlyList<int> ResolvePredicate(
             QueryPredicate predicate,
             int iteration,
             List<PredicateAuditTrail>? predicateAuditTrails)

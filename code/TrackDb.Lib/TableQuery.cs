@@ -310,49 +310,90 @@ namespace TrackDb.Lib
                 throw new UnauthorizedAccessException("Can't delete records on this table");
             }
 
-            return _innerState.QueryTable.Database.ExecuteWithinTransactionContext(
-                _innerState.Tx,
-                tx =>
-                {
-                    if (_innerState.TakeCount != 0)
+            if (_innerState.QueryTable.Schema.IsMetadata)
+            {
+                throw new NotSupportedException("Delete isn't supported with metadata tables");
+            }
+            else
+            {
+                var dataSchema = (DataTableSchema)_innerState.QueryTable.Schema;
+
+                return _innerState.QueryTable.Database.ExecuteWithinTransactionContext(
+                    _innerState.Tx,
+                    tx =>
                     {
-                        //  Get the transaction table log if it exists, otherwise get null
-                        tx.TransactionState.UncommittedTransactionLog.TransactionTableLogMap.TryGetValue(
-                            _innerState.QueryTable.Schema.TableName,
-                            out var transactionTableLog);
-
-                        //  Fetch record & block ID of records matching query
-                        var deletedRecordIds = WithProjection(
-                            _innerState.QueryTable.Schema.RecordIdColumnIndex)
-                        .WithSortColumns()
-                        .ExecuteQuery(CreateBlockTraceList(), tx)
-                        .Select(r => (long)r.Result.Span[0]!)
-                        .ToImmutableList();
-                        //  Hard delete the records that are uncommitted ONLY
-                        var hardDeletedRecordIds = transactionTableLog
-                        ?.NewDataBlock
-                        .DeleteRecordsByRecordId(deletedRecordIds)
-                        .ToHashSet();
-
-                        foreach (var recordId in deletedRecordIds)
+                        if (_innerState.TakeCount != 0)
                         {
-                            if (hardDeletedRecordIds == null
-                                || !hardDeletedRecordIds.Contains(recordId))
+                            //  Get the transaction table log if it exists, otherwise get null
+                            tx.TransactionState.UncommittedTransactionLog.TransactionTableLogMap.TryGetValue(
+                                _innerState.QueryTable.Schema.TableName,
+                                out var transactionTableLog);
+
+                            //  Fetch record IDs of records matching query
+                            var deletedRecordIds = WithProjection(dataSchema.RecordIdColumnIndex)
+                            .WithSortColumns()
+                            .ExecuteQuery(CreateBlockTraceList(), tx)
+                            .Select(r => (long)r.Result.Span[0]!)
+                            .ToArray();
+                            //  Hard delete the records that are uncommitted ONLY
+                            var remainingDeletedRecordIds = HardDeleteWithinTransaction(
+                                transactionTableLog?.NewDataBlock,
+                                deletedRecordIds);
+
+                            foreach (var recordId in remainingDeletedRecordIds)
                             {
                                 _innerState.QueryTable.Database.DeleteRecord(
                                     recordId,
                                     _innerState.QueryTable.Schema.TableName,
                                     tx);
                             }
-                        }
 
-                        return deletedRecordIds.Count;
-                    }
-                    else
-                    {
-                        return 0;
-                    }
-                });
+                            return deletedRecordIds.Length;
+                        }
+                        else
+                        {
+                            return 0;
+                        }
+                    });
+            }
+        }
+
+        private IEnumerable<long> HardDeleteWithinTransaction(
+            BlockBuilder? newDataBlock,
+            IReadOnlyList<long> recordIds)
+        {
+            if (newDataBlock == null)
+            {
+                return recordIds;
+            }
+            else
+            {
+                IBlock block = newDataBlock;
+                var schema = (DataTableSchema)block.TableSchema;
+                var predicate = new InPredicate<long>(
+                    schema.RecordIdColumnIndex,
+                    recordIds,
+                    false);
+                var rowIndexes = block.Filter(predicate, false).RowIndexes;
+
+                if (rowIndexes.Count > 0)
+                {
+                    var hardDeletedRecordIds = block.Project(
+                        new object?[1],
+                        [schema.RecordIdColumnIndex],
+                        rowIndexes)
+                        .Select(r => (long)r.Span[0]!);
+                    var remainingRecordIds = predicate.Values.Except(hardDeletedRecordIds);
+
+                    newDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
+
+                    return remainingRecordIds;
+                }
+                else
+                {
+                    return recordIds;
+                }
+            }
         }
 
         #region Query Logic
@@ -388,7 +429,7 @@ namespace TrackDb.Lib
             {
                 var unpersistedBlocks = ListUnpersistedBlocks(blockTraceList, tx);
                 var persistedBlocks = ListPersistedBlocks(blockTraceList, tx);
-                
+
                 return unpersistedBlocks.Concat(persistedBlocks);
             }
         }
@@ -480,7 +521,8 @@ namespace TrackDb.Lib
         {
             var takeCount = _innerState.TakeCount ?? int.MaxValue;
             var schema = _innerState.QueryTable.Schema;
-            var isTableMeta = schema is MetadataTableSchema;
+            var dataSchema = schema as DataTableSchema;
+            var isTableMeta = dataSchema == null;
             var isTableTombstone =
                 schema.TableName == _innerState.QueryTable.Database.TombstoneTable.Schema.TableName;
             var predicate = _innerState.IgnoreDeleted || isTableMeta || isTableTombstone
@@ -489,7 +531,7 @@ namespace TrackDb.Lib
                 : new ConjunctionPredicate(
                     _innerState.Predicate,
                     new InPredicate<long>(
-                        schema.RecordIdColumnIndex,
+                        dataSchema!.RecordIdColumnIndex,
                         _innerState.QueryTable.Database.GetDeletedRecordIds(schema.TableName, tx),
                         false));
             var buffer = new object?[_innerState.ProjectionColumnIndexes.Count].AsMemory();

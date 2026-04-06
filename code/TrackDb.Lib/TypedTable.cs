@@ -22,11 +22,11 @@ namespace TrackDb.Lib
         public new TypedTableSchema<T> Schema => (TypedTableSchema<T>)base.Schema;
 
         #region Append
-        public void AppendRecord(T record, TransactionContext? transactionContext = null)
+        public void AppendRecord(T record, TransactionContext? tx = null)
         {
             var columns = Schema.FromObjectToColumns(record);
 
-            AppendRecord(columns, transactionContext);
+            AppendRecord(columns, tx);
         }
 
         public void AppendRecords(

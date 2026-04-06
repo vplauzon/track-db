@@ -29,21 +29,29 @@ namespace TrackDb.Lib
         public IEnumerable<ReadOnlyMemory<object?>> TombstonedWithinTransaction(
             TransactionContext tx)
         {
-            var tombstoneRecordIds = Database.TombstoneTable.Query(tx)
-                .WithinTransactionOnly()
-                .Where(pf => pf.Equal(t => t.TableName, Schema.TableName))
-                .TableQuery
-                .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
-                    t => t.DeletedRecordId))
-                .Select(r => (long)r.Span[0]!);
-            var tombstonedRecords = Query(tx)
-                .WithIgnoreDeleted()
-                .WithPredicate(new InPredicate<long>(
-                    Schema.RecordIdColumnIndex,
-                    tombstoneRecordIds,
-                    true));
+            if (Schema.IsMetadata)
+            {
+                return Array.Empty<ReadOnlyMemory<object?>>();
+            }
+            else
+            {
+                var dataSchema = (DataTableSchema)Schema;
+                var tombstoneRecordIds = Database.TombstoneTable.Query(tx)
+                    .WithinTransactionOnly()
+                    .Where(pf => pf.Equal(t => t.TableName, Schema.TableName))
+                    .TableQuery
+                    .WithProjection(Database.TombstoneTable.Schema.GetColumnIndexSubset(
+                        t => t.DeletedRecordId))
+                    .Select(r => (long)r.Span[0]!);
+                var tombstonedRecords = Query(tx)
+                    .WithIgnoreDeleted()
+                    .WithPredicate(new InPredicate<long>(
+                        dataSchema.RecordIdColumnIndex,
+                        tombstoneRecordIds,
+                        true));
 
-            return tombstonedRecords;
+                return tombstonedRecords;
+            }
         }
 
         internal void InitRecordId(long maxRecordId)
@@ -70,6 +78,18 @@ namespace TrackDb.Lib
         #region Append
         public void AppendRecord(ReadOnlySpan<object?> record, TransactionContext? tx = null)
         {
+#if DEBUG
+            if (Schema.IsMetadata)
+            {
+                throw new NotSupportedException("Metadata table");
+            }
+#endif
+            if (record.Length != Schema.Columns.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
+                    nameof(record));
+            }
             //  Database.ExecuteWithinTransactionContext doesn't work with ReadOnlySpan<object?>
             if (tx != null)
             {
@@ -90,13 +110,25 @@ namespace TrackDb.Lib
             IEnumerable<ReadOnlySpan<object?>> records,
             TransactionContext? tx = null)
         {
+#if DEBUG
+            if (Schema.IsMetadata)
+            {
+                throw new NotSupportedException("Metadata table");
+            }
+#endif
             Database.ExecuteWithinTransactionContext(
                 tx,
                 tc =>
                 {
                     foreach (var record in records)
                     {
-                        AppendRecord(record, tc);
+                        if (record.Length != Schema.Columns.Count)
+                        {
+                            throw new ArgumentOutOfRangeException(
+                                $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
+                                nameof(record));
+                        }
+                        AppendRecordInternal(record, tc);
                     }
                 });
         }
@@ -105,16 +137,16 @@ namespace TrackDb.Lib
             ReadOnlySpan<object?> record,
             TransactionContext tx)
         {
-            if (record.Length != Schema.Columns.Count)
+#if DEBUG
+            if (Schema.Columns.Count + 1 == Schema.ColumnProperties.Count)
             {
-                throw new ArgumentOutOfRangeException(
-                    $"Expected '{Schema.Columns.Count}' but has '{record.Length}'",
-                    nameof(record));
+                throw new InvalidOperationException("Schema extra columns");
             }
-            tx.TransactionState.UncommittedTransactionLog.AppendRecord(
-                NewRecordId(),
-                record,
-                Schema);
+#endif
+            var recordWithRecordId = new object?[Schema.Columns.Count + 1];
+
+            record.CopyTo(recordWithRecordId.AsSpan().Slice(0, Schema.Columns.Count));
+            tx.TransactionState.UncommittedTransactionLog.AppendRecord(recordWithRecordId, Schema);
         }
         #endregion
 

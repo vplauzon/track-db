@@ -12,7 +12,7 @@ using TrackDb.Lib.InMemory.Block;
 namespace TrackDb.Lib
 {
     /// <summary>Schema of a table including data mapping to a .NET type.</summary>
-    public class TypedTableSchema<T> : TableSchema
+    public class TypedTableSchema<T> : DataTableSchema
     {
         #region Inner Types
         private record ConstructorMapping(

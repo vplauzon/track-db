@@ -8,7 +8,8 @@ using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib
 {
-    internal class MetadataTableSchema : TableSchema
+    /// <summary>Represents a table holding metadata.</summary>
+    internal sealed class MetadataTableSchema : TableSchema
     {
         private const string ITEM_COUNT = "$itemCount";
         private const string SIZE = "$size";
@@ -39,8 +40,8 @@ namespace TrackDb.Lib
             var tableName = $"$meta-{parentSchema.TableName}";
             var inheritedMetaDataColumns = parentSchema.ColumnProperties
                 .Where(c => c.ColumnSchema.IsIndexed)
-                .Select(c => CreateMetaColumn(c));
-            var newDataColumns = new ColumnSchemaProperties[]
+                .SelectMany(c => CreateMetaColumn(c));
+            var extraColumns = new ColumnSchemaProperties[]
             {
                 ColumnSchemaProperties.CreateGenerationZero(
                     new ColumnSchema(ITEM_COUNT, typeof(int), false)),
@@ -49,52 +50,55 @@ namespace TrackDb.Lib
                 ColumnSchemaProperties.CreateGenerationZero(
                     new ColumnSchema($"{BLOCK_ID}-{tableName}", typeof(int), true))
             };
-            var metaDataColumns = inheritedMetaDataColumns
-                .Append(newDataColumns)
-                .SelectMany(c => c);
 
             return new(
                 parentSchema,
                 tableName,
-                metaDataColumns);
+                inheritedMetaDataColumns,
+                extraColumns);
         }
 
         private MetadataTableSchema(
             TableSchema parentSchema,
             string tableName,
-            IEnumerable<ColumnSchemaProperties> columnProperties)
+            IEnumerable<ColumnSchemaProperties> columnProperties,
+            IEnumerable<ColumnSchemaProperties> extraColumnProperties)
             : base(
                   tableName,
                   columnProperties,
+                  extraColumnProperties,
                   ImmutableArray<int>.Empty,
                   ImmutableArray<int>.Empty,
-                  ImmutableArray<TableTriggerAction>.Empty,
-                  false)
+                  ImmutableArray<TableTriggerAction>.Empty)
         {
             ParentSchema = parentSchema;
             RecordIdMinColumnIndex = ColumnProperties
                 .Index()
                 .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Min)
-                .Where(c => c.Item.AncestorZeroColumnName == RECORD_ID)
+                .Where(c => c.Item.AncestorZeroColumnName == DataTableSchema.RECORD_ID)
                 .Select(c => c.Index)
                 .First();
             RecordIdMaxColumnIndex = ColumnProperties
                 .Index()
                 .Where(c => c.Item.ColumnSchemaStat == ColumnSchemaStat.Max)
-                .Where(c => c.Item.AncestorZeroColumnName == RECORD_ID)
+                .Where(c => c.Item.AncestorZeroColumnName == DataTableSchema.RECORD_ID)
                 .Select(c => c.Index)
                 .First();
+
+            ItemCountColumnIndex = ColumnProperties.Count - 3;
+            SizeColumnIndex = ColumnProperties.Count - 2;
+            BlockIdColumnIndex = ColumnProperties.Count - 1;
         }
         #endregion
 
         public TableSchema ParentSchema { get; }
 
         #region Metadata Columns
-        public int ItemCountColumnIndex => Columns.Count - 3;
+        public int ItemCountColumnIndex { get; }
 
-        public int SizeColumnIndex => Columns.Count - 2;
+        public int SizeColumnIndex { get; }
 
-        public int BlockIdColumnIndex => Columns.Count - 1;
+        public int BlockIdColumnIndex { get; }
         #endregion
 
         #region Stats Column
@@ -102,6 +106,8 @@ namespace TrackDb.Lib
 
         public int RecordIdMaxColumnIndex { get; }
         #endregion
+
+        internal override bool IsMetadata => true;
 
         /// <summary>
         /// Create a metadata record from statistics about records from the parent schema.

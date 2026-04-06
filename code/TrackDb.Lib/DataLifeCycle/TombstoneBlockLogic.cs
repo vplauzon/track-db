@@ -59,14 +59,21 @@ namespace TrackDb.Lib.DataLifeCycle
             TransactionContext tx)
         {
             var table = Database.GetAnyTable(tableName);
+#if DEBUG
+            if(table.Schema.IsMetadata)
+            {
+                throw new NotSupportedException("Metadata tables don't have tombstones");
+            }
+#endif
+            var dataSchema = (DataTableSchema)table.Schema;
             var predicate = new InPredicate<long>(
-                table.Schema.RecordIdColumnIndex,
+                dataSchema.RecordIdColumnIndex,
                 deletedRecordIds,
                 true);
             var blockTraceResults = table.Query(tx)
                 .WithIgnoreDeleted()
                 .WithPredicate(predicate)
-                .WithProjection(table.Schema.RecordIdColumnIndex)
+                .WithProjection(dataSchema.RecordIdColumnIndex)
                 .ExecuteQueryWithBlockTrace();
             var tombstoneBlockMap = new Dictionary<int, TombstoneBlock>();
             var foundRecordIdSet = new HashSet<long>();
