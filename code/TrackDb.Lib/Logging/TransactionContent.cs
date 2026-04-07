@@ -137,20 +137,18 @@ namespace TrackDb.Lib.Logging
         {
             IBlock block = blockBuilder;
             var schema = (DataTableSchema)block.TableSchema;
-            var columnContentMap = ImmutableDictionary<string, List<JsonElement>>.Empty;
             var newRecordIds = block.Project(
                 new object?[1],
                 [schema.RecordIdColumnIndex],
                 Enumerable.Range(0, block.RecordCount))
                 .Select(r => (long)r.Span[0]!)
                 .ToImmutableArray();
-
-            for (var columnIndex = 0; columnIndex != schema.Columns.Count; ++columnIndex)
-            {
-                columnContentMap.Add(
-                    schema.Columns[columnIndex].ColumnName,
-                    blockBuilder.GetLogValues(columnIndex).ToList());
-            }
+            var columnContentMap = schema.Columns
+                .Index()
+                .Select(p => KeyValuePair.Create(
+                    p.Item.ColumnName,
+                    blockBuilder.GetLogValues(p.Index).ToList()))
+                .ToImmutableDictionary();
 
             return new NewRecordsContent(newRecordIds, columnContentMap);
         }
