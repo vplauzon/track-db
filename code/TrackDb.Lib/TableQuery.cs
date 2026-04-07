@@ -383,7 +383,9 @@ namespace TrackDb.Lib
                         [schema.RecordIdColumnIndex],
                         rowIndexes)
                         .Select(r => (long)r.Span[0]!);
-                    var remainingRecordIds = predicate.Values.Except(hardDeletedRecordIds);
+                    var remainingRecordIds = predicate.Values
+                        .Except(hardDeletedRecordIds)
+                        .ToArray();
 
                     newDataBlock.DeleteRecordsByRecordIndex(rowIndexes);
 

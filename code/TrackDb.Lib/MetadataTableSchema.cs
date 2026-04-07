@@ -224,10 +224,10 @@ namespace TrackDb.Lib
             var record = statsWithExtraColumns.ToArray();
 
             #region DEBUG
-            if (record.Length != Columns.Count)
+            if (record.Length != ColumnProperties.Count)
             {
                 throw new InvalidOperationException(
-                    $"Meta schema should be {Columns.Count} but is {record.Length} columns");
+                    $"Meta schema should be {ColumnProperties.Count} but is {record.Length} columns");
             }
             #endregion
 

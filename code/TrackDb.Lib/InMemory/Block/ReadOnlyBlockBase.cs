@@ -237,9 +237,14 @@ namespace TrackDb.Lib.InMemory.Block
                     nameof(projectionColumnIndexes),
                     $"Column '{index}' is out-of-range"))
                 .ToArray();
+            var recordCount = RecordCount;
 
             foreach (var rowIndex in rowIndexes)
             {
+                if(rowIndex < 0 || rowIndex >= recordCount)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(rowIndexes));
+                }
                 for (var i = 0; i != columns.Length; ++i)
                 {
                     buffer.Span[i] = columns[i].GetValue(rowIndex);
