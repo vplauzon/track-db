@@ -148,9 +148,10 @@ namespace TrackDb.Lib
 
             if (recordIdPredicate.Values.Count > 0)
             {
-                IBlock committedDataBlock = TransactionState.UncommittedTransactionLog
+                var committedDataBlockBuilder = TransactionState.UncommittedTransactionLog
                     .TransactionTableLogMap[tableName]
                     .CommittedDataBlock!;
+                IBlock committedDataBlock = committedDataBlockBuilder;
                 //  Hard delete in-memory records in the table
                 var rowIndexes = committedDataBlock.Filter(recordIdPredicate, false).RowIndexes;
 
@@ -160,6 +161,7 @@ namespace TrackDb.Lib
                         .Project(new object?[1], [schema.RecordIdColumnIndex], rowIndexes)
                         .Select(r => (long)r.Span[0]!);
 
+                    committedDataBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
                     _database.DeleteTombstoneRecords(tableName, hardDeletedRecordIds, this);
                 }
             }
