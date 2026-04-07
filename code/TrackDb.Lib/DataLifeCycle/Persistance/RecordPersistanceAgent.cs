@@ -47,8 +47,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 throw new InvalidOperationException("CommittedDataBlock shouldn't be null");
             }
 
-            committedDataBlock.OrderByRecordId();
-
             IBlock tableBlock = committedDataBlock;
             var metadataTableName = tableBlock.TableSchema.TableName;
             var metadataTable = Database.GetMetaDataTable(metadataTableName);

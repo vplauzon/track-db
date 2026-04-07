@@ -327,8 +327,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             if (((IBlock)blockBuilder).RecordCount > 0)
             {
-                blockBuilder.OrderByRecordId();
-
                 var sizes = blockBuilder.SegmentRecords(_maxBlockSize);
 
                 if (persistAll || sizes.Count > 1)

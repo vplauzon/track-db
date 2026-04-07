@@ -94,36 +94,6 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        public void OrderByRecordId()
-        {
-            IBlock block = this;
-
-            if (block.RecordCount > 1)
-            {
-                var recordIdColumn = _dataColumns.Last();
-                var recordIds = Enumerable.Range(0, block.RecordCount)
-                    .Select(i => ((long?)recordIdColumn.GetValue(i))!.Value)
-                    .ToImmutableArray();
-                var isSorted = recordIds
-                    .Zip(recordIds.Skip(1), (a, b) => a <= b)
-                    .All(x => x);
-
-                if (!isSorted)
-                {
-                    var orderIndexes = recordIds
-                        .Zip(Enumerable.Range(0, recordIds.Length))
-                        .OrderBy(p => p.First)
-                        .Select(p => p.Second)
-                        .ToImmutableArray();
-
-                    foreach (var column in _dataColumns)
-                    {
-                        column.Reorder(orderIndexes);
-                    }
-                }
-            }
-        }
-
         public void AppendRecord(ReadOnlySpan<object?> record)
         {
             if (record.Length != Schema.ColumnProperties.Count)
