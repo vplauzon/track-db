@@ -366,8 +366,7 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 IBlock block = this;
                 var columnNames = block.TableSchema.ColumnProperties
-                    .Select(c => c.ColumnSchema.ColumnName)
-                    .Append("$meta-blockId");
+                    .Select(c => c.ColumnSchema.ColumnName);
                 var projection = block.Project(
                     new object?[block.TableSchema.ColumnProperties.Count],
                     Enumerable.Range(0, block.TableSchema.ColumnProperties.Count)

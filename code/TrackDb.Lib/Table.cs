@@ -78,12 +78,6 @@ namespace TrackDb.Lib
         #region Append
         public void AppendRecord(ReadOnlySpan<object?> record, TransactionContext? tx = null)
         {
-#if DEBUG
-            if (Schema.IsMetadata)
-            {
-                throw new NotSupportedException("Metadata table");
-            }
-#endif
             if (record.Length != Schema.Columns.Count)
             {
                 throw new ArgumentOutOfRangeException(
@@ -110,12 +104,6 @@ namespace TrackDb.Lib
             IEnumerable<ReadOnlySpan<object?>> records,
             TransactionContext? tx = null)
         {
-#if DEBUG
-            if (Schema.IsMetadata)
-            {
-                throw new NotSupportedException("Metadata table");
-            }
-#endif
             Database.ExecuteWithinTransactionContext(
                 tx,
                 tc =>

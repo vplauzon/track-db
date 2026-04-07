@@ -54,8 +54,9 @@ namespace TrackDb.Lib
             return new(
                 parentSchema,
                 tableName,
-                inheritedMetaDataColumns,
-                extraColumns);
+                inheritedMetaDataColumns
+                .Concat(extraColumns),
+                Array.Empty<ColumnSchemaProperties>());
         }
 
         private MetadataTableSchema(
