@@ -326,7 +326,7 @@ namespace TrackDb.Lib.InMemory.Block
         {
             var materializedDataColumns = dataColumns.ToArray();
 
-            if (materializedDataColumns.Length != _dataColumns.Count)
+            if (materializedDataColumns.Length != Schema.ColumnProperties.Count)
             {
                 throw new ArgumentOutOfRangeException(nameof(dataColumns));
             }
@@ -341,7 +341,7 @@ namespace TrackDb.Lib.InMemory.Block
                     nameof(dataColumns),
                     "Not all columns has same element count");
             }
-            for (var i = 0; i != Schema.Columns.Count; ++i)
+            for (var i = 0; i != Schema.ColumnProperties.Count; ++i)
             {
                 _dataColumns[i].AppendLogValues(materializedDataColumns[i]);
             }
