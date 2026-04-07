@@ -159,7 +159,8 @@ namespace TrackDb.Lib
                 {
                     var hardDeletedRecordIds = committedDataBlock
                         .Project(new object?[1], [schema.RecordIdColumnIndex], rowIndexes)
-                        .Select(r => (long)r.Span[0]!);
+                        .Select(r => (long)r.Span[0]!)
+                        .ToArray();
 
                     committedDataBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
                     _database.DeleteTombstoneRecords(tableName, hardDeletedRecordIds, this);
