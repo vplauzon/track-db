@@ -669,20 +669,22 @@ namespace TrackDb.Lib
                     false))
                 {
                     var tombstoneRecordsByTable = TombstoneTable.Query(tx)
-                        .GroupBy(t => t.TableName);
+                        .GroupBy(t => t.TableName)
+                        .Where(g => !GetAnyTable(g.Key).Schema.IsMetadata);
 
                     foreach (var g in tombstoneRecordsByTable)
                     {
                         var tableName = g.Key;
                         var table = GetAnyTable(tableName);
+                        var dataSchema = (DataTableSchema)table.Schema;
                         var predicate = new InPredicate<long>(
-                            table.Schema.RecordIdColumnIndex,
+                            dataSchema.RecordIdColumnIndex,
                             g.Select(t => t.DeletedRecordId).Cast<long>(),
                             true);
                         var foundRecordIds = table.Query(tx)
                             .WithIgnoreDeleted()
                             .WithPredicate(predicate)
-                            .WithProjection(table.Schema.RecordIdColumnIndex)
+                            .WithProjection(dataSchema.RecordIdColumnIndex)
                             .Select(r => (long)r.Span[0]!);
                         var phantomRecordIds = g.Select(t => t.DeletedRecordId).Except(foundRecordIds);
                         var phantomRecordCount = phantomRecordIds.Count();
@@ -1016,10 +1018,8 @@ namespace TrackDb.Lib
                         for (var i = 0; i != recordsPerTransaction && recordEnumerator.MoveNext(); ++i)
                         {
                             var record = recordEnumerator.Current;
-                            var recordId = (long)record.Span[table.Schema.RecordIdColumnIndex]!;
-                            var trimmedRecord = record.Span.Slice(0, table.Schema.Columns.Count);
 
-                            txLog.AppendRecord(recordId, trimmedRecord, table.Schema);
+                            txLog.AppendRecord(record.Span, table.Schema);
                             ++recordCount;
                         }
                         yield return txLog;

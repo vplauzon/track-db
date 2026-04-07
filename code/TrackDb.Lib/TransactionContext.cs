@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib
 {
@@ -118,7 +119,11 @@ namespace TrackDb.Lib
 
             if (TransactionState.LoadCommittedBlocksInTransaction(tableName))
             {
-                HardDeleteCommittedRecords(tableName);
+                if (!schema.IsMetadata
+                    && tableName != _database.TombstoneTable.Schema.TableName)
+                {
+                    HardDeleteCommittedRecords(tableName, (DataTableSchema)schema);
+                }
 
                 return true;
             }
@@ -128,32 +133,37 @@ namespace TrackDb.Lib
             }
         }
 
-        private void HardDeleteCommittedRecords(string tableName)
-        {
-            if (tableName != _database.TombstoneTable.Schema.TableName)
-            {   //  We hard delete only out-of-transaction tombstones
-                var deletedRecordIds = _database.TombstoneTable.Query(this)
-                    .WithCommittedOnly()
-                    .Where(pf => pf.Equal(t => t.TableName, tableName))
-                    .Select(t => t.DeletedRecordId)
-                    .ToImmutableArray();
+        private void HardDeleteCommittedRecords(string tableName, DataTableSchema schema)
+        {   //  We hard delete only out-of-transaction tombstones
+            var deletedRecordIdColumnSet =
+                _database.TombstoneTable.Schema.GetColumnIndexSubset(t => t.DeletedRecordId);
+            var deletedRecordIds = _database.TombstoneTable.Query(this)
+                .WithCommittedOnly()
+                .Where(pf => pf.Equal(t => t.TableName, tableName))
+                .TableQuery
+                .WithProjection(deletedRecordIdColumnSet)
+                .Select(t => (long)t.Span[0]!);
+            var recordIdPredicate =
+                new InPredicate<long>(schema.RecordIdColumnIndex, deletedRecordIds, true);
 
-                if (deletedRecordIds.Any())
+            if (recordIdPredicate.Values.Count > 0)
+            {
+                var committedDataBlockBuilder = TransactionState.UncommittedTransactionLog
+                    .TransactionTableLogMap[tableName]
+                    .CommittedDataBlock!;
+                IBlock committedDataBlock = committedDataBlockBuilder;
+                //  Hard delete in-memory records in the table
+                var rowIndexes = committedDataBlock.Filter(recordIdPredicate, false).RowIndexes;
+
+                if (rowIndexes.Count > 0)
                 {
-                    var committedDataBlock = TransactionState.UncommittedTransactionLog
-                        .TransactionTableLogMap[tableName]
-                        .CommittedDataBlock!;
-                    //  Hard delete in-memory records in the table
-                    var hardDeletedRecordIds = committedDataBlock.DeleteRecordsByRecordId(
-                        deletedRecordIds);
+                    var hardDeletedRecordIds = committedDataBlock
+                        .Project(new object?[1], [schema.RecordIdColumnIndex], rowIndexes)
+                        .Select(r => (long)r.Span[0]!)
+                        .ToArray();
 
-                    if (hardDeletedRecordIds.Any())
-                    {
-                        _database.DeleteTombstoneRecords(
-                            tableName,
-                            hardDeletedRecordIds,
-                            this);
-                    }
+                    committedDataBlockBuilder.DeleteRecordsByRecordIndex(rowIndexes);
+                    _database.DeleteTombstoneRecords(tableName, hardDeletedRecordIds, this);
                 }
             }
         }

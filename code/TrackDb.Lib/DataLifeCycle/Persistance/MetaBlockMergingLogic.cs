@@ -186,7 +186,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             var schema = ((IBlock)blockBuilder).TableSchema;
 
-            if (allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb))
+            if (!schema.IsMetadata
+                && allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb))
             {   //  Some tombstones
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
@@ -201,9 +202,10 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
                     blockBuilder.AppendBlock(block);
 #if DEBUG
+                    var dataSchema = (DataTableSchema)schema;
                     var deletedRecordIds = ((IBlock)blockBuilder).Project(
                         new object?[1],
-                        [block.TableSchema.RecordIdColumnIndex],
+                        [dataSchema.RecordIdColumnIndex],
                         tombstoneRowIndexes)
                         .Select(r => (long)r.Span[0]!)
                         .ToHashSet();
@@ -325,8 +327,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             if (((IBlock)blockBuilder).RecordCount > 0)
             {
-                blockBuilder.OrderByRecordId();
-
                 var sizes = blockBuilder.SegmentRecords(_maxBlockSize);
 
                 if (persistAll || sizes.Count > 1)
@@ -386,17 +386,11 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 var blockBuilder = oldMetaBlockId == null
                     ? GetCleanMetaBlockBuilder(schema, tx)
                     : new BlockBuilder(schema, processedBlocks.Count);
-                var table = Database.GetAnyTable(schema.TableName);
-                var recordIds = table.NewRecordIds(processedBlocks.Count);
-                var pairs = processedBlocks
-                    .Select(b => b.MetadataRecord)
-                    .Zip(recordIds, (r, id) => new { Record = r, RecordId = id });
 
-                foreach (var pair in pairs)
+                foreach (var record in processedBlocks.Select(b => b.MetadataRecord))
                 {
-                    blockBuilder.AppendRecord(pair.RecordId, pair.Record.Span);
+                    blockBuilder.AppendRecord(record.Span);
                 }
-
                 if (oldMetaBlockId != null)
                 {   //  If non-null meta block ID, we persist into a new block
                     var metaTable = Database.GetMetaDataTable(schema.TableName);

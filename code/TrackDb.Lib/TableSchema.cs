@@ -8,38 +8,27 @@ using TrackDb.Lib.InMemory.Block;
 namespace TrackDb.Lib
 {
     /// <summary>Represents the schema of a table.</summary>
-    public class TableSchema
+    public abstract class TableSchema
     {
         private readonly IImmutableDictionary<string, int> _columnNameToColumnIndexMap;
-
-        internal protected const string RECORD_ID = "$recordId";
-
-        public TableSchema(
-            string tableName,
-            IEnumerable<ColumnSchema> columns,
-            IEnumerable<int> primaryKeyColumnIndexes,
-            IEnumerable<int> partitionKeyColumnIndexes,
-            IEnumerable<TableTriggerAction> triggerActions)
-            : this(
-                  tableName,
-                  columns.Select(c => ColumnSchemaProperties.CreateGenerationZero(c)),
-                  primaryKeyColumnIndexes.ToImmutableArray(),
-                  partitionKeyColumnIndexes.ToImmutableArray(),
-                  triggerActions,
-                  true)
-        {
-        }
 
         internal TableSchema(
             string tableName,
             IEnumerable<ColumnSchemaProperties> columnProperties,
+            IEnumerable<ColumnSchemaProperties> extraColumnProperties,
             IEnumerable<int> primaryKeyColumnIndexes,
             IEnumerable<int> partitionKeyColumnIndexes,
-            IEnumerable<TableTriggerAction> triggerActions,
-            bool isRecordIdIndexed)
+            IEnumerable<TableTriggerAction> triggerActions)
         {
+            var columns = columnProperties
+                .Select(c => c.ColumnSchema)
+                .ToImmutableArray();
+            var allColumnProperties = columnProperties
+                .Concat(extraColumnProperties)
+                .ToImmutableArray();
+
             //  Validate column types
-            var unsupportedColumns = columnProperties
+            var unsupportedColumns = allColumnProperties
                 .Select(c => c.ColumnSchema)
                 .Where(c => !ReadOnlyBlockBase.IsSupportedDataColumnType(c.ColumnType));
 
@@ -53,7 +42,7 @@ namespace TrackDb.Lib
             }
 
             //  Validate column name duplicates
-            var firstDuplicatedColumnName = columnProperties
+            var firstDuplicatedColumnName = allColumnProperties
                 .Select(c => c.ColumnSchema)
                 .GroupBy(c => c.ColumnName)
                 .Where(g => g.Count() > 1)
@@ -69,7 +58,7 @@ namespace TrackDb.Lib
 
             //  Validate Partition key column indexes
             var outOfRangePartitionKeyColumnIndexes = partitionKeyColumnIndexes
-                .Where(i => i < 0 || i >= columnProperties.Count());
+                .Where(i => i < 0 || i >= columns.Length);
 
             if (outOfRangePartitionKeyColumnIndexes.Any())
             {
@@ -82,11 +71,8 @@ namespace TrackDb.Lib
             }
 
             TableName = tableName;
-            Columns = columnProperties.Select(c => c.ColumnSchema).ToImmutableList();
-            ColumnProperties = columnProperties
-                .Append(ColumnSchemaProperties.CreateGenerationZero(
-                    new(RECORD_ID, typeof(long), isRecordIdIndexed)))
-                .ToImmutableArray();
+            Columns = columns;
+            ColumnProperties = allColumnProperties;
             PrimaryKeyColumnIndexes = primaryKeyColumnIndexes.ToImmutableArray();
             PartitionKeyColumnIndexes = partitionKeyColumnIndexes.ToImmutableArray();
             TriggerActions = triggerActions.ToImmutableArray();
@@ -101,9 +87,7 @@ namespace TrackDb.Lib
 
         internal IImmutableList<ColumnSchemaProperties> ColumnProperties { get; }
 
-        #region Extra columns
-        public int RecordIdColumnIndex => Columns.Count;
-        #endregion
+        internal abstract bool IsMetadata { get; }
 
         /// <summary>
         /// Primary keys are used in
@@ -113,20 +97,21 @@ namespace TrackDb.Lib
         public IImmutableList<int> PrimaryKeyColumnIndexes { get; }
 
         public IImmutableList<int> PartitionKeyColumnIndexes { get; }
-        
+
         public IImmutableList<TableTriggerAction> TriggerActions { get; }
 
         public int FindColumnIndex(string columnName)
         {
-            var index = Columns
-                .Index()
-                .Where(b => b.Item.ColumnName == columnName)
-                .Select(b => (int?)b.Index)
-                .FirstOrDefault();
-
-            return index ?? throw new ArgumentOutOfRangeException(
-                nameof(columnName),
-                $"Column '{columnName}' not found");
+            if (TryGetColumnIndex(columnName, out int columnIndex))
+            {
+                return columnIndex;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(columnName),
+                    $"Column '{columnName}' not found");
+            }
         }
 
         public override string ToString()

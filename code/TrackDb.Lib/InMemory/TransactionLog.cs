@@ -46,12 +46,12 @@ namespace TrackDb.Lib.InMemory
             }
         }
 
-        public void AppendRecord(long recordId, ReadOnlySpan<object?> record, TableSchema schema)
+        public void AppendRecord(ReadOnlySpan<object?> record, TableSchema schema)
         {
             EnsureTable(schema);
             TransactionTableLogMap[schema.TableName]
                 .NewDataBlock
-                .AppendRecord(recordId, record);
+                .AppendRecord(record);
         }
 
         public void UpdateLastRecordIdMap(IDictionary<string, long> tableToLastRecordIdMap)
@@ -60,20 +60,27 @@ namespace TrackDb.Lib.InMemory
             {
                 var tableName = p.Key;
                 var tableLog = p.Value;
-                var maxRecordId = tableLog.NewDataBlock.MaxRecordId();
+                IBlock block = tableLog.NewDataBlock;
+                var schema = (DataTableSchema)block.TableSchema;
 
-                if (maxRecordId != null)
+                if (block.RecordCount > 0)
                 {
+                    var maxRecordId = block.Project(
+                        new object?[1],
+                        [schema.RecordIdColumnIndex],
+                        Enumerable.Range(0, block.RecordCount))
+                        .Max(r => (long)r.Span[0]!);
+
                     if (tableToLastRecordIdMap.ContainsKey(tableName))
                     {
                         if (tableToLastRecordIdMap[tableName] < maxRecordId)
                         {
-                            tableToLastRecordIdMap[tableName] = maxRecordId.Value;
+                            tableToLastRecordIdMap[tableName] = maxRecordId;
                         }
                     }
                     else
                     {
-                        tableToLastRecordIdMap[tableName] = maxRecordId.Value;
+                        tableToLastRecordIdMap[tableName] = maxRecordId;
                     }
                 }
             }

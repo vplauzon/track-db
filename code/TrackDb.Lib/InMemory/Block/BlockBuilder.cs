@@ -94,39 +94,9 @@ namespace TrackDb.Lib.InMemory.Block
             }
         }
 
-        public void OrderByRecordId()
+        public void AppendRecord(ReadOnlySpan<object?> record)
         {
-            IBlock block = this;
-
-            if (block.RecordCount > 1)
-            {
-                var recordIdColumn = _dataColumns.Last();
-                var recordIds = Enumerable.Range(0, block.RecordCount)
-                    .Select(i => ((long?)recordIdColumn.GetValue(i))!.Value)
-                    .ToImmutableArray();
-                var isSorted = recordIds
-                    .Zip(recordIds.Skip(1), (a, b) => a <= b)
-                    .All(x => x);
-
-                if (!isSorted)
-                {
-                    var orderIndexes = recordIds
-                        .Zip(Enumerable.Range(0, recordIds.Length))
-                        .OrderBy(p => p.First)
-                        .Select(p => p.Second)
-                        .ToImmutableArray();
-
-                    foreach (var column in _dataColumns)
-                    {
-                        column.Reorder(orderIndexes);
-                    }
-                }
-            }
-        }
-
-        public void AppendRecord(long recordId, ReadOnlySpan<object?> record)
-        {
-            if (record.Length != Schema.Columns.Count)
+            if (record.Length != Schema.ColumnProperties.Count)
             {
                 throw new ArgumentException(
                     $"Expected {Schema.Columns.Count} columns but is {record.Length}",
@@ -136,43 +106,6 @@ namespace TrackDb.Lib.InMemory.Block
             {
                 _dataColumns[i].AppendValue(record[i]);
             }
-            _dataColumns[Schema.RecordIdColumnIndex]
-                .AppendValue(recordId);
-        }
-
-        /// <summary>Tries to delete records passed in.</summary>
-        /// <param name="recordIds"></param>
-        /// <returns>The deleted record IDs.</returns>
-        public IEnumerable<long> DeleteRecordsByRecordId(IEnumerable<long> recordIds)
-        {
-            var recordIdSet = recordIds.ToHashSet();
-
-            if (recordIdSet.Any() && _dataColumns.First().RecordCount > 0)
-            {
-                var columns = new object?[Schema.Columns.Count];
-                var recordIdColumn = (ArrayLongColumn)_dataColumns[Schema.RecordIdColumnIndex];
-                var deletedRecordPairs = Enumerable.Range(0, _dataColumns.First().RecordCount)
-                    .Select(recordIndex => new
-                    {
-                        RecordId = recordIdColumn.RawData[recordIndex],
-                        RecordIndex = recordIndex
-                    })
-                    .Where(o => recordIdSet.Contains(o.RecordId))
-                    .ToImmutableArray();
-
-                if (deletedRecordPairs.Any())
-                {
-                    var deletedRecordIndexes = deletedRecordPairs
-                        .Select(o => o.RecordIndex);
-
-                    DeleteRecordsByRecordIndex(deletedRecordIndexes);
-
-                    return deletedRecordPairs
-                        .Select(o => o.RecordId);
-                }
-            }
-
-            return Array.Empty<long>();
         }
 
         /// <summary>Delete record indexes.</summary>
@@ -384,60 +317,33 @@ namespace TrackDb.Lib.InMemory.Block
         #endregion
 
         #region Log
-        public NewRecordsContent ToLog()
+        public IEnumerable<JsonElement> GetLogValues(int columnIndex)
         {
-            var recordCount = RecordCount;
-            var newRecordIds = Enumerable.Range(0, recordCount)
-                .Select(i => (long)_dataColumns[Schema.RecordIdColumnIndex].GetValue(i)!)
-                .ToImmutableList();
-            var columns = Enumerable.Range(0, Schema.Columns.Count)
-                .Select(i => KeyValuePair.Create(
-                    Schema.Columns[i].ColumnName,
-                    _dataColumns[i].GetLogValues().ToList()))
-                .ToImmutableDictionary();
-
-            return new(newRecordIds, columns);
+            return _dataColumns[columnIndex].GetLogValues();
         }
 
-        public void AppendLog(NewRecordsContent content)
+        public void AppendLogs(IEnumerable<IReadOnlyList<JsonElement>> dataColumns)
         {
-            for (var i = 0; i != Schema.Columns.Count; ++i)
+            var materializedDataColumns = dataColumns.ToArray();
+
+            if (materializedDataColumns.Length != Schema.ColumnProperties.Count)
             {
-                var columnName = Schema.Columns[i].ColumnName;
-
-                if (content.Columns.ContainsKey(columnName))
-                {
-                    _dataColumns[i].AppendLogValues(content.Columns[columnName]);
-                }
-                else
-                {   //  There is a column in the schema not present in the logs
-                    var nullValue = JsonDocument.Parse("null").RootElement;
-
-                    _dataColumns[i].AppendLogValues(content.NewRecordIds.Select(i => nullValue));
-                }
+                throw new ArgumentOutOfRangeException(nameof(dataColumns));
             }
-            //  Record ID
-            foreach (var newRecordId in content.NewRecordIds)
+
+            var dataCount = materializedDataColumns[0].Count;
+            var hasInvalidDataCount = materializedDataColumns
+                .Any(c => c.Count != dataCount);
+
+            if (hasInvalidDataCount)
             {
-                _dataColumns[Schema.RecordIdColumnIndex].AppendValue(newRecordId);
+                throw new ArgumentOutOfRangeException(
+                    nameof(dataColumns),
+                    "Not all columns has same element count");
             }
-        }
-
-        public long? MaxRecordId()
-        {
-            var recordIdColumn = _dataColumns.Last();
-
-            if (recordIdColumn.RecordCount > 0)
+            for (var i = 0; i != Schema.ColumnProperties.Count; ++i)
             {
-                var maxRecordId = Enumerable.Range(0, recordIdColumn.RecordCount)
-                    .Select(i => ((long)recordIdColumn.GetValue(i)!))
-                    .Max();
-
-                return maxRecordId;
-            }
-            else
-            {
-                return null;
+                _dataColumns[i].AppendLogValues(materializedDataColumns[i]);
             }
         }
         #endregion

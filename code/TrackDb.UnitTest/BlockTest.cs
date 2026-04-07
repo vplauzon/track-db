@@ -12,7 +12,7 @@ namespace TrackDb.UnitTest
         [Fact]
         public void Append()
         {
-            var schema = new TableSchema(
+            var schema = new DataTableSchema(
                 "Person",
                 [
                     new ColumnSchema("Id", typeof(int)),
@@ -24,17 +24,17 @@ namespace TrackDb.UnitTest
             var block1 = new BlockBuilder(schema);
             var block2 = new BlockBuilder(schema);
             var block3 = new BlockBuilder(schema);
-            var record1 = new object?[] { 42, "Alice", DateTime.Now };
-            var record2 = new object?[] { 43, "Bob", DateTime.Now };
-            var record3 = new object?[] { 44, "Carl", DateTime.Now };
-            var record4 = new object?[] { 45, "Dan", DateTime.Now };
+            var record1 = new object?[] { 42, "Alice", DateTime.Now, (long)1 };
+            var record2 = new object?[] { 43, "Bob", DateTime.Now, (long)2 };
+            var record3 = new object?[] { 44, "Carl", DateTime.Now, (long)3 };
+            var record4 = new object?[] { 45, "Dan", DateTime.Now, (long)4 };
 
-            block1.AppendRecord(1, record1);
-            block1.AppendRecord(2, record2);
+            block1.AppendRecord(record1);
+            block1.AppendRecord(record2);
 
-            block2.AppendRecord(3, record3);
+            block2.AppendRecord(record3);
 
-            block3.AppendRecord(4, record4);
+            block3.AppendRecord(record4);
 
             var superBlock = BlockBuilder.MergeBlocks(block1, block2, block3);
 
@@ -61,16 +61,16 @@ namespace TrackDb.UnitTest
             var retrieved3 = RecordRetriever((int)record3[0]!);
             var retrieved4 = RecordRetriever((int)record4[0]!);
 
-            Assert.True(record1.SequenceEqual(retrieved1));
-            Assert.True(record2.SequenceEqual(retrieved2));
-            Assert.True(record3.SequenceEqual(retrieved3));
-            Assert.True(record4.SequenceEqual(retrieved4));
+            Assert.True(record1.AsSpan().Slice(0, 3).SequenceEqual(retrieved1));
+            Assert.True(record2.AsSpan().Slice(0, 3).SequenceEqual(retrieved2));
+            Assert.True(record3.AsSpan().Slice(0, 3).SequenceEqual(retrieved3));
+            Assert.True(record4.AsSpan().Slice(0, 3).SequenceEqual(retrieved4));
         }
 
         [Fact]
         public void AppendBigString()
         {
-            var schema = new TableSchema(
+            var schema = new DataTableSchema(
                 "Person",
                 [
                     new ColumnSchema("Id", typeof(int)),
@@ -79,7 +79,7 @@ namespace TrackDb.UnitTest
                 [],
                 []);
             var block = new BlockBuilder(schema);
-            var record = new object?[2];
+            var record = new object?[3];
             var random = new Random();
 
             for (var i = 0; i != 100; ++i)
@@ -88,7 +88,8 @@ namespace TrackDb.UnitTest
                 record[1] = new string(Enumerable.Range(0, 300)
                     .Select(i => (char)random.Next('a', 'z'))
                     .ToArray());
-                block.AppendRecord(i, record);
+                record[2] = (long)i;
+                block.AppendRecord(record);
             }
 
             var segments = block.SegmentRecords(4096);
