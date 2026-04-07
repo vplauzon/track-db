@@ -48,5 +48,11 @@ namespace TrackDb.PerfTest
         {
             await RunPerformanceTestAsync(10000);
         }
+
+        [Fact(Skip = "Too long")]
+        public async Task Test100000()
+        {
+            await RunPerformanceTestAsync(100000);
+        }
     }
 }
