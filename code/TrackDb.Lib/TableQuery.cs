@@ -373,7 +373,7 @@ namespace TrackDb.Lib
                 var predicate = new InPredicate<long>(
                     schema.RecordIdColumnIndex,
                     recordIds,
-                    false);
+                    true);
                 var rowIndexes = block.Filter(predicate, false).RowIndexes;
 
                 if (rowIndexes.Count > 0)
