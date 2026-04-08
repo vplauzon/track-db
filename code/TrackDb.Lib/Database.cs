@@ -62,6 +62,7 @@ namespace TrackDb.Lib
             {
                 await database.InitLogsAsync(blobClients!, ct);
             }
+            database._dataLifeCycleManager.EndInitialPhase();
 
             return context;
         }
@@ -982,7 +983,7 @@ namespace TrackDb.Lib
                 }
                 if (++i % 10 == 0)
                 {
-                    await AwaitLifeCycleManagementAsync(2, ct);
+                    //await AwaitLifeCycleManagementAsync(2, ct);
                 }
             }
 
