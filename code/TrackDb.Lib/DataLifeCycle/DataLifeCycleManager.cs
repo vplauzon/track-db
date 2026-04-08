@@ -36,17 +36,18 @@ namespace TrackDb.Lib.DataLifeCycle
 
         public DataLifeCycleManager(Database database)
         {
-            var nonMetaTableProvider = new NonMetaTableProvider(database);
-            var metaTableProvider = new MetaTableProvider(database);
-
             _database = database;
             _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new RecordPersistanceAgent(
                     database,
-                    new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new NonMetaTableProvider(database))),
                 new RecordPersistanceAgent(
                     database,
-                    new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new MetaTableProvider(database))),
                 new TimeHardDeleteAgent(database),
                 new RecordCountHardDeleteAgent(database),
                 new TransactionLogMergingAgent(database));
