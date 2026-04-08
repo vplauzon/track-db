@@ -20,11 +20,11 @@ namespace TrackDb.Lib.Policies
         {
             return new InMemoryPolicy(
                  MaxBlocksPerTable ?? 10,
-                 MaxNonMetaDataRecords ?? 200,
+                 MaxNonMetaDataRecords ?? 500,
                  MaxMetaDataRecords ?? 50,
-                 MaxPersistancePeriod ?? TimeSpan.FromSeconds(30),
-                 MaxTombstonedRecords ?? 200,
-                 MaxTombstonePeriod ?? TimeSpan.FromSeconds(10));
+                 MaxPersistancePeriod ?? TimeSpan.FromSeconds(60),
+                 MaxTombstonedRecords ?? 600,
+                 MaxTombstonePeriod ?? TimeSpan.FromSeconds(15));
         }
     }
 }
