@@ -966,26 +966,50 @@ namespace TrackDb.Lib
         {
             long appendRecordCount = 0;
             long tombstoneRecordCount = 0;
-            var i = 0;
+            var currentBatchCount = 0;
+            var thresholdCount = 4 * DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
+            var tableSchemaMap = _databaseState.TableMap
+                .Where(p => p.Value.IsUserTable)
+                .Select(p => KeyValuePair.Create(p.Key, p.Value.Table.Schema))
+                .ToImmutableDictionary();
+            var logContents = new List<TransactionContent>(32);
 
-            await foreach (var transactionLog in logTransactionReader.LoadTransactionsAsync(ct))
+            void PushTransactionLogs(List<TransactionContent> logContents)
             {
-                var counts = transactionLog.GetLoggedRecordCounts(
-                    loggedTableNames,
-                    tombstoneTableName);
+                if (logContents.Count > 0)
+                {
+                    var transactionLog = TransactionContent.ToTransactionLog(
+                        logContents,
+                        TombstoneTable,
+                        tableSchemaMap);
+                    var counts = transactionLog.GetLoggedRecordCounts(
+                        loggedTableNames,
+                        tombstoneTableName);
 
-                transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
-                appendRecordCount += counts.AppendRecordCount;
-                tombstoneRecordCount += counts.TombstoneRecordCount;
-                using (var tx = CreateTransaction(false, transactionLog))
-                {
-                    tx.Complete();
-                }
-                if (++i % 10 == 0)
-                {
-                    //await AwaitLifeCycleManagementAsync(2, ct);
+                    appendRecordCount += counts.AppendRecordCount;
+                    tombstoneRecordCount += counts.TombstoneRecordCount;
+                    transactionLog.UpdateLastRecordIdMap(tableToLastRecordIdMap);
+                    using (var tx = CreateTransaction(false, transactionLog))
+                    {
+                        tx.Complete();
+                    }
+                    _dataLifeCycleManager.ExecuteInitialLifeCycle();
                 }
             }
+
+            await foreach (var transactionContent in logTransactionReader.LoadTransactionsAsync(ct))
+            {
+                currentBatchCount += transactionContent.GetRowCount();
+                logContents.Add(transactionContent);
+
+                if (currentBatchCount > thresholdCount)
+                {
+                    PushTransactionLogs(logContents);
+                    logContents.Clear();
+                    currentBatchCount = 0;
+                }
+            }
+            PushTransactionLogs(logContents);
 
             return (appendRecordCount, tombstoneRecordCount);
         }
