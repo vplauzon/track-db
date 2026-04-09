@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -10,7 +9,6 @@ using TrackDb.Lib.InMemory;
 using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.Predicate;
 using TrackDb.Lib.SystemData;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TrackDb.Lib.Logging
 {
@@ -18,6 +16,12 @@ namespace TrackDb.Lib.Logging
         IImmutableDictionary<string, TableTransactionContent> Tables)
         : ContentBase<TransactionContent>
     {
+        public int GetRowCount()
+        {
+            return Tables.Values
+                .Sum(t => t.GetRowCount());
+        }
+
         public static TransactionContent FromTransactionLog(
             TransactionLog transactionLog,
             TypedTableSchema<TombstoneRecord> tombstoneSchema,
@@ -70,37 +74,50 @@ namespace TrackDb.Lib.Logging
             return new(contentMapBuilder.ToImmutable());
         }
 
-        public TransactionLog ToTransactionLog(
+        public static TransactionLog ToTransactionLog(
+            IReadOnlyList<TransactionContent> transactionContents,
             TypedTable<TombstoneRecord> tombstoneTable,
             IImmutableDictionary<string, TableSchema> tableSchemaMap)
         {
             var transactionLog = new TransactionLog();
+            var groupByTableName = transactionContents
+                .SelectMany(c => c.Tables)
+                .GroupBy(p => p.Key, p => p.Value);
 
-            foreach (var pair in Tables)
+            foreach (var group in groupByTableName)
             {
-                var tableName = pair.Key;
-                var tableTransactionContent = pair.Value;
+                var tableName = group.Key;
+                var tableTransactionContents = group;
+                var newRecordsContents = group
+                    .Where(ttc => ttc.NewRecordsContent != null)
+                    .Select(ttc => ttc.NewRecordsContent!);
+                var tombstoneRecordIds = group
+                    .Where(ttc => ttc.TombstoneRecordIds != null)
+                    .SelectMany(ttc => ttc.TombstoneRecordIds!)
+                    .ToArray();
 
                 //	NewRecordsContent
-                if (tableTransactionContent.NewRecordsContent != null)
+                if (newRecordsContents.Any())
                 {
                     var tableSchema = tableSchemaMap[tableName];
                     var buffer = new object[tableSchema.Columns.Count];
-                    var blockBuilder = new BlockBuilder(tableSchema);
+                    var rowCount = newRecordsContents
+                        .Sum(c => c.NewRecordIds.Count);
+                    var blockBuilder = new BlockBuilder(tableSchema, rowCount);
 
-                    AppendLog(blockBuilder, tableTransactionContent.NewRecordsContent);
-                    transactionLog.TransactionTableLogMap.Add(tableName, new(blockBuilder));
+                    AppendLog(blockBuilder, newRecordsContents);
+                    transactionLog.TransactionTableLogMap.Add(
+                        tableName,
+                        new TransactionTableLog(blockBuilder));
                 }
                 //  Tombstone records
-                if (tableTransactionContent.TombstoneRecordIds != null
-                    && tableTransactionContent.TombstoneRecordIds.Count > 0)
+                if (tombstoneRecordIds.Length > 0)
                 {
-                    var tombstoneRecords = tableTransactionContent.TombstoneRecordIds
+                    var tombstoneRecords = tombstoneRecordIds
                         .Select(id => new TombstoneRecord(id, tableName, DateTime.Now));
                     var recordWithRecordId =
                         new object?[tombstoneTable.Schema.ColumnProperties.Count];
-                    var newRecordIds = tombstoneTable.NewRecordIds(
-                        tableTransactionContent.TombstoneRecordIds.Count);
+                    var newRecordIds = tombstoneTable.NewRecordIds(tombstoneRecordIds.Length);
                     var zipped = tombstoneRecords.Zip(newRecordIds);
 
                     foreach (var z in zipped)
@@ -155,15 +172,16 @@ namespace TrackDb.Lib.Logging
 
         private static void AppendLog(
             BlockBuilder blockBuilder,
-            NewRecordsContent newRecordsContent)
+            IEnumerable<NewRecordsContent> newRecordsContents)
         {
             IBlock block = blockBuilder;
             var schema = (DataTableSchema)block.TableSchema;
-            var recordIds = newRecordsContent.NewRecordIds
+            var recordIds = newRecordsContents
+                .SelectMany(c => c.NewRecordIds)
                 .Select(i => JsonSerializer.SerializeToElement(i))
                 .ToArray();
             var dataColumns = schema.Columns
-                .Select(c => newRecordsContent.Columns[c.ColumnName])
+                .Select(c => newRecordsContents.SelectMany(nrc => nrc.Columns[c.ColumnName]).ToArray())
                 .Cast<IReadOnlyList<JsonElement>>()
                 .Append(recordIds);
 

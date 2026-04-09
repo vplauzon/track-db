@@ -25,31 +25,46 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private readonly Database _database;
         //  List of agents responsible for data life cycle
-        private readonly IImmutableList<DataLifeCycleAgentBase> _dataLifeCycleAgents;
+        private readonly IImmutableList<DataLifeCycleAgentBase> _backgroundAgents;
+        private readonly IImmutableList<DataLifeCycleAgentBase> _initAgents;
         //  Channel used to push data lifecycle trigger over threads
         private readonly Channel<LifeCycleItem> _channel = Channel.CreateUnbounded<LifeCycleItem>();
         //  Task running as long as this object is alive
         private readonly Task _dataMaintenanceTask;
         //  TaskCompletionSource signaling the stop of the background task
         private readonly TaskCompletionSource _dataMaintenanceStopSource = new TaskCompletionSource();
+        private bool _isInitialPhase = true;
         private TaskCompletionSource<bool>? _batchDelayInterrupt;
 
         public DataLifeCycleManager(Database database)
         {
-            var nonMetaTableProvider = new NonMetaTableProvider(database);
-            var metaTableProvider = new MetaTableProvider(database);
-
             _database = database;
-            _dataLifeCycleAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new RecordPersistanceAgent(
-                    database,
-                    new RecordCountPersistanceCandidateProvider(database, nonMetaTableProvider)),
-                new RecordPersistanceAgent(
-                    database,
-                    new RecordCountPersistanceCandidateProvider(database, metaTableProvider)),
+            _backgroundAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new TimeHardDeleteAgent(database),
                 new RecordCountHardDeleteAgent(database),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new NonMetaTableProvider(database))),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new MetaTableProvider(database))),
                 new TransactionLogMergingAgent(database));
+            _initAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
+                new RecordCountHardDeleteAgent(database),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new NonMetaTableProvider(database))),
+                new RecordPersistanceAgent(
+                    database,
+                    new RecordCountPersistanceCandidateProvider(
+                        database,
+                        new MetaTableProvider(database))));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -57,6 +72,33 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             _dataMaintenanceStopSource.SetResult();
             await _dataMaintenanceTask;
+        }
+
+        /// <summary>
+        /// This is done during the initial phase to run limited amount of agents.
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        public void ExecuteInitialLifeCycle()
+        {
+            if (!_isInitialPhase)
+            {
+                throw new InvalidOperationException("Initial phase already completed");
+            }
+            RunDataMaintance(DataManagementActivity.None);
+        }
+
+        /// <summary>
+        /// This is done during the initial phase to run limited amount of agents.
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        public void EndInitialPhase()
+        {
+            if (!_isInitialPhase)
+            {
+                throw new InvalidOperationException("Initial phase already completed");
+            }
+            _isInitialPhase = false;
+            TriggerDataManagement();
         }
 
         public void TriggerDataManagement()
@@ -89,7 +131,7 @@ namespace TrackDb.Lib.DataLifeCycle
             {
                 throw new InvalidOperationException("Couldn't trigger life cycle management");
             }
-            
+
             // Interrupt the batch delay if this is a forced call arriving during a delay
             if (lifeCycleItem.IsForced)
             {
@@ -111,38 +153,38 @@ namespace TrackDb.Lib.DataLifeCycle
 
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {
-                    // Read the first item that triggered this cycle
+                    //  Read the first item that triggered this cycle
                     if (!_channel.Reader.TryRead(out var firstItem))
                     {
                         continue; // Shouldn't happen, but be safe
                     }
-                    
-                    if (!firstItem.IsForced)
+
+                    if (!firstItem.IsForced && !_isInitialPhase)
                     {
-                        // Create new interrupt signal for this batch window
+                        //  Create new interrupt signal for this batch window
                         _batchDelayInterrupt = new TaskCompletionSource<bool>();
-                        
+
                         //  We wait a little before processing so we can catch multiple transactions at once
                         var completedTask = await Task.WhenAny(
                             Task.Delay(_database.DatabasePolicy.LifeCyclePolicy.MaxWaitPeriod),
                             _batchDelayInterrupt.Task,
                             _dataMaintenanceStopSource.Task);
-                        
-                        // No exception handling needed - just check which task completed
+
+                        //  No exception handling needed - just check which task completed
                     }
-                    // If first item was forced, skip delay entirely
-                    
+                    //  If first item was forced, skip delay entirely
+
                     if (!_dataMaintenanceStopSource.Task.IsCompleted)
                     {
-                        // Accumulate the first item we already read
+                        //  Accumulate the first item we already read
                         var sourceList = ImmutableList<TaskCompletionSource>.Empty.ToBuilder();
                         var dataManagementActivity = firstItem.DataManagementActivity;
-                        
+
                         if (firstItem.Source != null)
                         {
                             sourceList.Add(firstItem.Source);
                         }
-                        
+
                         // Read any additional accumulated items
                         while (_channel.Reader.TryRead(out var item))
                         {
@@ -190,7 +232,10 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             try
             {
-                RunDataMaintance(dataManagementActivity);
+                if (!_isInitialPhase)
+                {
+                    RunDataMaintance(dataManagementActivity);
+                }
             }
             catch (Exception ex)
             {
@@ -212,7 +257,9 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
-            foreach (var agent in _dataLifeCycleAgents)
+            var agents = _isInitialPhase ? _initAgents : _backgroundAgents;
+
+            foreach (var agent in agents)
             {
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {

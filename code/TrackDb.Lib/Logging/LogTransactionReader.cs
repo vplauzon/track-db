@@ -59,27 +59,26 @@ namespace TrackDb.Lib.Logging
             await ((IAsyncDisposable)_logStorageReader).DisposeAsync();
         }
 
-        public async IAsyncEnumerable<TransactionLog> LoadTransactionsAsync(
+        public async IAsyncEnumerable<TransactionContent> LoadTransactionsAsync(
             [EnumeratorCancellation]
             CancellationToken ct)
         {
             await foreach (var text in _logStorageReader.LoadTransactionTextsAsync(ct))
             {
-                TransactionLog? log = null;
+                TransactionContent? logContent = null;
+
                 try
                 {
-                    var logContent = TransactionContent.FromJson(text);
-
-                    log = logContent.ToTransactionLog(_tombstoneTable, _tableSchemaMap);
+                    logContent = TransactionContent.FromJson(text);
                 }
                 catch (JsonException)
                 {   //  This happens when a transaction got split in two blob blocks
                     //  and the second one didn't get persisted
                     //  because the process crashed / terminated
                 }
-                if (log != null)
+                if (logContent != null)
                 {
-                    yield return log;
+                    yield return logContent;
                 }
             }
         }
