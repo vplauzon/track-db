@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text.Json;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -30,6 +31,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 : Convert.ToBoolean(intValue.Value);
 
             return boolValue;
+        }
+
+        protected override IInPredicate TransformPredicate(IInPredicate inPredicate)
+        {
+            throw new NotImplementedException();
         }
 
         protected override JsonElement InToLogValue(object? value)

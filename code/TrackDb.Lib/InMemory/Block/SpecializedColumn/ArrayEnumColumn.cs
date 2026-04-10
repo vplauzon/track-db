@@ -4,7 +4,6 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using TrackDb.Lib.Encoding;
 using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
@@ -35,6 +34,18 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 : Enum.ToObject(typeof(T), longValue.Value);
 
             return enumValue;
+        }
+
+        protected override IInPredicate TransformPredicate(IInPredicate inPredicate)
+        {
+            var typedInPredicate = (InPredicate<T>)inPredicate;
+
+            return new InPredicate<long>(
+                typedInPredicate.ColumnIndex,
+                typedInPredicate.Values
+                .Select(v => Convert.ToInt64(v))
+                .ToHashSet(),
+                typedInPredicate.IsIn);
         }
 
         protected override JsonElement InToLogValue(object? value)

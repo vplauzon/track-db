@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text.Json;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 {
@@ -31,6 +32,11 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
                 : new DateTime(longValue.Value);
 
             return dateTimeValue;
+        }
+
+        protected override IInPredicate TransformPredicate(IInPredicate inPredicate)
+        {
+            throw new NotImplementedException();
         }
 
         protected override JsonElement InToLogValue(object? value)

@@ -27,6 +27,8 @@ namespace TrackDb.Lib.InMemory.Block
 
         protected abstract object? InToOutValue(object? value);
 
+        protected abstract IInPredicate TransformPredicate(IInPredicate inPredicate);
+
         protected abstract JsonElement InToLogValue(object? value);
 
         protected abstract object? LogValueToIn(JsonElement logValue);
@@ -56,7 +58,7 @@ namespace TrackDb.Lib.InMemory.Block
 
         IEnumerable<int> IReadOnlyDataColumn.FilterIn(IInPredicate inPredicate)
         {
-            return _innerColumn.FilterIn(inPredicate);
+            return _innerColumn.FilterIn(TransformPredicate(inPredicate));
         }
 
         int IReadOnlyDataColumn.ComputeSerializationSizes(
