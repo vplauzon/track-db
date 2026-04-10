@@ -37,7 +37,8 @@ namespace TrackDb.UnitTest.DbTests
                     DatabasePolicy.Create(),
                     db => new(db),
                     CancellationToken.None,
-                    TypedTableSchema<MyRecord>.FromConstructor(MY_RECORDS_TABLE));
+                    TypedTableSchema<MyRecord>.FromConstructor(MY_RECORDS_TABLE)
+                    .OptOutIndex(r => r.BlobUri));
 
                 return db;
             }

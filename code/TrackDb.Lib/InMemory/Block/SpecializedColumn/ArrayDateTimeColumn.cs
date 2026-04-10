@@ -36,7 +36,14 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override IInPredicate TransformPredicate(IInPredicate inPredicate)
         {
-            throw new NotImplementedException();
+            var typedInPredicate = (InPredicate<DateTime>)inPredicate;
+
+            return new InPredicate<long>(
+                typedInPredicate.ColumnIndex,
+                typedInPredicate.Values
+                .Select(v => v.Ticks)
+                .ToHashSet(),
+                typedInPredicate.IsIn);
         }
 
         protected override JsonElement InToLogValue(object? value)

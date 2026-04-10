@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text.Json;
 using TrackDb.Lib.Predicate;
 
@@ -35,7 +36,14 @@ namespace TrackDb.Lib.InMemory.Block.SpecializedColumn
 
         protected override IInPredicate TransformPredicate(IInPredicate inPredicate)
         {
-            throw new NotImplementedException();
+            var typedInPredicate = (InPredicate<Uri>)inPredicate;
+
+            return new InPredicate<string>(
+                typedInPredicate.ColumnIndex,
+                typedInPredicate.Values
+                .Select(v => v.ToString())
+                .ToHashSet(),
+                typedInPredicate.IsIn);
         }
 
         protected override JsonElement InToLogValue(object? value)
