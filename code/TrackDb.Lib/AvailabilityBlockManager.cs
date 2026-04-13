@@ -50,7 +50,7 @@ namespace TrackDb.Lib
                         availableBlockIds
                         .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUse)),
                         tx);
-                    blockIds.AddRange(blockIds);
+                    blockIds.AddRange(availableBlockIds);
                 }
             }
             ValidateValues(tx);
@@ -117,9 +117,12 @@ namespace TrackDb.Lib
 
         [Conditional("DEBUG")]
         private void ValidateValues(TransactionContext tx)
-        {   //  Test for duplicates
-            var duplicatedBlockIds = _availableBlockTable.Query(tx)
-                .AsEnumerable()
+        {
+            var allBlocks = _availableBlockTable.Query(tx)
+                .ToArray();
+
+            //  Test for duplicates
+            var duplicatedBlockIds = allBlocks
                 .CountBy(a => a.BlockId)
                 .Where(p => p.Value != 1)
                 .Select(p => p.Key)
@@ -132,20 +135,17 @@ namespace TrackDb.Lib
             }
 
             //  Test for missing blocks
-            var minBlockId = _availableBlockTable.Query(tx)
+            var minBlockId = allBlocks
                 .OrderBy(a => a.BlockId)
                 .Take(1)
-                .AsEnumerable()
                 .Select(a => a.BlockId)
                 .First();
-            var maxBlockId = _availableBlockTable.Query(tx)
+            var maxBlockId = allBlocks
                 .OrderByDescending(a => a.BlockId)
                 .Take(1)
-                .AsEnumerable()
                 .Select(a => a.BlockId)
                 .First();
-            var count = _availableBlockTable.Query(tx)
-                .Count();
+            var count = allBlocks.Length;
 
             if (minBlockId!=1)
             {
