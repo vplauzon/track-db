@@ -212,7 +212,7 @@ namespace TrackDb.Lib.DataLifeCycle
                     using (var tx = _database.CreateTransaction())
                     {
                         var resetBlockIds =
-                            _database.AvailabilityBlockManager.ResetNoLongerInUsedBlocks(tx);
+                            _database.AvailabilityBlockManager.ResetNoLongerInUsed(tx);
 
                         foreach (var blockId in resetBlockIds)
                         {
