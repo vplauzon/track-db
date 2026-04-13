@@ -156,7 +156,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             if (compactResult.DeletedBlockIds.Any())
             {
-                Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(
+                Database.AvailabilityBlockManager.SetNoLongerInUse(
                     compactResult.DeletedBlockIds,
                     tx);
 

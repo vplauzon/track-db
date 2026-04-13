@@ -98,7 +98,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 ? tb.RecordIds
                 : Array.Empty<long>());
 
-            Database.AvailabilityBlockManager.SetNoLongerInUseBlockIds(cumulatedDeletedBlockIds, tx);
+            Database.AvailabilityBlockManager.SetNoLongerInUse(cumulatedDeletedBlockIds, tx);
             Database.DeleteTombstoneRecords(tableName, deletedRecordIds, tx);
         }
     }
