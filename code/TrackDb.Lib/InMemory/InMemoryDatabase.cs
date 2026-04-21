@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -10,10 +12,13 @@ using TrackDb.Lib.InMemory.Block;
 namespace TrackDb.Lib.InMemory
 {
     internal record InMemoryDatabase(
-        IImmutableDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap)
+        FrozenDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap,
+        FrozenDictionary<int, BlockTombstones> BlockTombstonesIndex)
     {
         public InMemoryDatabase()
-            : this(ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
+            : this(
+                  FrozenDictionary<string, ImmutableTableTransactionLogs>.Empty,
+                  FrozenDictionary<int, BlockTombstones>.Empty)
         {
         }
 
@@ -33,12 +38,9 @@ namespace TrackDb.Lib.InMemory
 
         public InMemoryDatabase CommitLog(TransactionState transactionState)
         {
-            var logMap = ImmutableDictionary<string, ImmutableTableTransactionLogs>
-                .Empty
-                .ToBuilder();
-
             //  Copy of current in-memory state
-            logMap.AddRange(TransactionTableLogsMap);
+            var logMap = TransactionTableLogsMap.ToDictionary();
+
             //  Loop through the transaction data (tables)
             foreach (var pair in transactionState.UncommittedTransactionLog.TransactionTableLogMap)
             {
@@ -88,7 +90,44 @@ namespace TrackDb.Lib.InMemory
                 }
             }
 
-            return new InMemoryDatabase(logMap.ToImmutable());
+            return new InMemoryDatabase(logMap.ToFrozenDictionary(), BlockTombstonesIndex);
+        }
+
+        public InMemoryDatabase CommitTombstones(IEnumerable<(
+            int BlockId,
+            string TableName,
+            int ItemCount,
+            IEnumerable<int> RowIndexes)> NewTombstones)
+        {
+            var blockTombstonesIndex = BlockTombstonesIndex.ToDictionary();
+
+            foreach ((var blockId, var tableName, var itemCount, var rowIndexes) in NewTombstones)
+            {
+                if (blockTombstonesIndex.TryGetValue(blockId, out var blockTombstones))
+                {
+                    if (blockTombstones.TableName != tableName)
+                    {
+                        throw new InvalidOperationException("Inconsistant table name");
+                    }
+                    if (blockTombstones.ItemCount != itemCount)
+                    {
+                        throw new InvalidOperationException("Inconsistant item count");
+                    }
+                    blockTombstonesIndex[blockId] = blockTombstones.AddRowIndexes(rowIndexes);
+                }
+                else
+                {
+                    blockTombstonesIndex[blockId] = new BlockTombstones(
+                        blockId,
+                        tableName,
+                        itemCount,
+                        rowIndexes);
+                }
+            }
+
+            return new InMemoryDatabase(
+                TransactionTableLogsMap,
+                blockTombstonesIndex.ToFrozenDictionary());
         }
     }
 }
