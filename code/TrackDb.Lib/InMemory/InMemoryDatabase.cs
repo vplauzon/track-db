@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -10,10 +11,10 @@ using TrackDb.Lib.InMemory.Block;
 namespace TrackDb.Lib.InMemory
 {
     internal record InMemoryDatabase(
-        IImmutableDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap)
+        FrozenDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap)
     {
         public InMemoryDatabase()
-            : this(ImmutableDictionary<string, ImmutableTableTransactionLogs>.Empty)
+            : this(FrozenDictionary<string, ImmutableTableTransactionLogs>.Empty)
         {
         }
 
@@ -33,12 +34,9 @@ namespace TrackDb.Lib.InMemory
 
         public InMemoryDatabase CommitLog(TransactionState transactionState)
         {
-            var logMap = ImmutableDictionary<string, ImmutableTableTransactionLogs>
-                .Empty
-                .ToBuilder();
-
             //  Copy of current in-memory state
-            logMap.AddRange(TransactionTableLogsMap);
+            var logMap = TransactionTableLogsMap.ToDictionary();
+
             //  Loop through the transaction data (tables)
             foreach (var pair in transactionState.UncommittedTransactionLog.TransactionTableLogMap)
             {
@@ -88,7 +86,7 @@ namespace TrackDb.Lib.InMemory
                 }
             }
 
-            return new InMemoryDatabase(logMap.ToImmutable());
+            return new InMemoryDatabase(logMap.ToFrozenDictionary());
         }
     }
 }
