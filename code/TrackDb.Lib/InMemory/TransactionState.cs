@@ -29,10 +29,10 @@ namespace TrackDb.Lib.InMemory
                 {
                     yield return ttl.NewDataBlock;
                 }
-                if (ttl.CommittedDataBlock != null && !inTxOnly)
+                if (ttl.ReplacingDataBlock != null && !inTxOnly)
                 {
                     doOverrideCommitted = true;
-                    yield return ttl.CommittedDataBlock;
+                    yield return ttl.ReplacingDataBlock;
                 }
             }
             if (!doOverrideCommitted
@@ -49,7 +49,7 @@ namespace TrackDb.Lib.InMemory
         #region LoadCommittedBlocks
         /// <summary>
         /// Load all committed transaction logs of a table and stores it in
-        /// <see cref="TransactionTableLog.CommittedDataBlock"/>.
+        /// <see cref="TransactionTableLog.ReplacingDataBlock"/>.
         /// If the table is already loaded, nothing happens.
         /// </summary>
         /// <param name="tableName"></param>
@@ -63,7 +63,7 @@ namespace TrackDb.Lib.InMemory
             {
                 if (!uncommittedTxTableLogMap.TryGetValue(tableName, out var uncommittedTxTableLog)
                     //  Let's check it's not already loaded
-                    || uncommittedTxTableLog.CommittedDataBlock == null)
+                    || uncommittedTxTableLog.ReplacingDataBlock == null)
                 {
                     var committedDataBlock = committedTxTableLogs.MergeLogs();
 

@@ -49,12 +49,12 @@ namespace TrackDb.Lib.InMemory
                 var inMemoryBlocks = ImmutableArray<IBlock>.Empty.ToBuilder();
 
                 //  First copy what's currently in db
-                if (logMap.ContainsKey(tableName) && txTableLog.CommittedDataBlock == null)
+                if (logMap.ContainsKey(tableName) && txTableLog.ReplacingDataBlock == null)
                 {
                     inMemoryBlocks.AddRange(logMap[tableName].InMemoryBlocks);
                 }
                 //  Replace committed
-                if (txTableLog.CommittedDataBlock != null)
+                if (txTableLog.ReplacingDataBlock != null)
                 {
                     var transactionTableLogsMap = transactionState
                         .InMemoryDatabase
@@ -68,9 +68,9 @@ namespace TrackDb.Lib.InMemory
                         inMemoryBlocks.AddRange(logMap[tableName].InMemoryBlocks
                             .Skip(inTransactionCommittedCount));
                     }
-                    if (((IBlock)txTableLog.CommittedDataBlock).RecordCount != 0)
+                    if (((IBlock)txTableLog.ReplacingDataBlock).RecordCount != 0)
                     {
-                        inMemoryBlocks.Add(txTableLog.CommittedDataBlock);
+                        inMemoryBlocks.Add(txTableLog.ReplacingDataBlock);
                     }
                 }
 

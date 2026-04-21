@@ -105,7 +105,7 @@ namespace TrackDb.Lib
 
         /// <summary>
         /// Load all committed transaction logs of a table, merges them, hard delete previously
-        /// deleted records and stores it in <see cref="TransactionTableLog.CommittedDataBlock"/>.
+        /// deleted records and stores it in <see cref="TransactionTableLog.ReplacingDataBlock"/>.
         /// If the table is already loaded, nothing happens.
         /// The tombstone table might get loaded as a side effect.
         /// </summary>
@@ -150,7 +150,7 @@ namespace TrackDb.Lib
             {
                 var committedDataBlockBuilder = TransactionState.UncommittedTransactionLog
                     .TransactionTableLogMap[tableName]
-                    .CommittedDataBlock!;
+                    .ReplacingDataBlock!;
                 IBlock committedDataBlock = committedDataBlockBuilder;
                 //  Hard delete in-memory records in the table
                 var rowIndexes = committedDataBlock.Filter(recordIdPredicate, false).RowIndexes;

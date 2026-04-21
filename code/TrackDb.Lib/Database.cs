@@ -833,7 +833,7 @@ namespace TrackDb.Lib
             var transactionTableLog = tx.TransactionState
                 .UncommittedTransactionLog
                 .TransactionTableLogMap[tombstoneTableName];
-            var committedDataBlock = transactionTableLog.CommittedDataBlock;
+            var committedDataBlock = transactionTableLog.ReplacingDataBlock;
             var newDataBlock = transactionTableLog.NewDataBlock;
             var tombstonePredicate = TombstoneTable.Query(tx)
                 .Where(pf => pf.Equal(t => t.TableName, tableName))
