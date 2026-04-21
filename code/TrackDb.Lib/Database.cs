@@ -795,9 +795,7 @@ namespace TrackDb.Lib
             string tableName,
             TransactionContext tx)
         {
-            TombstoneTable.AppendRecord(
-                new TombstoneRecord(recordId, tableName, DateTime.Now),
-                tx);
+            TombstoneTable.AppendRecord(new TombstoneRecord(recordId, tableName), tx);
         }
 
         internal IEnumerable<long> GetDeletedRecordIds(string tableName, TransactionContext tx)
