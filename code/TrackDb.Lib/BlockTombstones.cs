@@ -17,6 +17,15 @@ namespace TrackDb.Lib
             DeletedCount = ComputePopCount(bitmapMask);
         }
 
+        public BlockTombstones(
+            int blockId,
+            string tableName,
+            int itemCount,
+            IEnumerable<int> rowIndexes)
+            : this(blockId, tableName, CreateBitmapMask(itemCount, rowIndexes))
+        {
+        }
+
         public int BlockId { get; }
 
         public string TableName { get; }
@@ -24,6 +33,18 @@ namespace TrackDb.Lib
         public int ItemCount => _bitmapMask.Count;
 
         public int DeletedCount { get; }
+
+        public BlockTombstones AddRowIndexes(IEnumerable<int> rowIndexes)
+        {
+            var bitmapMask = new BitArray(_bitmapMask);
+
+            foreach (var rowIndex in rowIndexes)
+            {
+                bitmapMask.Set(rowIndex, true);
+            }
+
+            return new BlockTombstones(BlockId, TableName, bitmapMask);
+        }
 
         private static int ComputePopCount(BitArray bitmapMask)
         {
@@ -37,6 +58,18 @@ namespace TrackDb.Lib
             }
 
             return count;
+        }
+
+        private static BitArray CreateBitmapMask(int itemCount, IEnumerable<int> rowIndexes)
+        {
+            var bitmapMask = new BitArray(itemCount);
+
+            foreach (var rowIndex in rowIndexes)
+            {
+                bitmapMask.Set(rowIndex, true);
+            }
+
+            return bitmapMask;
         }
     }
 }
