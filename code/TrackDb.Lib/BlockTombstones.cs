@@ -33,6 +33,13 @@ namespace TrackDb.Lib
         public int ItemCount => _bitmapMask.Count;
 
         public int DeletedCount { get; }
+        
+        public bool IsAllDeleted => DeletedCount == ItemCount;
+
+        public bool IsDeleted(int rowIndex)
+        {
+            return _bitmapMask.Get(rowIndex);
+        }
 
         public BlockTombstones AddRowIndexes(IEnumerable<int> rowIndexes)
         {

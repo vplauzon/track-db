@@ -16,7 +16,7 @@ namespace TrackDb.Lib.InMemory
 
         public IDictionary<string, TransactionTableLog> TransactionTableLogMap { get; }
 
-        public IDictionary<int, BlockTombstones>? ReplacingBlockTombstonesIndex { get; set; }
+        public Dictionary<int, BlockTombstones>? ReplacingBlockTombstonesIndex { get; set; }
 
         public (long AppendRecordCount, long TombstoneRecordCount) GetLoggedRecordCounts(
             IEnumerable<string> loggingTables,

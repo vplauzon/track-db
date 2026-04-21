@@ -51,6 +51,7 @@ namespace TrackDb.Lib.DataLifeCycle
             var resultByBlockIds = table.Query(tx)
                 .WithPredicate(inPredicate)
                 .WithProjection(recordIdColumnIndex)
+                .WithIgnoreDeleted()
                 .ExecuteQueryWithBlockTrace()
                 .Select(r => new
                 {
