@@ -43,6 +43,5 @@ namespace TrackDb.Lib.InMemory
             }
         }
         #endregion
-
     }
 }

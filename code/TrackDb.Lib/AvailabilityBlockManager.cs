@@ -121,41 +121,44 @@ namespace TrackDb.Lib
             var allBlocks = _availableBlockTable.Query(tx)
                 .ToArray();
 
-            //  Test for duplicates
-            var duplicatedBlockIds = allBlocks
-                .CountBy(a => a.BlockId)
-                .Where(p => p.Value != 1)
-                .Select(p => p.Key)
-                .ToArray();
-
-            if (duplicatedBlockIds.Length > 0)
+            if (allBlocks.Length > 0)
             {
-                throw new InvalidOperationException(
-                    $"{duplicatedBlockIds.Length} blocks are duplicated in availability table");
-            }
+                //  Test for duplicates
+                var duplicatedBlockIds = allBlocks
+                    .CountBy(a => a.BlockId)
+                    .Where(p => p.Value != 1)
+                    .Select(p => p.Key)
+                    .ToArray();
 
-            //  Test for missing blocks
-            var minBlockId = allBlocks
-                .OrderBy(a => a.BlockId)
-                .Take(1)
-                .Select(a => a.BlockId)
-                .First();
-            var maxBlockId = allBlocks
-                .OrderByDescending(a => a.BlockId)
-                .Take(1)
-                .Select(a => a.BlockId)
-                .First();
-            var count = allBlocks.Length;
+                if (duplicatedBlockIds.Length > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"{duplicatedBlockIds.Length} blocks are duplicated in availability table");
+                }
 
-            if (minBlockId!=1)
-            {
-                throw new InvalidOperationException(
-                    $"MinBlockId is expected to be 1 not {minBlockId}");
-            }
-            if (maxBlockId != count)
-            {
-                throw new InvalidOperationException(
-                    $"MaxBlockId is expected to be {count} not {maxBlockId}");
+                //  Test for missing blocks
+                var minBlockId = allBlocks
+                    .OrderBy(a => a.BlockId)
+                    .Take(1)
+                    .Select(a => a.BlockId)
+                    .First();
+                var maxBlockId = allBlocks
+                    .OrderByDescending(a => a.BlockId)
+                    .Take(1)
+                    .Select(a => a.BlockId)
+                    .First();
+                var count = allBlocks.Length;
+
+                if (minBlockId != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"MinBlockId is expected to be 1 not {minBlockId}");
+                }
+                if (maxBlockId != count)
+                {
+                    throw new InvalidOperationException(
+                        $"MaxBlockId is expected to be {count} not {maxBlockId}");
+                }
             }
         }
     }

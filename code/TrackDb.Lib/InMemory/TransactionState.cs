@@ -87,5 +87,32 @@ namespace TrackDb.Lib.InMemory
             return false;
         }
         #endregion
+
+        public void CleanTable(TableSchema schema)
+        {
+            if (UncommittedTransactionLog.TransactionTableLogMap.TryGetValue(
+                schema.TableName,
+                out var logs))
+            {
+                if (logs.ReplacingDataBlock != null)
+                {
+                    logs.ReplacingDataBlock.Clear();
+                }
+                else
+                {
+                    UncommittedTransactionLog.TransactionTableLogMap[schema.TableName] =
+                        new TransactionTableLog(
+                            logs.NewDataBlock,
+                            new BlockBuilder(schema));
+                }
+            }
+            else
+            {
+                UncommittedTransactionLog.TransactionTableLogMap[schema.TableName] =
+                    new TransactionTableLog(
+                        new BlockBuilder(schema),
+                        new BlockBuilder(schema));
+            }
+        }
     }
 }

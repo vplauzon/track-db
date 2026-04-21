@@ -133,6 +133,11 @@ namespace TrackDb.Lib
             }
         }
 
+        internal void CleanTable(TableSchema schema)
+        {
+            TransactionState.CleanTable(schema);
+        }
+
         private void HardDeleteCommittedRecords(string tableName, DataTableSchema schema)
         {   //  We hard delete only out-of-transaction tombstones
             var deletedRecordIdColumnSet =

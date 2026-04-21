@@ -563,6 +563,7 @@ namespace TrackDb.Lib
                     blockTraceList.Add(new BlockTrace(
                         schema,
                         blockWithTrace.BlockId,
+                        blockWithTrace.Block.RecordCount,
                         indexedResult.RowIndex));
                     yield return new BlockTracedResult(blockTraceList, indexedResult.Result);
                     CollectionsMarshal.SetCount(blockTraceList, blockTraceList.Count - 1);
