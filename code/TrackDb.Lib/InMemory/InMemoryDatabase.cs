@@ -11,10 +11,13 @@ using TrackDb.Lib.InMemory.Block;
 namespace TrackDb.Lib.InMemory
 {
     internal record InMemoryDatabase(
-        FrozenDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap)
+        FrozenDictionary<string, ImmutableTableTransactionLogs> TransactionTableLogsMap,
+        FrozenDictionary<int, BlockTombstones> BlockTombstonesIndex)
     {
         public InMemoryDatabase()
-            : this(FrozenDictionary<string, ImmutableTableTransactionLogs>.Empty)
+            : this(
+                  FrozenDictionary<string, ImmutableTableTransactionLogs>.Empty,
+                  FrozenDictionary<int, BlockTombstones>.Empty)
         {
         }
 
@@ -86,7 +89,7 @@ namespace TrackDb.Lib.InMemory
                 }
             }
 
-            return new InMemoryDatabase(logMap.ToFrozenDictionary());
+            return new InMemoryDatabase(logMap.ToFrozenDictionary(), BlockTombstonesIndex);
         }
     }
 }
