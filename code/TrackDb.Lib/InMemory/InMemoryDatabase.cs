@@ -90,7 +90,10 @@ namespace TrackDb.Lib.InMemory
                 }
             }
 
-            return new InMemoryDatabase(logMap.ToFrozenDictionary(), BlockTombstonesIndex);
+            return new InMemoryDatabase(
+                logMap.ToFrozenDictionary(),
+                transactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex?.ToFrozenDictionary()
+                ?? BlockTombstonesIndex);
         }
 
         public InMemoryDatabase CommitTombstones(IEnumerable<(
