@@ -298,7 +298,7 @@ namespace TrackDb.Lib
                             {
                                 var totalTombstonedRecords = TombstoneTable.Query(tx).Count();
 
-                                if (totalTombstonedRecords <= tolerance * policy.MaxTombstonedRecords)
+                                if (totalTombstonedRecords <= tolerance * policy.MaxNonMetaDataRecords)
                                 {
                                     return false;
                                 }

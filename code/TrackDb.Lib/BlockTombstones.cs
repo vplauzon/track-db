@@ -8,8 +8,12 @@ namespace TrackDb.Lib
     internal class BlockTombstones
     {
         private readonly BitArray _bitmapMask;
+        private readonly DateTime _lastUpdated = DateTime.Now;
 
-        public BlockTombstones(int blockId, string tableName, BitArray bitmapMask)
+        public BlockTombstones(
+            int blockId,
+            string tableName,
+            BitArray bitmapMask)
         {
             BlockId = blockId;
             TableName = tableName;
@@ -33,8 +37,10 @@ namespace TrackDb.Lib
         public int ItemCount => _bitmapMask.Count;
 
         public int DeletedCount { get; }
-        
+
         public bool IsAllDeleted => DeletedCount == ItemCount;
+
+        public TimeSpan SinceLastUpdated => DateTime.Now - _lastUpdated;
 
         public bool IsDeleted(int rowIndex)
         {

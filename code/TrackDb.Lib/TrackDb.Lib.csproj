@@ -35,7 +35,9 @@
 
 	<ItemGroup>
 		<Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+		<Compile Remove="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
 		<None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
+		<None Include="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
