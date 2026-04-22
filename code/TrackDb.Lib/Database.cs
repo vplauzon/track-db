@@ -125,15 +125,6 @@ namespace TrackDb.Lib
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
-            _dataLifeCycleManager = new DataLifeCycleManager(this);
-            _blockCacheManager = new BlockCacheManager(
-                databasePolicies.BlockCachePolicy,
-                LoadBlockId);
-            _schemaWithTriggers = userTables
-                .Select(t => t.Schema)
-                .Where(s => s.TriggerActions.Count > 0)
-                .ToImmutableArray();
-            _blobLock = blobLock;
 
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
@@ -145,6 +136,15 @@ namespace TrackDb.Lib
             _databaseState = new DatabaseState(tableMap);
             DatabasePolicy = databasePolicies;
             DatabasePolicy.LogPolicy.StorageConfiguration?.Validate();
+            _dataLifeCycleManager = new DataLifeCycleManager(this);
+            _blockCacheManager = new BlockCacheManager(
+                databasePolicies.BlockCachePolicy,
+                LoadBlockId);
+            _schemaWithTriggers = userTables
+                .Select(t => t.Schema)
+                .Where(s => s.TriggerActions.Count > 0)
+                .ToImmutableArray();
+            _blobLock = blobLock;
         }
 
         private Table CreateTable(TableSchema schema)
