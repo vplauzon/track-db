@@ -436,9 +436,9 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 .TransactionTableLogMap[tableName];
 
             tableLog.NewDataBlock.Clear();
-            tableLog.CommittedDataBlock!.Clear();
+            tableLog.ReplacingDataBlock!.Clear();
 
-            return tableLog.CommittedDataBlock!;
+            return tableLog.ReplacingDataBlock!;
         }
 
         #region Load Blocks

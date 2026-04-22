@@ -9,7 +9,7 @@ namespace TrackDb.Lib.InMemory
 {
     internal record TransactionTableLog(
         BlockBuilder NewDataBlock,
-        BlockBuilder? CommittedDataBlock = null)
+        BlockBuilder? ReplacingDataBlock = null)
     {
         public TransactionTableLog(TableSchema schema, BlockBuilder? CommittedDataBlock = null)
             : this(new BlockBuilder(schema), CommittedDataBlock)
@@ -25,9 +25,9 @@ namespace TrackDb.Lib.InMemory
                 var dataTables = new List<DataTable>();
 
                 dataTables.Add(NewDataBlock.DebugView);
-                if (CommittedDataBlock != null)
+                if (ReplacingDataBlock != null)
                 {
-                    dataTables.Add(CommittedDataBlock.DebugView);
+                    dataTables.Add(ReplacingDataBlock.DebugView);
                 }
 
                 var mergedTable = dataTables[0].Clone();
@@ -43,6 +43,5 @@ namespace TrackDb.Lib.InMemory
             }
         }
         #endregion
-
     }
 }

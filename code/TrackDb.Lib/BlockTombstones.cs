@@ -33,6 +33,13 @@ namespace TrackDb.Lib
         public int ItemCount => _bitmapMask.Count;
 
         public int DeletedCount { get; }
+        
+        public bool IsAllDeleted => DeletedCount == ItemCount;
+
+        public bool IsDeleted(int rowIndex)
+        {
+            return _bitmapMask.Get(rowIndex);
+        }
 
         public BlockTombstones AddRowIndexes(IEnumerable<int> rowIndexes)
         {
@@ -45,6 +52,13 @@ namespace TrackDb.Lib
 
             return new BlockTombstones(BlockId, TableName, bitmapMask);
         }
+
+        #region Object methods
+        public override string ToString()
+        {
+            return $"'{TableName}' ({BlockId}):  {DeletedCount}/{ItemCount}";
+        }
+        #endregion
 
         private static int ComputePopCount(BitArray bitmapMask)
         {
