@@ -5,6 +5,9 @@ using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
+    /// <summary>
+    /// Move tombstone records from the tombstone table to <see cref="BlockTombstones"/>.
+    /// </summary>
     internal class TombstoneMovementLogic : LogicBase
     {
         public TombstoneMovementLogic(Database database)

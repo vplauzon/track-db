@@ -53,6 +53,13 @@ namespace TrackDb.Lib
             return new BlockTombstones(BlockId, TableName, bitmapMask);
         }
 
+        #region Object methods
+        public override string ToString()
+        {
+            return $"'{TableName}' ({BlockId}):  {DeletedCount}/{ItemCount}";
+        }
+        #endregion
+
         private static int ComputePopCount(BitArray bitmapMask)
         {
             int count = 0;
