@@ -40,7 +40,6 @@ namespace TrackDb.Lib.DataLifeCycle
             _database = database;
             _backgroundAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
                 new HardDeleteAgent(database),
-                //new RecordCountHardDeleteAgent(database),
                 new RecordPersistanceAgent(
                     database,
                     new RecordCountPersistanceCandidateProvider(
