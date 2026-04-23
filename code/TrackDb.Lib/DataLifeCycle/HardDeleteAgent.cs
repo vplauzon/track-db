@@ -92,20 +92,13 @@ namespace TrackDb.Lib.DataLifeCycle
                         blockTombstonesIndex.ToDictionary();
                 }
 
+                var blockMergingLogic = new BlockMergingLogic4(Database);
+
                 foreach (var group in blockIdsGroupedByTableName)
                 {
-                    CompactTable(group.Key, group, blockTombstonesIndex, tx);
+                    blockMergingLogic.CompactMerge(group.Key, group, tx);
                 }
             }
-        }
-
-        private void CompactTable(
-            string tableName,
-            IEnumerable<int> blockIdsToCompact,
-            IDictionary<int, BlockTombstones> blockTombstonesIndex,
-            TransactionContext tx)
-        {
-            throw new NotImplementedException();
         }
 
         #region Block IDs
@@ -147,7 +140,7 @@ namespace TrackDb.Lib.DataLifeCycle
             IDictionary<int, BlockTombstones> blockTombstonesIndex,
             TransactionContext tx)
         {
-            if (_nextFull >= DateTime.Now)
+            if (_nextFull <= DateTime.Now)
             {
                 var allDeletedBlockTombstones = blockTombstonesIndex.Values
                     .Where(t => t.IsAllDeleted);
@@ -169,7 +162,7 @@ namespace TrackDb.Lib.DataLifeCycle
             IDictionary<int, BlockTombstones> blockTombstonesIndex,
             TransactionContext tx)
         {
-            if (_nextPartial >= DateTime.Now)
+            if (_nextPartial <= DateTime.Now)
             {
                 var partialBlockRatio =
                     Database.DatabasePolicy.TombstonePolicy.PartialBlockRatio;
@@ -193,7 +186,7 @@ namespace TrackDb.Lib.DataLifeCycle
             IDictionary<int, BlockTombstones> blockTombstonesIndex,
             TransactionContext tx)
         {
-            if (_nextRetention >= DateTime.Now)
+            if (_nextRetention <= DateTime.Now)
             {
                 var tombstoneRetentionPeriod =
                     Database.DatabasePolicy.TombstonePolicy.TombstoneRetentionPeriod;
