@@ -59,6 +59,22 @@ namespace TrackDb.Lib
             return new BlockTombstones(BlockId, TableName, bitmapMask);
         }
 
+        public int[] GetTombstoneRowIndexes()
+        {
+            var rowIndexes = new int[DeletedCount];
+            var j = 0;
+
+            for (var i = 0; i != _bitmapMask.Count; ++i)
+            {
+                if (_bitmapMask.Get(i))
+                {
+                    rowIndexes[j++] = i;
+                }
+            }
+
+            return rowIndexes;
+        }
+
         #region Object methods
         public override string ToString()
         {

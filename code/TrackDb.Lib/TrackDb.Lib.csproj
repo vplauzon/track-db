@@ -34,8 +34,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Compile Remove="DataLifeCycle\BlockMergingLogic.cs" />
 		<Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
 		<Compile Remove="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
+		<None Include="DataLifeCycle\BlockMergingLogic.cs" />
 		<None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
 		<None Include="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
 	</ItemGroup>
