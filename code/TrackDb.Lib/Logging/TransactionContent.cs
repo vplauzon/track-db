@@ -114,7 +114,7 @@ namespace TrackDb.Lib.Logging
                 if (tombstoneRecordIds.Length > 0)
                 {
                     var tombstoneRecords = tombstoneRecordIds
-                        .Select(id => new TombstoneRecord(id, tableName));
+                        .Select(id => new TombstoneRecord(id, tableName, null, null));
                     var recordWithRecordId =
                         new object?[tombstoneTable.Schema.ColumnProperties.Count];
                     var newRecordIds = tombstoneTable.NewRecordIds(tombstoneRecordIds.Length);

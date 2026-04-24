@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Azure.Storage.Blobs.Models;
+using System;
 using System.Collections;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
@@ -331,25 +333,38 @@ namespace TrackDb.Lib
                                 out var transactionTableLog);
 
                             //  Fetch record IDs of records matching query
-                            var deletedRecordIds = WithProjection(dataSchema.RecordIdColumnIndex)
+                            var deletedRecordTraces = WithProjection(dataSchema.RecordIdColumnIndex)
                             .WithSortColumns()
-                            .ExecuteQuery(CreateBlockTraceList(), tx)
-                            .Select(r => (long)r.Result.Span[0]!)
-                            .ToArray();
+                            .ExecuteQueryWithBlockTrace()
+                            .Select(btr => (
+                                RecordId: (long)btr.Result.Span[0]!,
+                                btr.BlockTraces.Last().BlockId))
+                            .Select(p => (
+                                p.RecordId,
+                                BlockId: p.BlockId <= 0 ? (int?)null : p.BlockId))
+                            .ToFrozenDictionary(p => p.RecordId, p => p.BlockId);
                             //  Hard delete the records that are uncommitted ONLY
                             var remainingDeletedRecordIds = HardDeleteWithinTransaction(
                                 transactionTableLog?.NewDataBlock,
-                                deletedRecordIds);
+                                deletedRecordTraces.Keys);
+                            var availabilityBlockManager =
+                            _innerState.QueryTable.Database.AvailabilityBlockManager;
 
                             foreach (var recordId in remainingDeletedRecordIds)
                             {
+                                var blockId = deletedRecordTraces[recordId];
+
                                 _innerState.QueryTable.Database.DeleteRecord(
                                     recordId,
                                     _innerState.QueryTable.Schema.TableName,
+                                    blockId,
+                                    blockId != null
+                                    ? availabilityBlockManager.GetBlockVersion(blockId.Value, tx)
+                                    : 0,
                                     tx);
                             }
 
-                            return deletedRecordIds.Length;
+                            return deletedRecordTraces.Count;
                         }
                         else
                         {
@@ -361,7 +376,7 @@ namespace TrackDb.Lib
 
         private IEnumerable<long> HardDeleteWithinTransaction(
             BlockBuilder? newDataBlock,
-            IReadOnlyList<long> recordIds)
+            IEnumerable<long> recordIds)
         {
             if (newDataBlock == null)
             {
@@ -478,7 +493,7 @@ namespace TrackDb.Lib
                     .WithProjection(metaSchema.BlockIdColumnIndex);
                 var blockTombstonesIndex =
                     tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex
-                    ?? (IDictionary<int, BlockTombstones>) tx.TransactionState.InMemoryDatabase.BlockTombstonesIndex;
+                    ?? (IDictionary<int, BlockTombstones>)tx.TransactionState.InMemoryDatabase.BlockTombstonesIndex;
 
                 if (_innerState.QueryTag != null)
                 {
