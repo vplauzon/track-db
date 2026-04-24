@@ -88,8 +88,7 @@ namespace TrackDb.Lib.DataLifeCycle
                 if (tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex == null)
                 {
                     blockTombstonesIndex = blockTombstonesIndex.ToDictionary();
-                    tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex =
-                        blockTombstonesIndex.ToDictionary();
+                    tx.LoadBlockTombstonesInTransaction();
                 }
 
                 var blockMergingLogic = new BlockMergingLogic(Database);

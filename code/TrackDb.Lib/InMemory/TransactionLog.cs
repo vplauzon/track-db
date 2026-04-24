@@ -1,8 +1,9 @@
-﻿using TrackDb.Lib.InMemory.Block;
-using System;
+﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using TrackDb.Lib.InMemory.Block;
 using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.InMemory
@@ -17,6 +18,9 @@ namespace TrackDb.Lib.InMemory
         public IDictionary<string, TransactionTableLog> TransactionTableLogMap { get; }
 
         public Dictionary<int, BlockTombstones>? ReplacingBlockTombstonesIndex { get; set; }
+
+        public Dictionary<BlockAvailability, Dictionary<int, AvailableBlock>>?
+            ReplacingAvailableBlockIndex { get; set; }
 
         public (long AppendRecordCount, long TombstoneRecordCount) GetLoggedRecordCounts(
             IEnumerable<string> loggingTables,

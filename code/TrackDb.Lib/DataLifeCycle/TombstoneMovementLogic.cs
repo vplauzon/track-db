@@ -23,13 +23,10 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (recordIdsbyTable.Length > 0)
             {
+                tx.LoadBlockTombstonesInTransaction();
+                
                 var blockTombstonesIndex =
-                    tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex
-                    ?? new Dictionary<int, BlockTombstones>(
-                        tx.TransactionState.InMemoryDatabase.BlockTombstonesIndex);
-
-                tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex =
-                    blockTombstonesIndex;
+                    tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex!;
 
                 foreach (var group in recordIdsbyTable)
                 {

@@ -100,9 +100,6 @@ namespace TrackDb.Lib
                 }))
                 .SelectMany(c => c)
                 .FirstOrDefault(o => o.ColumnName.Contains("$"));
-            var availableBlockTable = new TypedTable<AvailableBlockRecord>(
-                this,
-                TypedTableSchema<AvailableBlockRecord>.FromConstructor("$availableBlock"));
 
             if (invalidTableName != null)
             {
@@ -120,9 +117,7 @@ namespace TrackDb.Lib
             TombstoneTable = new TypedTable<TombstoneRecord>(
                 this,
                 TypedTableSchema<TombstoneRecord>.FromConstructor("$tombstone"));
-            AvailabilityBlockManager = new AvailabilityBlockManager(
-                availableBlockTable,
-                _dbFileManager);
+            AvailabilityBlockManager = new AvailabilityBlockManager(_dbFileManager);
             QueryExecutionTable = new TypedTable<QueryExecutionRecord>(
                 this,
                 TypedTableSchema<QueryExecutionRecord>.FromConstructor("$queryExecution"));
@@ -130,7 +125,6 @@ namespace TrackDb.Lib
             var tableMap = userTables
                 .Select(t => new TableProperties(t, 1, null, false, true))
                 .Append(new TableProperties(TombstoneTable, 1, null, true, false))
-                .Append(new TableProperties(availableBlockTable, 1, null, true, false))
                 .Append(new TableProperties(QueryExecutionTable, 1, null, true, true))
                 .ToFrozenDictionary(t => t.Table.Schema.TableName);
 

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -145,6 +144,32 @@ namespace TrackDb.Lib
             else
             {
                 return false;
+            }
+        }
+
+        /// <summary>Load all block tombstones in the transaction.</summary>
+        internal void LoadBlockTombstonesInTransaction()
+        {
+            var log = TransactionState.UncommittedTransactionLog;
+
+            if (log.ReplacingBlockTombstonesIndex == null)
+            {
+                log.ReplacingBlockTombstonesIndex =
+                    TransactionState.InMemoryDatabase.BlockTombstonesIndex.ToDictionary();
+            }
+        }
+
+        /// <summary>Load all <see cref="AvailableBlock"/> in the transaction.</summary>
+        internal void LoadAvailableBlockInTransaction()
+        {
+            var log = TransactionState.UncommittedTransactionLog;
+
+            if (log.ReplacingAvailableBlockIndex == null)
+            {
+                var availableBlockIndex = TransactionState.InMemoryDatabase.AvailableBlockIndex;
+
+                log.ReplacingAvailableBlockIndex = availableBlockIndex
+                    .ToDictionary(p => p.Key, p => p.Value.ToDictionary());
             }
         }
 
