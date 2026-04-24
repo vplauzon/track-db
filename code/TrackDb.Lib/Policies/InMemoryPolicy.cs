@@ -13,9 +13,9 @@ namespace TrackDb.Lib.Policies
             int? MaxMetaDataRecords = null)
         {
             return new InMemoryPolicy(
-                 MaxBlocksPerTable ?? 10,
-                 MaxNonMetaDataRecords ?? 500,
-                 MaxMetaDataRecords ?? 300);
+                MaxBlocksPerTable ?? 10,
+                MaxNonMetaDataRecords ?? 300,
+                MaxMetaDataRecords ?? 300);
         }
     }
 }
