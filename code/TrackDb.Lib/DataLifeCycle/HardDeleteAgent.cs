@@ -85,14 +85,9 @@ namespace TrackDb.Lib.DataLifeCycle
 
             if (blockIdsGroupedByTableName.Length > 0)
             {
-                if (tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex == null)
-                {
-                    blockTombstonesIndex = blockTombstonesIndex.ToDictionary();
-                    tx.LoadBlockTombstonesInTransaction();
-                }
-
                 var blockMergingLogic = new BlockMergingLogic(Database);
 
+                tx.LoadBlockTombstonesInTransaction();
                 foreach (var group in blockIdsGroupedByTableName)
                 {
                     blockMergingLogic.CompactMerge(group.Key, group, tx);
@@ -121,7 +116,7 @@ namespace TrackDb.Lib.DataLifeCycle
             if (trimCount > 0)
             {
                 var trimmedBlockTombstones = blockTombstonesIndex.Values
-                    .OrderBy(t => t.ItemCount - t.DeletedCount)
+                    .OrderByDescending(t => t.ItemCount - t.DeletedCount)
                     .Take(trimCount);
                 var trimmedBlockIds = trimmedBlockTombstones
                     .Select(t => t.BlockId)

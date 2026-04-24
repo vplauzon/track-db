@@ -24,7 +24,7 @@ namespace TrackDb.PerfTest
         [Fact]
         public async Task TestGen2()
         {
-            await RunPerformanceTestAsync(2, 5);
+            await RunPerformanceTestAsync(2, 25);
         }
 
         [Fact]
