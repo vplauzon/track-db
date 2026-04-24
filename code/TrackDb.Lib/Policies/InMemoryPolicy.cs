@@ -5,20 +5,17 @@ namespace TrackDb.Lib.Policies
     public record InMemoryPolicy(
         int MaxBlocksPerTable,
         int MaxNonMetaDataRecords,
-        int MaxMetaDataRecords,
-        TimeSpan MaxPersistancePeriod)
+        int MaxMetaDataRecords)
     {
         public static InMemoryPolicy Create(
             int? MaxBlocksPerTable = null,
             int? MaxNonMetaDataRecords = null,
-            int? MaxMetaDataRecords = null,
-            TimeSpan? MaxPersistancePeriod = null)
+            int? MaxMetaDataRecords = null)
         {
             return new InMemoryPolicy(
                  MaxBlocksPerTable ?? 10,
                  MaxNonMetaDataRecords ?? 500,
-                 MaxMetaDataRecords ?? 50,
-                 MaxPersistancePeriod ?? TimeSpan.FromSeconds(60));
+                 MaxMetaDataRecords ?? 300);
         }
     }
 }
