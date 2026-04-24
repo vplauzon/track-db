@@ -20,7 +20,7 @@ namespace TrackDb.Lib.Policies
                  FullBlockPeriod ?? TimeSpan.FromSeconds(20),
                  PartialBlockPeriod ?? TimeSpan.FromMinutes(1),
                  PartialBlockRatio ?? 50,
-                 PartialBlockPeriod ?? TimeSpan.FromMinutes(5),
+                 TombstoneRetentionPeriod ?? TimeSpan.FromMinutes(2),
                  MaxTombstonedBlocks ?? 1000);
         }
     }
