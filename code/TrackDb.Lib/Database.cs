@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -131,7 +132,7 @@ namespace TrackDb.Lib
                 .Append(new TableProperties(TombstoneTable, 1, null, true, false))
                 .Append(new TableProperties(availableBlockTable, 1, null, true, false))
                 .Append(new TableProperties(QueryExecutionTable, 1, null, true, true))
-                .ToImmutableDictionary(t => t.Table.Schema.TableName);
+                .ToFrozenDictionary(t => t.Table.Schema.TableName);
 
             _databaseState = new DatabaseState(tableMap);
             DatabasePolicy = databasePolicies;
@@ -391,21 +392,24 @@ namespace TrackDb.Lib
                         }
                         else
                         {
-                            var tableMap = state.TableMap.Add(
+                            var tableMap = state.TableMap.ToDictionary();
+
+                            tableMap.Add(
                                 metaDataSchema.TableName,
                                 new TableProperties(
                                     metaDataTable,
                                     table.Generation + 1,
                                     null,
                                     false,
-                                    true))
-                            .SetItem(tableName, state.TableMap[tableName] with
+                                    true));
+                            tableMap[tableName] = tableMap[tableName] with
                             {
                                 MetadataTableName = metaDataSchema.TableName
-                            });
+                            };
+
                             var newState = state with
                             {
-                                TableMap = tableMap
+                                TableMap = tableMap.ToFrozenDictionary()
                             };
 
                             return newState;
@@ -567,7 +571,10 @@ namespace TrackDb.Lib
             RunTransactionAction();
             CompleteTransactionState(tx.TransactionState, tx.DoLog, tcs, ct);
             RunTransactionAction();
-            _dataLifeCycleManager.TriggerDataManagement();
+            if (tx.HasUserTableData)
+            {
+                _dataLifeCycleManager.TriggerDataManagement();
+            }
             DecrementActiveTransactionCount();
         }
 
