@@ -92,7 +92,7 @@ namespace TrackDb.Lib.DataLifeCycle
                         blockTombstonesIndex.ToDictionary();
                 }
 
-                var blockMergingLogic = new BlockMergingLogic4(Database);
+                var blockMergingLogic = new BlockMergingLogic(Database);
 
                 foreach (var group in blockIdsGroupedByTableName)
                 {

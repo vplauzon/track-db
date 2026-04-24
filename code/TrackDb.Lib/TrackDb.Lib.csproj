@@ -34,15 +34,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Compile Remove="DataLifeCycle\BlockMergingLogic.cs" />
-		<Compile Remove="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
-		<Compile Remove="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
-		<None Include="DataLifeCycle\BlockMergingLogic.cs" />
-		<None Include="DataLifeCycle\Persistance\TimePersistanceCandidateProvider.cs" />
-		<None Include="DataLifeCycle\RecordCountHardDeleteAgent.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="Azure.Storage.Files.DataLake" Version="12.25.0" />
 		<PackageReference Include="ZiggyCreatures.FusionCache" Version="2.5.0" />
 	</ItemGroup>

@@ -1,105 +1,123 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
 using TrackDb.Lib.DataLifeCycle.Persistance;
 using TrackDb.Lib.InMemory.Block;
+using TrackDb.Lib.Predicate;
 
 namespace TrackDb.Lib.DataLifeCycle
 {
+    /// <summary>Logic compacting blocks and merging them together.</summary>
     internal class BlockMergingLogic : LogicBase
     {
-        private static readonly IDictionary<int, TombstoneBlock> _emptyTombstoneBlock =
-            new Dictionary<int, TombstoneBlock>();
-
-        private readonly MetaBlockMergingLogic _metaBlockMergingLogic;
+        #region Inner Types
+        private record struct BlockTraceSlim(TableSchema Schema, int BlockId);
+        #endregion
 
         public BlockMergingLogic(Database database)
             : base(database)
         {
-            _metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
         }
 
+        /// <summary>
+        /// Compact multiple block IDs (<paramref name="blockIdsToCompact"/>)
+        /// in a single table (<paramref name="tableName"/>).
+        /// </summary>
+        /// <param name="tableName"></param>
+        /// <param name="blockIdsToCompact"></param>
+        /// <param name="tx"></param>
         public void CompactMerge(
-            IDictionary<string, IEnumerable<int>> blockIdsToCompactByTableName,
-            IDictionary<string, IEnumerable<TombstoneBlock>> allTombstoneBlocksMap,
-            TransactionContext tx)
-        {
-            foreach (var pair in blockIdsToCompactByTableName)
-            {
-                var tableName = pair.Key;
-                var blockIdsToCompact = pair.Value;
-                var allTableTombstoneBlocksIndex = allTombstoneBlocksMap[tableName]
-                    .ToDictionary(t => t.BlockId);
-
-                CompactMergeTable(tableName, blockIdsToCompact, allTableTombstoneBlocksIndex, tx);
-            }
-        }
-
-        private void CompactMergeTable(
             string tableName,
             IEnumerable<int> blockIdsToCompact,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
-            var tombstoneBlocksGroups = blockIdsToCompact
-                .Select(id => allTombstoneBlockIndex[id])
-                .GroupBy(t => t.BlockTraces.Count)
-                .Select(g => g.ToArray());
-            var cumulatedDeletedBlockIds = new List<int>();
+            var blockIdsToCompactSet = blockIdsToCompact.ToFrozenSet();
+            var blockTracesToCompact = FetchBlockTraces(tableName, blockIdsToCompactSet, tx);
+            //  Each of those are independant as the root is at different level
+            var blockTracesGroups = blockTracesToCompact
+                .GroupBy(t => t.Count);
             var blockReplacementMap = new Dictionary<int, IEnumerable<MetadataBlock>>();
+            var cumulatedDeletedBlockIds = new List<int>();
+            var metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
 
-            foreach (var tombstoneBlocks in tombstoneBlocksGroups)
-            {   //  Each of those plans are independant as the root is at different level
-                var traceLength = tombstoneBlocks[0].BlockTraces.Count;
+            foreach (var rootGroup in blockTracesGroups)
+            {
+                var traceLength = rootGroup.Key;
 
-                for (var i = traceLength - 1; i >= 0; --i)
+                for (var i = traceLength - 2; i >= 0; --i)
                 {
-                    var tombstoneBlocksByMetaBlockId = tombstoneBlocks
-                        .GroupBy(t => t.BlockTraces[i].BlockId)
+                    var blockTracesByMetaBlockId = rootGroup
+                        .GroupBy(t => t[i].BlockId)
                         .Distinct();
 
-                    foreach (var metaBlockGroup in tombstoneBlocksByMetaBlockId)
+                    foreach (var metaBlockGroup in blockTracesByMetaBlockId)
                     {
-                        var metaBlockId = metaBlockGroup.Key <= 0 ? (int?)null : metaBlockGroup.Key;
-                        var result = _metaBlockMergingLogic.CompactMerge(
+                        var metaBlockId =
+                            metaBlockGroup.Key <= 0 ? (int?)null : metaBlockGroup.Key;
+                        var compactResult = metaBlockMergingLogic.CompactMerge(
                             metaBlockId,
-                            (MetadataTableSchema)metaBlockGroup.First().BlockTraces[i].Schema,
-                            i == traceLength - 1
-                            ? metaBlockGroup.Select(o => o.BlockId)
+                            (MetadataTableSchema)metaBlockGroup.First()[i].Schema,
+                            i == traceLength - 2
+                            ? metaBlockGroup.Select(o => o[traceLength - 1].BlockId)
                             : Array.Empty<int>(),
-                            i == traceLength - 1 ? allTombstoneBlockIndex : _emptyTombstoneBlock,
                             blockReplacementMap,
                             tx);
 
-                        cumulatedDeletedBlockIds.AddRange(result.DeletedBlockIds);
+                        cumulatedDeletedBlockIds.AddRange(compactResult.DeletedBlockIds);
                         if (metaBlockId != null)
                         {
-                            blockReplacementMap.Add(metaBlockId.Value, result.MetaBlocks);
+                            blockReplacementMap.Add(metaBlockId.Value, compactResult.MetaBlocks);
                             cumulatedDeletedBlockIds.Add(metaBlockId.Value);
                         }
                     }
                 }
                 blockReplacementMap.Clear();
             }
-            CleanDeletedBlocksAndRecords(
-                tableName, cumulatedDeletedBlockIds, allTombstoneBlockIndex, tx);
+            CleanHardDeletedBlockIds(cumulatedDeletedBlockIds, tx);
         }
 
-        private void CleanDeletedBlocksAndRecords(
+        private void CleanHardDeletedBlockIds(List<int> deletedBlockIds, TransactionContext tx)
+        {
+            var blockTombstonesIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex!;
+
+            foreach (var id in deletedBlockIds)
+            {
+                blockTombstonesIndex.Remove(id);
+            }
+            Database.AvailabilityBlockManager.SetNoLongerInUse(deletedBlockIds, tx);
+        }
+
+        private IEnumerable<IReadOnlyList<BlockTraceSlim>> FetchBlockTraces(
             string tableName,
-            IReadOnlyList<int> cumulatedDeletedBlockIds,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            ISet<int> blockIdsToCompact,
             TransactionContext tx)
         {
-            var deletedRecordIds = cumulatedDeletedBlockIds
-                .SelectMany(id => allTombstoneBlockIndex.TryGetValue(id, out var tb)
-                ? tb.RecordIds
-                : Array.Empty<long>());
+            var metaTable = Database.GetMetaDataTable(tableName);
+            var metaSchema = (MetadataTableSchema)metaTable.Schema;
 
-            Database.AvailabilityBlockManager.SetNoLongerInUse(cumulatedDeletedBlockIds, tx);
-            Database.DeleteTombstoneRecords(tableName, deletedRecordIds, tx);
+            IReadOnlyList<BlockTraceSlim> CreateTrace(BlockTracedResult result)
+            {
+                return result.BlockTraces
+                    .Select(bt => new BlockTraceSlim(bt.Schema, bt.BlockId))
+                    .Append(new BlockTraceSlim(metaSchema, (int)result.Result.Span[0]!))
+                    .ToArray();
+            }
+
+            var predicate = new InPredicate<int>(
+                metaSchema.BlockIdColumnIndex,
+                blockIdsToCompact,
+                true);
+            var results = metaTable.Query(tx)
+                .WithPredicate(predicate)
+                .WithProjection(metaSchema.BlockIdColumnIndex)
+                .ExecuteQueryWithBlockTrace()
+                .Select(r => CreateTrace(r));
+
+            return results;
         }
     }
 }
