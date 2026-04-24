@@ -40,7 +40,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             //  We persist as much blocks from the table as possible
             var committedDataBlock = tx.TransactionState.UncommittedTransactionLog
                 .TransactionTableLogMap[candidate.Table.Schema.TableName]
-                .CommittedDataBlock;
+                .ReplacingDataBlock;
 
             if (committedDataBlock == null)
             {

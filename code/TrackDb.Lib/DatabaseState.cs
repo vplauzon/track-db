@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Frozen;
 
 namespace TrackDb.Lib
 {
@@ -16,12 +17,12 @@ namespace TrackDb.Lib
     /// <param name="TableMap"></param>
     internal record DatabaseState(
         InMemoryDatabase InMemoryDatabase,
-        IImmutableDictionary<string, TableProperties> TableMap,
+        FrozenDictionary<string, TableProperties> TableMap,
         long AppendRecordCount,
         long TombstoneRecordCount,
         ReversedLinkedList<TransactionLogItem>? TransactionLogItems)
     {
-        public DatabaseState(IImmutableDictionary<string, TableProperties> tableMap)
+        public DatabaseState(FrozenDictionary<string, TableProperties> tableMap)
             : this(new InMemoryDatabase(), tableMap, 0, 0, null)
         {
         }

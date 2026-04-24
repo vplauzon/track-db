@@ -55,6 +55,21 @@ namespace TrackDb.Lib
 
         internal TransactionState TransactionState { get; }
 
+        internal bool HasUserTableData
+        {
+            get
+            {
+                var tableNames =
+                    TransactionState.UncommittedTransactionLog.TransactionTableLogMap.Keys;
+                var tombstoneName = _database.TombstoneTable.Schema.TableName;
+                var tableMap = _database.GetDatabaseStateSnapshot().TableMap;
+                var userTableNames = tableNames
+                    .Where(t => tableMap[t].IsUserTable || t == tombstoneName);
+
+                return userTableNames.Any();
+            }
+        }
+
         public void Complete()
         {
             if (_status == TransactionStatus.Open)
@@ -105,7 +120,7 @@ namespace TrackDb.Lib
 
         /// <summary>
         /// Load all committed transaction logs of a table, merges them, hard delete previously
-        /// deleted records and stores it in <see cref="TransactionTableLog.CommittedDataBlock"/>.
+        /// deleted records and stores it in <see cref="TransactionTableLog.ReplacingDataBlock"/>.
         /// If the table is already loaded, nothing happens.
         /// The tombstone table might get loaded as a side effect.
         /// </summary>
@@ -133,6 +148,11 @@ namespace TrackDb.Lib
             }
         }
 
+        internal void CleanTable(TableSchema schema)
+        {
+            TransactionState.CleanTable(schema);
+        }
+
         private void HardDeleteCommittedRecords(string tableName, DataTableSchema schema)
         {   //  We hard delete only out-of-transaction tombstones
             var deletedRecordIdColumnSet =
@@ -150,7 +170,7 @@ namespace TrackDb.Lib
             {
                 var committedDataBlockBuilder = TransactionState.UncommittedTransactionLog
                     .TransactionTableLogMap[tableName]
-                    .CommittedDataBlock!;
+                    .ReplacingDataBlock!;
                 IBlock committedDataBlock = committedDataBlockBuilder;
                 //  Hard delete in-memory records in the table
                 var rowIndexes = committedDataBlock.Filter(recordIdPredicate, false).RowIndexes;

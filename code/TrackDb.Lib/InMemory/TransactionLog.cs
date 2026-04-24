@@ -7,16 +7,16 @@ using TrackDb.Lib.SystemData;
 
 namespace TrackDb.Lib.InMemory
 {
-    internal record TransactionLog(
-        IDictionary<string, TransactionTableLog> TransactionTableLogMap)
+    internal class TransactionLog
     {
         public TransactionLog()
-            : this(new Dictionary<string, TransactionTableLog>())
         {
+            TransactionTableLogMap = new Dictionary<string, TransactionTableLog>();
         }
 
-        public bool IsEmpty => TransactionTableLogMap.Values
-            .All(t => ((IBlock)t.NewDataBlock).RecordCount == 0 && t.CommittedDataBlock == null);
+        public IDictionary<string, TransactionTableLog> TransactionTableLogMap { get; }
+
+        public Dictionary<int, BlockTombstones>? ReplacingBlockTombstonesIndex { get; set; }
 
         public (long AppendRecordCount, long TombstoneRecordCount) GetLoggedRecordCounts(
             IEnumerable<string> loggingTables,

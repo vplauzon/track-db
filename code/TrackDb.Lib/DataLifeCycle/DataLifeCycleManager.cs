@@ -26,7 +26,6 @@ namespace TrackDb.Lib.DataLifeCycle
         private readonly Database _database;
         //  List of agents responsible for data life cycle
         private readonly IImmutableList<DataLifeCycleAgentBase> _backgroundAgents;
-        private readonly IImmutableList<DataLifeCycleAgentBase> _initAgents;
         //  Channel used to push data lifecycle trigger over threads
         private readonly Channel<LifeCycleItem> _channel = Channel.CreateUnbounded<LifeCycleItem>();
         //  Task running as long as this object is alive
@@ -40,8 +39,7 @@ namespace TrackDb.Lib.DataLifeCycle
         {
             _database = database;
             _backgroundAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new TimeHardDeleteAgent(database),
-                new RecordCountHardDeleteAgent(database),
+                new HardDeleteAgent(database),
                 new RecordPersistanceAgent(
                     database,
                     new RecordCountPersistanceCandidateProvider(
@@ -53,18 +51,6 @@ namespace TrackDb.Lib.DataLifeCycle
                         database,
                         new MetaTableProvider(database))),
                 new TransactionLogMergingAgent(database));
-            _initAgents = ImmutableList.Create<DataLifeCycleAgentBase>(
-                new RecordCountHardDeleteAgent(database),
-                new RecordPersistanceAgent(
-                    database,
-                    new RecordCountPersistanceCandidateProvider(
-                        database,
-                        new NonMetaTableProvider(database))),
-                new RecordPersistanceAgent(
-                    database,
-                    new RecordCountPersistanceCandidateProvider(
-                        database,
-                        new MetaTableProvider(database))));
             _dataMaintenanceTask = DataMaintanceAsync();
         }
 
@@ -257,9 +243,7 @@ namespace TrackDb.Lib.DataLifeCycle
 
         private void RunDataMaintance(DataManagementActivity forcedDataManagementActivity)
         {
-            var agents = _isInitialPhase ? _initAgents : _backgroundAgents;
-
-            foreach (var agent in agents)
+            foreach (var agent in _backgroundAgents)
             {
                 if (!_dataMaintenanceStopSource.Task.IsCompleted)
                 {

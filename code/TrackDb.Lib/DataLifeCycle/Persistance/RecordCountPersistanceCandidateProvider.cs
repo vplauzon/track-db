@@ -2,14 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
     internal class RecordCountPersistanceCandidateProvider : LogicBase, IPersistanceCandidateProvider
     {
         #region Inner types
-        private record TableRecordCount(Table Table, long RecordCount, bool IsMetaMerged);
+        private record TableRecordCount(Table Table, long RecordCount);
         #endregion
 
         private readonly ITableProvider _tableProvider;
@@ -45,30 +44,12 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     var isMetadataTable =
                         tableMap[topCandidate.Table.Schema.TableName].IsMetaDataTable;
 
-                    if (!isMetadataTable
-                        || topCandidate.IsMetaMerged
-                        || !MergeMetaRecords(topCandidate, tx))
-                    {
-                        yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
-                    }
-                    else
-                    {
-                        var newNewRecordCount = GetRecordCount(topCandidate.Table, tx);
-
-                        //  We filter out tables with only one record since storing the meta record
-                        //  in memory is equivalent to storing the record itself
-                        if (newNewRecordCount > 1)
-                        {
-                            tableRecordCounts.Add(
-                                new TableRecordCount(topCandidate.Table, newNewRecordCount, true));
-                            Sort(tableRecordCounts);
-                        }
-                    }
+                    yield return new PersistanceCandidate(topCandidate.Table, doPersistAll);
                 }
                 else
                 {
                     tableRecordCounts.Add(
-                        new TableRecordCount(topCandidate.Table, newRecordCount, false));
+                        new TableRecordCount(topCandidate.Table, newRecordCount));
                     Sort(tableRecordCounts);
                 }
             }
@@ -105,7 +86,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         {
             var tables = _tableProvider.GetTables(tx);
             var initialTables = tables
-                .Select(t => new TableRecordCount(t, GetRecordCount(t, tx), false))
+                .Select(t => new TableRecordCount(t, GetRecordCount(t, tx)))
                 //  We put >1 because persisting a unique record creates meta record in memory
                 .Where(t => t.RecordCount > 1)
                 .ToList();
@@ -113,59 +94,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             Sort(initialTables);
 
             return initialTables;
-        }
-
-        private bool MergeMetaRecords(TableRecordCount topCandidate, TransactionContext tx)
-        {
-            IDictionary<int, TombstoneBlock> GetTombstoneBlocksMap(TableSchema schema)
-            {
-                if (schema is MetadataTableSchema)
-                {
-                    return new Dictionary<int, TombstoneBlock>();
-                }
-                else
-                {
-                    var tombstoneBlockLogic = new TombstoneBlockLogic(Database);
-                    var allTombstoneBlocksMap = tombstoneBlockLogic.GetTombstoneBlocksMap(
-                        [schema.TableName],
-                        tx);
-
-                    if (allTombstoneBlocksMap.Count > 0)
-                    {
-                        return allTombstoneBlocksMap[schema.TableName]
-                            .ToDictionary(tb => tb.BlockId);
-                    }
-                    else
-                    {
-                        return new Dictionary<int, TombstoneBlock>();
-                    }
-                }
-            }
-
-            var metadataShema = (MetadataTableSchema)topCandidate.Table.Schema;
-            var schema = metadataShema.ParentSchema;
-            var allTombstoneBlocksIndex = GetTombstoneBlocksMap(schema);
-            var metaBlockMergingLogic = new MetaBlockMergingLogic(Database);
-            var compactResult = metaBlockMergingLogic.CompactMerge(
-                null,
-                metadataShema,
-                [],
-                allTombstoneBlocksIndex,
-                new Dictionary<int, IEnumerable<MetadataBlock>>(),
-                tx);
-
-            if (compactResult.DeletedBlockIds.Any())
-            {
-                Database.AvailabilityBlockManager.SetNoLongerInUse(
-                    compactResult.DeletedBlockIds,
-                    tx);
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
         }
     }
 }

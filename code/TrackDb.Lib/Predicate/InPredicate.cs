@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -18,7 +19,7 @@ namespace TrackDb.Lib.Predicate
                   Values
                   .Where(v => v != null)
                   .Cast<T>()
-                  .ToHashSet(),
+                  .ToFrozenSet(),
                   Values.Any(v => v == null),
                   IsIn)
         {

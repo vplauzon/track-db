@@ -31,6 +31,7 @@ namespace TrackDb.Lib
 
         private record BlockWithTrace(
             IReadOnlyList<BlockTrace> BlockTraces,
+            BlockTombstones? BlockTombstones,
             int BlockId,
             IBlock Block);
 
@@ -452,6 +453,7 @@ namespace TrackDb.Lib
             {
                 yield return new BlockWithTrace(
                     blockTraceList,
+                    null,
                     blockId--,
                     block);
             }
@@ -474,22 +476,37 @@ namespace TrackDb.Lib
                 var metaDataQuery = metaDataTable.Query(tx)
                     .WithPredicate(metaPredicate)
                     .WithProjection(metaSchema.BlockIdColumnIndex);
+                var blockTombstonesIndex =
+                    tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex
+                    ?? (IDictionary<int, BlockTombstones>) tx.TransactionState.InMemoryDatabase.BlockTombstonesIndex;
 
                 if (_innerState.QueryTag != null)
                 {
                     metaDataQuery = metaDataQuery.WithQueryTag(_innerState.QueryTag);
                 }
+                if (_innerState.IgnoreDeleted)
+                {
+                    metaDataQuery = metaDataQuery.WithIgnoreDeleted();
+                }
                 foreach (var result in metaDataQuery.ExecuteQuery(blockTraceList, tx))
                 {
                     var blockTraceIndex = blockTraceList.Count;
                     var blockId = (int)result.Result.Span[0]!;
+                    BlockTombstones? blockTombstones = null;
 
-                    yield return new BlockWithTrace(
-                        blockTraceList,
-                        blockId,
-                        _innerState.QueryTable.Database.GetOrLoadBlock(
+                    blockTombstonesIndex.TryGetValue(blockId, out blockTombstones);
+                    if (_innerState.IgnoreDeleted
+                        || blockTombstones == null
+                        || !blockTombstones.IsAllDeleted)
+                    {
+                        yield return new BlockWithTrace(
+                            blockTraceList,
+                            blockTombstones,
                             blockId,
-                            _innerState.QueryTable.Schema));
+                            _innerState.QueryTable.Database.GetOrLoadBlock(
+                                blockId,
+                                _innerState.QueryTable.Schema));
+                    }
                 }
             }
         }
@@ -560,16 +577,21 @@ namespace TrackDb.Lib
                 AuditPredicate(filterOutput.PredicateAuditTrails, currentBlockId, queryId);
                 foreach (var indexedResult in indexedResults)
                 {
-                    blockTraceList.Add(new BlockTrace(
-                        schema,
-                        blockWithTrace.BlockId,
-                        indexedResult.RowIndex));
-                    yield return new BlockTracedResult(blockTraceList, indexedResult.Result);
-                    CollectionsMarshal.SetCount(blockTraceList, blockTraceList.Count - 1);
-                    --takeCount;
-                    if (takeCount == 0)
+                    if (blockWithTrace.BlockTombstones == null
+                        || !blockWithTrace.BlockTombstones.IsDeleted(indexedResult.RowIndex))
                     {
-                        yield break;
+                        blockTraceList.Add(new BlockTrace(
+                            schema,
+                            blockWithTrace.BlockId,
+                            blockWithTrace.Block.RecordCount,
+                            indexedResult.RowIndex));
+                        yield return new BlockTracedResult(blockTraceList, indexedResult.Result);
+                        CollectionsMarshal.SetCount(blockTraceList, blockTraceList.Count - 1);
+                        --takeCount;
+                        if (takeCount == 0)
+                        {
+                            yield break;
+                        }
                     }
                 }
             }

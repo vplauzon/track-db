@@ -6,6 +6,8 @@
         //  Block ID:  if positive, it's on disk, if <=0, it's the negative
         //  index of the in-memory block
         int BlockId,
+        //  Total # of records in the block (not counting deleted records)
+        int RecordCountInBlock,
         //  Row index within the block
         int RowIndex);
 }
