@@ -55,6 +55,21 @@ namespace TrackDb.Lib
 
         internal TransactionState TransactionState { get; }
 
+        internal bool HasUserTableData
+        {
+            get
+            {
+                var tableNames =
+                    TransactionState.UncommittedTransactionLog.TransactionTableLogMap.Keys;
+                var tombstoneName = _database.TombstoneTable.Schema.TableName;
+                var tableMap = _database.GetDatabaseStateSnapshot().TableMap;
+                var userTableNames = tableNames
+                    .Where(t => tableMap[t].IsUserTable || t == tombstoneName);
+
+                return userTableNames.Any();
+            }
+        }
+
         public void Complete()
         {
             if (_status == TransactionStatus.Open)

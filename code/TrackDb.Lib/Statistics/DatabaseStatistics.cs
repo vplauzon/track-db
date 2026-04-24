@@ -46,11 +46,9 @@ namespace TrackDb.Lib.Statistics
         }
 
         private static int GetMaxTableGeneration(
-            IImmutableDictionary<string, TableProperties> tableMap)
+            IDictionary<string, TableProperties> tableMap)
         {
-            int GetTableGeneration(
-                string tableName,
-                IImmutableDictionary<string, TableProperties> tableMap)
+            int GetTableGeneration(string tableName, IDictionary<string, TableProperties> tableMap)
             {
                 var properties = tableMap[tableName];
 

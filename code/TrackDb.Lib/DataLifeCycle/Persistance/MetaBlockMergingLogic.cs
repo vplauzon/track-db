@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Data;
@@ -7,6 +8,7 @@ using TrackDb.Lib.InMemory.Block;
 
 namespace TrackDb.Lib.DataLifeCycle.Persistance
 {
+    /// <summary>Logic compacting / merging meta blocks.</summary>
     internal class MetaBlockMergingLogic : LogicBase
     {
         #region Inner Types
@@ -25,11 +27,19 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             _maxBlockSize = Database.DatabasePolicy.StoragePolicy.BlockSize;
         }
 
+        /// <summary>
+        /// Compact and merge blocks within a single meta block (<paramref name="metaBlockId"/>)
+        /// </summary>
+        /// <param name="metaBlockId"></param>
+        /// <param name="schema"></param>
+        /// <param name="blockIdsToCompact"></param>
+        /// <param name="blockReplacementMap"></param>
+        /// <param name="tx"></param>
+        /// <returns></returns>
         public CompactMergeResult CompactMerge(
             int? metaBlockId,
             MetadataTableSchema schema,
             IEnumerable<int> blockIdsToCompact,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             IDictionary<int, IEnumerable<MetadataBlock>> blockReplacementMap,
             TransactionContext tx)
         {
@@ -43,7 +53,6 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 replacedBlocks,
                 schema,
                 blockIdsToCompact,
-                allTombstoneBlockIndex,
                 tx);
             var deletedBlockIds = replacedBlocks
                 .Select(b => b.BlockId)
@@ -58,13 +67,14 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             IEnumerable<MetadataBlock> blocks,
             MetadataTableSchema schema,
             IEnumerable<int> blockIdsToCompact,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
             TransactionContext tx)
         {
-            var blockIdsToCompactSet = blockIdsToCompact.ToHashSet();
+            var blockIdsToCompactSet = blockIdsToCompact.ToFrozenSet();
             var blockStack = new Stack<MetadataBlock>(blocks.OrderByDescending(b => b.MinRecordId));
             var processedBlocks = new List<MetadataBlock>(2 * blockStack.Count());
             var blockBuilder = new BlockBuilder(schema.ParentSchema);
+            var blockTombstonesIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingBlockTombstonesIndex!;
             MetadataBlock? previousBlock = null;
 
             while (blockStack.Count > 0)
@@ -78,7 +88,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     ref previousBlock,
                     processedBlocks,
                     blockIdsToCompactSet,
-                    allTombstoneBlockIndex,
+                    blockTombstonesIndex,
                     tx);
             }
             if (previousBlock != null)
@@ -103,7 +113,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
            ref MetadataBlock? previousBlock,
            List<MetadataBlock> processedBlocks,
            ISet<int> blockIdsToCompact,
-           IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+           IDictionary<int, BlockTombstones> blockTombstonesIndex,
            TransactionContext tx)
         {
             if (((IBlock)blockBuilder).RecordCount > 0 && previousBlock != null)
@@ -111,15 +121,15 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 throw new InvalidOperationException("Both blocks can't exist at the same time");
             }
 
-            if (allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb)
-                && tb.RowIndexes.Count == currentBlock.ItemCount)
+            if (blockTombstonesIndex.TryGetValue(currentBlock.BlockId, out var bt)
+                && bt.IsAllDeleted)
             {
-                //  All good:  opportunistically (i.e. regardless if it is in blockIdsToCompact
+                //  Opportunistically (i.e. regardless if it is in blockIdsToCompact
                 //  or not) discard an entirely deleted block
             }
             else if (blockIdsToCompact.Contains(currentBlock.BlockId))
             {   //  We try to compact regardless if the blockBuilder has records or not
-                CompactIntoBuilder(currentBlock, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(currentBlock, blockBuilder, blockTombstonesIndex);
                 //  Removing rows increases block size (rare)
                 PersistBlockBuilder(
                     blockBuilder,
@@ -133,7 +143,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                     if (((IBlock)blockBuilder).RecordCount > 0 && TryMerge(
                         blockBuilder,
                         previousBlock,
-                        allTombstoneBlockIndex,
+                        blockTombstonesIndex,
                         tx))
                     {
                         //  All good
@@ -149,7 +159,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             else if (((IBlock)blockBuilder).RecordCount > 0 && TryMerge(
                 blockBuilder,
                 currentBlock,
-                allTombstoneBlockIndex,
+                blockTombstonesIndex,
                 tx))
             {
                 //  All good
@@ -158,7 +168,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
                 blockBuilder,
                 currentBlock,
                 previousBlock,
-                allTombstoneBlockIndex,
+                blockTombstonesIndex,
                 tx))
             {
                 previousBlock = null;
@@ -182,47 +192,23 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         private void CompactIntoBuilder(
             MetadataBlock currentBlock,
             BlockBuilder blockBuilder,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex)
+            IDictionary<int, BlockTombstones> blockTombstonesIndex)
         {
             var schema = ((IBlock)blockBuilder).TableSchema;
 
             if (!schema.IsMetadata
-                && allTombstoneBlockIndex.TryGetValue(currentBlock.BlockId, out var tb))
+                && blockTombstonesIndex.TryGetValue(currentBlock.BlockId, out var bt))
             {   //  Some tombstones
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
-                if (tb.RowIndexes.Count != currentBlock.ItemCount)
+                if (!bt.IsAllDeleted)
                 {   //  Partial delete
-                    var tombstoneRowIndexes = tb
-                        .RowIndexes
-                        .OrderBy(x => x)
-                        .Select(x => x + recordCountBefore)
-                        .ToArray();
                     var block = Database.GetOrLoadBlock(currentBlock.BlockId, schema);
+                    var adjustedIndexes = bt.GetTombstoneRowIndexes()
+                        .Select(i => i + recordCountBefore);
 
                     blockBuilder.AppendBlock(block);
-#if DEBUG
-                    var dataSchema = (DataTableSchema)schema;
-                    var deletedRecordIds = ((IBlock)blockBuilder).Project(
-                        new object?[1],
-                        [dataSchema.RecordIdColumnIndex],
-                        tombstoneRowIndexes)
-                        .Select(r => (long)r.Span[0]!)
-                        .ToHashSet();
-
-                    if (!deletedRecordIds.SetEquals(tb.RecordIds))
-                    {
-                        throw new InvalidOperationException("Inconsistent tombstone records");
-                    }
-#endif
-                    blockBuilder.DeleteRecordsByRecordIndex(tombstoneRowIndexes);
-#if DEBUG
-                    if (recordCountBefore + currentBlock.ItemCount - tombstoneRowIndexes.Length
-                        != ((IBlock)blockBuilder).RecordCount)
-                    {
-                        throw new InvalidOperationException("Compaction error");
-                    }
-#endif
+                    blockBuilder.DeleteRecordsByRecordIndex(adjustedIndexes);
                 }
             }
             else
@@ -236,7 +222,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
         private bool TryMerge(
             BlockBuilder blockBuilder,
             MetadataBlock nextMetadataBlock,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            IDictionary<int, BlockTombstones> blockTombstonesIndex,
             TransactionContext tx)
         {
             var totalSize = blockBuilder.GetSerializationSize() + nextMetadataBlock.Size;
@@ -252,7 +238,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             {
                 var recordCountBefore = ((IBlock)blockBuilder).RecordCount;
 
-                CompactIntoBuilder(nextMetadataBlock, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(nextMetadataBlock, blockBuilder, blockTombstonesIndex);
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
                     return true;
@@ -276,7 +262,7 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
             BlockBuilder blockBuilder,
             MetadataBlock metadataBlockA,
             MetadataBlock metadataBlockB,
-            IDictionary<int, TombstoneBlock> allTombstoneBlockIndex,
+            IDictionary<int, BlockTombstones> blockTombstonesIndex,
             TransactionContext tx)
         {
 #if DEBUG
@@ -299,8 +285,8 @@ namespace TrackDb.Lib.DataLifeCycle.Persistance
 
             if (totalSize <= _maxBlockSize)
             {
-                CompactIntoBuilder(metadataBlockA, blockBuilder, allTombstoneBlockIndex);
-                CompactIntoBuilder(metadataBlockB, blockBuilder, allTombstoneBlockIndex);
+                CompactIntoBuilder(metadataBlockA, blockBuilder, blockTombstonesIndex);
+                CompactIntoBuilder(metadataBlockB, blockBuilder, blockTombstonesIndex);
                 if (blockBuilder.GetSerializationSize() <= _maxBlockSize)
                 {
                     return true;
