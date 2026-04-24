@@ -12,45 +12,51 @@ namespace TrackDb.Lib
     {
         private const int BLOCK_INCREMENT = 256;
 
-        private readonly TypedTable<AvailableBlockRecord> _availableBlockTable;
         private readonly Lazy<DatabaseFileManager> _dbFileManager;
 
-        public AvailabilityBlockManager(
-            TypedTable<AvailableBlockRecord> availableBlockTable,
-            Lazy<DatabaseFileManager> dbFileManager)
+        public AvailabilityBlockManager(Lazy<DatabaseFileManager> dbFileManager)
         {
-            _availableBlockTable = availableBlockTable;
             _dbFileManager = dbFileManager;
         }
 
         public IReadOnlyList<int> SetInUse(int blockIdCount, TransactionContext tx)
         {
-            var blockIds = new List<int>(blockIdCount);
-            var availableQuery = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.Available));
+            tx.LoadAvailableBlockInTransaction();
 
-            while (blockIds.Count != blockIdCount)
+            var blockIds = new int[blockIdCount];
+            var i = 0;
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
+
+            if (!blockIndex.TryGetValue(BlockAvailability.InUse, out var inUseBlockIndex))
             {
-                var availableBlockIds = availableQuery
-                    .Take(blockIdCount - blockIds.Count)
-                    .AsEnumerable()
-                    .Select(a => a.BlockId)
-                    .ToArray();
-
-                if (availableBlockIds.Length == 0)
+                inUseBlockIndex = new Dictionary<int, AvailableBlock>();
+                blockIndex[BlockAvailability.InUse] = inUseBlockIndex;
+            }
+            while (i != blockIdCount)
+            {
+                if (blockIndex.TryGetValue(
+                    BlockAvailability.Available,
+                    out var availableBlockIndex)
+                    && availableBlockIndex.Count > 0)
                 {
-                    IncrementBlockCount(tx);
+                    while (i != blockIdCount && availableBlockIndex.Count > 0)
+                    {
+                        var availableBlock = availableBlockIndex.First().Value;
+
+                        availableBlockIndex.Remove(availableBlock.BlockId);
+                        inUseBlockIndex[availableBlock.BlockId] = availableBlock with
+                        {
+                            BlockAvailability = BlockAvailability.InUse,
+                            VersionCount = availableBlock.VersionCount + 1
+                        };
+                        blockIds[i] = availableBlock.BlockId;
+                        ++i;
+                    }
                 }
                 else
                 {
-                    availableQuery
-                        .Where(pf => pf.In(a => a.BlockId, availableBlockIds))
-                        .Delete();
-                    _availableBlockTable.AppendRecords(
-                        availableBlockIds
-                        .Select(id => new AvailableBlockRecord(id, BlockAvailability.InUse)),
-                        tx);
-                    blockIds.AddRange(availableBlockIds);
+                    IncrementBlockCount(tx);
                 }
             }
             ValidateValues(tx);
@@ -60,68 +66,141 @@ namespace TrackDb.Lib
 
         public void SetNoLongerInUse(IEnumerable<int> blockIds, TransactionContext tx)
         {
-            var materializedBlockIds = blockIds.ToArray();
-            var deletedCount = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.InUse))
-                .Where(pf => pf.In(a => a.BlockId, materializedBlockIds))
-                .Delete();
+            tx.LoadAvailableBlockInTransaction();
 
-            if (deletedCount != materializedBlockIds.Length)
+            var materializedBlockIds = blockIds.ToArray();
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
+
+            if (!blockIndex.TryGetValue(BlockAvailability.InUse, out var inUseBlockIndex))
             {
-                throw new InvalidOperationException(
-                    $"InUse to available:  expected {materializedBlockIds.Length}, " +
-                    $"found {deletedCount}");
+                inUseBlockIndex = new Dictionary<int, AvailableBlock>();
+                blockIndex[BlockAvailability.InUse] = inUseBlockIndex;
             }
-            _availableBlockTable.AppendRecords(
-                materializedBlockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.NoLongerInUse)),
-                tx);
+            if (!blockIndex.TryGetValue(
+                BlockAvailability.NoLongerInUse,
+                out var noLongerInUseBlockIndex))
+            {
+                noLongerInUseBlockIndex = new Dictionary<int, AvailableBlock>();
+                blockIndex[BlockAvailability.NoLongerInUse] = noLongerInUseBlockIndex;
+            }
+
+            foreach (var blockId in blockIds)
+            {
+                if (inUseBlockIndex.TryGetValue(blockId, out var block))
+                {
+                    inUseBlockIndex.Remove(blockId);
+                    noLongerInUseBlockIndex[blockId] = block with
+                    {
+                        BlockAvailability = BlockAvailability.NoLongerInUse
+                    };
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        $"Block {blockId} is expected to be in use but not found");
+                }
+            }
+
             ValidateValues(tx);
         }
 
         public IEnumerable<int> ResetNoLongerInUsed(TransactionContext tx)
         {
-            var blockIds = _availableBlockTable.Query(tx)
-                .Where(pf => pf.Equal(a => a.BlockAvailability, BlockAvailability.NoLongerInUse))
-                .AsEnumerable()
-                .Select(a => a.BlockId)
-                .ToArray();
+            tx.LoadAvailableBlockInTransaction();
 
-            _availableBlockTable.Query(tx)
-                .Where(pf => pf.In(a => a.BlockId, blockIds))
-                .Delete();
-            _availableBlockTable.AppendRecords(
-                blockIds
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available)),
-                tx);
-            ValidateValues(tx);
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
 
-            return blockIds;
+            if (blockIndex.TryGetValue(
+                BlockAvailability.NoLongerInUse,
+                out var noLongerInUseBlockIndex)
+                && noLongerInUseBlockIndex.Count > 0)
+            {
+                var blockIds = noLongerInUseBlockIndex.Keys.ToArray();
+
+                if (!blockIndex.TryGetValue(BlockAvailability.Available, out var availableBlockIndex))
+                {
+                    availableBlockIndex = new Dictionary<int, AvailableBlock>();
+                    blockIndex[BlockAvailability.Available] = availableBlockIndex;
+                }
+                foreach (var block in noLongerInUseBlockIndex.Values.ToArray())
+                {
+                    noLongerInUseBlockIndex.Remove(block.BlockId);
+                    availableBlockIndex[block.BlockId] = block with
+                    {
+                        BlockAvailability = BlockAvailability.Available
+                    };
+                }
+
+                ValidateValues(tx);
+
+                return blockIds;
+            }
+            else
+            {
+                return Array.Empty<int>();
+            }
+        }
+
+        public int? GetBlockVersion(int blockId, TransactionContext tx)
+        {
+            tx.LoadAvailableBlockInTransaction();
+
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
+
+            if (blockIndex.TryGetValue(BlockAvailability.InUse, out var inUseBlockIndex)
+                && inUseBlockIndex.TryGetValue(blockId, out var block))
+            {
+                return block.VersionCount;
+            }
+            else
+            {
+                return null;
+            }
         }
 
         private void IncrementBlockCount(TransactionContext tx)
         {
-            var maxBlockId = _availableBlockTable.Query(tx)
-                .OrderByDescending(a => a.BlockId)
-                .Take(1)
-                .AsEnumerable()
-                .Select(a => a.BlockId)
-                .FirstOrDefault();
+            tx.LoadAvailableBlockInTransaction();
+
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
+
+            if (!blockIndex.TryGetValue(BlockAvailability.Available, out var availableBlockIndex))
+            {
+                availableBlockIndex = new Dictionary<int, AvailableBlock>();
+                blockIndex[BlockAvailability.Available] = availableBlockIndex;
+            }
+            var allBlocks = blockIndex
+                .Values
+                .SelectMany(d => d.Values);
+            var maxBlockId = allBlocks.Any()
+                ? allBlocks.Max(a => a.BlockId)
+                : 0;
             var targetCapacity = maxBlockId + BLOCK_INCREMENT;
             var newAvailableBlocks = Enumerable.Range(maxBlockId + 1, BLOCK_INCREMENT)
-                .Select(id => new AvailableBlockRecord(id, BlockAvailability.Available));
+                .Select(id => new AvailableBlock(id, 0, BlockAvailability.Available));
 
             _dbFileManager.Value.EnsureBlockCapacity(targetCapacity);
-            _availableBlockTable.AppendRecords(newAvailableBlocks, tx);
+            foreach (var block in newAvailableBlocks)
+            {
+                availableBlockIndex.Add(block.BlockId, block);
+            }
         }
 
         [Conditional("DEBUG")]
         private void ValidateValues(TransactionContext tx)
         {
-            var allBlocks = _availableBlockTable.Query(tx)
-                .ToArray();
+            tx.LoadAvailableBlockInTransaction();
 
-            if (allBlocks.Length > 0)
+            var blockIndex =
+                tx.TransactionState.UncommittedTransactionLog.ReplacingAvailableBlockIndex!;
+            var allBlocks = blockIndex.Values
+                .SelectMany(d => d.Values);
+
+            if (allBlocks.Any())
             {
                 //  Test for duplicates
                 var duplicatedBlockIds = allBlocks
@@ -147,7 +226,7 @@ namespace TrackDb.Lib
                     .Take(1)
                     .Select(a => a.BlockId)
                     .First();
-                var count = allBlocks.Length;
+                var count = allBlocks.Count();
 
                 if (minBlockId != 1)
                 {
