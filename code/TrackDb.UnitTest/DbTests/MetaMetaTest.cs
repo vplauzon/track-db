@@ -38,9 +38,9 @@ namespace TrackDb.UnitTest.DbTests
                 db.PrimitiveTable.AppendRecord(record4);
                 await db.Database.ForceDataManagementAsync(activity);
 
-                //  Meta records got merged
+                //  Meta records got persisted in meta-meta records
                 Assert.True(metadataTable.Query().Count() > 0);
-                Assert.False(metaMetadataTable.Query().Count() > 0);
+                Assert.True(metaMetadataTable.Query().Count() > 0);
             }
         }
 
