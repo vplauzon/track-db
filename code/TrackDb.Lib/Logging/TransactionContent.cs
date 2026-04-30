@@ -16,10 +16,10 @@ namespace TrackDb.Lib.Logging
         IImmutableDictionary<string, TableTransactionContent> Tables)
         : ContentBase<TransactionContent>
     {
-        public int GetRowCount()
+        public int GetRecordCount()
         {
             return Tables.Values
-                .Sum(t => t.GetRowCount());
+                .Sum(t => t.GetRecordCount());
         }
 
         public static TransactionContent FromTransactionLog(

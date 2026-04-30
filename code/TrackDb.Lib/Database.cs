@@ -965,8 +965,8 @@ namespace TrackDb.Lib
         {
             long appendRecordCount = 0;
             long tombstoneRecordCount = 0;
-            var currentBatchCount = 0;
-            var thresholdCount = 4 * DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
+            var currentRecordCount = 0;
+            var thresholdCount = DatabasePolicy.InMemoryPolicy.MaxNonMetaDataRecords;
             var tableSchemaMap = _databaseState.TableMap
                 .Where(p => p.Value.IsUserTable)
                 .Select(p => KeyValuePair.Create(p.Key, p.Value.Table.Schema))
@@ -998,14 +998,14 @@ namespace TrackDb.Lib
 
             await foreach (var transactionContent in logTransactionReader.LoadTransactionsAsync(ct))
             {
-                currentBatchCount += transactionContent.GetRowCount();
+                currentRecordCount += transactionContent.GetRecordCount();
                 logContents.Add(transactionContent);
 
-                if (currentBatchCount > thresholdCount)
+                if (currentRecordCount > thresholdCount)
                 {
                     PushTransactionLogs(logContents);
                     logContents.Clear();
-                    currentBatchCount = 0;
+                    currentRecordCount = 0;
                 }
             }
             PushTransactionLogs(logContents);

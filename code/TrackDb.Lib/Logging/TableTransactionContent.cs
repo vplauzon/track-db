@@ -8,7 +8,7 @@ namespace TrackDb.Lib.Logging
         NewRecordsContent? NewRecordsContent,
         IImmutableList<long>? TombstoneRecordIds)
     {
-        public int GetRowCount()
+        public int GetRecordCount()
         {
             return (NewRecordsContent?.NewRecordIds.Count ?? 0)
                 + (TombstoneRecordIds?.Count ?? 0);
