@@ -33,6 +33,8 @@ The lifecycle manager merges logs, persists records, hard deletes tombstones, an
 Metadata blocks form a hierarchy over data blocks. Each metadata block records the range of values
 for every column of each child block, enabling queries to prune nonmatching blocks. Tombstones and
 replacement blocks must preserve this metadata; changing a child requires ancestor updates to root.
+The hierarchy has no fixed depth: each persisted metadata table gets its own metadata table, and
+metadata held in memory is bounded by policy; persisted levels are loaded on demand.
 
 ## Typed Schemas Define the Public Data Contract
 

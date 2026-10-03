@@ -23,11 +23,22 @@ A **data block** is the immutable, column-oriented container for records from on
 **file block** is a fixed-size allocation in the local database file; its default size is 4 KiB and
 is configured through `StoragePolicy`.
 
-In-memory metadata records the minimum and maximum value of every column in each data block.
-Queries use those ranges to skip data blocks that cannot match.
+Metadata records the minimum and maximum value of every column in each data block. Queries use
+those ranges to skip data blocks that cannot match.
 
-The database retains metadata and data-block identifiers in memory, then loads data blocks on
-demand. Data blocks remain immutable for active transactions; replacing one waits until no active
+Metadata is itself stored as a hierarchy of blocks. Each persisted table, user or metadata, has a
+metadata table that describes its blocks. A metadata table has a table generation one above the
+table it describes (user tables are generation one), and the next level is created on demand when
+that metadata table's own records are persisted. There is no fixed limit on the number of levels.
+
+Metadata records are held in memory only until persisted, which the lifecycle manager does once
+in-memory metadata records exceed `InMemoryPolicy.MaxMetaDataRecords`. The in-memory footprint of
+metadata is therefore bounded by that policy, not by data volume; the topmost level holds the
+records that are not persisted yet. Persisted metadata and data blocks are loaded on demand through
+`BlockCacheManager`, which keeps metadata blocks at a higher cache priority. Do not read this
+section as "all metadata is resident in memory".
+
+Data blocks remain immutable for active transactions; replacing one waits until no active
 transaction still uses it. New records create new data blocks, while deletion creates a replacement
 without deleted records unless the complete data block is removed.
 
