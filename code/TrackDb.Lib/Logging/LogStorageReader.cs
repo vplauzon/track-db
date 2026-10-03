@@ -188,7 +188,7 @@ namespace TrackDb.Lib.Logging
         {
             if (Directory.Exists(_localReadFolder))
             {
-                Directory.Delete(_localReadFolder);
+                Directory.Delete(_localReadFolder, true);
             }
 
             await ValueTask.CompletedTask;
