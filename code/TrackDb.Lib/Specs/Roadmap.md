@@ -1,5 +1,21 @@
 # Roadmap
 
+## Better scalability
+
+Objective would be to support 100 million records in a single table.  Currently that is possible
+but very slow.
+
+## Improve load time
+
+When a database is rehydrated from Azure blob, as soon as it has a few thousand records, it can
+be pretty long to do so.
+
+One of the innefficiency is that we replay the entire log (unless it was compacted).  Since we
+download the logs on local disks, could we do something better?  For instance, could we do two
+passes, one to read the deleted record-IDs (and persist them locally) and then another pass to
+load records but discarding those that get deleted?  This would be less loading, deletion and
+merging.
+
 ## Partitioning
 
 A future partitioning feature could designate table columns as partition keys. Every block in a
