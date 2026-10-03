@@ -3,7 +3,7 @@ name:  Continuous Build / Test
 on:
   push:
     paths-ignore:
-    - documentation/**
+    - code/TrackDb.Lib/Specs/**
 
 jobs:
   build:

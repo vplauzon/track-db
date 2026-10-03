@@ -2,4 +2,5 @@
 
 In-Proc database (formally ipdb) ; learning project to implement database concepts
 
-[Overview](documentation/overview.md) & [Data Life Cycle](documentation/data-life-cycle.md)
+[Specs](code/TrackDb.Lib/Specs/README.md) &
+[Data Life Cycle](code/TrackDb.Lib/Specs/DataLifeCycle.md)
